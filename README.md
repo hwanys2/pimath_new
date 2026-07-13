@@ -1,36 +1,32 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# 수학하는 즐거움 (Math Adventure)
 
-## Getting Started
+중학교 수학을 시뮬레이션·게임으로 탐험하는 모험형 학습 사이트입니다.
 
-First, run the development server:
+## 로컬 실행
 
 ```bash
+npm install
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+브라우저에서 [http://localhost:3000](http://localhost:3000) 을 열어주세요.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## 페이지
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+- `/` — 랜딩 (탐험 배너 + 학년별 퀘스트 카드)
+- `/grade/1` — 중1
+- `/grade/2` — 중2
+- `/grade/3` — 중3
 
-## Learn More
+## 기술 스택
 
-To learn more about Next.js, take a look at the following resources:
+- Next.js (App Router) + TypeScript
+- Tailwind CSS v4
+- Google Fonts (Jua, Noto Sans KR)
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## 캐릭터 / 아트 가이드
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+시뮬레이션·게임용 이미지를 그릴 때 캐릭터를 일관되게 유지하려면 아래 문서를 참고하세요.
 
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- [docs/character-style-guide.md](docs/character-style-guide.md) — 캐릭터 시트, 팔레트, 프롬프트, 에셋 목록
+- 레퍼런스 PNG: `public/images/mascot-v2.png`, `grade-1-v2.png`, `grade-2-v2.png`, `grade-3-v2.png`
