@@ -88,28 +88,38 @@ await supabase.rpc("ensure_supabase_django_user", {
 ## 4. 클라이언트 / 키 / 환경변수
 
 - 환경변수도 `PM_` 접두사로 통일한다. Supabase → Vercel 연동이 만든 `PM_*` 변수를 그대로 사용한다.
-- **현재 Supabase 접근은 전부 서버(서버 컴포넌트/액션/route/proxy)에서만** 일어나므로 `NEXT_PUBLIC_` 노출이 필요 없다. 따라서 서버 전용 `PM_SUPABASE_URL` / `PM_SUPABASE_ANON_KEY` 를 읽는다.
-- **publishable(anon) 키**만 사용한다. `service_role`/secret(`PM_SUPABASE_SERVICE_ROLE_KEY`, `PM_POSTGRES_*` 등)은 앱/클라이언트에서 사용하지 않는다.
+- **현재 Supabase 접근은 전부 서버(서버 컴포넌트/액션/route/proxy)에서만** 일어나므로 `NEXT_PUBLIC_` 노출이 필요 없다. 서버는 `lib/supabase/env.ts` 로 **`PM_SUPABASE_URL` / `PM_SUPABASE_ANON_KEY` 를 우선** 읽고, 없으면 `NEXT_PUBLIC_PM_*` 로 폴백한다.
+- **legacy anon JWT** (`eyJ...`, role=anon)를 쓴다. 빈 값이거나 다른 프로젝트 키면 `signInWithPassword` 가 실패할 수 있다. `service_role`/secret(`PM_SUPABASE_SERVICE_ROLE_KEY`, `PM_POSTGRES_*` 등)은 앱/클라이언트에서 사용하지 않는다.
 
 ```bash
-# .env.local (커밋 금지 — .gitignore 처리됨). Vercel에는 동일 이름으로 이미 세팅됨.
+# .env.local (커밋 금지 — .gitignore 처리됨). Vercel Production에도 동일 이름.
 PM_SUPABASE_URL=https://jmgoqpqyrnoamfjngcmy.supabase.co
-PM_SUPABASE_ANON_KEY=eyJhbGci...   # anon (publishable) 키
+PM_SUPABASE_ANON_KEY=eyJhbGci...   # anon (legacy JWT) 키
+# (선택) 대시보드 중복용 — 서버 폴백
+# NEXT_PUBLIC_PM_SUPABASE_URL=...
+# NEXT_PUBLIC_PM_SUPABASE_ANON_KEY=...
 ```
 
-- 향후 **브라우저(클라이언트 컴포넌트)에서 Supabase가 필요**해지면, 브라우저 노출용으로 `NEXT_PUBLIC_PM_SUPABASE_URL` / `NEXT_PUBLIC_PM_SUPABASE_ANON_KEY` 를 별도로 추가한다 (`PM_` 만 붙은 값은 서버 전용이라 브라우저에서 못 읽음).
+- 향후 **브라우저(클라이언트 컴포넌트)에서 Supabase가 필요**해지면 `NEXT_PUBLIC_PM_*` 를 브라우저에서도 사용한다 (`PM_` 만 붙은 값은 서버 전용).
 - SSR: `@supabase/ssr` 사용. 쿠키 어댑터는 **`getAll`/`setAll` 만** 사용(개별 `get/set/remove` 금지).
 - 세션 보호/검증은 서버에서 **`supabase.auth.getClaims()`** (또는 `getUser()`)로 하고, `getSession()` 결과는 신뢰하지 않는다.
 - Next.js 16: `middleware.ts` 는 deprecated → **`proxy.ts`** 를 사용한다.
+
+### 이메일 로그인 / 비밀번호 (foreducator와 동일)
+
+- foreducator와 pimath 모두 **`supabase.auth.signInWithPassword`** 로 이메일 로그인한다. Django 비밀번호와는 별개다.
+- 비밀번호 재설정: `resetPasswordForEmail` → 메일 링크 → `/auth/callback?next=/reset-password` → `updateUser({ password })`.
+- 재설정한 Auth 비밀번호는 **양쪽 사이트에서 동일**하게 적용된다 (공유 `auth.users`).
 
 ---
 
 ## 5. Auth Redirect URL
 
 - Google/Kakao OAuth는 PKCE 플로우이며 **`redirectTo` 로 항상 pimath 콜백을 명시**한다: `<origin>/auth/callback`.
+- 비밀번호 재설정도 같은 콜백을 쓴다: `<origin>/auth/callback?next=/reset-password`.
 - Supabase 대시보드의 **Redirect URL allow list**에 pimath 콜백을 추가해야 한다.
   - 로컬: `http://localhost:3000/auth/callback`
-  - 프로덕션: `https://<pimath-domain>/auth/callback`
+  - 프로덕션: `https://pimath-new.vercel.app/auth/callback` (커스텀 도메인 전환 시 해당 도메인도)
 - Site URL 은 foreducator 기본값일 수 있으므로, pimath는 `redirectTo`를 명시적으로 넘겨 foreducator 로 튕기지 않게 한다.
 
 ---

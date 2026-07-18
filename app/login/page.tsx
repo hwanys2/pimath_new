@@ -11,9 +11,15 @@ export const metadata: Metadata = {
   description: "로그인하고 수학 모험을 이어가세요.",
 };
 
-export default async function LoginPage() {
+type Props = {
+  searchParams: Promise<{ error?: string; reset?: string }>;
+};
+
+export default async function LoginPage({ searchParams }: Props) {
   const user = await getDisplayUser();
   if (user) redirect("/");
+
+  const params = await searchParams;
 
   return (
     <AuthShell
@@ -32,6 +38,21 @@ export default async function LoginPage() {
       }
     >
       <div className="flex flex-col gap-5">
+        {params.reset === "1" && (
+          <p className="rounded-xl bg-mint/40 px-3 py-2 text-sm font-semibold text-wood">
+            비밀번호를 바꿨어요. 새 비밀번호로 로그인해 주세요.
+          </p>
+        )}
+        {params.error === "oauth" && (
+          <p className="rounded-xl bg-peach/40 px-3 py-2 text-sm font-semibold text-[#a63a1a]">
+            소셜 로그인에 실패했어요. 다시 시도해 주세요.
+          </p>
+        )}
+        {params.error === "auth" && (
+          <p className="rounded-xl bg-peach/40 px-3 py-2 text-sm font-semibold text-[#a63a1a]">
+            인증 링크가 만료됐거나 올바르지 않아요. 다시 시도해 주세요.
+          </p>
+        )}
         <OAuthButtons />
         <Divider />
         <LoginForm />
