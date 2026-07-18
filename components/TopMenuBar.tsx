@@ -4,8 +4,10 @@ import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { GRADES } from "@/lib/grades";
+import { signOut } from "@/app/auth/actions";
+import type { DisplayUser } from "@/lib/auth";
 
-export default function TopMenuBar() {
+export default function TopMenuBar({ user }: { user: DisplayUser | null }) {
   const pathname = usePathname();
 
   return (
@@ -55,14 +57,37 @@ export default function TopMenuBar() {
           })}
         </div>
 
-        <div className="hidden items-center gap-2 md:flex">
-          <span className="badge-pill">Lv.1 탐험가</span>
-          <div className="w-24">
-            <div className="xp-bar">
-              <div className="xp-bar-fill" style={{ width: "28%" }} />
-            </div>
+        {user ? (
+          <div className="flex shrink-0 items-center gap-2">
+            <span className="badge-pill hidden md:inline-flex">Lv.1 탐험가</span>
+            <span className="hidden max-w-[8rem] truncate text-sm font-semibold text-cream sm:inline">
+              {user.name}
+            </span>
+            <form action={signOut}>
+              <button
+                type="submit"
+                className="font-display rounded-xl bg-black/15 px-3 py-2 text-sm text-cream transition hover:bg-black/25"
+              >
+                로그아웃
+              </button>
+            </form>
           </div>
-        </div>
+        ) : (
+          <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
+            <Link
+              href="/login"
+              className="font-display rounded-xl bg-black/15 px-3 py-2 text-sm text-cream transition hover:bg-black/25"
+            >
+              로그인
+            </Link>
+            <Link
+              href="/signup"
+              className="font-display rounded-xl bg-gold px-3 py-2 text-sm text-[#6b4a00] shadow-[0_3px_0_rgba(107,74,0,0.3)] transition hover:brightness-105 active:translate-y-0.5"
+            >
+              가입
+            </Link>
+          </div>
+        )}
       </nav>
     </header>
   );

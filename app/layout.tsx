@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Jua, Noto_Sans_KR } from "next/font/google";
 import TopMenuBar from "@/components/TopMenuBar";
+import { getDisplayUser } from "@/lib/auth";
 import "./globals.css";
 
 const jua = Jua({
@@ -22,15 +23,17 @@ export const metadata: Metadata = {
     "중학교 수학을 시뮬레이션과 게임으로 탐험하는 모험 학습 사이트",
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const user = await getDisplayUser();
+
   return (
     <html lang="ko" className={`${jua.variable} ${notoSansKr.variable} h-full`}>
       <body className="flex min-h-full flex-col antialiased">
-        <TopMenuBar />
+        <TopMenuBar user={user} />
         <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-6 sm:px-6 sm:py-8">
           {children}
         </main>

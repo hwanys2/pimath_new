@@ -17,6 +17,20 @@ npm run dev
 - `/grade/1` — 중1
 - `/grade/2` — 중2
 - `/grade/3` — 중3
+- `/login`, `/signup` — 로그인 / 회원가입 (이메일, Google, Kakao)
+
+## 환경 변수 / 인증
+
+Supabase는 **foreducator.com 과 동일한 프로젝트를 공유**합니다. 계정은 공유하되 pimath 데이터는 `pm_` 접두사로 분리합니다.
+
+로컬 실행 전 `.env.example` 을 참고해 `.env.local` 을 만들어 주세요.
+
+```bash
+NEXT_PUBLIC_SUPABASE_URL=...
+NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=...
+```
+
+작업 전 반드시 [docs/supabase-pm-conventions.md](docs/supabase-pm-conventions.md) 를 읽고 규칙을 지켜주세요.
 
 ## 기술 스택
 
