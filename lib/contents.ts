@@ -36,7 +36,7 @@ export const CONTENTS: ContentMeta[] = [
     href: "/play/g1-u1-1-prime-hunt",
     awardsXp: true,
     description:
-      "점점 커지는 홀수가 소수인지 판정하는 게임입니다. 학급 배정·활성 시 XP와 랭킹이 쌓여요.",
+      "한 판에 나눠 보기 10번, 문제당 10초. 홀수가 소수인지 판정하는 게임입니다. 학급 배정·활성 시 XP와 랭킹이 쌓여요.",
   },
   {
     key: "g1-u1-1-factor-rain",

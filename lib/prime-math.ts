@@ -47,12 +47,12 @@ export type NumberBand = {
 
 /** Escalating bands by round index (1-based). */
 export function bandForRound(round: number): NumberBand {
-  if (round <= 3) return { min: 9, max: 49 };
-  if (round <= 6) return { min: 51, max: 199 };
-  if (round <= 10) return { min: 201, max: 999 };
-  if (round <= 14) return { min: 1001, max: 4999 };
-  if (round <= 18) return { min: 5001, max: 19999 };
-  if (round <= 24) return { min: 20001, max: 79999 };
+  if (round <= 4) return { min: 9, max: 49 };
+  if (round <= 8) return { min: 51, max: 199 };
+  if (round <= 13) return { min: 201, max: 999 };
+  if (round <= 18) return { min: 1001, max: 4999 };
+  if (round <= 23) return { min: 5001, max: 19999 };
+  if (round <= 29) return { min: 20001, max: 79999 };
   return { min: 80001, max: 199999 };
 }
 
@@ -64,7 +64,7 @@ export function dealOddNumber(round: number, preferPrime?: boolean): number {
   const band = bandForRound(round);
   const wantPrime =
     preferPrime ??
-    (round <= 4 ? Math.random() < 0.35 : Math.random() < 0.48);
+    (round <= 6 ? Math.random() < 0.35 : Math.random() < 0.48);
 
   for (let attempt = 0; attempt < 80; attempt++) {
     const n = randomOddInRange(band.min, band.max);
@@ -99,4 +99,8 @@ export function isBonusRound(round: number, lastBonusRound: number): boolean {
 
 export const START_LIVES = 3;
 export const MAX_LIVES = 5;
-export const MAX_TRIALS = 3;
+/** Total divide attempts for one full run (not per round). */
+export const MAX_TRIALS = 10;
+export const TOTAL_DIVIDE_ATTEMPTS = MAX_TRIALS;
+/** Seconds allowed to answer each round. */
+export const ROUND_TIME_SEC = 10;

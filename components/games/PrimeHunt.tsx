@@ -1,6 +1,12 @@
 "use client";
 
-import { useCallback, useEffect, useState, useTransition } from "react";
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  useTransition,
+} from "react";
 import type { RankingMode, RankingRow, RankingScope } from "@/lib/game-types";
 import GameRankingBoard from "@/components/games/GameRankingBoard";
 import {
@@ -12,6 +18,7 @@ import {
   START_LIVES,
   MAX_LIVES,
   MAX_TRIALS,
+  ROUND_TIME_SEC,
   clampScore,
   dealOddNumber,
   isBonusRound,
@@ -37,6 +44,7 @@ type Feedback = {
   gained: number;
   lifeDelta: number;
   bonus: boolean;
+  timedOut?: boolean;
 };
 
 function Hearts({ lives, max }: { lives: number; max: number }) {
@@ -66,6 +74,7 @@ export default function PrimeHunt() {
   const [lives, setLives] = useState(START_LIVES);
   const [score, setScore] = useState(0);
   const [streak, setStreak] = useState(0);
+  const [trialsBudget, setTrialsBudget] = useState(MAX_TRIALS);
   const [trials, setTrials] = useState<Trial[]>([]);
   const [usedPrimes, setUsedPrimes] = useState<number[]>([]);
   const [bonus, setBonus] = useState(false);
@@ -73,6 +82,7 @@ export default function PrimeHunt() {
   const [phase, setPhase] = useState<Phase>("playing");
   const [feedback, setFeedback] = useState<Feedback | null>(null);
   const [flashOx, setFlashOx] = useState<"O" | "X" | null>(null);
+  const [secondsLeft, setSecondsLeft] = useState(ROUND_TIME_SEC);
   const [submitResult, setSubmitResult] = useState<GameSubmitClientResult | null>(
     null,
   );
@@ -81,8 +91,10 @@ export default function PrimeHunt() {
   const [rankingMode, setRankingMode] = useState<RankingMode>("best");
   const [isPending, startTransition] = useTransition();
 
+  const phaseRef = useRef<Phase>(phase);
+  phaseRef.current = phase;
+
   const helperPrimes = primesUpToSqrt(n);
-  const trialsLeft = MAX_TRIALS - trials.length;
 
   const resetBoard = useCallback((nextRound: number, prevBonusRound: number) => {
     const nextBonus = isBonusRound(nextRound, prevBonusRound);
@@ -95,12 +107,14 @@ export default function PrimeHunt() {
     setPhase("playing");
     setFeedback(null);
     setFlashOx(null);
+    setSecondsLeft(ROUND_TIME_SEC);
   }, []);
 
   const startFresh = useCallback(() => {
     setLives(START_LIVES);
     setScore(0);
     setStreak(0);
+    setTrialsBudget(MAX_TRIALS);
     setLastBonusRound(0);
     setSubmitResult(null);
     setRanking([]);
@@ -110,75 +124,81 @@ export default function PrimeHunt() {
   }, [resetBoard]);
 
   const tryDivide = (p: number) => {
-    if (phase !== "playing" || trials.length >= MAX_TRIALS) return;
+    if (phase !== "playing" || trialsBudget <= 0) return;
     if (usedPrimes.includes(p)) return;
     const quotient = Math.floor(n / p);
     const remainder = n % p;
+    setTrialsBudget((prev) => prev - 1);
     setTrials((prev) => [...prev, { prime: p, quotient, remainder }]);
     setUsedPrimes((prev) => [...prev, p]);
   };
 
-  const answer = (saysPrime: boolean) => {
-    if (phase !== "playing") return;
-    const actuallyPrime = isPrime(n);
-    const correct = saysPrime === actuallyPrime;
-    setFlashOx(saysPrime ? "O" : "X");
+  const answer = useCallback(
+    (saysPrime: boolean, timedOut = false) => {
+      if (phaseRef.current !== "playing") return;
+      phaseRef.current = "feedback";
 
-    let nextLives = lives;
-    let nextScore = score;
-    let nextStreak = streak;
-    let lifeDelta = 0;
-    let gained = 0;
+      const actuallyPrime = isPrime(n);
+      const correct = !timedOut && saysPrime === actuallyPrime;
+      if (!timedOut) setFlashOx(saysPrime ? "O" : "X");
 
-    if (correct) {
-      gained = pointsForCorrect(n, streak);
-      if (bonus) gained += 10;
-      nextScore = applyScoreGain(score, gained);
-      nextStreak = streak + 1;
-      if (bonus && lives < MAX_LIVES) {
-        nextLives = lives + 1;
-        lifeDelta = 1;
+      let nextLives = lives;
+      let nextScore = score;
+      let nextStreak = streak;
+      let lifeDelta = 0;
+      let gained = 0;
+
+      if (correct) {
+        gained = pointsForCorrect(n, streak);
+        if (bonus) gained += 10;
+        nextScore = applyScoreGain(score, gained);
+        nextStreak = streak + 1;
+        if (bonus && lives < MAX_LIVES) {
+          nextLives = lives + 1;
+          lifeDelta = 1;
+        }
+      } else {
+        nextLives = lives - 1;
+        lifeDelta = -1;
+        nextStreak = 0;
       }
-    } else {
-      nextLives = lives - 1;
-      lifeDelta = -1;
-      nextStreak = 0;
-    }
 
-    setScore(nextScore);
-    setStreak(nextStreak);
-    setLives(nextLives);
-    setFeedback({
-      correct,
-      wasPrime: actuallyPrime,
-      gained,
-      lifeDelta,
-      bonus,
-    });
-    setPhase("feedback");
+      setScore(nextScore);
+      setStreak(nextStreak);
+      setLives(nextLives);
+      setFeedback({
+        correct,
+        wasPrime: actuallyPrime,
+        gained,
+        lifeDelta,
+        bonus,
+        timedOut,
+      });
+      setPhase("feedback");
 
-    if (nextLives <= 0) {
-      // End after short feedback beat
-      window.setTimeout(() => {
-        setPhase("ended");
-        startTransition(async () => {
-          const result = await submitGameRun({
-            contentKey: CONTENT_KEY,
-            score: nextScore,
-          });
-          setSubmitResult(result);
-          if (result.recorded) {
-            const rows = await fetchGameRanking({
+      if (nextLives <= 0) {
+        window.setTimeout(() => {
+          setPhase("ended");
+          startTransition(async () => {
+            const result = await submitGameRun({
               contentKey: CONTENT_KEY,
-              scope: "class",
-              mode: "best",
+              score: nextScore,
             });
-            setRanking(rows);
-          }
-        });
-      }, 900);
-    }
-  };
+            setSubmitResult(result);
+            if (result.recorded) {
+              const rows = await fetchGameRanking({
+                contentKey: CONTENT_KEY,
+                scope: "class",
+                mode: "best",
+              });
+              setRanking(rows);
+            }
+          });
+        }, 900);
+      }
+    },
+    [n, lives, score, streak, bonus, startTransition],
+  );
 
   const continueAfterFeedback = () => {
     if (phase !== "feedback" || lives <= 0) return;
@@ -193,6 +213,18 @@ export default function PrimeHunt() {
     return () => window.clearTimeout(id);
     // eslint-disable-next-line react-hooks/exhaustive-deps -- only re-arm when feedback appears
   }, [phase, feedback, lives]);
+
+  useEffect(() => {
+    if (phase !== "playing") return;
+    if (secondsLeft <= 0) {
+      answer(false, true);
+      return;
+    }
+    const id = window.setTimeout(() => {
+      setSecondsLeft((s) => s - 1);
+    }, 1000);
+    return () => window.clearTimeout(id);
+  }, [phase, secondsLeft, answer]);
 
   const loadRanking = (next: {
     scope?: RankingScope;
@@ -212,6 +244,8 @@ export default function PrimeHunt() {
     });
   };
 
+  const timerUrgent = secondsLeft <= 3;
+
   return (
     <div className="flex flex-col gap-5">
       <section className="quest-card bg-gradient-to-br from-mint/40 via-sky/20 to-gold/25 p-5 sm:p-7">
@@ -220,9 +254,9 @@ export default function PrimeHunt() {
           소수 찾기
         </h1>
         <p className="mt-3 max-w-2xl text-sm leading-relaxed text-foreground/75 sm:text-base">
-          점점 커지는 홀수가 나와요. 제곱근보다 작은 소수로 최대 {MAX_TRIALS}
-          번 나눠 본 뒤, 소수인지 아닌지 큰 O / X 로 판정하세요. 생명은{" "}
-          {START_LIVES}개, 보너스 문항에서 회복할 수 있어요.
+          점점 커지는 홀수가 나와요. 한 판에 나눠 보기 {MAX_TRIALS}번, 문제당{" "}
+          {ROUND_TIME_SEC}초. 시간이 지나면 자동으로 틀려요. O / X 로
+          판정하고, 생명은 {START_LIVES}개 · 보너스 문항에서 회복할 수 있어요.
         </p>
       </section>
 
@@ -292,6 +326,18 @@ export default function PrimeHunt() {
             <div className="flex flex-wrap items-center justify-between gap-3">
               <Hearts lives={lives} max={MAX_LIVES} />
               <div className="flex flex-wrap items-center gap-3 text-sm font-bold text-wood">
+                <span
+                  className={[
+                    "rounded-xl px-3 py-1 tabular-nums",
+                    timerUrgent
+                      ? "bg-[#e85d4c]/20 text-[#a63a1a]"
+                      : "bg-sky/30 text-wood",
+                  ].join(" ")}
+                  aria-live="polite"
+                  aria-label={`남은 시간 ${secondsLeft}초`}
+                >
+                  {secondsLeft}초
+                </span>
                 <span>라운드 {round}</span>
                 <span className="rounded-xl bg-gold/50 px-3 py-1">
                   {score}점
@@ -356,7 +402,9 @@ export default function PrimeHunt() {
                   ? `정답! ${feedback.wasPrime ? "소수" : "합성수"}예요 (+${feedback.gained}점${
                       feedback.lifeDelta > 0 ? " · 생명 +1" : ""
                     })`
-                  : `아쉬워요. ${feedback.wasPrime ? "소수" : "합성수"}였어요`}
+                  : feedback.timedOut
+                    ? `시간 초과! ${feedback.wasPrime ? "소수" : "합성수"}였어요`
+                    : `아쉬워요. ${feedback.wasPrime ? "소수" : "합성수"}였어요`}
               </p>
             ) : null}
 
@@ -366,14 +414,14 @@ export default function PrimeHunt() {
                   √{n.toLocaleString("ko-KR")} 이하 소수로 나눠 보기
                 </p>
                 <p className="text-xs font-semibold text-foreground/55">
-                  남은 시도 {trialsLeft}/{MAX_TRIALS}
+                  남은 시도 {trialsBudget}/{MAX_TRIALS}
                 </p>
               </div>
               <div className="mt-3 flex flex-wrap gap-2">
                 {helperPrimes.map((p) => {
                   const used = usedPrimes.includes(p);
                   const disabled =
-                    phase !== "playing" || used || trials.length >= MAX_TRIALS;
+                    phase !== "playing" || used || trialsBudget <= 0;
                   return (
                     <button
                       key={p}
@@ -413,7 +461,8 @@ export default function PrimeHunt() {
                 </ul>
               ) : (
                 <p className="mt-3 text-xs text-foreground/50">
-                  칩을 눌러 나눠 보세요. 나머지가 0이면 합성수예요.
+                  칩을 눌러 나눠 보세요. 한 판에 {MAX_TRIALS}번까지, 나머지가
+                  0이면 합성수예요.
                 </p>
               )}
             </div>
