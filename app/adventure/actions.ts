@@ -2,6 +2,11 @@
 
 import { revalidatePath } from "next/cache";
 import {
+  fetchClassGameRanking,
+  submitGameRunFromSession,
+} from "@/lib/game-runs";
+import type { RankingMode, RankingRow } from "@/lib/game-types";
+import {
   awardStudentXpFromSession,
   setStudentAvatarFromSession,
 } from "@/lib/xp-award";
@@ -14,10 +19,67 @@ export type AdventureActionResult = {
   xpAwarded?: number;
 };
 
+export type GameSubmitClientResult = {
+  error?: string;
+  message?: string;
+  recorded: boolean;
+  practiceOnly: boolean;
+  score: number;
+  leveledUp?: boolean;
+  level?: number;
+  xpAwarded?: number;
+};
+
 /**
- * Award XP after a **game** run ends (not simulations).
- * Score must be 0–1000 (clamped server-side).
+ * Official game finish path: XP + ranking only when the student's class
+ * has this content assigned and active. Guests / unassigned → practice mode.
  * See docs/content-system.md and docs/progression-system.md.
+ */
+export async function submitGameRun(input: {
+  contentKey: string;
+  score: number;
+}): Promise<GameSubmitClientResult> {
+  const result = await submitGameRunFromSession(input);
+  if ("error" in result) {
+    return {
+      error: result.error,
+      recorded: false,
+      practiceOnly: true,
+      score: 0,
+    };
+  }
+
+  if (result.recorded) {
+    revalidatePath("/adventure");
+    revalidatePath("/");
+    revalidatePath("/teacher");
+  }
+
+  return {
+    recorded: result.recorded,
+    practiceOnly: result.practiceOnly,
+    score: result.score,
+    leveledUp: result.leveledUp,
+    level: result.levelAfter,
+    xpAwarded: result.xpAwarded,
+    message: result.recorded
+      ? result.leveledUp
+        ? `레벨 업! Lv.${result.levelAfter}이 되었어요 (+${result.xpAwarded} XP)`
+        : `+${result.xpAwarded} XP를 얻었어요`
+      : undefined,
+  };
+}
+
+export async function fetchGameRanking(input: {
+  contentKey: string;
+  mode: RankingMode;
+}): Promise<RankingRow[]> {
+  return fetchClassGameRanking(input);
+}
+
+/**
+ * Demo / practice XP only. Real games must use `submitGameRun`.
+ * Score must be 0–1000 (clamped server-side).
  */
 export async function awardStudentXp(input: {
   gameKey: string;

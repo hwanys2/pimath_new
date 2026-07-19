@@ -28,6 +28,16 @@ export const CONTENTS: ContentMeta[] = [
     description:
       "숫자 격자에서 배수를 지워 가며 소수를 찾아보는 시뮬레이션입니다. 점수는 없어요.",
   },
+  {
+    key: "g1-u1-1-prime-hunt",
+    unitId: "g1-1-1",
+    type: "game",
+    title: "소수 찾기",
+    href: "/play/g1-u1-1-prime-hunt",
+    awardsXp: true,
+    description:
+      "점점 커지는 홀수가 소수인지 판정하는 게임입니다. 학급 배정·활성 시 XP와 랭킹이 쌓여요.",
+  },
 ];
 
 export function getContent(key: string): ContentMeta | undefined {

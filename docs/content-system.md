@@ -70,7 +70,8 @@ type ContentMeta = {
 
 - `/play/{contentKey}` 는 **로그인·배정 여부와 무관하게** 항상 열 수 있다.
 - 교사가 수업 밖에서 링크를 공유하거나, 학생이 학년·단원 페이지에서 바로 들어가도 된다.
-- 공개 플레이여도 **시뮬레이션은 XP 없음**. 게임은 학생 로그인 시에만 XP 규칙 적용(향후 게임 구현 시).
+- 공개 플레이여도 **시뮬레이션은 XP 없음**.
+- **게임**도 공개 URL로 연습할 수 있지만, XP·학급 랭킹은 아래 §5.3 조건을 만족할 때만 반영된다.
 
 ### 5.2 학급 배정 (담아두기 · 활성화)
 
@@ -90,9 +91,22 @@ type ContentMeta = {
 ```
 공개 URL ──(항상)──▶ 플레이
 교사 담아두기 ──▶ 학생 목록에 표시
-      └─ 활성화 ──▶ 목록에서 플레이 버튼 활성
-      └─ 비활성 ──▶ 목록에만 보임 (URL은 여전히 열림)
+      └─ 활성화 ──▶ 목록에서 플레이 버튼 활성 (+ 게임 XP/랭킹 가능)
+      └─ 비활성 ──▶ 목록에만 보임 (URL은 여전히 열림 · 연습만)
 ```
+
+### 5.3 게임 XP · 학급 랭킹 (배정·활성일 때만)
+
+| 상황 | 플레이 | XP | 학급 랭킹 기록 |
+|------|--------|----|----------------|
+| 공개 링크 / 비로그인 | 가능 | 없음 | 없음 |
+| 학생 로그인 + **미배정** | 가능 | 없음 | 없음 |
+| 학생 로그인 + **배정·비활성** | 가능 (공개 URL) | 없음 | 없음 |
+| 학생 로그인 + **배정·활성** | 가능 | **있음** (점수→XP 1:1) | **있음** |
+
+- 정식 게임 종료 시 `submitGameRun({ contentKey, score })` 를 호출한다 ([`progression-system.md`](progression-system.md)).
+- 서버는 학생 세션 + `pm_class_contents.is_active = true` 일 때만 `pm_game_runs` 기록과 XP를 반영한다.
+- 그 외에는 **연습 모드**로 플레이만 되고 점수는 저장되지 않는다.
 
 ---
 
@@ -106,13 +120,16 @@ type ContentMeta = {
 | `lib/contents.ts` | 콘텐츠 메타 + 조회 헬퍼 |
 | `lib/grades.ts` | 학년 테마·캐릭터 |
 
-### DB (배정만)
+### DB (배정 · 게임 기록)
 
 | 객체 | 역할 |
 |------|------|
 | `pm_class_contents` | 학급별 `content_key` + `is_active` |
 | RLS | 교사는 자기 학급만 CRUD (`pm_classes.teacher_id = auth.uid()`) |
 | `pm_list_my_class_contents(session)` | 학생 세션으로 자기 반 배정 목록 조회 |
+| `pm_game_runs` | 학급·활성 배정 게임의 한 판 점수 기록 |
+| `pm_submit_game_run` | 배정·활성일 때만 기록 + XP |
+| `pm_list_class_game_ranking` | 학급 랭킹 (`all` / `best`) |
 
 학생은 `auth.users`가 아니므로 테이블 직접 SELECT 대신 **세션 토큰 RPC**를 쓴다.
 
@@ -141,7 +158,8 @@ type ContentMeta = {
 
 - “우리 반 콘텐츠”: 배정된 항목만
 - 활성 → 플레이, 비활성 → 잠금 표시
-- 시뮬레이션: “연습 · 점수 없음”, 게임: XP 안내
+- 시뮬레이션: “연습 · 점수 없음”
+- 게임: 배정·활성 시 XP·랭킹, 아니면 “연습 모드” 안내
 
 ### 학년 탐험 (공개)
 
@@ -157,7 +175,7 @@ type ContentMeta = {
 3. `type === "simulation"` 이면 XP 호출 없음 / `game` 이면 [`progression-system.md`](progression-system.md) 준수
 4. 공개 `/play/...` 가 로그인 없이 동작하는지 확인
 5. 교사 담아두기 UI·콘텐츠 「배정」 버튼에 자동 노출되는지 확인 (카탈로그 기반)
-6. (게임만) `awardStudentXp({ gameKey: content.key, score })` — `gameKey`는 `content.key`와 동일 권장
+6. (게임만) `submitGameRun({ contentKey: content.key, score })` — 배정·활성일 때만 XP·랭킹. `contentKey`는 카탈로그 `key`와 동일
 
 ---
 
@@ -168,3 +186,4 @@ type ContentMeta = {
 | 2026-07-19 | 초판: 공개+배정 이중 접근, sim≠XP, 단원 트리, `pm_class_contents` |
 | 2026-07-19 | 단원/플레이 「배정」→ 학급 선택(담아두기+활성화), 체 연출·완료·상한 1000 |
 | 2026-07-19 | 배정 체크 표시 · 다시 클릭 시 확인 후 배정 취소 |
+| 2026-07-19 | 게임 XP·랭킹은 학생+배정·활성만 · `pm_game_runs` / `submitGameRun` |

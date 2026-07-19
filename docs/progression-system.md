@@ -60,15 +60,17 @@ SQL: `pm_level_from_xp` / `pm_cumulative_xp_for_level` (동일 식).
 
 1. **한 판 만점은 대략 1000점**.  
 2. 부분 점수 허용 (0~1000). 1000 초과 금지.  
-3. 클리어 후 서버에서만 XP 부여.
+3. 클리어 후 서버에서만 XP·랭킹 반영 — **정식 경로는 `submitGameRun`**.
 
 ```ts
-import { awardStudentXp } from "@/app/adventure/actions";
-await awardStudentXp({ gameKey: "g1-u2-1-equation-race", score: earnedScore });
+import { submitGameRun } from "@/app/adventure/actions";
+await submitGameRun({ contentKey: "g1-u1-1-prime-hunt", score: earnedScore });
 ```
 
-4. `gameKey`는 콘텐츠 카탈로그 `key`와 동일하게 쓴다 ([`content-system.md`](content-system.md)).  
-5. 같은 판 반복 클리어 시에도 XP 누적 (연습 장려).
+4. `contentKey`는 콘텐츠 카탈로그 `key`와 동일하게 쓴다 ([`content-system.md`](content-system.md)).  
+5. XP·학급 랭킹은 **학생 세션 + 해당 콘텐츠가 학급에 배정·활성**일 때만 반영된다. 그 외(공개 링크·미배정·비활성)는 연습 모드.  
+6. 같은 판 반복 클리어 시에도 (배정·활성이면) XP·기록이 누적된다 (연습 장려).  
+7. `awardStudentXp`는 데모/연습용이다. **정식 게임 UI는 `submitGameRun`만** 호출한다.
 
 | 성과 | 권장 점수대 |
 |------|-------------|
@@ -76,6 +78,18 @@ await awardStudentXp({ gameKey: "g1-u2-1-equation-race", score: earnedScore });
 | 보통 클리어 | 400–700 |
 | 잘함 | 750–900 |
 | 거의 만점 | 950–1000 |
+
+### 3.1 학급 랭킹 (게임 결과 화면)
+
+배정·활성으로 제출된 기록(`pm_game_runs`)을 같은 학급 학생끼리 보여 준다.
+
+| 모드 | `p_mode` | 의미 |
+|------|----------|------|
+| **전체 기록** | `all` | 한 학생이 1·2·3등을 모두 차지할 수 있음 (판마다 행) |
+| **개인 최고** | `best` | 학생당 최고점 1행만 |
+
+- RPC: `pm_list_class_game_ranking(session, content_key, mode)`
+- UI: 결과 화면에서 두 모드를 토글할 수 있게 한다. 이후 게임들도 동일 패턴.
 
 ---
 
@@ -130,10 +144,13 @@ await awardStudentXp({ gameKey: "g1-u2-1-equation-race", score: earnedScore });
 | `pm_students.total_xp` / `level` / `active_avatar` | 진행 요약 |
 | `pm_xp_events` | 지급 로그 |
 | `pm_student_sessions` | opaque 세션 |
-| `pm_award_student_xp` | XP 지급 (상한 50만) |
+| `pm_award_student_xp` | XP 지급 (상한 50만) — 데모/`submit` 내부 |
 | `pm_get_student_progress` / `pm_set_student_avatar` | 조회·아바타 |
+| `pm_game_runs` | 학급·활성 게임 한 판 점수 |
+| `pm_submit_game_run` | 배정·활성일 때 기록 + XP |
+| `pm_list_class_game_ranking` | 학급 랭킹 (`all` / `best`) |
 
-UI: `/adventure` (폼 도감 + 장비 도감 + 장착 프리뷰).
+UI: `/adventure` (폼 도감 + 장비 도감 + 장착 프리뷰). 게임 결과 화면에서 학급 랭킹.
 
 ---
 
@@ -141,6 +158,7 @@ UI: `/adventure` (폼 도감 + 장비 도감 + 장착 프리뷰).
 
 - 점수는 Server Action에서만 확정 후 RPC  
 - 세션 토큰 해시 검증, score 0–1000 클램프  
+- XP·랭킹은 배정·활성(`pm_class_contents.is_active`) 검증 후에만 기록  
 
 ---
 
@@ -151,3 +169,4 @@ UI: `/adventure` (폼 도감 + 장비 도감 + 장착 프리뷰).
 | 2026-07-19 | 초판: 100만 XP / 6단계 파이 |
 | 2026-07-19 | **v2**: 50만 XP · 지수 2.25 · 파이 20폼 · 장비 28종 |
 | 2026-07-19 | 시뮬레이션은 XP 제외 · 게임만 이 문서 적용 ([`content-system.md`](content-system.md)) |
+| 2026-07-19 | `submitGameRun` · 배정·활성만 XP · 학급 랭킹 `all`/`best` |

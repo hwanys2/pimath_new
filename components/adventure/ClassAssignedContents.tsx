@@ -56,7 +56,7 @@ export default function ClassAssignedContents({ items }: Props) {
                       </span>
                     ) : content?.awardsXp ? (
                       <span className="text-[11px] font-semibold text-foreground/50">
-                        XP 획득
+                        XP · 랭킹
                       </span>
                     ) : null}
                   </div>
