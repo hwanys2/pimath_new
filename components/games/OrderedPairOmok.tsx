@@ -25,8 +25,8 @@ import {
   omokLobbyContextAction,
   omokPlaceMoveAction,
   omokPollAction,
-  type OmokPollState,
 } from "@/app/play/g1-u2-3-ordered-pair-omok/actions";
+import type { OmokPollState } from "@/lib/omok-types";
 import {
   boardFromObject,
   boardIsFull,

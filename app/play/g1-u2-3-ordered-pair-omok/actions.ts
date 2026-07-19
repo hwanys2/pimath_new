@@ -8,11 +8,8 @@ import {
   omokLeaveQueue,
   omokPlaceMove,
   omokPoll,
-  type OmokPollState,
-  type OmokQueueScope,
 } from "@/lib/omok-match";
-
-export type { OmokPollState, OmokQueueScope };
+import type { OmokQueueScope } from "@/lib/omok-types";
 
 export async function omokJoinQueueAction(input: {
   scope: OmokQueueScope;

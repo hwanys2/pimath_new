@@ -11,31 +11,9 @@ import {
   type BoardMap,
   type Stone,
 } from "@/lib/ordered-pair-omok-math";
+import type { OmokPollState, OmokQueueScope } from "@/lib/omok-types";
 
-export type OmokQueueScope = "class" | "global";
-
-export type OmokPollState = {
-  phase: "idle" | "waiting" | "playing" | "ended";
-  queueId: string | null;
-  queueScope: OmokQueueScope | null;
-  queueStatus: string | null;
-  gameId: string | null;
-  gameStatus: string | null;
-  scope: string | null;
-  board: Record<string, Stone>;
-  turn: Stone | null;
-  blackKey: string | null;
-  whiteKey: string | null;
-  blackName: string | null;
-  whiteName: string | null;
-  myKey: string | null;
-  myStone: Stone | null;
-  lastX: number | null;
-  lastY: number | null;
-  moveCount: number;
-  myScore: number | null;
-  opponentName: string | null;
-};
+export type { OmokPollState, OmokQueueScope } from "@/lib/omok-types";
 
 function firstRow<T>(data: T | T[] | null): T | null {
   if (!data) return null;
