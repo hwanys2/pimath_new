@@ -41,7 +41,7 @@ const SLOT_LABEL: Record<CosmeticSlot, string> = {
   aura: "오라",
 };
 
-const SLOT_ORDER: CosmeticSlot[] = ["aura", "cape", "pin", "badge", "staff"];
+const SLOT_ORDER: CosmeticSlot[] = ["pin", "staff", "cape", "badge", "aura"];
 
 export default function AdventureProfile({
   displayName,
@@ -93,90 +93,16 @@ export default function AdventureProfile({
         </p>
       )}
 
-      <section className="quest-card grid gap-6 p-5 sm:grid-cols-[minmax(0,260px)_1fr] sm:p-8">
-        <div className="relative mx-auto w-full max-w-[240px]">
-          <div className="relative aspect-[3/4] w-full">
-            {equipped.aura && (
-              <div className="pointer-events-none absolute inset-0 -z-0 flex items-center justify-center opacity-70">
-                <Image
-                  src={equipped.aura.icon}
-                  alt=""
-                  width={200}
-                  height={200}
-                  className="h-[90%] w-[90%] object-contain blur-[0.5px]"
-                />
-              </div>
-            )}
-            <Image
-              src={avatar.image}
-              alt={avatar.title}
-              fill
-              className="relative z-10 object-contain drop-shadow-lg"
-              sizes="240px"
-              priority
-            />
-            {equipped.cape && (
-              <Image
-                src={equipped.cape.icon}
-                alt=""
-                width={56}
-                height={56}
-                className="absolute bottom-6 left-0 z-20 h-12 w-12 object-contain drop-shadow"
-              />
-            )}
-            {equipped.pin && (
-              <Image
-                src={equipped.pin.icon}
-                alt=""
-                width={48}
-                height={48}
-                className="absolute top-4 right-2 z-20 h-11 w-11 object-contain drop-shadow"
-              />
-            )}
-            {equipped.badge && (
-              <Image
-                src={equipped.badge.icon}
-                alt=""
-                width={48}
-                height={48}
-                className="absolute bottom-8 right-0 z-20 h-11 w-11 object-contain drop-shadow"
-              />
-            )}
-            {equipped.staff && (
-              <Image
-                src={equipped.staff.icon}
-                alt=""
-                width={56}
-                height={56}
-                className="absolute top-1/3 left-0 z-20 h-12 w-12 object-contain drop-shadow"
-              />
-            )}
-          </div>
-          <ul className="mt-3 flex flex-wrap justify-center gap-1.5">
-            {SLOT_ORDER.map((slot) => {
-              const item = equipped[slot];
-              return (
-                <li
-                  key={slot}
-                  className="flex items-center gap-1 rounded-lg bg-cream px-2 py-1 text-[10px] font-bold text-wood/80"
-                  title={item?.name ?? `${SLOT_LABEL[slot]} 미해금`}
-                >
-                  {item ? (
-                    <Image
-                      src={item.icon}
-                      alt={item.name}
-                      width={18}
-                      height={18}
-                      className="h-4.5 w-4.5 object-contain"
-                    />
-                  ) : (
-                    <span className="inline-block h-4 w-4 rounded bg-wood/15" />
-                  )}
-                  {SLOT_LABEL[slot]}
-                </li>
-              );
-            })}
-          </ul>
+      <section className="quest-card grid gap-6 p-5 sm:grid-cols-[minmax(0,240px)_1fr] sm:p-8">
+        <div className="relative mx-auto aspect-[3/4] w-full max-w-[220px]">
+          <Image
+            src={avatar.image}
+            alt={avatar.title}
+            fill
+            className="object-contain drop-shadow-lg"
+            sizes="220px"
+            priority
+          />
         </div>
 
         <div className="flex flex-col justify-center gap-4">
@@ -224,49 +150,108 @@ export default function AdventureProfile({
         </div>
       </section>
 
-      <section>
-        <h2 className="font-display text-xl text-wood">장착 장비</h2>
-        <p className="mt-1 text-sm text-foreground/65">
-          레벨이 오를수록 핀·지팡이·망토·배지·오라가 자동으로 강해져요.
-        </p>
-        <ul className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          {COSMETICS.map((item) => {
-            const unlocked = unlockedCosmeticIds.includes(item.id);
-            const isEquipped = equipped[item.slot]?.id === item.id;
-            return (
-              <li
-                key={item.id}
-                className={`quest-card flex items-center gap-3 p-3 ${
-                  unlocked ? "" : "opacity-40 grayscale"
-                } ${isEquipped ? "ring-4 ring-gold/70" : ""}`}
-              >
-                <div className="relative h-14 w-14 shrink-0 rounded-xl bg-cream">
-                  <Image
-                    src={item.icon}
-                    alt={item.name}
-                    fill
-                    className="object-contain p-1"
-                    sizes="56px"
-                  />
-                </div>
-                <div className="min-w-0">
-                  <p className="font-display text-sm text-foreground">
+      <section className="quest-card overflow-hidden p-5 sm:p-6">
+        <div className="flex flex-wrap items-end justify-between gap-2">
+          <div>
+            <h2 className="font-display text-xl text-wood">장신구 보관함</h2>
+            <p className="mt-1 text-sm text-foreground/65">
+              레벨이 오를수록 핀·지팡이·망토·배지·오라가 자동으로 장착돼요.
+            </p>
+          </div>
+        </div>
+
+        <div className="mt-5 rounded-2xl border-2 border-wood/15 bg-gradient-to-b from-cream to-white p-4">
+          <p className="mb-3 text-xs font-bold uppercase tracking-wide text-wood/60">
+            현재 장착
+          </p>
+          <ul className="grid grid-cols-5 gap-2 sm:gap-3">
+            {SLOT_ORDER.map((slot) => {
+              const item = equipped[slot];
+              return (
+                <li
+                  key={slot}
+                  className="flex flex-col items-center gap-1.5 rounded-xl border-2 border-dashed border-wood/20 bg-white/80 p-2 shadow-[0_2px_0_rgba(139,94,60,0.08)]"
+                >
+                  <div className="relative flex h-14 w-14 items-center justify-center rounded-lg bg-cream/80 sm:h-16 sm:w-16">
+                    {item ? (
+                      <Image
+                        src={item.icon}
+                        alt={item.name}
+                        width={56}
+                        height={56}
+                        className="h-12 w-12 object-contain sm:h-14 sm:w-14"
+                      />
+                    ) : (
+                      <span className="text-[10px] font-semibold text-wood/30">
+                        빈칸
+                      </span>
+                    )}
+                  </div>
+                  <span className="font-display text-[11px] text-wood sm:text-xs">
+                    {SLOT_LABEL[slot]}
+                  </span>
+                  <span className="line-clamp-1 text-center text-[9px] text-foreground/45">
+                    {item?.name ?? "—"}
+                  </span>
+                </li>
+              );
+            })}
+          </ul>
+        </div>
+
+        <div className="mt-5">
+          <p className="mb-3 text-xs font-bold uppercase tracking-wide text-wood/60">
+            보관함 전체
+          </p>
+          <ul className="grid grid-cols-3 gap-2 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-7">
+            {COSMETICS.map((item) => {
+              const unlocked = unlockedCosmeticIds.includes(item.id);
+              const isEquipped = equipped[item.slot]?.id === item.id;
+              return (
+                <li
+                  key={item.id}
+                  title={`${item.name} · Lv.${item.unlockLevel}`}
+                  className={`flex flex-col items-center gap-1 rounded-xl border-2 p-2 ${
+                    unlocked
+                      ? "border-wood/10 bg-white"
+                      : "border-wood/5 bg-wood/5 opacity-45 grayscale"
+                  } ${isEquipped ? "ring-2 ring-gold ring-offset-1" : ""}`}
+                >
+                  <div className="relative h-12 w-12">
+                    <Image
+                      src={item.icon}
+                      alt={item.name}
+                      fill
+                      className="object-contain"
+                      sizes="48px"
+                    />
+                  </div>
+                  <span className="line-clamp-1 w-full text-center text-[10px] font-semibold text-foreground/70">
                     {item.name}
-                  </p>
-                  <p className="text-xs text-foreground/55">
-                    {SLOT_LABEL[item.slot]} · Lv.{item.unlockLevel}
-                    {isEquipped ? " · 장착 중" : unlocked ? " · 해금" : " · 잠김"}
-                  </p>
-                </div>
-              </li>
-            );
-          })}
-        </ul>
+                  </span>
+                  <span className="text-[9px] text-foreground/40">
+                    {SLOT_LABEL[item.slot]} · {item.unlockLevel}
+                  </span>
+                </li>
+              );
+            })}
+          </ul>
+        </div>
       </section>
 
-      <section>
-        <h2 className="font-display text-xl text-wood">파이의 성장 폼</h2>
-        <p className="mt-1 text-sm text-foreground/65">
+      <details className="quest-card group p-5 sm:p-6">
+        <summary className="font-display cursor-pointer list-none text-xl text-wood marker:content-none [&::-webkit-details-marker]:hidden">
+          <span className="flex items-center justify-between gap-3">
+            <span>파이 성장 폼 (20단계)</span>
+            <span className="text-sm font-semibold text-wood/50 group-open:hidden">
+              탭해서 보기
+            </span>
+            <span className="hidden text-sm font-semibold text-wood/50 group-open:inline">
+              접기
+            </span>
+          </span>
+        </summary>
+        <p className="mt-2 text-sm text-foreground/65">
           5레벨마다 외형이 바뀌어요. 과제를 할수록 파이가 멋있어집니다!
         </p>
         <ul className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
@@ -276,7 +261,7 @@ export default function AdventureProfile({
             return (
               <li
                 key={stage.id}
-                className={`quest-card flex flex-col items-center gap-2 p-3 ${
+                className={`flex flex-col items-center gap-2 rounded-xl border-2 border-wood/10 bg-cream/40 p-3 ${
                   reached ? "" : "opacity-40 grayscale"
                 } ${current ? "ring-4 ring-sky/60" : ""}`}
               >
@@ -300,7 +285,7 @@ export default function AdventureProfile({
             );
           })}
         </ul>
-      </section>
+      </details>
 
       <section>
         <h2 className="font-display text-xl text-wood">동료 도감</h2>
