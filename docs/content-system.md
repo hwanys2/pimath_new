@@ -18,7 +18,7 @@
 | 타입 | `ContentType` | XP / 포인트 | 설명 |
 |------|---------------|-------------|------|
 | **시뮬레이션** | `simulation` | **없음** | 개념 탐구·연습. 점수 없음. `awardStudentXp` 호출 금지 |
-| **게임** | `game` | **있음** | 한 판 점수 0–1000 → XP 1:1. [`progression-system.md`](progression-system.md) 준수 |
+| **게임** | `game` | **있음** | 목표 ≈1000, 이후 +1 소프트 캡 → XP 1:1. [`progression-system.md`](progression-system.md) |
 
 카탈로그 필드 `awardsXp`는 타입과 항상 일치한다 (`simulation` → `false`, `game` → `true`).
 
@@ -189,3 +189,4 @@ type ContentMeta = {
 | 2026-07-19 | 배정 체크 표시 · 다시 클릭 시 확인 후 배정 취소 |
 | 2026-07-19 | 게임 XP·랭킹은 학생+배정·활성만 · `pm_game_runs` / `submitGameRun` |
 | 2026-07-19 | 랭킹 스코프 월드·학교·학급 · `pm_list_game_ranking` |
+| 2026-07-19 | 점수 소프트 캡 · 어드벤처 누적 XP 랭킹 |

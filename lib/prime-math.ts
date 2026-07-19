@@ -83,8 +83,10 @@ export function pointsForCorrect(n: number, streakBefore: number): number {
 
 export function clampScore(score: number): number {
   if (!Number.isFinite(score)) return 0;
-  return Math.max(0, Math.min(1000, Math.round(score)));
+  return Math.max(0, Math.round(score));
 }
+
+export { applyScoreGain, SCORE_SOFT_CAP, SCORE_HARD_MAX } from "@/lib/xp";
 
 /** Bonus life round roughly every 7–10 questions after round 4. */
 export function isBonusRound(round: number, lastBonusRound: number): boolean {

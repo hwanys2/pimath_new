@@ -5,7 +5,8 @@ import {
   fetchClassGameRanking,
   submitGameRunFromSession,
 } from "@/lib/game-runs";
-import type { RankingMode, RankingRow, RankingScope } from "@/lib/game-types";
+import type { RankingMode, RankingRow, RankingScope, XpRankingRow } from "@/lib/game-types";
+import { fetchXpRanking } from "@/lib/xp-ranking";
 import {
   awardStudentXpFromSession,
   setStudentAvatarFromSession,
@@ -78,9 +79,16 @@ export async function fetchGameRanking(input: {
   return fetchClassGameRanking(input);
 }
 
+/** Adventure cumulative XP leaderboard (world / school / class). */
+export async function fetchXpRankingAction(
+  scope: RankingScope = "class",
+): Promise<XpRankingRow[]> {
+  return fetchXpRanking({ scope });
+}
+
 /**
  * Demo / practice XP only. Real games must use `submitGameRun`.
- * Score must be 0–1000 (clamped server-side).
+ * Score hard-clamped 0–5000 server-side (soft cap is client applyScoreGain).
  */
 export async function awardStudentXp(input: {
   gameKey: string;

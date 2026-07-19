@@ -14,6 +14,7 @@ import {
 import { xpProgressInLevel } from "@/lib/xp";
 import AdventureProfile from "@/components/adventure/AdventureProfile";
 import ClassAssignedContents from "@/components/adventure/ClassAssignedContents";
+import { fetchXpRanking } from "@/lib/xp-ranking";
 
 export const metadata: Metadata = {
   title: "나의 모험 | 수학하는 즐거움",
@@ -43,6 +44,13 @@ export default async function AdventurePage() {
     ? await fetchMyClassContents(session.sessionToken)
     : [];
 
+  const xpRanking = session
+    ? await fetchXpRanking({
+        scope: "class",
+        sessionToken: session.sessionToken,
+      })
+    : [];
+
   return (
     <div className="flex flex-col gap-8">
       <ClassAssignedContents items={assignedContents} />
@@ -56,6 +64,7 @@ export default async function AdventurePage() {
         unlockedIds={unlockedIds}
         equipped={equipped}
         unlockedCosmeticIds={unlockedCosmeticIds}
+        xpRanking={xpRanking}
       />
     </div>
   );

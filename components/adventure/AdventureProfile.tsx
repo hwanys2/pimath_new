@@ -18,6 +18,8 @@ import {
   type ResolvedAvatar,
 } from "@/lib/progression";
 import type { LevelProgress } from "@/lib/xp";
+import type { XpRankingRow } from "@/lib/game-types";
+import AdventureXpRanking from "@/components/adventure/AdventureXpRanking";
 
 type Props = {
   displayName: string;
@@ -29,6 +31,7 @@ type Props = {
   unlockedIds: AvatarChoice[];
   equipped: Partial<Record<CosmeticSlot, CosmeticDef>>;
   unlockedCosmeticIds: string[];
+  xpRanking: XpRankingRow[];
 };
 
 const empty: AdventureActionResult = {};
@@ -53,6 +56,7 @@ export default function AdventureProfile({
   unlockedIds,
   equipped,
   unlockedCosmeticIds,
+  xpRanking,
 }: Props) {
   const [avatarState, avatarAction, avatarPending] = useActionState(
     selectAvatar,
@@ -93,61 +97,67 @@ export default function AdventureProfile({
         </p>
       )}
 
-      <section className="quest-card grid gap-6 p-5 sm:grid-cols-[minmax(0,240px)_1fr] sm:p-8">
-        <div className="relative mx-auto aspect-[3/4] w-full max-w-[220px]">
-          <Image
-            src={avatar.image}
-            alt={avatar.title}
-            fill
-            className="object-contain drop-shadow-lg"
-            sizes="220px"
-            priority
-          />
-        </div>
-
-        <div className="flex flex-col justify-center gap-4">
-          <div>
-            <span className="badge-pill">Lv.{progress.level}</span>
-            <h2 className="font-display mt-2 text-2xl text-wood sm:text-3xl">
-              {avatar.title}
-            </h2>
-            <p className="mt-1 text-sm text-foreground/65">
-              {avatar.piStage.blurb}
-            </p>
+      <section className="grid gap-4 lg:grid-cols-[7fr_3fr] lg:gap-5">
+        <div className="quest-card grid gap-6 p-5 sm:grid-cols-[minmax(0,240px)_1fr] sm:p-8">
+          <div className="relative mx-auto aspect-[3/4] w-full max-w-[220px]">
+            <Image
+              src={avatar.image}
+              alt={avatar.title}
+              fill
+              className="object-contain drop-shadow-lg"
+              sizes="220px"
+              priority
+            />
           </div>
 
-          <div>
-            <div className="mb-1.5 flex justify-between text-xs font-bold text-wood/80">
-              <span>
-                XP {progress.xpIntoLevel.toLocaleString()} /{" "}
-                {progress.xpForThisLevel.toLocaleString()}
-              </span>
-              <span>
-                {progress.isMaxLevel
-                  ? "만렙!"
-                  : `다음 레벨까지 ${progress.xpToNextLevel.toLocaleString()}`}
-              </span>
+          <div className="flex flex-col justify-center gap-4">
+            <div>
+              <span className="badge-pill">Lv.{progress.level}</span>
+              <h2 className="font-display mt-2 text-2xl text-wood sm:text-3xl">
+                {avatar.title}
+              </h2>
+              <p className="mt-1 text-sm text-foreground/65">
+                {avatar.piStage.blurb}
+              </p>
             </div>
-            <div className="xp-bar">
-              <div
-                className="xp-bar-fill"
-                style={{ width: `${progress.percent}%` }}
-              />
-            </div>
-            <p className="mt-2 text-xs text-foreground/50">
-              총 {progress.totalXp.toLocaleString()} XP
-            </p>
-          </div>
 
-          {nextUnlock && (
-            <p className="rounded-xl bg-gold/30 px-3 py-2 text-sm font-semibold text-[#6b4a00]">
-              다음 {kindLabel}:{" "}
-              <span className="font-display">{nextUnlock.name}</span> (Lv.
-              {nextUnlock.atLevel}) · 약 {nextUnlock.xpNeeded.toLocaleString()}{" "}
-              XP
-            </p>
-          )}
+            <div>
+              <div className="mb-1.5 flex justify-between text-xs font-bold text-wood/80">
+                <span>
+                  XP {progress.xpIntoLevel.toLocaleString()} /{" "}
+                  {progress.xpForThisLevel.toLocaleString()}
+                </span>
+                <span>
+                  {progress.isMaxLevel
+                    ? "만렙!"
+                    : `다음 레벨까지 ${progress.xpToNextLevel.toLocaleString()}`}
+                </span>
+              </div>
+              <div className="xp-bar">
+                <div
+                  className="xp-bar-fill"
+                  style={{ width: `${progress.percent}%` }}
+                />
+              </div>
+              <p className="mt-2 text-xs text-foreground/50">
+                총 {progress.totalXp.toLocaleString()} XP
+              </p>
+            </div>
+
+            {nextUnlock && (
+              <p className="rounded-xl bg-gold/30 px-3 py-2 text-sm font-semibold text-[#6b4a00]">
+                다음 {kindLabel}:{" "}
+                <span className="font-display">{nextUnlock.name}</span> (Lv.
+                {nextUnlock.atLevel}) · 약{" "}
+                {nextUnlock.xpNeeded.toLocaleString()} XP
+              </p>
+            )}
+          </div>
         </div>
+
+        <aside className="min-h-[280px] lg:min-h-0">
+          <AdventureXpRanking initialRows={xpRanking} initialScope="class" />
+        </aside>
       </section>
 
       <section className="quest-card overflow-hidden p-5 sm:p-6">
@@ -348,7 +358,7 @@ export default function AdventureProfile({
         <h2 className="font-display text-xl text-wood">연습으로 XP 받기</h2>
         <p className="mt-1 text-sm text-foreground/65">
           시뮬레이션이 추가되기 전, 연습 점수로 성장·장비 해금을 느껴 보세요.
-          (한 판 만점 1000점 · 만렙 약 50만 XP)
+          (목표 ≈1000 · 이후 +1 · 만렙 약 50만 XP)
         </p>
         <form action={practiceAction} className="mt-4 flex flex-wrap gap-2">
           {[200, 500, 800, 1000].map((score) => (

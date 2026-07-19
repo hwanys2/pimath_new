@@ -18,6 +18,7 @@ import {
   isPrime,
   pointsForCorrect,
   primesUpToSqrt,
+  applyScoreGain,
 } from "@/lib/prime-math";
 
 const CONTENT_KEY = "g1-u1-1-prime-hunt";
@@ -132,7 +133,7 @@ export default function PrimeHunt() {
     if (correct) {
       gained = pointsForCorrect(n, streak);
       if (bonus) gained += 10;
-      nextScore = clampScore(score + gained);
+      nextScore = applyScoreGain(score, gained);
       nextStreak = streak + 1;
       if (bonus && lives < MAX_LIVES) {
         nextLives = lives + 1;

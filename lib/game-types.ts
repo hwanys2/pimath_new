@@ -10,3 +10,13 @@ export type RankingRow = {
   createdAt: string;
   isMe: boolean;
 };
+
+export type XpRankingRow = {
+  rank: number;
+  studentId: string;
+  displayName: string;
+  className: string | null;
+  totalXp: number;
+  level: number;
+  isMe: boolean;
+};

@@ -9,7 +9,8 @@
 ## 1. 한 줄 요약
 
 학생은 **게임을** 클리어할수록 **XP → 레벨업 → 파이 외형 교체 → 장비 해금 → 동료 합류**를 얻는다.  
-한 판의 점수가 곧 경험치이며, **만점 ≈ 1000점**을 목표로 **게임**을 설계한다.  
+한 판의 점수가 곧 경험치이며, **목표 만점 ≈ 1000점**으로 설계한다.  
+1000 이후에는 정답마다 **+1만** 올라 순위가 갈리도록 한다 (소프트 캡).  
 시뮬레이션은 점수/XP를 주지 않는다.
 
 ---
@@ -18,10 +19,12 @@
 
 | 항목 | 값 |
 |------|-----|
-| 한 판 점수 | **0 ~ 1000** (정수) |
-| 점수 → XP | **1:1** (`scoreToXp`가 클램프) |
+| 한 판 목표 만점 | **≈ 1000** (소프트 캡 임계) |
+| 소프트 캡 | 점수 ≥ 1000이면 정답마다 **+1** (`applyScoreGain`) |
+| 안티치트 상한 | **5000** / 판 (`SCORE_HARD_MAX`) |
+| 점수 → XP | **1:1** (`scoreToXp`, hard max만 클램프) |
 | 만렙 | **Lv.100** |
-| 만렙 누적 XP | **500,000** (만점 약 500판) |
+| 만렙 누적 XP | **500,000** |
 | 곡선 지수 | **2.25** (초반 빠름 → 후반 완만) |
 
 ### 누적 XP 공식
@@ -58,26 +61,31 @@ SQL: `pm_level_from_xp` / `pm_cumulative_xp_for_level` (동일 식).
 
 **게임에만** 적용:
 
-1. **한 판 만점은 대략 1000점**.  
-2. 부분 점수 허용 (0~1000). 1000 초과 금지.  
-3. 클리어 후 서버에서만 XP·랭킹 반영 — **정식 경로는 `submitGameRun`**.
+1. **한 판 목표 만점은 대략 1000점**.  
+2. 점수 가산은 `applyScoreGain(current, gain)` — **현재 ≥ 1000이면 +1만**. 1000 미만은 기존 배점.  
+3. 서버는 안티치트용 **hard max 5000**만 클램프. 그 안에서 점수=XP 1:1.  
+4. 클리어 후 서버에서만 XP·랭킹 반영 — **정식 경로는 `submitGameRun`**.
 
 ```ts
 import { submitGameRun } from "@/app/adventure/actions";
-await submitGameRun({ contentKey: "g1-u1-1-prime-hunt", score: earnedScore });
+import { applyScoreGain } from "@/lib/xp";
+
+score = applyScoreGain(score, pointsForThisCorrect);
+await submitGameRun({ contentKey: "g1-u1-1-prime-hunt", score });
 ```
 
-4. `contentKey`는 콘텐츠 카탈로그 `key`와 동일하게 쓴다 ([`content-system.md`](content-system.md)).  
-5. XP·랭킹 기록은 **학생 세션 + 해당 콘텐츠가 학급에 배정·활성**일 때만 반영된다. 그 외(공개 링크·미배정·비활성)는 연습 모드.  
-6. 같은 판 반복 클리어 시에도 (배정·활성이면) XP·기록이 누적된다 (연습 장려).  
-7. `awardStudentXp`는 데모/연습용이다. **정식 게임 UI는 `submitGameRun`만** 호출한다.
+5. `contentKey`는 콘텐츠 카탈로그 `key`와 동일하게 쓴다 ([`content-system.md`](content-system.md)).  
+6. XP·랭킹 기록은 **학생 세션 + 해당 콘텐츠가 학급에 배정·활성**일 때만 반영된다. 그 외(공개 링크·미배정·비활성)는 연습 모드.  
+7. 같은 판 반복 클리어 시에도 (배정·활성이면) XP·기록이 누적된다 (연습 장려).  
+8. `awardStudentXp`는 데모/연습용이다. **정식 게임 UI는 `submitGameRun`만** 호출한다.
 
 | 성과 | 권장 점수대 |
 |------|-------------|
 | 대충 참여 | 100–300 |
 | 보통 클리어 | 400–700 |
 | 잘함 | 750–900 |
-| 거의 만점 | 950–1000 |
+| 목표 만점대 | 950–1000 |
+| 극한 생존 | 1000+ (이후 +1씩) |
 
 ### 3.1 게임 랭킹 — 월드 · 학교 · 학급
 
@@ -104,6 +112,17 @@ await submitGameRun({ contentKey: "g1-u1-1-prime-hunt", score: earnedScore });
 - RPC: `pm_list_game_ranking(session, content_key, scope, mode)`
 - UI: 1차 탭(월드/학교/학급) + 2차 토글(개인 최고/전체 기록). 탑3 포디움 + 리스트.
 - 레거시 `pm_list_class_game_ranking`는 `scope='class'` 위임용으로만 유지한다.
+
+### 3.2 어드벤처 누적 XP 랭킹
+
+`/adventure` 프로필에서는 **누적 `total_xp`** 기준으로 월드·학교·학급 랭킹을 보여 준다.
+
+| 구분 | 데이터 | UI |
+|------|--------|-----|
+| 게임 결과 | 해당 `content_key` 한 판 점수 | `GameRankingBoard` |
+| 어드벤처 | 학생 `total_xp` / 레벨 | `AdventureXpRanking` |
+
+- RPC: `pm_list_xp_ranking(session, scope)` — `world` / `school` / `class`
 
 ---
 
@@ -164,15 +183,16 @@ await submitGameRun({ contentKey: "g1-u1-1-prime-hunt", score: earnedScore });
 | `pm_submit_game_run` | 배정·활성일 때 기록 + XP |
 | `pm_list_game_ranking` | 랭킹 — scope `world`/`school`/`class` × mode `all`/`best` |
 | `pm_list_class_game_ranking` | (레거시) class 스코프 위임 |
+| `pm_list_xp_ranking` | 어드벤처 누적 XP 랭킹 (`world`/`school`/`class`) |
 
-UI: `/adventure` (폼 도감 + 장비 도감 + 장착 프리뷰). 게임 결과 화면에서 월드·학교·학급 랭킹.
+UI: `/adventure` (폼 도감 + 장비 + **누적 XP 랭킹**). 게임 결과 화면에서 콘텐츠별 월드·학교·학급 랭킹.
 
 ---
 
 ## 6. 안티치트 (최소)
 
 - 점수는 Server Action에서만 확정 후 RPC  
-- 세션 토큰 해시 검증, score 0–1000 클램프  
+- 세션 토큰 해시 검증, score **0–5000** hard 클램프 (소프트 캡은 클라이언트 가산 규칙)  
 - XP·랭킹은 배정·활성(`pm_class_contents.is_active`) 검증 후에만 기록  
 
 ---
@@ -186,3 +206,4 @@ UI: `/adventure` (폼 도감 + 장비 도감 + 장착 프리뷰). 게임 결과 
 | 2026-07-19 | 시뮬레이션은 XP 제외 · 게임만 이 문서 적용 ([`content-system.md`](content-system.md)) |
 | 2026-07-19 | `submitGameRun` · 배정·활성만 XP · 학급 랭킹 `all`/`best` |
 | 2026-07-19 | 랭킹 스코프 월드·학교·학급 · `pm_list_game_ranking` |
+| 2026-07-19 | 점수 소프트 캡(1000 이후 +1) · 어드벤처 누적 XP 랭킹 |
