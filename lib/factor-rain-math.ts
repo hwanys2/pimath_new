@@ -25,25 +25,25 @@ export type Difficulty = {
 
 /**
  * Gentle difficulty curve from elapsed playtime (seconds) and clears.
- * Caps keep late-game playable for middle-schoolers.
+ * Early game stays mostly ≤100; late-game caps keep playable for middle-schoolers.
  */
 export function difficultyAt(elapsedSec: number, cleared: number): Difficulty {
   const t = Math.max(0, elapsedSec);
   const c = Math.max(0, cleared);
-  const progress = Math.min(1, t / 120 + c / 40);
+  const progress = Math.min(1, t / 300 + c / 90);
 
-  const fallSpeed = 7 + progress * 9; // ~7 → ~16 units/s
-  const spawnInterval = Math.max(1.35, 2.8 - progress * 1.2);
-  const minValue = Math.round(6 + progress * 80);
-  const maxValue = Math.round(48 + progress * 1600);
-  const minFactors = progress < 0.25 ? 2 : progress < 0.55 ? 2 : 3;
-  const maxFactors = progress < 0.2 ? 3 : progress < 0.5 ? 4 : 5;
+  const fallSpeed = 5.5 + progress * 6.5; // ~5.5 → ~12 units/s
+  const spawnInterval = Math.max(1.85, 3.2 - progress * 1.0);
+  const minValue = Math.round(4 + progress * 36);
+  const maxValue = Math.round(55 + Math.pow(progress, 1.85) * 650);
+  const minFactors = progress < 0.65 ? 2 : 3;
+  const maxFactors = progress < 0.4 ? 3 : progress < 0.75 ? 4 : 5;
 
   return {
-    fallSpeed: Math.min(16, fallSpeed),
+    fallSpeed: Math.min(12, fallSpeed),
     spawnInterval,
     minValue: Math.min(minValue, maxValue - 4),
-    maxValue: Math.min(2000, Math.max(maxValue, minValue + 10)),
+    maxValue: Math.min(800, Math.max(maxValue, minValue + 10)),
     minFactors,
     maxFactors,
   };
@@ -68,9 +68,9 @@ export function dealComposite(diff: Difficulty): number {
   const { minValue, maxValue, minFactors, maxFactors } = diff;
   // Early: lean on smaller primes for mental math comfort.
   const earlyPool =
-    maxValue <= 80
+    maxValue <= 120
       ? ([2, 3, 5, 7] as const)
-      : maxValue <= 400
+      : maxValue <= 450
         ? ([2, 3, 5, 7, 11, 13] as const)
         : FACTOR_PRIMES;
 
@@ -103,16 +103,16 @@ export function randomSpawnX(): number {
 
 /**
  * Points for fully factoring a number down to 1.
- * Tuned so a solid ~1–2 min run lands near 700–1000.
+ * Tuned so a solid ~3–5 min run lands near the soft cap.
  */
 export function pointsForClear(
   original: number,
   factorSteps: number,
   streakBefore: number,
 ): number {
-  const size = Math.round(14 + 16 * Math.log10(Math.max(original, 10)));
-  const steps = Math.min(factorSteps, 6) * 6;
-  const streakBonus = Math.min(streakBefore, 10) * 3;
+  const size = Math.round(8 + 10 * Math.log10(Math.max(original, 10)));
+  const steps = Math.min(factorSteps, 6) * 4;
+  const streakBonus = Math.min(streakBefore, 10) * 2;
   return size + steps + streakBonus;
 }
 
