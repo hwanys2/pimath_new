@@ -48,6 +48,16 @@ export const CONTENTS: ContentMeta[] = [
     description:
       "떨어지는 숫자를 소수로 나눠 1까지 소인수분해하는 게임입니다. 학급 배정·활성 시 XP와 랭킹이 쌓여요.",
   },
+  {
+    key: "g1-u2-3-ordered-pair-omok",
+    unitId: "g1-2-3",
+    type: "game",
+    title: "순서쌍 오목",
+    href: "/play/g1-u2-3-ordered-pair-omok",
+    awardsXp: true,
+    description:
+      "좌표평면에서 순서쌍 (x, y)만으로 오목을 두는 게임입니다. 컴퓨터·같은 반·전체 매칭. 학급 배정·활성 시 XP와 랭킹이 쌓여요.",
+  },
 ];
 
 export function getContent(key: string): ContentMeta | undefined {

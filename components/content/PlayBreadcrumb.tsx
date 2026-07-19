@@ -5,11 +5,21 @@ import { getActor } from "@/lib/auth";
 type Props = {
   contentTitle?: string;
   assignSlot?: ReactNode;
+  /** Public grade crumb (non-student). Defaults to 중1. */
+  gradeHref?: string;
+  gradeLabel?: string;
+  /** Public unit crumb (non-student). Defaults to 1.1 소인수분해. */
+  unitHref?: string;
+  unitLabel?: string;
 };
 
 export default async function PlayBreadcrumb({
   contentTitle,
   assignSlot,
+  gradeHref = "/grade/1",
+  gradeLabel = "중1",
+  unitHref = "/grade/1/g1-1-1",
+  unitLabel = "1.1 소인수분해",
 }: Props) {
   const actor = await getActor();
 
@@ -39,15 +49,12 @@ export default async function PlayBreadcrumb({
         홈
       </Link>
       <span aria-hidden>/</span>
-      <Link href="/grade/1" className="underline-offset-2 hover:underline">
-        중1
+      <Link href={gradeHref} className="underline-offset-2 hover:underline">
+        {gradeLabel}
       </Link>
       <span aria-hidden>/</span>
-      <Link
-        href="/grade/1/g1-1-1"
-        className="underline-offset-2 hover:underline"
-      >
-        1.1 소인수분해
+      <Link href={unitHref} className="underline-offset-2 hover:underline">
+        {unitLabel}
       </Link>
       {contentTitle ? (
         <>
