@@ -123,18 +123,3 @@ export async function selectAvatar(
   revalidatePath("/");
   return { message: "아바타를 바꿨어요!" };
 }
-
-/**
- * Dev / demo helper: award a practice score so students can feel the loop
- * before real sims ship. Remove or gate later if undesired.
- */
-export async function practiceAwardXp(
-  _prev: AdventureActionResult,
-  formData: FormData,
-): Promise<AdventureActionResult> {
-  const raw = Number(formData.get("score") ?? 200);
-  return awardStudentXp({
-    gameKey: "practice-adventure",
-    score: raw,
-  });
-}

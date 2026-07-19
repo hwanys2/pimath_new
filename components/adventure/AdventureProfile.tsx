@@ -3,7 +3,6 @@
 import Image from "next/image";
 import { useActionState } from "react";
 import {
-  practiceAwardXp,
   selectAvatar,
   type AdventureActionResult,
 } from "@/app/adventure/actions";
@@ -62,10 +61,6 @@ export default function AdventureProfile({
     selectAvatar,
     empty,
   );
-  const [practiceState, practiceAction, practicePending] = useActionState(
-    practiceAwardXp,
-    empty,
-  );
 
   const kindLabel =
     nextUnlock?.kind === "cosmetic"
@@ -86,16 +81,16 @@ export default function AdventureProfile({
         <p className="text-sm text-foreground/60">{className}</p>
       </header>
 
-      {(practiceState.message || avatarState.message) && (
+      {avatarState.message ? (
         <p className="rounded-xl bg-mint/40 px-4 py-3 text-sm font-semibold text-wood">
-          {practiceState.message || avatarState.message}
+          {avatarState.message}
         </p>
-      )}
-      {(practiceState.error || avatarState.error) && (
+      ) : null}
+      {avatarState.error ? (
         <p className="rounded-xl bg-peach/40 px-4 py-3 text-sm font-semibold text-[#a63a1a]">
-          {practiceState.error || avatarState.error}
+          {avatarState.error}
         </p>
-      )}
+      ) : null}
 
       <section className="grid gap-4 lg:grid-cols-[7fr_3fr] lg:gap-5">
         <div className="quest-card grid gap-6 p-5 sm:grid-cols-[minmax(0,240px)_1fr] sm:p-8">
@@ -351,28 +346,6 @@ export default function AdventureProfile({
               {avatarPending ? "저장 중…" : "선택한 아바타 저장"}
             </button>
           </div>
-        </form>
-      </section>
-
-      <section className="quest-card p-5 sm:p-6">
-        <h2 className="font-display text-xl text-wood">연습으로 XP 받기</h2>
-        <p className="mt-1 text-sm text-foreground/65">
-          시뮬레이션이 추가되기 전, 연습 점수로 성장·장비 해금을 느껴 보세요.
-          (목표 ≈1000 · 이후 +1 · 만렙 약 50만 XP)
-        </p>
-        <form action={practiceAction} className="mt-4 flex flex-wrap gap-2">
-          {[200, 500, 800, 1000].map((score) => (
-            <button
-              key={score}
-              type="submit"
-              name="score"
-              value={score}
-              disabled={practicePending}
-              className="block-btn block-btn-mint font-display px-4 py-2 text-sm disabled:opacity-60"
-            >
-              +{score} XP
-            </button>
-          ))}
         </form>
       </section>
     </div>
