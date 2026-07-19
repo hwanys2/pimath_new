@@ -139,9 +139,10 @@ PM_STUDENT_SESSION_SECRET=...  # 서버 전용, 긴 랜덤 문자열
 | `pm_award_student_xp` / `pm_get_student_progress` / `pm_set_student_avatar` | 육성 RPC (만렙 XP 50만) |
 | `pm_class_contents` | 학급별 콘텐츠 담아두기·활성화 (`content_key`, `is_active`) |
 | `pm_list_my_class_contents` | 학생 세션으로 자기 반 배정 목록 조회 |
-| `pm_game_runs` | 배정·활성 게임의 한 판 점수 (학급 랭킹용) |
+| `pm_game_runs` | 배정·활성 게임의 한 판 점수 (랭킹용) |
 | `pm_submit_game_run` | 학생 세션 + 배정·활성일 때만 기록 + XP |
-| `pm_list_class_game_ranking` | 학급 랭킹 — `all`(중복 허용) / `best`(개인 최고) |
+| `pm_list_game_ranking` | 랭킹 — `world`(전체) / `school`(같은 teacher_id) / `class` × `all`/`best` |
+| `pm_list_class_game_ranking` | (레거시) class 스코프 위임 |
 
 - `password_hash` 는 authenticated SELECT/UPDATE 불가. 비밀번호는 RPC로만 설정.
 - 앱에서 학생 세션은 `lib/student-session.ts` (`jose` JWT 쿠키 + DB session token). 교사 식별은 계속 `getUser()`.

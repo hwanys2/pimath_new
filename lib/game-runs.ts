@@ -2,9 +2,9 @@ import "server-only";
 import { createClient } from "@/lib/supabase/server";
 import { getStudentSessionToken } from "@/lib/student-session";
 import { scoreToXp } from "@/lib/xp";
-import type { RankingMode, RankingRow } from "@/lib/game-types";
+import type { RankingMode, RankingRow, RankingScope } from "@/lib/game-types";
 
-export type { RankingMode, RankingRow } from "@/lib/game-types";
+export type { RankingMode, RankingRow, RankingScope } from "@/lib/game-types";
 
 export type SubmitGameRunResult = {
   recorded: boolean;
@@ -100,6 +100,7 @@ export async function submitGameRunFromSession(input: {
 
 export async function fetchClassGameRanking(input: {
   contentKey: string;
+  scope?: RankingScope;
   mode: RankingMode;
   sessionToken?: string | null;
 }): Promise<RankingRow[]> {
@@ -109,15 +110,17 @@ export async function fetchClassGameRanking(input: {
   const contentKey = input.contentKey.trim();
   if (!contentKey) return [];
 
+  const scope = input.scope ?? "class";
   const supabase = await createClient();
-  const { data, error } = await supabase.rpc("pm_list_class_game_ranking", {
+  const { data, error } = await supabase.rpc("pm_list_game_ranking", {
     p_session_token: token,
     p_content_key: contentKey,
+    p_scope: scope,
     p_mode: input.mode,
   });
 
   if (error) {
-    console.error("[pm] pm_list_class_game_ranking failed:", error.message);
+    console.error("[pm] pm_list_game_ranking failed:", error.message);
     return [];
   }
 
@@ -125,6 +128,7 @@ export async function fetchClassGameRanking(input: {
     rank: number;
     student_id: string;
     display_name: string;
+    class_name: string | null;
     score: number;
     created_at: string;
     is_me: boolean;
@@ -134,6 +138,7 @@ export async function fetchClassGameRanking(input: {
     rank: row.rank,
     studentId: row.student_id,
     displayName: row.display_name,
+    className: row.class_name,
     score: row.score,
     createdAt: row.created_at,
     isMe: Boolean(row.is_me),

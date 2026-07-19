@@ -5,7 +5,7 @@ import {
   fetchClassGameRanking,
   submitGameRunFromSession,
 } from "@/lib/game-runs";
-import type { RankingMode, RankingRow } from "@/lib/game-types";
+import type { RankingMode, RankingRow, RankingScope } from "@/lib/game-types";
 import {
   awardStudentXpFromSession,
   setStudentAvatarFromSession,
@@ -72,6 +72,7 @@ export async function submitGameRun(input: {
 
 export async function fetchGameRanking(input: {
   contentKey: string;
+  scope?: RankingScope;
   mode: RankingMode;
 }): Promise<RankingRow[]> {
   return fetchClassGameRanking(input);

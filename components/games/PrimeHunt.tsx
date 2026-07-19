@@ -1,8 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useState, useTransition } from "react";
-import type { RankingMode, RankingRow } from "@/lib/game-types";
-import ClassGameRanking from "@/components/games/ClassGameRanking";
+import type { RankingMode, RankingRow, RankingScope } from "@/lib/game-types";
+import GameRankingBoard from "@/components/games/GameRankingBoard";
 import {
   submitGameRun,
   fetchGameRanking,
@@ -76,6 +76,7 @@ export default function PrimeHunt() {
     null,
   );
   const [ranking, setRanking] = useState<RankingRow[]>([]);
+  const [rankingScope, setRankingScope] = useState<RankingScope>("class");
   const [rankingMode, setRankingMode] = useState<RankingMode>("best");
   const [isPending, startTransition] = useTransition();
 
@@ -102,6 +103,7 @@ export default function PrimeHunt() {
     setLastBonusRound(0);
     setSubmitResult(null);
     setRanking([]);
+    setRankingScope("class");
     setRankingMode("best");
     resetBoard(1, 0);
   }, [resetBoard]);
@@ -167,6 +169,7 @@ export default function PrimeHunt() {
           if (result.recorded) {
             const rows = await fetchGameRanking({
               contentKey: CONTENT_KEY,
+              scope: "class",
               mode: "best",
             });
             setRanking(rows);
@@ -190,11 +193,18 @@ export default function PrimeHunt() {
     // eslint-disable-next-line react-hooks/exhaustive-deps -- only re-arm when feedback appears
   }, [phase, feedback, lives]);
 
-  const loadRanking = (mode: RankingMode) => {
-    setRankingMode(mode);
+  const loadRanking = (next: {
+    scope?: RankingScope;
+    mode?: RankingMode;
+  }) => {
+    const scope = next.scope ?? rankingScope;
+    const mode = next.mode ?? rankingMode;
+    if (next.scope) setRankingScope(next.scope);
+    if (next.mode) setRankingMode(next.mode);
     startTransition(async () => {
       const rows = await fetchGameRanking({
         contentKey: CONTENT_KEY,
+        scope,
         mode,
       });
       setRanking(rows);
@@ -256,10 +266,12 @@ export default function PrimeHunt() {
 
           {submitResult?.recorded ? (
             <div className="mt-6 text-left">
-              <ClassGameRanking
+              <GameRankingBoard
                 rows={ranking}
+                scope={rankingScope}
                 mode={rankingMode}
-                onModeChange={loadRanking}
+                onScopeChange={(scope) => loadRanking({ scope })}
+                onModeChange={(mode) => loadRanking({ mode })}
                 loading={isPending}
               />
             </div>

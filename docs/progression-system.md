@@ -68,7 +68,7 @@ await submitGameRun({ contentKey: "g1-u1-1-prime-hunt", score: earnedScore });
 ```
 
 4. `contentKey`는 콘텐츠 카탈로그 `key`와 동일하게 쓴다 ([`content-system.md`](content-system.md)).  
-5. XP·학급 랭킹은 **학생 세션 + 해당 콘텐츠가 학급에 배정·활성**일 때만 반영된다. 그 외(공개 링크·미배정·비활성)는 연습 모드.  
+5. XP·랭킹 기록은 **학생 세션 + 해당 콘텐츠가 학급에 배정·활성**일 때만 반영된다. 그 외(공개 링크·미배정·비활성)는 연습 모드.  
 6. 같은 판 반복 클리어 시에도 (배정·활성이면) XP·기록이 누적된다 (연습 장려).  
 7. `awardStudentXp`는 데모/연습용이다. **정식 게임 UI는 `submitGameRun`만** 호출한다.
 
@@ -79,17 +79,31 @@ await submitGameRun({ contentKey: "g1-u1-1-prime-hunt", score: earnedScore });
 | 잘함 | 750–900 |
 | 거의 만점 | 950–1000 |
 
-### 3.1 학급 랭킹 (게임 결과 화면)
+### 3.1 게임 랭킹 — 월드 · 학교 · 학급
 
-배정·활성으로 제출된 기록(`pm_game_runs`)을 같은 학급 학생끼리 보여 준다.
+배정·활성으로 제출된 기록(`pm_game_runs`)을 결과 화면에서 보여 준다.  
+**모든 정식 게임**은 동일 UI(`GameRankingBoard`)와 RPC를 쓴다.
+
+#### 스코프 (`p_scope`)
+
+| 스코프 | `p_scope` | 범위 |
+|--------|-----------|------|
+| **월드** | `world` | 해당 `content_key`의 **모든** 학생 기록 |
+| **학교** | `school` | 같은 교사(`pm_students.teacher_id`) 소속 **전 학급** |
+| **학급** | `class` | 내 `class_id`만 |
+
+> “학교” 전용 테이블은 없다. **교사(`teacher_id`) 단위**가 학교 스코프다.
+
+#### 집계 (`p_mode`)
 
 | 모드 | `p_mode` | 의미 |
 |------|----------|------|
-| **전체 기록** | `all` | 한 학생이 1·2·3등을 모두 차지할 수 있음 (판마다 행) |
 | **개인 최고** | `best` | 학생당 최고점 1행만 |
+| **전체 기록** | `all` | 한 학생이 1·2·3등을 모두 차지할 수 있음 (판마다 행) |
 
-- RPC: `pm_list_class_game_ranking(session, content_key, mode)`
-- UI: 결과 화면에서 두 모드를 토글할 수 있게 한다. 이후 게임들도 동일 패턴.
+- RPC: `pm_list_game_ranking(session, content_key, scope, mode)`
+- UI: 1차 탭(월드/학교/학급) + 2차 토글(개인 최고/전체 기록). 탑3 포디움 + 리스트.
+- 레거시 `pm_list_class_game_ranking`는 `scope='class'` 위임용으로만 유지한다.
 
 ---
 
@@ -148,9 +162,10 @@ await submitGameRun({ contentKey: "g1-u1-1-prime-hunt", score: earnedScore });
 | `pm_get_student_progress` / `pm_set_student_avatar` | 조회·아바타 |
 | `pm_game_runs` | 학급·활성 게임 한 판 점수 |
 | `pm_submit_game_run` | 배정·활성일 때 기록 + XP |
-| `pm_list_class_game_ranking` | 학급 랭킹 (`all` / `best`) |
+| `pm_list_game_ranking` | 랭킹 — scope `world`/`school`/`class` × mode `all`/`best` |
+| `pm_list_class_game_ranking` | (레거시) class 스코프 위임 |
 
-UI: `/adventure` (폼 도감 + 장비 도감 + 장착 프리뷰). 게임 결과 화면에서 학급 랭킹.
+UI: `/adventure` (폼 도감 + 장비 도감 + 장착 프리뷰). 게임 결과 화면에서 월드·학교·학급 랭킹.
 
 ---
 
@@ -170,3 +185,4 @@ UI: `/adventure` (폼 도감 + 장비 도감 + 장착 프리뷰). 게임 결과 
 | 2026-07-19 | **v2**: 50만 XP · 지수 2.25 · 파이 20폼 · 장비 28종 |
 | 2026-07-19 | 시뮬레이션은 XP 제외 · 게임만 이 문서 적용 ([`content-system.md`](content-system.md)) |
 | 2026-07-19 | `submitGameRun` · 배정·활성만 XP · 학급 랭킹 `all`/`best` |
+| 2026-07-19 | 랭킹 스코프 월드·학교·학급 · `pm_list_game_ranking` |
