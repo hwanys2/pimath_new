@@ -34,7 +34,7 @@ export default function TopMenuBar({
               수학하는 즐거움
             </p>
             <p className="text-[10px] font-semibold tracking-wide text-wood-light/90">
-              MATH ADVENTURE
+              Pleasure in Math
             </p>
           </div>
         </Link>

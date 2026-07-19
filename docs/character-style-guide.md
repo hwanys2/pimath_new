@@ -101,7 +101,7 @@ watermark, logo, UI buttons, adult proportions
 **레퍼런스 프롬프트 (영문)**
 
 ```
-Same character as reference: Math Adventure mascot "Pi", young male middle-school adventurer,
+Same character as reference: Pleasure in Math mascot "Pi", young male middle-school adventurer,
 messy dark brown hair, big brown eyes, cheerful smile,
 white t-shirt with colorful + - × ÷ symbols, open light-blue hoodie with gold star pin,
 teal explorer backpack with Pythagorean theorem scroll a²+b²=c², √x tag, ? pouch,
@@ -147,7 +147,7 @@ casual mobile RPG art style, soft cel-shading, bright pastel, transparent backgr
 **레퍼런스 프롬프트**
 
 ```
-Same character as reference: grade-1 Math Adventure hero "Chorwon",
+Same character as reference: grade-1 Pleasure in Math hero "Chorwon",
 young male adventurer, spiky brown hair, large green eyes, confident smile,
 mint-green hooded tunic and cape with gold clasps, teal shorts, brown leather belt pouch,
 chunky mint-and-white boots, crystal-blue sword, large gold-rimmed shield shaped like number 1,
@@ -180,7 +180,7 @@ soft grassy patch, pastel sparkles, casual RPG style, transparent background
 **레퍼런스 프롬프트**
 
 ```
-Same character as reference: grade-2 Math Adventure hero "Eondeok",
+Same character as reference: grade-2 Pleasure in Math hero "Eondeok",
 young female adventurer, wavy chin-length brown hair with peach bow headband,
 large brown eyes, cheerful smile, peach hooded cloak with white geometric trim,
 cream shirt, peach shorts, brown belt, purple sash, leather satchel with glowing purple star,
@@ -214,7 +214,7 @@ floating cube triangle equations, casual RPG pastel style, transparent backgroun
 **레퍼런스 프롬프트**
 
 ```
-Same character as reference: grade-3 Math Adventure hero "Byeolbit",
+Same character as reference: grade-3 Pleasure in Math hero "Byeolbit",
 young female mage adventurer, wavy chestnut ponytail with large purple bow,
 large purple eyes, confident smile, lavender hooded tunic with cream sleeves and gold star brooch,
 lavender cape with gold lining and stars, dark purple pants, lavender boots with cream cuffs,

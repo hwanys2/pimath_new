@@ -19,7 +19,7 @@ const notoSansKr = Noto_Sans_KR({
 });
 
 export const metadata: Metadata = {
-  title: "수학하는 즐거움 | Math Adventure",
+  title: "수학하는 즐거움 | Pleasure in Math",
   description:
     "중학교 수학을 시뮬레이션과 게임으로 탐험하는 모험 학습 사이트",
 };
