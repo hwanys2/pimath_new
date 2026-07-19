@@ -3,7 +3,7 @@ import Link from "next/link";
 import SieveEratosthenes from "@/components/sims/SieveEratosthenes";
 import AssignContentButton from "@/components/content/AssignContentButton";
 import { getContent } from "@/lib/contents";
-import { fetchTeacherClassesForAssign } from "@/lib/teacher-classes";
+import { fetchTeacherAssignContext } from "@/lib/teacher-classes";
 
 const CONTENT_KEY = "g1-u1-1-sieve-eratosthenes";
 
@@ -15,7 +15,7 @@ export const metadata: Metadata = {
 
 export default async function SieveEratosthenesPage() {
   const content = getContent(CONTENT_KEY);
-  const teacherClasses = await fetchTeacherClassesForAssign();
+  const assignCtx = await fetchTeacherAssignContext([CONTENT_KEY]);
 
   return (
     <div className="space-y-4">
@@ -40,11 +40,14 @@ export default async function SieveEratosthenesPage() {
             <span className="text-foreground/60">{content.title}</span>
           </>
         ) : null}
-        {teacherClasses ? (
+        {assignCtx ? (
           <span className="ml-auto">
             <AssignContentButton
               contentKey={CONTENT_KEY}
-              classes={teacherClasses}
+              classes={assignCtx.classes}
+              assignedClassIds={
+                assignCtx.assignedByContent[CONTENT_KEY] ?? []
+              }
             />
           </span>
         ) : null}

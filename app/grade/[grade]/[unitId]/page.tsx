@@ -12,7 +12,8 @@ import {
   contentTypeLabel,
   getContentsForUnit,
 } from "@/lib/contents";
-import { fetchTeacherClassesForAssign } from "@/lib/teacher-classes";
+import { fetchTeacherAssignContext } from "@/lib/teacher-classes";
+
 
 type Props = {
   params: Promise<{ grade: string; unitId: string }>;
@@ -47,7 +48,9 @@ export default async function UnitPage({ params }: Props) {
 
   const grade = getGrade(gradeNum)!;
   const contents = getContentsForUnit(unit.id);
-  const teacherClasses = await fetchTeacherClassesForAssign();
+  const assignCtx = await fetchTeacherAssignContext(
+    contents.map((c) => c.key),
+  );
 
   return (
     <div className="space-y-8">
@@ -117,10 +120,13 @@ export default async function UnitPage({ params }: Props) {
                       ? "시뮬레이션 시작"
                       : "게임 시작"}
                   </BlockButton>
-                  {teacherClasses ? (
+                  {assignCtx ? (
                     <AssignContentButton
                       contentKey={content.key}
-                      classes={teacherClasses}
+                      classes={assignCtx.classes}
+                      assignedClassIds={
+                        assignCtx.assignedByContent[content.key] ?? []
+                      }
                     />
                   ) : null}
                 </div>
