@@ -1,29 +1,21 @@
 "use client";
 
-import type { BoardMap, Stone } from "@/lib/ordered-pair-omok-math";
-import {
-  BOARD_MAX,
-  BOARD_MIN,
-  getStone,
-} from "@/lib/ordered-pair-omok-math";
+import type { BoardMap } from "@/lib/ordered-pair-omok-math";
+import { BOARD_MAX, BOARD_MIN } from "@/lib/ordered-pair-omok-math";
 
 type Props = {
   board: BoardMap;
-  /** Highlight preview ordered pair before placing */
-  preview?: { x: number; y: number } | null;
   lastMove?: { x: number; y: number } | null;
-  myStone?: Stone | null;
 };
 
 /**
  * Display-only coordinate plane. Stones cannot be placed by clicking —
  * students must enter ordered pairs via OrderedPairPad.
+ * No ghost preview: stones appear only after a confirmed place.
  */
 export default function CoordinatePlaneBoard({
   board,
-  preview = null,
   lastMove = null,
-  myStone = null,
 }: Props) {
   const size = BOARD_MAX - BOARD_MIN + 1; // 21
   const cell = 22;
@@ -33,7 +25,7 @@ export default function CoordinatePlaneBoard({
 
   const toSvg = (x: number, y: number) => ({
     cx: pad + (x - BOARD_MIN) * cell,
-    cy: pad + (BOARD_MAX - y) * cell, // y-up mathematical
+    cy: pad + (BOARD_MAX - y) * cell,
   });
 
   const ticks: number[] = [];
@@ -63,7 +55,6 @@ export default function CoordinatePlaneBoard({
           fill="url(#omokPlaneBg)"
         />
 
-        {/* Grid */}
         {ticks.map((t) => {
           const v = toSvg(t, 0);
           const hLine = toSvg(0, t);
@@ -89,7 +80,6 @@ export default function CoordinatePlaneBoard({
           );
         })}
 
-        {/* Axis arrows / labels */}
         <text
           x={w - 10}
           y={toSvg(0, 0).cy - 8}
@@ -113,7 +103,6 @@ export default function CoordinatePlaneBoard({
           O
         </text>
 
-        {/* Tick labels (every 5) */}
         {ticks
           .filter((t) => t !== 0 && t % 5 === 0)
           .map((t) => {
@@ -141,39 +130,12 @@ export default function CoordinatePlaneBoard({
             );
           })}
 
-        {/* Preview ghost */}
-        {preview &&
-          (() => {
-            const { cx, cy } = toSvg(preview.x, preview.y);
-            const occupied = getStone(board, preview.x, preview.y) !== null;
-            return (
-              <circle
-                cx={cx}
-                cy={cy}
-                r={8}
-                fill={
-                  occupied
-                    ? "#e85d4c44"
-                    : myStone === "white"
-                      ? "#ffffff99"
-                      : "#1a1a1a66"
-                }
-                stroke={occupied ? "#e85d4c" : "#8B5E3C"}
-                strokeWidth={1.5}
-                strokeDasharray="3 2"
-              />
-            );
-          })()}
-
-        {/* Stones */}
         {[...board.entries()].map(([key, stone]) => {
-          const { x, y } = (() => {
-            const [xs, ys] = key.split(",");
-            return { x: Number(xs), y: Number(ys) };
-          })();
+          const [xs, ys] = key.split(",");
+          const x = Number(xs);
+          const y = Number(ys);
           const { cx, cy } = toSvg(x, y);
-          const isLast =
-            lastMove && lastMove.x === x && lastMove.y === y;
+          const isLast = lastMove && lastMove.x === x && lastMove.y === y;
           return (
             <g key={key}>
               <circle
@@ -203,15 +165,6 @@ export default function CoordinatePlaneBoard({
       </svg>
       <p className="mt-1 text-center text-xs font-semibold text-wood/55">
         판을 눌러서 두지 않아요 · 아래 순서쌍으로만 착수
-        {preview ? (
-          <>
-            {" "}
-            · 미리보기{" "}
-            <span className="font-display text-wood">
-              ({preview.x}, {preview.y})
-            </span>
-          </>
-        ) : null}
       </p>
     </div>
   );

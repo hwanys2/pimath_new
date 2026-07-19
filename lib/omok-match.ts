@@ -251,7 +251,7 @@ export async function omokPlaceMove(input: {
       lastX: number;
       lastY: number;
       moveCount: number;
-      myScore: number | null;
+      outcome: "win" | "loss" | "draw" | null;
     }
   | { ok: false; error: string; message?: string }
 > {
@@ -324,13 +324,13 @@ export async function omokPlaceMove(input: {
     };
   }
 
-  let myScore: number | null = null;
+  let outcome: "win" | "loss" | "draw" | null = null;
   if (row.status === "black_win") {
-    myScore = poll.myStone === "black" ? 300 : 100;
+    outcome = poll.myStone === "black" ? "win" : "loss";
   } else if (row.status === "white_win") {
-    myScore = poll.myStone === "white" ? 300 : 100;
+    outcome = poll.myStone === "white" ? "win" : "loss";
   } else if (row.status === "draw") {
-    myScore = 150;
+    outcome = "draw";
   }
 
   return {
@@ -341,7 +341,7 @@ export async function omokPlaceMove(input: {
     lastX: row.last_x,
     lastY: row.last_y,
     moveCount: row.move_count,
-    myScore,
+    outcome,
   };
 }
 

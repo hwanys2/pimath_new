@@ -290,16 +290,45 @@ export function boardIsFull(board: BoardMap): boolean {
   return board.size >= size * size;
 }
 
-export function scoreForOutcome(
-  outcome: "win" | "loss" | "draw",
+export type OmokOutcome = "win" | "loss" | "draw";
+
+/** Tiered delta from cumulative omok rating before this game. */
+export function deltaForOmokOutcome(
+  totalBefore: number,
+  outcome: OmokOutcome,
 ): number {
-  if (outcome === "win") return SCORE_WIN;
-  if (outcome === "loss") return SCORE_LOSS;
-  return SCORE_DRAW;
+  const t = Math.max(0, Math.floor(totalBefore));
+  if (t >= 3000) {
+    if (outcome === "win") return 100;
+    if (outcome === "loss") return -100;
+    return 50;
+  }
+  if (t >= 2000) {
+    if (outcome === "win") return 150;
+    if (outcome === "loss") return -100;
+    return 50;
+  }
+  if (t >= 1000) {
+    if (outcome === "win") return 200;
+    if (outcome === "loss") return -100;
+    return 75;
+  }
+  if (outcome === "win") return 300;
+  if (outcome === "loss") return 100;
+  return 150;
 }
 
-export function finalizeRunScore(outcome: "win" | "loss" | "draw"): number {
-  return applyScoreGain(0, scoreForOutcome(outcome));
+export function applyOmokDelta(totalBefore: number, delta: number): number {
+  return Math.max(0, Math.round(totalBefore) + Math.round(delta));
+}
+
+/** Flat legacy helper — uses <1000 tier. */
+export function scoreForOutcome(outcome: OmokOutcome): number {
+  return deltaForOmokOutcome(0, outcome);
+}
+
+export function finalizeRunScore(outcome: OmokOutcome): number {
+  return applyScoreGain(0, Math.max(0, scoreForOutcome(outcome)));
 }
 
 /** Serialize board for JSON / DB */
@@ -318,7 +347,7 @@ export function boardFromObject(o: Record<string, Stone> | null | undefined): Bo
   return m;
 }
 
-// ─── Mid-school AI ───────────────────────────────────────────────
+// ─── Stronger mid-school AI (threat patterns + shallow search) ─
 
 function allEmptyCells(board: BoardMap): Point[] {
   const pts: Point[] = [];
@@ -330,14 +359,14 @@ function allEmptyCells(board: BoardMap): Point[] {
   return pts;
 }
 
-/** Candidates near existing stones (speed + stronger play). */
-function candidateMoves(board: BoardMap): Point[] {
+/** Candidates near existing stones. */
+function candidateMoves(board: BoardMap, radius = 2): Point[] {
   if (board.size === 0) return [{ x: 0, y: 0 }];
   const set = new Set<string>();
   for (const key of board.keys()) {
     const { x, y } = parseKey(key);
-    for (let dx = -2; dx <= 2; dx++) {
-      for (let dy = -2; dy <= 2; dy++) {
+    for (let dx = -radius; dx <= radius; dx++) {
+      for (let dy = -radius; dy <= radius; dy++) {
         const nx = x + dx;
         const ny = y + dy;
         if (!inBounds(nx, ny)) continue;
@@ -349,38 +378,129 @@ function candidateMoves(board: BoardMap): Point[] {
   return [...set].map(parseKey);
 }
 
-function evaluateMove(board: BoardMap, x: number, y: number, stone: Stone): number {
-  const trial = tryPlace(board, x, y, stone);
-  if (!trial.ok) return -Infinity;
-  if (trial.won) return 1_000_000;
+type LineShape = {
+  count: number;
+  openEnds: number; // 0–2
+};
 
-  let score = 0;
-  // Center bias
-  score += 12 - (Math.abs(x) + Math.abs(y));
-
-  for (const [dx, dy] of DIRS) {
-    const len = lineLengthThrough(trial.board, x, y, dx, dy, stone);
-    if (len >= 4) score += 8000;
-    else if (len === 3) score += 400;
-    else if (len === 2) score += 40;
+function shapeInDir(
+  board: BoardMap,
+  x: number,
+  y: number,
+  dx: number,
+  dy: number,
+  stone: Stone,
+): LineShape {
+  const forward = countRay(board, x, y, dx, dy, stone);
+  const back = countRay(board, x, y, -dx, -dy, stone);
+  const count = 1 + forward + back;
+  const x1 = x - dx * back;
+  const y1 = y - dy * back;
+  const x2 = x + dx * forward;
+  const y2 = y + dy * forward;
+  let openEnds = 0;
+  if (inBounds(x1 - dx, y1 - dy) && getStone(board, x1 - dx, y1 - dy) === null) {
+    openEnds++;
   }
+  if (inBounds(x2 + dx, y2 + dy) && getStone(board, x2 + dx, y2 + dy) === null) {
+    openEnds++;
+  }
+  return { count, openEnds };
+}
 
-  // Threat: open threes
-  score += countOpenThrees(trial.board, x, y, stone) * 350;
-
+/** Pattern score for a stone already placed at (x,y). */
+function patternScoreAt(
+  board: BoardMap,
+  x: number,
+  y: number,
+  stone: Stone,
+): number {
+  let score = 0;
+  for (const [dx, dy] of DIRS) {
+    const { count, openEnds } = shapeInDir(board, x, y, dx, dy, stone);
+    if (count >= 5) return 10_000_000;
+    if (count === 4 && openEnds === 2) score += 500_000; // open four
+    else if (count === 4 && openEnds === 1) score += 80_000; // closed four
+    else if (count === 3 && openEnds === 2) score += 20_000; // open three
+    else if (count === 3 && openEnds === 1) score += 2_500;
+    else if (count === 2 && openEnds === 2) score += 800;
+    else if (count === 2 && openEnds === 1) score += 120;
+    else if (count === 1 && openEnds === 2) score += 20;
+  }
+  score += countOpenThrees(board, x, y, stone) * 15_000;
   return score;
 }
 
+function evaluateMove(board: BoardMap, x: number, y: number, stone: Stone): number {
+  const trial = tryPlace(board, x, y, stone);
+  if (!trial.ok) return -Infinity;
+  if (trial.won) return 10_000_000;
+
+  let score = patternScoreAt(trial.board, x, y, stone);
+  // Deny opponent patterns if they played here
+  const opp = opponent(stone);
+  const oppTrial = tryPlace(board, x, y, opp);
+  if (oppTrial.ok) {
+    if (oppTrial.won) score += 9_000_000; // must block
+    else score += patternScoreAt(oppTrial.board, x, y, opp) * 0.92;
+  }
+  score += (12 - (Math.abs(x) + Math.abs(y))) * 3;
+  return score;
+}
+
+function minimaxValue(
+  board: BoardMap,
+  stoneToMove: Stone,
+  aiStone: Stone,
+  depth: number,
+  alpha: number,
+  beta: number,
+): number {
+  if (depth === 0) return 0;
+  const maximizing = stoneToMove === aiStone;
+  const moves = candidateMoves(board, 2);
+  let best = maximizing ? -Infinity : Infinity;
+
+  for (const p of moves) {
+    const placed = tryPlace(board, p.x, p.y, stoneToMove);
+    if (!placed.ok) continue;
+    let val: number;
+    if (placed.won) {
+      val = maximizing ? 10_000_000 - (2 - depth) : -10_000_000 + (2 - depth);
+    } else {
+      val =
+        evaluateMove(board, p.x, p.y, stoneToMove) * (maximizing ? 1 : -1) * 0.01 +
+        minimaxValue(
+          placed.board,
+          opponent(stoneToMove),
+          aiStone,
+          depth - 1,
+          alpha,
+          beta,
+        );
+    }
+    if (maximizing) {
+      best = Math.max(best, val);
+      alpha = Math.max(alpha, best);
+    } else {
+      best = Math.min(best, val);
+      beta = Math.min(beta, best);
+    }
+    if (beta <= alpha) break;
+  }
+  return Number.isFinite(best) ? best : 0;
+}
+
 /**
- * Medium AI: win now → block opponent win → build threats.
- * ~15% chance to pick a slightly weaker move so middle-schoolers can win.
+ * Competent AI: win/block → threat patterns → depth-2 search on top candidates.
+ * ~9% chance to pick 2nd-best so middle-schoolers can still win sometimes.
  */
 export function chooseAiMove(
   board: BoardMap,
   aiStone: Stone,
   rng: () => number = Math.random,
 ): Point | null {
-  const candidates = candidateMoves(board);
+  const candidates = candidateMoves(board, 2);
   if (candidates.length === 0) {
     const all = allEmptyCells(board);
     return all[0] ?? null;
@@ -388,13 +508,10 @@ export function chooseAiMove(
 
   const human = opponent(aiStone);
 
-  // 1. Immediate win
   for (const p of candidates) {
     const r = tryPlace(board, p.x, p.y, aiStone);
     if (r.ok && r.won) return p;
   }
-
-  // 2. Block opponent win
   for (const p of candidates) {
     const r = tryPlace(board, p.x, p.y, human);
     if (r.ok && r.won) {
@@ -403,20 +520,36 @@ export function chooseAiMove(
     }
   }
 
-  // 3. Score candidates
-  const scored = candidates
+  // Pre-score then deep-search top N
+  const pre = candidates
     .map((p) => ({ p, s: evaluateMove(board, p.x, p.y, aiStone) }))
     .filter((c) => c.s > -Infinity)
     .sort((a, b) => b.s - a.s);
 
-  if (scored.length === 0) return null;
+  if (pre.length === 0) return null;
 
-  // Soften: sometimes take 2nd–4th best
-  if (scored.length > 1 && rng() < 0.18) {
-    const idx = 1 + Math.floor(rng() * Math.min(3, scored.length - 1));
-    return scored[idx]!.p;
+  const top = pre.slice(0, Math.min(14, pre.length));
+  const deep = top
+    .map(({ p, s }) => {
+      const placed = tryPlace(board, p.x, p.y, aiStone);
+      if (!placed.ok) return { p, s: -Infinity };
+      if (placed.won) return { p, s: 20_000_000 };
+      const search = minimaxValue(
+        placed.board,
+        human,
+        aiStone,
+        1,
+        -Infinity,
+        Infinity,
+      );
+      return { p, s: s + search };
+    })
+    .sort((a, b) => b.s - a.s);
+
+  if (deep.length > 1 && rng() < 0.09) {
+    return deep[1]!.p;
   }
-  return scored[0]!.p;
+  return deep[0]?.p ?? pre[0]!.p;
 }
 
 export function stoneLabel(s: Stone): string {

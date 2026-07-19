@@ -1,25 +1,16 @@
 "use client";
 
-import {
-  useCallback,
-  useEffect,
-  useRef,
-  useState,
-  useTransition,
-} from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import Image from "next/image";
-import type { RankingMode, RankingRow, RankingScope } from "@/lib/game-types";
-import GameRankingBoard from "@/components/games/GameRankingBoard";
+import type { RankingRow, RankingScope } from "@/lib/game-types";
 import CoordinatePlaneBoard from "@/components/games/CoordinatePlaneBoard";
 import OrderedPairPad from "@/components/games/OrderedPairPad";
-import {
-  submitGameRun,
-  fetchGameRanking,
-  type GameSubmitClientResult,
-} from "@/app/adventure/actions";
+import OmokRatingBoard from "@/components/games/OmokRatingBoard";
 import {
   omokClaimResultAction,
   omokExpandGlobalAction,
+  omokFetchRatingRankingAction,
+  omokFinishWithRatingAction,
   omokJoinQueueAction,
   omokLeaveQueueAction,
   omokLobbyContextAction,
@@ -32,23 +23,17 @@ import {
   boardIsFull,
   chooseAiMove,
   emptyBoard,
-  finalizeRunScore,
   formatPair,
   stoneLabel,
   tryPlace,
   type BoardMap,
+  type OmokOutcome,
   type Stone,
 } from "@/lib/ordered-pair-omok-math";
 
-const CONTENT_KEY = "g1-u2-3-ordered-pair-omok";
 const GUEST_KEY = "pm_omok_guest_id";
 
-type Screen =
-  | "lobby"
-  | "waiting"
-  | "playing"
-  | "ended";
-
+type Screen = "lobby" | "waiting" | "playing" | "ended";
 type Mode = "ai" | "pvp";
 
 function ensureGuestId(): string {
@@ -62,6 +47,17 @@ function ensureGuestId(): string {
     window.localStorage.setItem(GUEST_KEY, id);
   }
   return id;
+}
+
+function outcomeFromGameStatus(
+  status: string | null | undefined,
+  myStone: Stone | null,
+): OmokOutcome | null {
+  if (!status || !myStone) return null;
+  if (status === "draw") return "draw";
+  if (status === "black_win") return myStone === "black" ? "win" : "loss";
+  if (status === "white_win") return myStone === "white" ? "win" : "loss";
+  return null;
 }
 
 export default function OrderedPairOmok() {
@@ -83,29 +79,51 @@ export default function OrderedPairOmok() {
   const [padY, setPadY] = useState<number | null>(null);
   const [statusMsg, setStatusMsg] = useState("");
   const [opponentName, setOpponentName] = useState("컴퓨터");
-  const [outcome, setOutcome] = useState<"win" | "loss" | "draw" | null>(null);
-  const [finalScore, setFinalScore] = useState(0);
+  const [outcome, setOutcome] = useState<OmokOutcome | null>(null);
+  const [delta, setDelta] = useState(0);
+  const [totalAfter, setTotalAfter] = useState(0);
+  const [xpMessage, setXpMessage] = useState<string | null>(null);
+  const [practiceOnly, setPracticeOnly] = useState(true);
+  const [placing, setPlacing] = useState(false);
 
-  const [submitResult, setSubmitResult] =
-    useState<GameSubmitClientResult | null>(null);
   const [ranking, setRanking] = useState<RankingRow[]>([]);
   const [rankingScope, setRankingScope] = useState<RankingScope>("class");
-  const [rankingMode, setRankingMode] = useState<RankingMode>("best");
-  const [isPending, startTransition] = useTransition();
+  const [rankingLoading, setRankingLoading] = useState(false);
   const [waitSeconds, setWaitSeconds] = useState(0);
 
   const endingRef = useRef(false);
   const aiThinkingRef = useRef(false);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const pollInFlightRef = useRef(false);
+  const placingRef = useRef(false);
+  const snapshotRef = useRef({
+    gameId: null as string | null,
+    moveCount: -1,
+    turn: null as Stone | null,
+    status: null as string | null,
+  });
+  const gameIdRef = useRef<string | null>(null);
+  const guestIdRef = useRef("");
+  const myStoneRef = useRef<Stone>("black");
+
+  useEffect(() => {
+    gameIdRef.current = gameId;
+  }, [gameId]);
+  useEffect(() => {
+    guestIdRef.current = guestId;
+  }, [guestId]);
+  useEffect(() => {
+    myStoneRef.current = myStone;
+  }, [myStone]);
 
   useEffect(() => {
     setGuestId(ensureGuestId());
-    startTransition(async () => {
+    void (async () => {
       const ctx = await omokLobbyContextAction();
       setCanUseClass(ctx.canUseClass);
       setPlayerName(ctx.displayName);
       setQueueScope(ctx.canUseClass ? "class" : "global");
-    });
+    })();
   }, []);
 
   const stopPoll = useCallback(() => {
@@ -113,92 +131,145 @@ export default function OrderedPairOmok() {
       clearInterval(pollRef.current);
       pollRef.current = null;
     }
+    pollInFlightRef.current = false;
   }, []);
 
-  const finishWithScore = useCallback(
-    (score: number, result: "win" | "loss" | "draw") => {
+  const finishWithOutcome = useCallback(
+    async (result: OmokOutcome) => {
       if (endingRef.current) return;
       endingRef.current = true;
       stopPoll();
       setOutcome(result);
-      setFinalScore(score);
       setScreen("ended");
-      startTransition(async () => {
-        const submit = await submitGameRun({
-          contentKey: CONTENT_KEY,
-          score,
-        });
-        setSubmitResult(submit);
-        if (submit.recorded) {
-          const rows = await fetchGameRanking({
-            contentKey: CONTENT_KEY,
-            scope: "class",
-            mode: "best",
-          });
-          setRanking(rows);
-        }
-      });
+      setPlacing(false);
+      placingRef.current = false;
+
+      const finished = await omokFinishWithRatingAction({ outcome: result });
+      if ("error" in finished && finished.error) {
+        setStatusMsg(finished.error);
+      }
+      setDelta(finished.delta);
+      setTotalAfter(finished.totalAfter);
+      setPracticeOnly(finished.practiceOnly);
+      setXpMessage(finished.xp?.message ?? null);
+
+      if (finished.recorded) {
+        setRankingLoading(true);
+        const rows = await omokFetchRatingRankingAction({ scope: "class" });
+        setRanking(rows);
+        setRankingScope("class");
+        setRankingLoading(false);
+      }
     },
     [stopPoll],
   );
 
   const applyPollPlaying = useCallback(
     (state: OmokPollState) => {
-      setBoard(boardFromObject(state.board));
-      if (state.turn) setTurn(state.turn);
-      if (state.myStone) setMyStone(state.myStone);
-      if (state.gameId) setGameId(state.gameId);
-      if (state.opponentName) setOpponentName(state.opponentName);
-      if (state.lastX != null && state.lastY != null) {
-        setLastMove({ x: state.lastX, y: state.lastY });
+      const snap = snapshotRef.current;
+      const sameSnapshot =
+        state.gameId === snap.gameId &&
+        state.moveCount === snap.moveCount &&
+        state.turn === snap.turn &&
+        state.gameStatus === snap.status &&
+        state.phase !== "ended";
+
+      if (sameSnapshot && state.phase === "playing") {
+        return;
       }
-      if (state.phase === "ended" && state.myScore != null) {
-        const result: "win" | "loss" | "draw" =
-          state.myScore === 300
+
+      // Don't overwrite with older moveCount after we placed
+      if (
+        state.phase === "playing" &&
+        snap.gameId &&
+        state.gameId === snap.gameId &&
+        state.moveCount < snap.moveCount
+      ) {
+        return;
+      }
+
+      snapshotRef.current = {
+        gameId: state.gameId,
+        moveCount: state.moveCount,
+        turn: state.turn,
+        status: state.gameStatus,
+      };
+
+      if (state.phase === "ended") {
+        const result =
+          (state.gameStatus
+            ? outcomeFromGameStatus(state.gameStatus, state.myStone)
+            : null) ??
+          (state.myScore === 300
             ? "win"
             : state.myScore === 150
               ? "draw"
-              : "loss";
-        void (async () => {
-          if (state.gameId) {
-            await omokClaimResultAction({
-              guestId,
-              gameId: state.gameId,
-            });
-          }
-          finishWithScore(state.myScore!, result);
-        })();
-      } else if (state.phase === "playing") {
+              : state.myScore != null
+                ? "loss"
+                : null);
+        if (result) {
+          void (async () => {
+            if (state.gameId) {
+              await omokClaimResultAction({
+                guestId: guestIdRef.current,
+                gameId: state.gameId,
+              });
+            }
+            await finishWithOutcome(result);
+          })();
+        }
+        return;
+      }
+
+      if (state.phase === "playing") {
+        setBoard(boardFromObject(state.board));
+        if (state.turn) setTurn(state.turn);
+        if (state.myStone) setMyStone(state.myStone);
+        if (state.gameId) setGameId(state.gameId);
+        if (state.opponentName) setOpponentName(state.opponentName);
+        if (state.lastX != null && state.lastY != null) {
+          setLastMove({ x: state.lastX, y: state.lastY });
+        }
         setScreen("playing");
         setMode("pvp");
-      } else if (state.phase === "waiting") {
+        return;
+      }
+
+      if (state.phase === "waiting") {
         setScreen("waiting");
         if (state.queueScope) setQueueScope(state.queueScope);
       }
     },
-    [finishWithScore, guestId],
+    [finishWithOutcome],
   );
 
   const startPoll = useCallback(
     (gid?: string | null) => {
       stopPoll();
-      pollRef.current = setInterval(() => {
-        startTransition(async () => {
+      const tick = async () => {
+        if (pollInFlightRef.current || endingRef.current) return;
+        if (placingRef.current) return;
+        pollInFlightRef.current = true;
+        try {
           const state = await omokPollAction({
-            guestId,
-            gameId: gid ?? gameId,
+            guestId: guestIdRef.current,
+            gameId: gid ?? gameIdRef.current,
           });
           if ("error" in state) return;
           applyPollPlaying(state);
-        });
-      }, 1500);
+        } finally {
+          pollInFlightRef.current = false;
+        }
+      };
+      void tick();
+      pollRef.current = setInterval(() => {
+        void tick();
+      }, 1600);
     },
-    [applyPollPlaying, gameId, guestId, stopPoll],
+    [applyPollPlaying, stopPoll],
   );
 
-  useEffect(() => {
-    return () => stopPoll();
-  }, [stopPoll]);
+  useEffect(() => () => stopPoll(), [stopPoll]);
 
   useEffect(() => {
     if (screen !== "waiting") {
@@ -217,7 +288,13 @@ export default function OrderedPairOmok() {
   const startAiGame = async () => {
     endingRef.current = false;
     stopPoll();
-    await omokLeaveQueueAction({ guestId });
+    await omokLeaveQueueAction({ guestId: guestIdRef.current });
+    snapshotRef.current = {
+      gameId: null,
+      moveCount: -1,
+      turn: null,
+      status: null,
+    };
     setMode("ai");
     setBoard(emptyBoard());
     setTurn("black");
@@ -226,7 +303,8 @@ export default function OrderedPairOmok() {
     setLastMove(null);
     setStatusMsg("당신은 흑(선공)이에요. 순서쌍으로 첫 수를 두세요!");
     setOutcome(null);
-    setSubmitResult(null);
+    setDelta(0);
+    setXpMessage(null);
     setGameId(null);
     resetPad();
     setScreen("playing");
@@ -234,9 +312,19 @@ export default function OrderedPairOmok() {
 
   const startMatchmaking = async (scope: "class" | "global") => {
     endingRef.current = false;
-    setSubmitResult(null);
     setOutcome(null);
-    const joined = await omokJoinQueueAction({ scope, guestId });
+    setDelta(0);
+    setXpMessage(null);
+    snapshotRef.current = {
+      gameId: null,
+      moveCount: -1,
+      turn: null,
+      status: null,
+    };
+    const joined = await omokJoinQueueAction({
+      scope,
+      guestId: guestIdRef.current,
+    });
     if ("error" in joined) {
       setStatusMsg(joined.error);
       return;
@@ -245,7 +333,10 @@ export default function OrderedPairOmok() {
     setMode("pvp");
     if (joined.gameId) {
       setGameId(joined.gameId);
-      const state = await omokPollAction({ guestId, gameId: joined.gameId });
+      const state = await omokPollAction({
+        guestId: guestIdRef.current,
+        gameId: joined.gameId,
+      });
       if (!("error" in state)) applyPollPlaying(state);
       startPoll(joined.gameId);
     } else {
@@ -260,7 +351,9 @@ export default function OrderedPairOmok() {
   };
 
   const expandGlobal = async () => {
-    const res = await omokExpandGlobalAction({ guestId });
+    const res = await omokExpandGlobalAction({
+      guestId: guestIdRef.current,
+    });
     if ("error" in res) {
       setStatusMsg(res.error);
       return;
@@ -269,7 +362,10 @@ export default function OrderedPairOmok() {
     setStatusMsg("전체로 확대해서 기다리는 중이에요…");
     if (res.gameId) {
       setGameId(res.gameId);
-      const state = await omokPollAction({ guestId, gameId: res.gameId });
+      const state = await omokPollAction({
+        guestId: guestIdRef.current,
+        gameId: res.gameId,
+      });
       if (!("error" in state)) applyPollPlaying(state);
       startPoll(res.gameId);
     }
@@ -277,24 +373,23 @@ export default function OrderedPairOmok() {
 
   const cancelWait = async () => {
     stopPoll();
-    await omokLeaveQueueAction({ guestId });
+    await omokLeaveQueueAction({ guestId: guestIdRef.current });
     setScreen("lobby");
     setStatusMsg("");
   };
 
-  // AI reply after human move
+  // AI reply
   useEffect(() => {
     if (screen !== "playing" || mode !== "ai") return;
     if (turn !== "white") return;
-    if (aiThinkingRef.current) return;
-    if (endingRef.current) return;
+    if (aiThinkingRef.current || endingRef.current) return;
 
     aiThinkingRef.current = true;
     const timer = window.setTimeout(() => {
       const move = chooseAiMove(board, "white");
       aiThinkingRef.current = false;
       if (!move) {
-        finishWithScore(finalizeRunScore("draw"), "draw");
+        void finishWithOutcome("draw");
         return;
       }
       const placed = tryPlace(board, move.x, move.y, "white");
@@ -307,25 +402,26 @@ export default function OrderedPairOmok() {
       setLastMove(move);
       setStatusMsg(`컴퓨터가 ${formatPair(move.x, move.y)}에 두었어요.`);
       if (placed.won) {
-        finishWithScore(finalizeRunScore("loss"), "loss");
+        void finishWithOutcome("loss");
         return;
       }
       if (boardIsFull(placed.board)) {
-        finishWithScore(finalizeRunScore("draw"), "draw");
+        void finishWithOutcome("draw");
         return;
       }
       setTurn("black");
-    }, 450 + Math.random() * 350);
+    }, 380 + Math.random() * 280);
 
     return () => {
       window.clearTimeout(timer);
       aiThinkingRef.current = false;
     };
-  }, [board, finishWithScore, mode, screen, turn]);
+  }, [board, finishWithOutcome, mode, screen, turn]);
 
-  const placeHuman = () => {
+  const placeHuman = async () => {
     if (padX === null || padY === null) return;
     if (screen !== "playing") return;
+    if (placingRef.current) return;
 
     if (mode === "ai") {
       if (turn !== myStone) {
@@ -342,11 +438,11 @@ export default function OrderedPairOmok() {
       setStatusMsg(`${formatPair(padX, padY)}에 두었어요!`);
       resetPad();
       if (placed.won) {
-        finishWithScore(finalizeRunScore("win"), "win");
+        void finishWithOutcome("win");
         return;
       }
       if (boardIsFull(placed.board)) {
-        finishWithScore(finalizeRunScore("draw"), "draw");
+        void finishWithOutcome("draw");
         return;
       }
       setTurn("white");
@@ -354,15 +450,18 @@ export default function OrderedPairOmok() {
     }
 
     // PvP
-    if (!gameId) return;
+    if (!gameIdRef.current) return;
     if (turn !== myStone) {
       setStatusMsg("상대 차례예요. 순서쌍을 입력하기 전에 기다려 주세요.");
       return;
     }
-    startTransition(async () => {
+
+    placingRef.current = true;
+    setPlacing(true);
+    try {
       const res = await omokPlaceMoveAction({
-        guestId,
-        gameId,
+        guestId: guestIdRef.current,
+        gameId: gameIdRef.current,
         x: padX,
         y: padY,
       });
@@ -370,31 +469,36 @@ export default function OrderedPairOmok() {
         setStatusMsg(res.message ?? "둘 수 없어요.");
         return;
       }
+      snapshotRef.current = {
+        gameId: gameIdRef.current,
+        moveCount: res.moveCount,
+        turn: res.turn,
+        status: res.status,
+      };
       setBoard(boardFromObject(res.board));
       setTurn(res.turn);
       setLastMove({ x: res.lastX, y: res.lastY });
       setStatusMsg(`${formatPair(padX, padY)}에 두었어요!`);
       resetPad();
-      if (res.myScore != null) {
-        const result: "win" | "loss" | "draw" =
-          res.myScore === 300 ? "win" : res.myScore === 150 ? "draw" : "loss";
-        await omokClaimResultAction({ guestId, gameId });
-        finishWithScore(res.myScore, result);
+      if (res.outcome) {
+        await omokClaimResultAction({
+          guestId: guestIdRef.current,
+          gameId: gameIdRef.current,
+        });
+        await finishWithOutcome(res.outcome);
       }
-    });
+    } finally {
+      placingRef.current = false;
+      setPlacing(false);
+    }
   };
 
-  const reloadRanking = (scope: RankingScope, modeR: RankingMode) => {
+  const reloadRanking = async (scope: RankingScope) => {
     setRankingScope(scope);
-    setRankingMode(modeR);
-    startTransition(async () => {
-      const rows = await fetchGameRanking({
-        contentKey: CONTENT_KEY,
-        scope,
-        mode: modeR,
-      });
-      setRanking(rows);
-    });
+    setRankingLoading(true);
+    const rows = await omokFetchRatingRankingAction({ scope });
+    setRanking(rows);
+    setRankingLoading(false);
   };
 
   const backToLobby = () => {
@@ -404,13 +508,13 @@ export default function OrderedPairOmok() {
     setBoard(emptyBoard());
     setStatusMsg("");
     setOutcome(null);
-    setSubmitResult(null);
+    setDelta(0);
+    setXpMessage(null);
     resetPad();
   };
 
-  const preview =
-    padX !== null && padY !== null ? { x: padX, y: padY } : null;
   const myTurn = screen === "playing" && turn === myStone;
+  const padDisabled = !myTurn || placing;
 
   return (
     <div className="space-y-4">
@@ -433,7 +537,9 @@ export default function OrderedPairOmok() {
             />
           </div>
           <div className="min-w-0 flex-1">
-            <p className="text-xs font-bold text-wood/55">중1 · 2.3 좌표평면과 그래프</p>
+            <p className="text-xs font-bold text-wood/55">
+              중1 · 2.3 좌표평면과 그래프
+            </p>
             <h1 className="font-display text-2xl text-wood sm:text-3xl">
               순서쌍 오목
             </h1>
@@ -462,7 +568,7 @@ export default function OrderedPairOmok() {
             >
               <p className="font-display text-lg text-wood">컴퓨터와 두기</p>
               <p className="mt-1 text-sm text-wood/70">
-                중학생 난이도 AI · 바로 시작 · 승 300 / 패 100
+                중급 AI · 바로 시작 · 누적 점수 반영
               </p>
             </button>
             <button
@@ -495,12 +601,6 @@ export default function OrderedPairOmok() {
             {queueScope === "class" ? "범위: 같은 반" : "범위: 전체"} ·{" "}
             {waitSeconds}초
           </p>
-          <div className="mx-auto h-2 w-48 overflow-hidden rounded-full bg-wood/10">
-            <div
-              className="h-full animate-pulse rounded-full bg-mint"
-              style={{ width: `${Math.min(100, 20 + waitSeconds * 4)}%` }}
-            />
-          </div>
           <div className="flex flex-col gap-2 sm:mx-auto sm:max-w-md">
             {queueScope === "class" ? (
               <button
@@ -544,7 +644,11 @@ export default function OrderedPairOmok() {
                 myTurn ? "bg-gold text-wood" : "bg-wood/10 text-wood/60",
               ].join(" ")}
             >
-              {myTurn ? "내 차례 · 순서쌍을 입력하세요" : "상대 차례"}
+              {placing
+                ? "두는 중…"
+                : myTurn
+                  ? "내 차례 · 순서쌍을 입력하세요"
+                  : "상대 차례"}
             </div>
           </div>
 
@@ -559,26 +663,20 @@ export default function OrderedPairOmok() {
 
           <div className="grid gap-4 lg:grid-cols-[1.1fr_0.9fr]">
             <div className="quest-card p-3 sm:p-4">
-              <CoordinatePlaneBoard
-                board={board}
-                preview={preview}
-                lastMove={lastMove}
-                myStone={myStone}
-              />
+              <CoordinatePlaneBoard board={board} lastMove={lastMove} />
             </div>
             <OrderedPairPad
               x={padX}
               y={padY}
               onChangeX={setPadX}
               onChangeY={setPadY}
-              onPlace={placeHuman}
-              disabled={!myTurn || isPending}
+              onPlace={() => void placeHuman()}
+              disabled={padDisabled}
             />
           </div>
 
           <p className="text-center text-xs text-wood/50">
             흑 금수: 한 수로 열린 삼이 두 방향에 생기면 둘 수 없어요 (쌍삼).
-            다섯이 만들어지면 금수보다 승리가 우선이에요.
           </p>
         </section>
       ) : null}
@@ -594,24 +692,24 @@ export default function OrderedPairOmok() {
                   : "아쉬운 패배"}
             </p>
             <p className="mt-2 text-lg font-black tabular-nums text-wood">
-              점수 {finalScore}
+              {delta >= 0 ? "+" : ""}
+              {delta}점
               <span className="ml-2 text-sm font-semibold text-wood/55">
-                (승 300 · 패 100 · 무 150)
+                누적 {totalAfter}점
               </span>
             </p>
-            {submitResult?.practiceOnly ? (
+            {practiceOnly ? (
               <p className="mt-2 text-sm text-wood/60">
-                연습 모드 — 학급에 배정·활성화되면 XP와 랭킹에 반영돼요.
+                연습 모드 — 학급에 배정·활성화되면 누적 랭킹과 XP에 반영돼요.
               </p>
             ) : null}
-            {submitResult?.message ? (
-              <p className="mt-1 text-sm font-semibold text-wood">
-                {submitResult.message}
-              </p>
+            {xpMessage ? (
+              <p className="mt-1 text-sm font-semibold text-wood">{xpMessage}</p>
             ) : null}
-            {submitResult?.error ? (
-              <p className="mt-1 text-sm text-[#c44]">{submitResult.error}</p>
-            ) : null}
+            <p className="mt-3 text-xs text-wood/50">
+              누적 &lt;1000: 승+300/패+100 · ≥1000: 승+200/패−100 · ≥2000:
+              승+150/패−100 · ≥3000: 승+100/패−100
+            </p>
           </div>
 
           <div className="flex flex-wrap justify-center gap-2">
@@ -631,14 +729,13 @@ export default function OrderedPairOmok() {
             </button>
           </div>
 
-          {submitResult?.recorded ? (
-            <GameRankingBoard
+          {!practiceOnly ? (
+            <OmokRatingBoard
               rows={ranking}
               scope={rankingScope}
-              mode={rankingMode}
-              loading={isPending}
-              onScopeChange={(s) => reloadRanking(s, rankingMode)}
-              onModeChange={(m) => reloadRanking(rankingScope, m)}
+              loading={rankingLoading}
+              myTotal={totalAfter}
+              onScopeChange={(s) => void reloadRanking(s)}
             />
           ) : null}
         </section>
