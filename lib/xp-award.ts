@@ -73,7 +73,7 @@ export async function fetchStudentProgress(
 }
 
 /**
- * Award XP from a finished simulation run.
+ * Award XP from a finished **game** run (not simulations).
  * score is clamped to 0–1000 and mapped 1:1 to XP.
  */
 export async function awardStudentXpFromSession(input: {

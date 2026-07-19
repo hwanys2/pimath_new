@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { requireStudent } from "@/lib/auth";
 import { fetchStudentProgress } from "@/lib/xp-award";
+import { fetchMyClassContents } from "@/lib/class-contents";
 import { getStudentSession } from "@/lib/student-session";
 import {
   getEquippedCosmetics,
@@ -12,6 +13,7 @@ import {
 } from "@/lib/progression";
 import { xpProgressInLevel } from "@/lib/xp";
 import AdventureProfile from "@/components/adventure/AdventureProfile";
+import ClassAssignedContents from "@/components/adventure/ClassAssignedContents";
 
 export const metadata: Metadata = {
   title: "나의 모험 | 수학하는 즐거움",
@@ -37,17 +39,24 @@ export default async function AdventurePage() {
   const equipped = getEquippedCosmetics(level);
   const unlockedCosmeticIds = getUnlockedCosmetics(level).map((c) => c.id);
 
+  const assignedContents = session
+    ? await fetchMyClassContents(session.sessionToken)
+    : [];
+
   return (
-    <AdventureProfile
-      displayName={progressRow?.displayName ?? student.name}
-      className={progressRow?.className ?? student.className}
-      progress={progress}
-      avatar={avatar}
-      activeAvatar={activeAvatar}
-      nextUnlock={nextUnlock}
-      unlockedIds={unlockedIds}
-      equipped={equipped}
-      unlockedCosmeticIds={unlockedCosmeticIds}
-    />
+    <div className="flex flex-col gap-8">
+      <ClassAssignedContents items={assignedContents} />
+      <AdventureProfile
+        displayName={progressRow?.displayName ?? student.name}
+        className={progressRow?.className ?? student.className}
+        progress={progress}
+        avatar={avatar}
+        activeAvatar={activeAvatar}
+        nextUnlock={nextUnlock}
+        unlockedIds={unlockedIds}
+        equipped={equipped}
+        unlockedCosmeticIds={unlockedCosmeticIds}
+      />
+    </div>
   );
 }

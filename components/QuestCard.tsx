@@ -1,5 +1,7 @@
 import Image from "next/image";
 import type { GradeMeta } from "@/lib/grades";
+import { getUnitsForGrade, getUnitLabel } from "@/lib/curriculum";
+import { getContentsForUnit } from "@/lib/contents";
 import BlockButton from "./BlockButton";
 
 type Props = {
@@ -7,6 +9,10 @@ type Props = {
 };
 
 export default function QuestCard({ grade }: Props) {
+  const units = getUnitsForGrade(grade.id);
+  const readyUnits = units.filter((u) => getContentsForUnit(u.id).length > 0);
+  const preview = (readyUnits.length > 0 ? readyUnits : units).slice(0, 3);
+
   return (
     <article className="quest-card flex flex-col overflow-hidden">
       <div
@@ -37,29 +43,29 @@ export default function QuestCard({ grade }: Props) {
           {grade.description}
         </p>
 
-        <div>
-          <div className="mb-1.5 flex items-center justify-between text-xs font-bold text-foreground/60">
-            <span>탐험 진행도</span>
-            <span>{grade.xp}%</span>
-          </div>
-          <div className="xp-bar">
-            <div
-              className="xp-bar-fill"
-              style={{ width: `${grade.xp}%` }}
-            />
-          </div>
-        </div>
-
         <ul className="space-y-1.5 text-sm">
-          {grade.questPreview.map((quest) => (
-            <li
-              key={quest}
-              className="flex items-center gap-2 rounded-xl bg-wood/5 px-3 py-2 font-medium text-foreground/80"
-            >
-              <span aria-hidden>⭐</span>
-              {quest}
+          {preview.map((unit) => {
+            const hasContent = getContentsForUnit(unit.id).length > 0;
+            return (
+              <li
+                key={unit.id}
+                className="flex items-center gap-2 rounded-xl bg-wood/5 px-3 py-2 font-medium text-foreground/80"
+              >
+                <span
+                  className={`h-2 w-2 shrink-0 rounded-full ${
+                    hasContent ? "bg-mint" : "bg-wood/30"
+                  }`}
+                  aria-hidden
+                />
+                <span className="truncate">{getUnitLabel(unit)}</span>
+              </li>
+            );
+          })}
+          {units.length > 3 ? (
+            <li className="px-3 text-xs font-semibold text-foreground/45">
+              외 {units.length - 3}개 단원
             </li>
-          ))}
+          ) : null}
         </ul>
 
         <div className="mt-auto pt-1">

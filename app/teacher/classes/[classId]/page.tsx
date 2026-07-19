@@ -3,9 +3,11 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { requireTeacher } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
+import { fetchClassContentAssignments } from "@/lib/class-contents";
 import EditClassForm from "@/components/teacher/EditClassForm";
 import StudentRoster from "@/components/teacher/StudentRoster";
 import BulkStudentImport from "@/components/teacher/BulkStudentImport";
+import ClassContentManager from "@/components/teacher/ClassContentManager";
 import { deleteClass } from "@/app/teacher/actions";
 
 type Props = {
@@ -49,6 +51,8 @@ export default async function ClassDetailPage({ params }: Props) {
     console.error("[pm] load students failed:", studentError.message);
   }
 
+  const assignments = await fetchClassContentAssignments(classId);
+
   return (
     <div className="flex flex-col gap-8">
       <div>
@@ -87,6 +91,10 @@ export default async function ClassDetailPage({ params }: Props) {
             grade={klass.grade}
           />
         </div>
+      </section>
+
+      <section className="quest-card p-5 sm:p-6">
+        <ClassContentManager classId={classId} assignments={assignments} />
       </section>
 
       <section className="quest-card p-5 sm:p-6">

@@ -14,16 +14,19 @@ npm run dev
 ## 페이지
 
 - `/` — 랜딩 (탐험 배너 + 학년별 퀘스트 카드)
-- `/grade/1` — 중1
-- `/grade/2` — 중2
-- `/grade/3` — 중3
+- `/grade/1` — 중1 단원 목록
+- `/grade/2` — 중2 단원 목록
+- `/grade/3` — 중3 단원 목록
+- `/grade/[n]/[unitId]` — 단원별 시뮬레이션·게임
+- `/play/...` — 콘텐츠 공개 플레이 (로그인·배정 없이 가능)
 - `/login` — 교사/학생 로그인 선택
 - `/login/teacher`, `/signup` — 교사 로그인 / 회원가입 (이메일, Google, Kakao)
 - `/login/student` — 학생 로그인 (선생님이 만든 아이디)
-- `/adventure` — 학생 레벨·캐릭터 육성 (파이 성장, 동료 해금)
-- `/teacher` — 학급·학생 명단 관리
+- `/adventure` — 학생 레벨·캐릭터 육성 + 우리 반 배정 콘텐츠
+- `/teacher` — 학급·학생 명단·수업 콘텐츠 배정
 
-레벨/XP 규칙: [docs/progression-system.md](docs/progression-system.md) (한 판 만점 ≈ 1000점, 만렙 100 / **50만 XP**, 5레벨마다 파이 폼·장비 해금)
+- 콘텐츠·단원·배정: [docs/content-system.md](docs/content-system.md) (공개 링크 + 학급 담아두기/활성화, 시뮬레이션≠XP)
+- 레벨/XP 규칙: [docs/progression-system.md](docs/progression-system.md) (게임만 · 한 판 만점 ≈ 1000점, 만렙 100 / **50만 XP**)
 
 ## 환경 변수 / 인증
 

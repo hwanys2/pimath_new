@@ -1,7 +1,10 @@
 import Image from "next/image";
+import Link from "next/link";
 import { notFound } from "next/navigation";
 import BlockButton from "@/components/BlockButton";
 import { getGrade, isValidGrade, GRADES } from "@/lib/grades";
+import { getUnitsForGrade, getUnitLabel } from "@/lib/curriculum";
+import { getContentsForUnit } from "@/lib/contents";
 
 type Props = {
   params: Promise<{ grade: string }>;
@@ -29,6 +32,7 @@ export default async function GradePage({ params }: Props) {
   if (!isValidGrade(id)) notFound();
 
   const grade = getGrade(id)!;
+  const units = getUnitsForGrade(id);
 
   return (
     <div className="space-y-8">
@@ -51,9 +55,6 @@ export default async function GradePage({ params }: Props) {
               <BlockButton href="/" variant="sky" size="sm">
                 ← 홈으로
               </BlockButton>
-              <BlockButton variant={grade.theme} size="sm" className="opacity-80">
-                첫 미션 준비중
-              </BlockButton>
             </div>
           </div>
           <Image
@@ -69,74 +70,47 @@ export default async function GradePage({ params }: Props) {
 
       <section>
         <div className="mb-4">
-          <p className="text-sm font-bold text-wood">퀘스트 보드</p>
-          <h2 className="font-display text-2xl">미션 목록</h2>
+          <p className="text-sm font-bold text-wood">단원 목록</p>
+          <h2 className="font-display text-2xl">커리큘럼</h2>
+          <p className="mt-1 text-sm text-foreground/60">
+            단원을 골라 시뮬레이션·게임을 열어 보세요. 공개 링크는 로그인 없이
+            플레이할 수 있어요.
+          </p>
         </div>
 
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {grade.questPreview.map((quest, index) => {
-            const locked = quest.includes("준비중");
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          {units.map((unit) => {
+            const contents = getContentsForUnit(unit.id);
+            const readyCount = contents.length;
             return (
-              <div
-                key={quest}
-                className={`coming-soon-slot flex flex-col gap-3 p-5 ${
-                  locked ? "opacity-80" : ""
-                }`}
+              <Link
+                key={unit.id}
+                href={`/grade/${id}/${unit.id}`}
+                className="quest-card flex flex-col gap-2 p-5 no-underline transition hover:-translate-y-1"
               >
-                <div className="flex items-center justify-between">
-                  <span className="font-display text-lg text-foreground">
-                    미션 {index + 1}
-                  </span>
+                <div className="flex items-center justify-between gap-2">
                   <span className="rounded-full bg-wood/10 px-2.5 py-0.5 text-xs font-bold text-wood">
-                    {locked ? "잠김" : "오픈 예정"}
+                    {unit.code}
+                  </span>
+                  <span className="text-xs font-semibold text-foreground/50">
+                    {readyCount > 0
+                      ? `콘텐츠 ${readyCount}`
+                      : "준비중"}
                   </span>
                 </div>
-                <p className="font-medium text-foreground/80">{quest}</p>
-                <p className="text-xs text-foreground/50">
-                  시뮬레이션 · 게임 콘텐츠가 곧 추가됩니다
+                <p className="font-display text-lg text-foreground">
+                  {getUnitLabel(unit)}
                 </p>
-              </div>
+                <p className="text-xs text-foreground/50">
+                  {readyCount > 0
+                    ? contents.map((c) => c.title).join(" · ")
+                    : "시뮬레이션 · 게임이 곧 추가됩니다"}
+                </p>
+              </Link>
             );
           })}
-
-          <div className="coming-soon-slot flex flex-col items-center justify-center gap-2 p-5 text-center">
-            <span className="text-3xl" aria-hidden>
-              ✨
-            </span>
-            <p className="font-display text-lg">더 많은 퀘스트</p>
-            <p className="text-xs text-foreground/50">
-              세부 메뉴와 프로그램이 차근차근 채워질 예정이에요
-            </p>
-          </div>
         </div>
       </section>
-
-      <section className="quest-card p-6 sm:p-8">
-        <h2 className="font-display text-xl">탐험가 현황 (미리보기)</h2>
-        <div className="mt-4 grid gap-4 sm:grid-cols-3">
-          <Stat label="클리어 미션" value="0" />
-          <Stat label="획득 배지" value="0" />
-          <Stat label="경험치" value={`${grade.xp} XP`} />
-        </div>
-        <div className="mt-4">
-          <div className="mb-1.5 flex justify-between text-xs font-bold text-foreground/60">
-            <span>다음 레벨까지</span>
-            <span>{grade.xp}%</span>
-          </div>
-          <div className="xp-bar">
-            <div className="xp-bar-fill" style={{ width: `${grade.xp}%` }} />
-          </div>
-        </div>
-      </section>
-    </div>
-  );
-}
-
-function Stat({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="rounded-2xl bg-wood/5 px-4 py-3 text-center">
-      <p className="text-xs font-bold text-foreground/50">{label}</p>
-      <p className="font-display mt-1 text-2xl text-wood">{value}</p>
     </div>
   );
 }

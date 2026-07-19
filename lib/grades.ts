@@ -11,8 +11,6 @@ export type GradeMeta = {
   buttonClass: string;
   character: string;
   badge: string;
-  xp: number;
-  questPreview: string[];
 };
 
 export const GRADES: GradeMeta[] = [
@@ -28,8 +26,6 @@ export const GRADES: GradeMeta[] = [
     buttonClass: "block-btn-mint",
     character: "/images/grade-1-v2.png",
     badge: "새싹 배지",
-    xp: 35,
-    questPreview: ["수와 연산 미션", "도형 탐험", "좌표 모험 (준비중)"],
   },
   {
     id: 2,
@@ -43,8 +39,6 @@ export const GRADES: GradeMeta[] = [
     buttonClass: "block-btn-peach",
     character: "/images/grade-2-v2.png",
     badge: "불꽃 배지",
-    xp: 55,
-    questPreview: ["일차함수 레이스", "확률 주사위", "도형 증명 (준비중)"],
   },
   {
     id: 3,
@@ -58,8 +52,6 @@ export const GRADES: GradeMeta[] = [
     buttonClass: "block-btn-lavender",
     character: "/images/grade-3-v2.png",
     badge: "별빛 배지",
-    xp: 72,
-    questPreview: ["이차함수 성좌", "삼각비 등반", "통계 던전 (준비중)"],
   },
 ];
 

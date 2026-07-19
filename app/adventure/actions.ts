@@ -15,8 +15,9 @@ export type AdventureActionResult = {
 };
 
 /**
- * Called by future simulations after a run ends.
+ * Award XP after a **game** run ends (not simulations).
  * Score must be 0–1000 (clamped server-side).
+ * See docs/content-system.md and docs/progression-system.md.
  */
 export async function awardStudentXp(input: {
   gameKey: string;

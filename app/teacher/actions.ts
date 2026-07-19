@@ -278,3 +278,121 @@ export async function bulkCreateStudents(
     createdCount,
   };
 }
+
+async function assertClassOwned(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  classId: string,
+  teacherId: string,
+): Promise<boolean> {
+  const { data } = await supabase
+    .from("pm_classes")
+    .select("id")
+    .eq("id", classId)
+    .eq("teacher_id", teacherId)
+    .maybeSingle();
+  return Boolean(data);
+}
+
+export async function assignContentToClass(
+  _prev: ActionResult,
+  formData: FormData,
+): Promise<ActionResult> {
+  const teacher = await requireTeacher();
+  const classId = String(formData.get("classId") ?? "");
+  const contentKey = String(formData.get("contentKey") ?? "").trim();
+
+  if (!classId || !contentKey) return { error: "콘텐츠 정보가 없어요." };
+
+  const { getContent } = await import("@/lib/contents");
+  if (!getContent(contentKey)) {
+    return { error: "등록되지 않은 콘텐츠예요." };
+  }
+
+  const supabase = await createClient();
+  if (!(await assertClassOwned(supabase, classId, teacher.id))) {
+    return { error: "학급을 찾을 수 없어요." };
+  }
+
+  const { error } = await supabase.from("pm_class_contents").insert({
+    class_id: classId,
+    content_key: contentKey,
+    is_active: false,
+  });
+
+  if (error) {
+    console.error("[pm] assignContentToClass failed:", error.message);
+    return { error: mapDbError(error.message) };
+  }
+
+  revalidatePath(`/teacher/classes/${classId}`);
+  revalidatePath("/adventure");
+  return { message: "학급에 콘텐츠를 담아 두었어요." };
+}
+
+export async function unassignContentFromClass(
+  _prev: ActionResult,
+  formData: FormData,
+): Promise<ActionResult> {
+  const teacher = await requireTeacher();
+  const classId = String(formData.get("classId") ?? "");
+  const contentKey = String(formData.get("contentKey") ?? "").trim();
+
+  if (!classId || !contentKey) return { error: "콘텐츠 정보가 없어요." };
+
+  const supabase = await createClient();
+  if (!(await assertClassOwned(supabase, classId, teacher.id))) {
+    return { error: "학급을 찾을 수 없어요." };
+  }
+
+  const { error } = await supabase
+    .from("pm_class_contents")
+    .delete()
+    .eq("class_id", classId)
+    .eq("content_key", contentKey);
+
+  if (error) {
+    console.error("[pm] unassignContentFromClass failed:", error.message);
+    return { error: mapDbError(error.message) };
+  }
+
+  revalidatePath(`/teacher/classes/${classId}`);
+  revalidatePath("/adventure");
+  return { message: "학급에서 콘텐츠를 빼 두었어요." };
+}
+
+export async function setClassContentActive(
+  _prev: ActionResult,
+  formData: FormData,
+): Promise<ActionResult> {
+  const teacher = await requireTeacher();
+  const classId = String(formData.get("classId") ?? "");
+  const contentKey = String(formData.get("contentKey") ?? "").trim();
+  const activeRaw = String(formData.get("isActive") ?? "");
+  const isActive = activeRaw === "true" || activeRaw === "1";
+
+  if (!classId || !contentKey) return { error: "콘텐츠 정보가 없어요." };
+
+  const supabase = await createClient();
+  if (!(await assertClassOwned(supabase, classId, teacher.id))) {
+    return { error: "학급을 찾을 수 없어요." };
+  }
+
+  const { error } = await supabase
+    .from("pm_class_contents")
+    .update({ is_active: isActive })
+    .eq("class_id", classId)
+    .eq("content_key", contentKey);
+
+  if (error) {
+    console.error("[pm] setClassContentActive failed:", error.message);
+    return { error: mapDbError(error.message) };
+  }
+
+  revalidatePath(`/teacher/classes/${classId}`);
+  revalidatePath("/adventure");
+  return {
+    message: isActive
+      ? "콘텐츠를 활성화했어요. 학생 목록에서 플레이할 수 있어요."
+      : "콘텐츠를 비활성화했어요.",
+  };
+}

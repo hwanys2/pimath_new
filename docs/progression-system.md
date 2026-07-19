@@ -1,14 +1,16 @@
 # 학생 레벨 · 경험치 · 캐릭터 육성 시스템
 
-> 이후 **모든 시뮬레이션·미니게임**은 이 문서를 따른다.  
+> 이후 **점수가 있는 게임(미니게임)** 은 이 문서를 따른다.  
+> **시뮬레이션은 XP·포인트와 무관**하다 — [`content-system.md`](content-system.md) 참고.  
 > 코드 단일 출처: [`lib/xp.ts`](../lib/xp.ts), [`lib/progression.ts`](../lib/progression.ts)
 
 ---
 
 ## 1. 한 줄 요약
 
-학생은 과제를 클리어할수록 **XP → 레벨업 → 파이 외형 교체 → 장비 해금 → 동료 합류**를 얻는다.  
-한 판의 점수가 곧 경험치이며, **만점 ≈ 1000점**을 목표로 콘텐츠를 설계한다.
+학생은 **게임을** 클리어할수록 **XP → 레벨업 → 파이 외형 교체 → 장비 해금 → 동료 합류**를 얻는다.  
+한 판의 점수가 곧 경험치이며, **만점 ≈ 1000점**을 목표로 **게임**을 설계한다.  
+시뮬레이션은 점수/XP를 주지 않는다.
 
 ---
 
@@ -49,7 +51,12 @@ SQL: `pm_level_from_xp` / `pm_cumulative_xp_for_level` (동일 식).
 
 ---
 
-## 3. 시뮬레이션 · 게임 제작 규칙 (필수)
+## 3. 게임 제작 규칙 (필수) — 시뮬레이션 제외
+
+> **시뮬레이션**(`type: "simulation"`, `awardsXp: false`)은 이 절을 적용하지 않는다.  
+> XP API를 호출하지 말고, UI에도 점수를 노출하지 않는다.
+
+**게임에만** 적용:
 
 1. **한 판 만점은 대략 1000점**.  
 2. 부분 점수 허용 (0~1000). 1000 초과 금지.  
@@ -57,10 +64,10 @@ SQL: `pm_level_from_xp` / `pm_cumulative_xp_for_level` (동일 식).
 
 ```ts
 import { awardStudentXp } from "@/app/adventure/actions";
-await awardStudentXp({ gameKey: "sim-fractions-1", score: earnedScore });
+await awardStudentXp({ gameKey: "g1-u2-1-equation-race", score: earnedScore });
 ```
 
-4. `gameKey`는 콘텐츠 고유 문자열.  
+4. `gameKey`는 콘텐츠 카탈로그 `key`와 동일하게 쓴다 ([`content-system.md`](content-system.md)).  
 5. 같은 판 반복 클리어 시에도 XP 누적 (연습 장려).
 
 | 성과 | 권장 점수대 |
@@ -143,3 +150,4 @@ UI: `/adventure` (폼 도감 + 장비 도감 + 장착 프리뷰).
 |------|------|
 | 2026-07-19 | 초판: 100만 XP / 6단계 파이 |
 | 2026-07-19 | **v2**: 50만 XP · 지수 2.25 · 파이 20폼 · 장비 28종 |
+| 2026-07-19 | 시뮬레이션은 XP 제외 · 게임만 이 문서 적용 ([`content-system.md`](content-system.md)) |
