@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import BlockButton from "@/components/BlockButton";
+import AssignContentButton from "@/components/content/AssignContentButton";
 import { getGrade, isValidGrade } from "@/lib/grades";
 import {
   CURRICULUM_UNITS,
@@ -11,6 +12,7 @@ import {
   contentTypeLabel,
   getContentsForUnit,
 } from "@/lib/contents";
+import { fetchTeacherClassesForAssign } from "@/lib/teacher-classes";
 
 type Props = {
   params: Promise<{ grade: string; unitId: string }>;
@@ -45,6 +47,7 @@ export default async function UnitPage({ params }: Props) {
 
   const grade = getGrade(gradeNum)!;
   const contents = getContentsForUnit(unit.id);
+  const teacherClasses = await fetchTeacherClassesForAssign();
 
   return (
     <div className="space-y-8">
@@ -104,14 +107,22 @@ export default async function UnitPage({ params }: Props) {
                     {content.description}
                   </p>
                 ) : null}
-                <div className="mt-auto pt-2">
+                <div className="mt-auto flex flex-wrap items-start gap-2 pt-2">
                   <BlockButton
                     href={content.href}
                     variant={grade.theme}
                     size="sm"
                   >
-                    {content.type === "simulation" ? "시뮬레이션 시작" : "게임 시작"}
+                    {content.type === "simulation"
+                      ? "시뮬레이션 시작"
+                      : "게임 시작"}
                   </BlockButton>
+                  {teacherClasses ? (
+                    <AssignContentButton
+                      contentKey={content.key}
+                      classes={teacherClasses}
+                    />
+                  ) : null}
                 </div>
               </div>
             ))}

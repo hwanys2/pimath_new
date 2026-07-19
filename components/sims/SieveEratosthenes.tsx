@@ -3,7 +3,7 @@
 import { useCallback, useMemo, useState, useTransition } from "react";
 
 const MIN_N = 2;
-const MAX_N = 200;
+const MAX_N = 1000;
 const DEFAULT_N = 100;
 const COLS = 10;
 
@@ -16,8 +16,35 @@ function createInitialStates(n: number): CellState[] {
   return states;
 }
 
-function isStillCandidate(states: CellState[], num: number): boolean {
-  return states[num] === "alive" || states[num] === "prime";
+/** Smallest unmarked candidate still on the board. */
+function smallestAlive(states: CellState[], n: number): number | null {
+  for (let i = 2; i <= n; i++) {
+    if (states[i] === "alive") return i;
+  }
+  return null;
+}
+
+function countPrimes(states: CellState[], n: number): number {
+  let c = 0;
+  for (let i = 2; i <= n; i++) {
+    if (states[i] === "prime") c++;
+  }
+  return c;
+}
+
+/** Classic sieve end: next unmarked p satisfies p*p > n, or no alive left. */
+function shouldComplete(states: CellState[], n: number): boolean {
+  const p = smallestAlive(states, n);
+  if (p == null) return true;
+  return p * p > n;
+}
+
+function markRemainingPrimes(states: CellState[], n: number): CellState[] {
+  const next = [...states];
+  for (let i = 2; i <= n; i++) {
+    if (next[i] === "alive") next[i] = "prime";
+  }
+  return next;
 }
 
 export default function SieveEratosthenes() {
@@ -32,11 +59,21 @@ export default function SieveEratosthenes() {
   );
   const [isPending, startTransition] = useTransition();
   const [animating, setAnimating] = useState(false);
+  const [completed, setCompleted] = useState(false);
+  const [strikeFlash, setStrikeFlash] = useState<number | null>(null);
 
   const primesLeft = useMemo(() => {
     const list: number[] = [];
     for (let i = 2; i <= n; i++) {
       if (states[i] === "alive" || states[i] === "prime") list.push(i);
+    }
+    return list;
+  }, [states, n]);
+
+  const foundPrimes = useMemo(() => {
+    const list: number[] = [];
+    for (let i = 2; i <= n; i++) {
+      if (states[i] === "prime") list.push(i);
     }
     return list;
   }, [states, n]);
@@ -52,6 +89,8 @@ export default function SieveEratosthenes() {
       setStates(createInitialStates(parsed));
       setActivePrime(null);
       setAnimating(false);
+      setCompleted(false);
+      setStrikeFlash(null);
       setMessage(
         `1부터 ${parsed}까지 준비됐어요. 1은 이미 지워져 있어요. 2부터 눌러 보세요!`,
       );
@@ -62,17 +101,17 @@ export default function SieveEratosthenes() {
     setStates(createInitialStates(n));
     setActivePrime(null);
     setAnimating(false);
+    setCompleted(false);
+    setStrikeFlash(null);
     setMessage(`다시 시작! 1은 이미 지워져 있어요.`);
   }, [n]);
 
   const strikeMultiples = useCallback(
     async (p: number) => {
-      if (animating) return;
+      if (animating || completed) return;
       if (p < 2 || p > n) return;
-      if (!isStillCandidate(states, p)) return;
+      if (states[p] !== "alive") return;
 
-      // Only allow striking from a number that hasn't been proven composite
-      // (still on the board). Classic sieve: pick next unmarked as prime.
       const multiples: number[] = [];
       for (let m = p * 2; m <= n; m += p) {
         if (states[m] === "alive") multiples.push(m);
@@ -80,47 +119,49 @@ export default function SieveEratosthenes() {
 
       setAnimating(true);
       setActivePrime(p);
-      setStates((prev) => {
-        const next = [...prev];
-        next[p] = "prime";
-        return next;
-      });
+      setStrikeFlash(p);
+      window.setTimeout(() => setStrikeFlash(null), 450);
 
-      if (multiples.length === 0) {
-        setMessage(
-          `${p}은(는) 소수예요! 지울 배수가 더 이상 없어요.`,
-        );
-        setAnimating(false);
-        return;
-      }
+      let working = [...states];
+      working[p] = "prime";
+      setStates(working);
 
-      setMessage(`${p}의 배수를 지우는 중…`);
-
-      // Stagger removal for a clear visual beat
-      const step = Math.max(40, Math.min(90, 900 / multiples.length));
-      for (let i = 0; i < multiples.length; i++) {
-        const m = multiples[i]!;
-        setStates((prev) => {
-          const next = [...prev];
-          if (next[m] === "alive") next[m] = "removing";
-          return next;
-        });
-        await new Promise((r) => window.setTimeout(r, step));
-        setStates((prev) => {
-          const next = [...prev];
-          if (next[m] === "removing" || next[m] === "alive") {
-            next[m] = "removed";
+      if (multiples.length > 0) {
+        setMessage(`${p}의 배수를 지우는 중…`);
+        const step = Math.max(28, Math.min(70, 1100 / multiples.length));
+        for (let i = 0; i < multiples.length; i++) {
+          const m = multiples[i]!;
+          working = [...working];
+          if (working[m] === "alive") working[m] = "removing";
+          setStates(working);
+          await new Promise((r) => window.setTimeout(r, step));
+          working = [...working];
+          if (working[m] === "removing" || working[m] === "alive") {
+            working[m] = "removed";
           }
-          return next;
-        });
+          setStates(working);
+        }
       }
 
-      setMessage(
-        `${p}의 배수 ${multiples.length}개를 지웠어요. 남은 수를 살펴보세요!`,
-      );
+      if (shouldComplete(working, n)) {
+        working = markRemainingPrimes(working, n);
+        setStates(working);
+        setCompleted(true);
+        setMessage(
+          `모든 소수를 찾았어요! 1부터 ${n}까지 소수 ${countPrimes(working, n)}개예요.`,
+        );
+      } else if (multiples.length === 0) {
+        setMessage(`${p}은(는) 소수예요! 지울 배수가 더 이상 없어요.`);
+        setStates(working);
+      } else {
+        setMessage(
+          `${p}의 배수 ${multiples.length}개를 지웠어요. 남은 수를 살펴보세요!`,
+        );
+        setStates(working);
+      }
       setAnimating(false);
     },
-    [animating, n, states],
+    [animating, completed, n, states],
   );
 
   const cells = useMemo(() => {
@@ -141,7 +182,7 @@ export default function SieveEratosthenes() {
         <p className="mt-3 max-w-2xl text-sm leading-relaxed text-foreground/75 sm:text-base">
           원하는 숫자까지 칸을 만들고, 소수를 눌러 배수를 지워 보세요. 마지막에
           남는 수들이 바로 소수예요. 점수는 없고, 개념을 눈으로 익히는
-          시뮬레이션입니다.
+          시뮬레이션입니다. (최대 {MAX_N})
         </p>
 
         <div className="mt-5 flex flex-wrap items-end gap-3">
@@ -152,11 +193,12 @@ export default function SieveEratosthenes() {
               min={MIN_N}
               max={MAX_N}
               value={limitInput}
+              disabled={animating}
               onChange={(e) => setLimitInput(e.target.value)}
               onKeyDown={(e) => {
                 if (e.key === "Enter") applyLimit();
               }}
-              className="w-28 rounded-xl border-2 border-wood/20 bg-white/80 px-3 py-2 text-base font-bold text-foreground outline-none focus:border-mint"
+              className="w-28 rounded-xl border-2 border-wood/20 bg-white/80 px-3 py-2 text-base font-bold text-foreground outline-none focus:border-mint disabled:opacity-50"
             />
           </label>
           <button
@@ -178,17 +220,42 @@ export default function SieveEratosthenes() {
         </div>
       </section>
 
+      {completed ? (
+        <section
+          className="quest-card border-mint/40 bg-gradient-to-br from-mint/50 via-sky/30 to-gold/30 p-5 text-center sm:p-7"
+          role="status"
+          aria-live="polite"
+        >
+          <p className="font-display text-2xl text-wood sm:text-3xl">
+            모든 소수를 찾았어요!
+          </p>
+          <p className="mt-2 text-sm font-semibold text-foreground/75">
+            1부터 {n}까지 소수 {foundPrimes.length}개 · 더 이상 지울 배수가
+            없어요
+          </p>
+          <button
+            type="button"
+            onClick={reset}
+            className="mt-4 rounded-xl bg-wood px-5 py-2 text-sm font-bold text-cream"
+          >
+            다시 해보기
+          </button>
+        </section>
+      ) : null}
+
       <section className="quest-card p-4 sm:p-6">
         <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
           <p className="text-sm font-semibold text-foreground/70">{message}</p>
           <p className="text-xs font-bold text-wood">
-            남은 후보 {primesLeft.length}개
-            {activePrime != null ? ` · 방금 ${activePrime}` : ""}
+            {completed
+              ? `소수 ${foundPrimes.length}개`
+              : `남은 후보 ${primesLeft.length}개`}
+            {activePrime != null && !completed ? ` · 방금 ${activePrime}` : ""}
           </p>
         </div>
 
         <div
-          className="grid gap-1.5 sm:gap-2"
+          className="grid gap-1 sm:gap-1.5"
           style={{
             gridTemplateColumns: `repeat(${COLS}, minmax(0, 1fr))`,
           }}
@@ -198,8 +265,9 @@ export default function SieveEratosthenes() {
           {cells.map(({ num, state }) => {
             const removed = state === "removed" || state === "removing";
             const isPrime = state === "prime";
+            const flash = strikeFlash === num;
             const clickable =
-              !animating && (state === "alive" || state === "prime") && num >= 2;
+              !animating && !completed && state === "alive" && num >= 2;
 
             return (
               <button
@@ -216,21 +284,13 @@ export default function SieveEratosthenes() {
                       : `${num}`
                 }
                 className={[
-                  "aspect-square rounded-lg text-xs font-bold transition-all duration-300 sm:rounded-xl sm:text-sm",
-                  "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-mint",
-                  state === "removing"
-                    ? "scale-75 rotate-6 bg-peach/40 text-foreground/30 opacity-40"
-                    : "",
-                  state === "removed"
-                    ? "scale-90 bg-wood/10 text-foreground/25 line-through opacity-35"
-                    : "",
-                  state === "alive"
-                    ? "bg-white text-foreground shadow-sm hover:scale-105 hover:bg-mint/30"
-                    : "",
-                  state === "prime"
-                    ? "scale-105 bg-gradient-to-br from-mint to-sky text-wood shadow-md ring-2 ring-mint/60"
-                    : "",
-                  !clickable && !removed ? "cursor-default" : "",
+                  "sieve-cell aspect-square rounded-md text-[10px] font-bold sm:rounded-lg sm:text-xs md:text-sm",
+                  "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-mint",
+                  state === "removing" ? "sieve-cell-removing" : "",
+                  state === "removed" ? "sieve-cell-removed" : "",
+                  state === "alive" ? "sieve-cell-alive" : "",
+                  state === "prime" ? "sieve-cell-prime" : "",
+                  flash ? "sieve-cell-flash" : "",
                   clickable ? "cursor-pointer" : "cursor-default",
                 ]
                   .filter(Boolean)
@@ -243,12 +303,13 @@ export default function SieveEratosthenes() {
         </div>
 
         <div className="mt-6 rounded-2xl bg-mint/15 px-4 py-3">
-          <p className="text-xs font-bold text-wood">지금까지 확인한 소수</p>
-          <p className="mt-1 text-sm font-semibold text-foreground/80">
-            {cells
-              .filter((c) => c.state === "prime")
-              .map((c) => c.num)
-              .join(", ") || "아직 없어요. 2를 눌러 보세요!"}
+          <p className="text-xs font-bold text-wood">
+            {completed ? "찾은 소수 전부" : "지금까지 확인한 소수"}
+          </p>
+          <p className="mt-1 text-sm font-semibold break-words text-foreground/80">
+            {foundPrimes.length > 0
+              ? foundPrimes.join(", ")
+              : "아직 없어요. 2를 눌러 보세요!"}
           </p>
         </div>
       </section>

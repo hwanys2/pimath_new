@@ -396,3 +396,73 @@ export async function setClassContentActive(
       : "콘텐츠를 비활성화했어요.",
   };
 }
+
+/**
+ * Content-page assign: bookmark + activate in one step.
+ * If already assigned, just ensure active.
+ */
+export async function assignContentToClassActive(
+  _prev: ActionResult,
+  formData: FormData,
+): Promise<ActionResult> {
+  const teacher = await requireTeacher();
+  const classId = String(formData.get("classId") ?? "");
+  const contentKey = String(formData.get("contentKey") ?? "").trim();
+
+  if (!classId || !contentKey) return { error: "콘텐츠 정보가 없어요." };
+
+  const { getContent } = await import("@/lib/contents");
+  if (!getContent(contentKey)) {
+    return { error: "등록되지 않은 콘텐츠예요." };
+  }
+
+  const supabase = await createClient();
+  if (!(await assertClassOwned(supabase, classId, teacher.id))) {
+    return { error: "학급을 찾을 수 없어요." };
+  }
+
+  const { data: existing } = await supabase
+    .from("pm_class_contents")
+    .select("id, is_active")
+    .eq("class_id", classId)
+    .eq("content_key", contentKey)
+    .maybeSingle();
+
+  if (existing) {
+    if (existing.is_active) {
+      revalidatePath(`/teacher/classes/${classId}`);
+      revalidatePath("/adventure");
+      return { message: "이미 이 학급에 배정·활성화되어 있어요." };
+    }
+    const { error } = await supabase
+      .from("pm_class_contents")
+      .update({ is_active: true })
+      .eq("id", existing.id);
+    if (error) {
+      console.error("[pm] assignContentToClassActive update failed:", error.message);
+      return { error: mapDbError(error.message) };
+    }
+    revalidatePath(`/teacher/classes/${classId}`);
+    revalidatePath("/adventure");
+    return {
+      message: "이미 담아둔 학급이에요. 활성화했어요.",
+    };
+  }
+
+  const { error } = await supabase.from("pm_class_contents").insert({
+    class_id: classId,
+    content_key: contentKey,
+    is_active: true,
+  });
+
+  if (error) {
+    console.error("[pm] assignContentToClassActive insert failed:", error.message);
+    return { error: mapDbError(error.message) };
+  }
+
+  revalidatePath(`/teacher/classes/${classId}`);
+  revalidatePath("/adventure");
+  return {
+    message: "학급에 배정하고 활성화했어요. 학생이 목록에서 플레이할 수 있어요.",
+  };
+}

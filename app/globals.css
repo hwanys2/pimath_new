@@ -179,3 +179,76 @@ body {
   border-radius: 1.25rem;
   background: rgba(255, 255, 255, 0.5);
 }
+
+/* Eratosthenes sieve cells */
+.sieve-cell {
+  transition:
+    transform 0.35s cubic-bezier(0.34, 1.4, 0.64, 1),
+    background 0.35s ease,
+    opacity 0.35s ease,
+    color 0.25s ease,
+    box-shadow 0.35s ease;
+}
+
+.sieve-cell-alive {
+  background: #fff;
+  color: var(--foreground);
+  box-shadow: 0 1px 0 rgba(139, 94, 60, 0.12);
+}
+
+.sieve-cell-alive:hover:not(:disabled) {
+  transform: scale(1.08);
+  background: rgba(157, 232, 200, 0.45);
+}
+
+.sieve-cell-prime {
+  background: linear-gradient(145deg, #7ee0b0 0%, #7ec8ff 100%);
+  color: #3d2c1e;
+  transform: scale(1.06);
+  box-shadow:
+    0 0 0 2px rgba(46, 160, 110, 0.55),
+    0 4px 10px rgba(46, 160, 110, 0.25);
+  font-weight: 800;
+}
+
+.sieve-cell-removing {
+  background: linear-gradient(145deg, #ff5a3c 0%, #ff9a4a 100%) !important;
+  color: #fff !important;
+  transform: scale(0.55) rotate(12deg);
+  opacity: 0.85;
+  box-shadow: 0 0 12px rgba(255, 90, 60, 0.7);
+  animation: sieve-pop 0.35s ease-out;
+}
+
+.sieve-cell-removed {
+  background: rgba(139, 94, 60, 0.08);
+  color: rgba(61, 44, 30, 0.22);
+  text-decoration: line-through;
+  transform: scale(0.88);
+  opacity: 0.4;
+}
+
+.sieve-cell-flash {
+  animation: sieve-flash 0.45s ease-out;
+}
+
+@keyframes sieve-pop {
+  0% {
+    transform: scale(1.15) rotate(0deg);
+    box-shadow: 0 0 0 4px rgba(255, 90, 60, 0.9);
+  }
+  100% {
+    transform: scale(0.55) rotate(12deg);
+  }
+}
+
+@keyframes sieve-flash {
+  0% {
+    box-shadow: 0 0 0 0 rgba(255, 215, 106, 0.9);
+    transform: scale(1.2);
+  }
+  100% {
+    box-shadow: 0 0 0 8px rgba(255, 215, 106, 0);
+    transform: scale(1.06);
+  }
+}

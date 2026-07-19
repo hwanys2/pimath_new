@@ -120,10 +120,21 @@ type ContentMeta = {
 
 ## 7. UX 요약
 
-### 교사 (`/teacher/classes/[classId]`)
+### 교사 — 학급 관리 (`/teacher/classes/[classId]`)
 
 - “수업 콘텐츠”에서 카탈로그를 보고 담아두기 / 빼기 / 활성 토글
 - **공개 링크 복사**로 학생·학부모에게 URL 공유
+
+### 교사 — 콘텐츠·플레이 화면의 「배정」
+
+단원 페이지(`/grade/...`)와 플레이 페이지(`/play/...`)에도 **배정** 버튼이 있다 (교사 로그인 시에만 표시).
+
+1. 「배정」 클릭 → 내 학급 목록에서 선택  
+2. 선택한 학급에 **담아두기 + 활성화** (`assignContentToClassActive`)  
+3. 이미 담아둔 학급이면 활성화만 켠다  
+
+학생은 `/adventure` 「우리 반 콘텐츠」에서 바로 플레이할 수 있다.  
+공개 URL은 배정과 무관하게 계속 열 수 있다.
 
 ### 학생 (`/adventure` 등)
 
@@ -134,6 +145,7 @@ type ContentMeta = {
 ### 학년 탐험 (공개)
 
 - `/grade/[n]` · `/grade/[n]/[unitId]` 에서 단원·콘텐츠 탐색 후 `/play/...` 진입
+- 교사면 콘텐츠 카드에 「배정」이 함께 보임
 
 ---
 
@@ -143,7 +155,7 @@ type ContentMeta = {
 2. `app/play/{contentKey}/` 페이지 + 컴포넌트 구현
 3. `type === "simulation"` 이면 XP 호출 없음 / `game` 이면 [`progression-system.md`](progression-system.md) 준수
 4. 공개 `/play/...` 가 로그인 없이 동작하는지 확인
-5. 교사 담아두기 UI에 자동 노출되는지 확인 (카탈로그 기반)
+5. 교사 담아두기 UI·콘텐츠 「배정」 버튼에 자동 노출되는지 확인 (카탈로그 기반)
 6. (게임만) `awardStudentXp({ gameKey: content.key, score })` — `gameKey`는 `content.key`와 동일 권장
 
 ---
@@ -153,3 +165,4 @@ type ContentMeta = {
 | 날짜 | 내용 |
 |------|------|
 | 2026-07-19 | 초판: 공개+배정 이중 접근, sim≠XP, 단원 트리, `pm_class_contents` |
+| 2026-07-19 | 단원/플레이 「배정」→ 학급 선택(담아두기+활성화), 체 연출·완료·상한 1000 |
