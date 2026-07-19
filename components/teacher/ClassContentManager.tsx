@@ -9,6 +9,7 @@ import {
 } from "@/app/teacher/actions";
 import {
   CONTENTS,
+  contentTypeBadgeClass,
   contentTypeLabel,
   type ContentMeta,
 } from "@/lib/contents";
@@ -84,7 +85,9 @@ function ContentRow({
     <li className="flex flex-col gap-3 rounded-2xl bg-wood/5 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
       <div className="min-w-0">
         <div className="flex flex-wrap items-center gap-2">
-          <span className="rounded-full bg-mint/25 px-2 py-0.5 text-[11px] font-bold text-wood">
+          <span
+            className={`rounded-full px-2 py-0.5 text-[11px] font-bold ${contentTypeBadgeClass(content.type)}`}
+          >
             {contentTypeLabel(content.type)}
           </span>
           {!content.awardsXp ? (

@@ -9,6 +9,7 @@ import {
   getUnitLabel,
 } from "@/lib/curriculum";
 import {
+  contentTypeBadgeClass,
   contentTypeLabel,
   getContentsForUnit,
 } from "@/lib/contents";
@@ -93,7 +94,9 @@ export default async function UnitPage({ params }: Props) {
             {contents.map((content) => (
               <div key={content.key} className="quest-card flex flex-col gap-3 p-5">
                 <div className="flex flex-wrap items-center gap-2">
-                  <span className="rounded-full bg-mint/30 px-2.5 py-0.5 text-xs font-bold text-wood">
+                  <span
+                    className={`rounded-full px-2.5 py-0.5 text-xs font-bold ${contentTypeBadgeClass(content.type)}`}
+                  >
                     {contentTypeLabel(content.type)}
                   </span>
                   {!content.awardsXp && (

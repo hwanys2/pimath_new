@@ -1,6 +1,6 @@
 import Link from "next/link";
 import type { AssignedContentView } from "@/lib/class-contents";
-import { contentTypeLabel } from "@/lib/contents";
+import { contentTypeBadgeClass, contentTypeLabel } from "@/lib/contents";
 import { getUnit, getUnitLabel } from "@/lib/curriculum";
 
 type Props = {
@@ -37,7 +37,9 @@ export default function ClassAssignedContents({ items }: Props) {
                 <div className="min-w-0">
                   <div className="flex flex-wrap items-center gap-2">
                     {content ? (
-                      <span className="rounded-full bg-white/70 px-2 py-0.5 text-[11px] font-bold text-wood">
+                      <span
+                        className={`rounded-full px-2 py-0.5 text-[11px] font-bold ${contentTypeBadgeClass(content.type)}`}
+                      >
                         {contentTypeLabel(content.type)}
                       </span>
                     ) : null}

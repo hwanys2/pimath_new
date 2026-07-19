@@ -61,3 +61,10 @@ export function getContentsForUnit(unitId: string): ContentMeta[] {
 export function contentTypeLabel(type: ContentType): string {
   return type === "simulation" ? "시뮬레이션" : "게임";
 }
+
+/** Distinct pill colors so sim vs game is obvious at a glance. */
+export function contentTypeBadgeClass(type: ContentType): string {
+  return type === "simulation"
+    ? "bg-sky/55 text-wood"
+    : "bg-gold/70 text-wood";
+}
