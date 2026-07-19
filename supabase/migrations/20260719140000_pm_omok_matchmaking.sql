@@ -603,15 +603,15 @@ BEGIN
     RETURN;
   END IF;
 
-  UPDATE public.pm_omok_games
+  UPDATE public.pm_omok_games g
   SET board = p_board,
-      turn = CASE WHEN p_status = 'playing' THEN p_next_turn ELSE turn END,
+      turn = CASE WHEN p_status = 'playing' THEN p_next_turn ELSE g.turn END,
       status = p_status,
       last_x = p_x,
       last_y = p_y,
       move_count = p_move_count,
       updated_at = now()
-  WHERE id = p_game_id
+  WHERE g.id = p_game_id
   RETURNING * INTO v_g;
 
   ok := true;

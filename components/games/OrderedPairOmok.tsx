@@ -325,7 +325,17 @@ export default function OrderedPairOmok() {
             guestId: guestIdRef.current,
             gameId: gid ?? gameIdRef.current,
           });
-          if ("error" in state) return;
+          if ("error" in state) {
+            setStatusMsg(
+              typeof state.error === "string" && state.error.trim()
+                ? `연결 문제: ${state.error}`
+                : "연결 문제: 대국 상태를 불러오지 못했어요. 잠시 후 다시 시도해 주세요.",
+            );
+            return;
+          }
+          setStatusMsg((prev) =>
+            prev.startsWith("연결 문제:") ? "" : prev,
+          );
           applyPollPlaying(state);
           if (
             state.phase === "playing" &&
@@ -564,6 +574,13 @@ export default function OrderedPairOmok() {
       });
       if (!res.ok) {
         setStatusMsg(res.message ?? "둘 수 없어요.");
+        if (res.error === "not_your_turn" || res.error === "game_over") {
+          const state = await omokPollAction({
+            guestId: guestIdRef.current,
+            gameId: gameIdRef.current,
+          });
+          if (!("error" in state)) applyPollPlaying(state);
+        }
         return;
       }
       snapshotRef.current = {

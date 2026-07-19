@@ -1,94 +1,9 @@
--- PvP turn timeout: 20s deadline, remaining player can force random legal move
+-- Fix ambiguous "turn" in apply_move/timeout_apply_move + ghost matching
+-- pimath only (pm_*)
 
-ALTER TABLE public.pm_omok_games
-  ADD COLUMN IF NOT EXISTS turn_deadline timestamptz;
-
-UPDATE public.pm_omok_games
-SET turn_deadline = updated_at + interval '20 seconds'
-WHERE status = 'playing' AND turn_deadline IS NULL;
-
--- Match create: set initial deadline
-CREATE OR REPLACE FUNCTION public.pm_omok_try_match(p_queue_id uuid)
-RETURNS uuid
-LANGUAGE plpgsql
-SECURITY DEFINER
-SET search_path = public, extensions
-AS $$
-DECLARE
-  v_me public.pm_omok_queue%ROWTYPE;
-  v_other public.pm_omok_queue%ROWTYPE;
-  v_game_id uuid;
-  v_black public.pm_omok_queue%ROWTYPE;
-  v_white public.pm_omok_queue%ROWTYPE;
-BEGIN
-  SELECT * INTO v_me FROM public.pm_omok_queue WHERE id = p_queue_id FOR UPDATE;
-  IF NOT FOUND THEN
-    RETURN NULL;
-  END IF;
-  IF v_me.status <> 'waiting' THEN
-    RETURN v_me.game_id;
-  END IF;
-
-  IF v_me.scope = 'class' THEN
-    SELECT * INTO v_other
-    FROM public.pm_omok_queue q
-    WHERE q.status = 'waiting'
-      AND q.id <> v_me.id
-      AND q.scope = 'class'
-      AND q.class_id IS NOT NULL
-      AND q.class_id = v_me.class_id
-      AND q.player_key <> v_me.player_key
-    ORDER BY q.created_at
-    FOR UPDATE SKIP LOCKED
-    LIMIT 1;
-  ELSE
-    SELECT * INTO v_other
-    FROM public.pm_omok_queue q
-    WHERE q.status = 'waiting'
-      AND q.id <> v_me.id
-      AND q.scope = 'global'
-      AND q.player_key <> v_me.player_key
-    ORDER BY q.created_at
-    FOR UPDATE SKIP LOCKED
-    LIMIT 1;
-  END IF;
-
-  IF NOT FOUND THEN
-    RETURN NULL;
-  END IF;
-
-  IF v_me.created_at <= v_other.created_at THEN
-    v_black := v_me;
-    v_white := v_other;
-  ELSE
-    v_black := v_other;
-    v_white := v_me;
-  END IF;
-
-  INSERT INTO public.pm_omok_games (
-    scope, black_key, white_key, black_name, white_name,
-    black_student_id, white_student_id, turn_deadline
-  )
-  VALUES (
-    v_me.scope,
-    v_black.player_key,
-    v_white.player_key,
-    v_black.display_name,
-    v_white.display_name,
-    v_black.student_id,
-    v_white.student_id,
-    now() + interval '20 seconds'
-  )
-  RETURNING id INTO v_game_id;
-
-  UPDATE public.pm_omok_queue
-  SET status = 'matched', game_id = v_game_id, updated_at = now()
-  WHERE id IN (v_me.id, v_other.id);
-
-  RETURN v_game_id;
-END;
-$$;
-
+-- ---------------------------------------------------------------------------
+-- 1) apply_move: qualify column turn to avoid OUT-param ambiguity
+-- ---------------------------------------------------------------------------
 DROP FUNCTION IF EXISTS public.pm_omok_apply_move(text, text, uuid, int, int, jsonb, text, text, int);
 
 CREATE OR REPLACE FUNCTION public.pm_omok_apply_move(
@@ -233,7 +148,11 @@ BEGIN
 END;
 $$;
 
--- Any participant may apply a move for the current turn after deadline.
+-- ---------------------------------------------------------------------------
+-- 2) timeout_apply_move: same turn qualification fix
+-- ---------------------------------------------------------------------------
+DROP FUNCTION IF EXISTS public.pm_omok_timeout_apply_move(text, text, uuid, int, int, jsonb, text, text, int);
+
 CREATE OR REPLACE FUNCTION public.pm_omok_timeout_apply_move(
   p_session_token text,
   p_guest_id text,
@@ -371,6 +290,191 @@ BEGIN
 END;
 $$;
 
+GRANT EXECUTE ON FUNCTION public.pm_omok_apply_move(text, text, uuid, int, int, jsonb, text, text, int) TO anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.pm_omok_timeout_apply_move(text, text, uuid, int, int, jsonb, text, text, int) TO anon, authenticated;
+
+-- ---------------------------------------------------------------------------
+-- 3) try_match: only match fresh waiting rows; cancel stale ghosts
+-- ---------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION public.pm_omok_try_match(p_queue_id uuid)
+RETURNS uuid
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public, extensions
+AS $$
+DECLARE
+  v_me public.pm_omok_queue%ROWTYPE;
+  v_other public.pm_omok_queue%ROWTYPE;
+  v_game_id uuid;
+  v_black public.pm_omok_queue%ROWTYPE;
+  v_white public.pm_omok_queue%ROWTYPE;
+BEGIN
+  -- Cancel waiting rows older than 2 minutes (ghosts)
+  UPDATE public.pm_omok_queue
+  SET status = 'cancelled', updated_at = now()
+  WHERE status = 'waiting'
+    AND updated_at < now() - interval '2 minutes';
+
+  SELECT * INTO v_me FROM public.pm_omok_queue WHERE id = p_queue_id FOR UPDATE;
+  IF NOT FOUND THEN
+    RETURN NULL;
+  END IF;
+  IF v_me.status <> 'waiting' THEN
+    RETURN v_me.game_id;
+  END IF;
+
+  IF v_me.scope = 'class' THEN
+    SELECT * INTO v_other
+    FROM public.pm_omok_queue q
+    WHERE q.status = 'waiting'
+      AND q.id <> v_me.id
+      AND q.scope = 'class'
+      AND q.class_id IS NOT NULL
+      AND q.class_id = v_me.class_id
+      AND q.player_key <> v_me.player_key
+      AND q.updated_at > now() - interval '15 seconds'
+    ORDER BY q.created_at
+    FOR UPDATE SKIP LOCKED
+    LIMIT 1;
+  ELSE
+    SELECT * INTO v_other
+    FROM public.pm_omok_queue q
+    WHERE q.status = 'waiting'
+      AND q.id <> v_me.id
+      AND q.scope = 'global'
+      AND q.player_key <> v_me.player_key
+      AND q.updated_at > now() - interval '15 seconds'
+    ORDER BY q.created_at
+    FOR UPDATE SKIP LOCKED
+    LIMIT 1;
+  END IF;
+
+  IF NOT FOUND THEN
+    RETURN NULL;
+  END IF;
+
+  IF v_me.created_at <= v_other.created_at THEN
+    v_black := v_me;
+    v_white := v_other;
+  ELSE
+    v_black := v_other;
+    v_white := v_me;
+  END IF;
+
+  INSERT INTO public.pm_omok_games (
+    scope, black_key, white_key, black_name, white_name,
+    black_student_id, white_student_id, turn_deadline
+  )
+  VALUES (
+    v_me.scope,
+    v_black.player_key,
+    v_white.player_key,
+    v_black.display_name,
+    v_white.display_name,
+    v_black.student_id,
+    v_white.student_id,
+    now() + interval '20 seconds'
+  )
+  RETURNING id INTO v_game_id;
+
+  UPDATE public.pm_omok_queue
+  SET status = 'matched', game_id = v_game_id, updated_at = now()
+  WHERE id IN (v_me.id, v_other.id);
+
+  RETURN v_game_id;
+END;
+$$;
+
+-- ---------------------------------------------------------------------------
+-- 4) join_queue: forfeit any in-progress games for this player first
+-- ---------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION public.pm_omok_join_queue(
+  p_session_token text,
+  p_guest_id text,
+  p_scope text DEFAULT 'class'
+)
+RETURNS TABLE (
+  queue_id uuid,
+  game_id uuid,
+  scope text,
+  status text,
+  player_key text,
+  display_name text,
+  class_id uuid,
+  can_use_class boolean
+)
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public, extensions
+AS $$
+DECLARE
+  v_key text;
+  v_name text;
+  v_class uuid;
+  v_student uuid;
+  v_scope text;
+  v_qid uuid;
+  v_gid uuid;
+  v_can_class boolean := false;
+BEGIN
+  SELECT r.o_player_key, r.o_display_name, r.o_class_id, r.o_student_id
+  INTO v_key, v_name, v_class, v_student
+  FROM public.pm_omok_resolve_identity(p_session_token, p_guest_id) r;
+
+  IF v_key IS NULL THEN
+    RAISE EXCEPTION 'identity required';
+  END IF;
+
+  v_can_class := v_class IS NOT NULL AND v_student IS NOT NULL;
+  v_scope := CASE
+    WHEN p_scope = 'class' AND v_can_class THEN 'class'
+    ELSE 'global'
+  END;
+
+  -- Forfeit games where this player is still "playing" so poll won't latch onto them
+  UPDATE public.pm_omok_games g
+  SET status = CASE
+        WHEN g.black_key = v_key THEN 'white_win'
+        ELSE 'black_win'
+      END,
+      turn_deadline = NULL,
+      updated_at = now()
+  WHERE g.status = 'playing'
+    AND (g.black_key = v_key OR g.white_key = v_key);
+
+  -- Cancel any previous waiting entries for this player
+  UPDATE public.pm_omok_queue q
+  SET status = 'cancelled', updated_at = now()
+  WHERE q.player_key = v_key AND q.status = 'waiting';
+
+  INSERT INTO public.pm_omok_queue (
+    player_key, display_name, scope, class_id, student_id, guest_id, status
+  )
+  VALUES (
+    v_key,
+    v_name,
+    v_scope,
+    CASE WHEN v_scope = 'class' THEN v_class ELSE NULL END,
+    v_student,
+    CASE WHEN v_key LIKE 'guest:%' THEN trim(p_guest_id) ELSE NULL END,
+    'waiting'
+  )
+  RETURNING id INTO v_qid;
+
+  v_gid := public.pm_omok_try_match(v_qid);
+
+  RETURN QUERY
+  SELECT q.id, q.game_id, q.scope, q.status, q.player_key, q.display_name, q.class_id, v_can_class
+  FROM public.pm_omok_queue q
+  WHERE q.id = v_qid;
+END;
+$$;
+
+GRANT EXECUTE ON FUNCTION public.pm_omok_join_queue(text, text, text) TO anon, authenticated;
+
+-- ---------------------------------------------------------------------------
+-- 5) poll: heartbeat waiting queue + prefer explicit game_id over stale matched
+-- ---------------------------------------------------------------------------
 DROP FUNCTION IF EXISTS public.pm_omok_poll(text, text, uuid);
 
 CREATE OR REPLACE FUNCTION public.pm_omok_poll(
@@ -431,12 +535,26 @@ BEGIN
 
   IF v_has_queue THEN
     IF v_q.status = 'waiting' THEN
+      -- Heartbeat so we stay matchable
+      UPDATE public.pm_omok_queue
+      SET updated_at = now()
+      WHERE id = v_q.id;
       PERFORM public.pm_omok_try_match(v_q.id);
       SELECT * INTO v_q FROM public.pm_omok_queue WHERE id = v_q.id;
     END IF;
     IF v_gid IS NULL THEN
       v_gid := v_q.game_id;
     END IF;
+  END IF;
+
+  -- If no explicit/queue game, find an active playing game for this player
+  IF v_gid IS NULL THEN
+    SELECT g.id INTO v_gid
+    FROM public.pm_omok_games g
+    WHERE g.status = 'playing'
+      AND (g.black_key = v_key OR g.white_key = v_key)
+    ORDER BY g.updated_at DESC
+    LIMIT 1;
   END IF;
 
   IF v_gid IS NOT NULL THEN
@@ -513,5 +631,9 @@ END;
 $$;
 
 GRANT EXECUTE ON FUNCTION public.pm_omok_poll(text, text, uuid) TO anon, authenticated;
-GRANT EXECUTE ON FUNCTION public.pm_omok_apply_move(text, text, uuid, int, int, jsonb, text, text, int) TO anon, authenticated;
-GRANT EXECUTE ON FUNCTION public.pm_omok_timeout_apply_move(text, text, uuid, int, int, jsonb, text, text, int) TO anon, authenticated;
+
+-- Clean up existing ghost waiting rows older than 2 minutes
+UPDATE public.pm_omok_queue
+SET status = 'cancelled', updated_at = now()
+WHERE status = 'waiting'
+  AND updated_at < now() - interval '2 minutes';
