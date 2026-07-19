@@ -5,8 +5,8 @@
 
 export const MAX_SCORE_PER_RUN = 1000;
 export const MAX_LEVEL = 100;
-export const MAX_TOTAL_XP = 1_000_000;
-export const CURVE_EXPONENT = 2.4;
+export const MAX_TOTAL_XP = 500_000;
+export const CURVE_EXPONENT = 2.25;
 
 /** Clamp raw game score into the allowed band and map 1:1 to XP. */
 export function scoreToXp(score: number): number {

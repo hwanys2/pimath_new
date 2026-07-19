@@ -116,19 +116,11 @@ casual mobile RPG art style, soft cel-shading, bright pastel, transparent backgr
 
 ### 4.1.1 파이 레벨 성장 단계
 
-학생 레벨에 따라 **같은 파이**가 장비·아우라만 강화된다. 정체성(머리·눈·옷 기본)은 유지.
-상세 수치·해금: [`progression-system.md`](./progression-system.md), 코드 [`lib/progression.ts`](../lib/progression.ts)
+학생 레벨에 따라 **같은 파이**가 **5레벨마다** 폼이 바뀐다 (20단계).  
+장비(핀/지팡이/망토/배지/오라)는 2~3레벨 간격으로 해금되어 아바타 주변에 장착된다.  
+상세: [`progression-system.md`](./progression-system.md), [`lib/progression.ts`](../lib/progression.ts)
 
-| 단계 | 레벨 | 파일 | 연출 포인트 |
-|------|------|------|-------------|
-| 견습 | 1–9 | `mascot-v2.png` | 기본 |
-| 모험가 | 10–24 | `pi-adventurer.png` | 별 핀·배낭·스태프 스파클 |
-| 탐험대장 | 25–44 | `pi-captain.png` | 짧은 망토·대장 배지 |
-| 수식 기사 | 45–64 | `pi-knight.png` | 금테 갑옷 악센트 |
-| 아크메이지 | 65–84 | `pi-archmage.png` | 떠다니는 수식 오브 |
-| 전설 | 85–100 | `pi-legend.png` | 금·하늘빛 아우라 |
-
-동료 해금: Lv.5 초원, Lv.15 언덕, Lv.30 별빛 (기존 grade PNG).
+동료 해금: Lv.5 초원, Lv.15 언덕, Lv.30 별빛.
 
 ---
 
@@ -290,18 +282,16 @@ Do not change costume, hair, eye color, or signature props.
 
 | 파일 | 캐릭터 | 용도 | 비고 |
 |------|--------|------|------|
-| `public/images/mascot-v2.png` | 파이 | 메인 마스코트·견습(Lv1–9) | 투명 PNG |
-| `public/images/pi-adventurer.png` | 파이 | 모험가(Lv10–24) | 성장 단계 |
-| `public/images/pi-captain.png` | 파이 | 탐험대장(Lv25–44) | 성장 단계 |
-| `public/images/pi-knight.png` | 파이 | 수식 기사(Lv45–64) | 성장 단계 |
-| `public/images/pi-archmage.png` | 파이 | 아크메이지(Lv65–84) | 성장 단계 |
-| `public/images/pi-legend.png` | 파이 | 전설(Lv85–100) | 성장 단계 |
-| `public/images/grade-1-v2.png` | 초원 | 중1 전신 · Lv5 해금 | 투명 PNG |
-| `public/images/grade-2-v2.png` | 언덕 | 중2 전신 · Lv15 해금 | 투명 PNG |
-| `public/images/grade-3-v2.png` | 별빛 | 중3 전신 · Lv30 해금 | 투명 PNG |
-| `public/images/hero-banner.png` | (배경) | 홈 탐험 배너 | 풍경 일러스트 |
+| `public/images/mascot-v2.png` | 파이 | 견습(Lv1–5) | 투명 PNG |
+| `public/images/pi-stage-*.png` | 파이 | 5레벨마다 성장 폼 | stage 02~19 일부 |
+| `public/images/pi-adventurer.png` 등 | 파이 | 중간·후반 폼 | 기존 5장 재배치 |
+| `public/images/cosmetics/*.png` | (아이템) | 핀·스태프·망토·배지·오라 아이콘 | 약 28종 |
+| `public/images/grade-1-v2.png` | 초원 | 중1 · Lv5 해금 | |
+| `public/images/grade-2-v2.png` | 언덕 | 중2 · Lv15 해금 | |
+| `public/images/grade-3-v2.png` | 별빛 | 중3 · Lv30 해금 | |
+| `public/images/hero-banner.png` | (배경) | 홈 배너 | |
 
-코드에서 경로 참조: [`lib/grades.ts`](../lib/grades.ts), [`lib/progression.ts`](../lib/progression.ts), [`docs/progression-system.md`](./progression-system.md)
+코드: [`lib/progression.ts`](../lib/progression.ts), [`docs/progression-system.md`](./progression-system.md)
 
 ---
 
@@ -321,3 +311,4 @@ docs/character-style-guide.md 와 public/images/ 의 레퍼런스 PNG를 보고,
 |------|------|
 | 2026-07-13 | 초판: 파이·초원·언덕·별빛 시트, 팔레트, 프롬프트, 워크플로 정리 |
 | 2026-07-19 | 파이 레벨 성장 단계 5종 에셋 + 동료 해금(초원/언덕/별빛) 연동 |
+| 2026-07-19 | 파이 20폼·장비 아이콘·XP 50만 재조정 |

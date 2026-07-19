@@ -23,7 +23,7 @@ npm run dev
 - `/adventure` — 학생 레벨·캐릭터 육성 (파이 성장, 동료 해금)
 - `/teacher` — 학급·학생 명단 관리
 
-레벨/XP 규칙: [docs/progression-system.md](docs/progression-system.md) (한 판 만점 ≈ 1000점, 만렙 100 / 100만 XP)
+레벨/XP 규칙: [docs/progression-system.md](docs/progression-system.md) (한 판 만점 ≈ 1000점, 만렙 100 / **50만 XP**, 5레벨마다 파이 폼·장비 해금)
 
 ## 환경 변수 / 인증
 

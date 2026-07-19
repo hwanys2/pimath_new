@@ -136,7 +136,7 @@ PM_STUDENT_SESSION_SECRET=...  # 서버 전용, 긴 랜덤 문자열
 | `pm_students.total_xp` / `level` / `active_avatar` | 학생 육성 진행 |
 | `pm_xp_events` | XP 지급 로그 |
 | `pm_student_sessions` | 학생 opaque 세션 (XP 인증) |
-| `pm_award_student_xp` / `pm_get_student_progress` / `pm_set_student_avatar` | 육성 RPC |
+| `pm_award_student_xp` / `pm_get_student_progress` / `pm_set_student_avatar` | 육성 RPC (만렙 XP 50만) |
 
 - `password_hash` 는 authenticated SELECT/UPDATE 불가. 비밀번호는 RPC로만 설정.
 - 앱에서 학생 세션은 `lib/student-session.ts` (`jose` JWT 쿠키 + DB session token). 교사 식별은 계속 `getUser()`.

@@ -75,7 +75,7 @@ export default async function HomePage() {
                   ? "최고 레벨에 도달했어요!"
                   : `다음 레벨까지 ${studentProgress.xpToNextLevel.toLocaleString()} XP`}
                 {nextUnlock
-                  ? ` · 다음 해금: ${nextUnlock.name} (Lv.${nextUnlock.atLevel})`
+                  ? ` · 다음 보상: ${nextUnlock.name} (Lv.${nextUnlock.atLevel})`
                   : ""}
               </p>
             </div>
