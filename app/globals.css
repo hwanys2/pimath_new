@@ -252,3 +252,36 @@ body {
     transform: scale(1.06);
   }
 }
+
+/* Factor rain — wrong-prime shake on chip inner face */
+@keyframes factor-rain-shake {
+  0%,
+  100% {
+    transform: translateX(0) rotate(0deg);
+  }
+  25% {
+    transform: translateX(-5px) rotate(-4deg);
+  }
+  75% {
+    transform: translateX(5px) rotate(4deg);
+  }
+}
+
+.factor-rain-shake {
+  animation: factor-rain-shake 0.3s ease-in-out;
+}
+
+.factor-rain-pop {
+  transform: scale(1.18);
+  transition: transform 0.15s ease-out;
+}
+
+/* Playfield card: no hover lift while playing */
+.quest-card-static {
+  background: var(--card);
+  border-radius: 1.5rem;
+  border: 3px solid rgba(139, 94, 60, 0.12);
+  box-shadow:
+    0 8px 0 rgba(139, 94, 60, 0.12),
+    0 16px 32px rgba(61, 44, 30, 0.08);
+}

@@ -38,6 +38,16 @@ export const CONTENTS: ContentMeta[] = [
     description:
       "점점 커지는 홀수가 소수인지 판정하는 게임입니다. 학급 배정·활성 시 XP와 랭킹이 쌓여요.",
   },
+  {
+    key: "g1-u1-1-factor-rain",
+    unitId: "g1-1-1",
+    type: "game",
+    title: "소인수분해 소나기",
+    href: "/play/g1-u1-1-factor-rain",
+    awardsXp: true,
+    description:
+      "떨어지는 숫자를 소수로 나눠 1까지 소인수분해하는 게임입니다. 학급 배정·활성 시 XP와 랭킹이 쌓여요.",
+  },
 ];
 
 export function getContent(key: string): ContentMeta | undefined {
