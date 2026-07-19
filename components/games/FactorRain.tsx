@@ -619,29 +619,23 @@ export default function FactorRain() {
               )}
             </div>
             <div className="grid grid-cols-4 gap-2 sm:gap-3">
-              {FACTOR_PRIMES.map((p) => {
-                const canDivide =
-                  selected != null && selected.value % p === 0;
-                return (
-                  <button
-                    key={p}
-                    type="button"
-                    onClick={() => tryPrime(p)}
-                    aria-label={`${p}로 나누기`}
-                    className={[
-                      "flex min-h-[3.25rem] items-center justify-center rounded-2xl",
-                      "font-display text-2xl font-black transition active:scale-[0.96] sm:min-h-[3.75rem] sm:text-3xl",
-                      selected == null
-                        ? "bg-wood/10 text-wood/40"
-                        : canDivide
-                          ? "bg-gradient-to-b from-mint to-mint/70 text-wood shadow-md ring-2 ring-mint/60"
-                          : "bg-white/90 text-wood shadow-sm hover:bg-sky/40",
-                    ].join(" ")}
-                  >
-                    {p}
-                  </button>
-                );
-              })}
+              {FACTOR_PRIMES.map((p) => (
+                <button
+                  key={p}
+                  type="button"
+                  onClick={() => tryPrime(p)}
+                  aria-label={`${p}로 나누기`}
+                  className={[
+                    "flex min-h-[3.25rem] items-center justify-center rounded-2xl",
+                    "font-display text-2xl font-black transition active:scale-[0.96] sm:min-h-[3.75rem] sm:text-3xl",
+                    "bg-gradient-to-b from-cream to-sky/35 text-wood shadow-sm",
+                    "hover:from-sky/40 hover:to-mint/40",
+                    selected == null ? "opacity-55" : "",
+                  ].join(" ")}
+                >
+                  {p}
+                </button>
+              ))}
             </div>
           </section>
         </>
