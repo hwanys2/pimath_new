@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Jua, Noto_Sans_KR } from "next/font/google";
+import StudentTopBar from "@/components/StudentTopBar";
 import TopMenuBar from "@/components/TopMenuBar";
 import { getActor } from "@/lib/auth";
 import "./globals.css";
@@ -33,7 +34,11 @@ export default async function RootLayout({
   return (
     <html lang="ko" className={`${jua.variable} ${notoSansKr.variable} h-full`}>
       <body className="flex min-h-full flex-col antialiased">
-        <TopMenuBar actor={actor} />
+        {actor?.type === "student" ? (
+          <StudentTopBar actor={actor} />
+        ) : (
+          <TopMenuBar actor={actor?.type === "teacher" ? actor : null} />
+        )}
         <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-6 sm:px-6 sm:py-8">
           {children}
         </main>

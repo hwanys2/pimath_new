@@ -14,6 +14,7 @@ import {
   getContentsForUnit,
 } from "@/lib/contents";
 import { fetchTeacherAssignContext } from "@/lib/teacher-classes";
+import { redirectStudentToAdventure } from "@/lib/auth";
 
 
 type Props = {
@@ -39,6 +40,8 @@ export async function generateMetadata({ params }: Props) {
 }
 
 export default async function UnitPage({ params }: Props) {
+  await redirectStudentToAdventure();
+
   const { grade: gradeParam, unitId } = await params;
   const gradeNum = Number(gradeParam);
 

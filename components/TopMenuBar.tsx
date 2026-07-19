@@ -5,15 +5,14 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { GRADES } from "@/lib/grades";
 import { signOut } from "@/app/auth/actions";
-import type { Actor } from "@/lib/auth";
-import { resolveAvatar } from "@/lib/progression";
+import type { TeacherActor } from "@/lib/auth";
 
-export default function TopMenuBar({ actor }: { actor: Actor | null }) {
+export default function TopMenuBar({
+  actor,
+}: {
+  actor: TeacherActor | null;
+}) {
   const pathname = usePathname();
-  const studentAvatar =
-    actor?.type === "student"
-      ? resolveAvatar(actor.level, actor.activeAvatar)
-      : null;
 
   return (
     <header className="sticky top-0 z-50 px-3 pt-3 sm:px-4 sm:pt-4">
@@ -64,45 +63,17 @@ export default function TopMenuBar({ actor }: { actor: Actor | null }) {
 
         {actor ? (
           <div className="flex shrink-0 items-center gap-2">
-            {actor.type === "teacher" ? (
-              <>
-                <Link
-                  href="/teacher"
-                  className={`font-display rounded-xl px-3 py-2 text-sm transition ${
-                    pathname.startsWith("/teacher")
-                      ? "bg-gold text-[#6b4a00] shadow-[0_3px_0_rgba(107,74,0,0.3)]"
-                      : "bg-black/15 text-cream hover:bg-black/25"
-                  }`}
-                >
-                  내 학급
-                </Link>
-                <span className="badge-pill hidden md:inline-flex">교사</span>
-              </>
-            ) : (
-              <>
-                <Link
-                  href="/adventure"
-                  className={`flex items-center gap-1.5 rounded-xl px-2 py-1.5 transition ${
-                    pathname.startsWith("/adventure")
-                      ? "bg-gold text-[#6b4a00] shadow-[0_3px_0_rgba(107,74,0,0.3)]"
-                      : "bg-black/15 text-cream hover:bg-black/25"
-                  }`}
-                >
-                  {studentAvatar && (
-                    <Image
-                      src={studentAvatar.image}
-                      alt=""
-                      width={28}
-                      height={28}
-                      className="h-7 w-7 object-contain"
-                    />
-                  )}
-                  <span className="font-display text-sm">
-                    Lv.{actor.level}
-                  </span>
-                </Link>
-              </>
-            )}
+            <Link
+              href="/teacher"
+              className={`font-display rounded-xl px-3 py-2 text-sm transition ${
+                pathname.startsWith("/teacher")
+                  ? "bg-gold text-[#6b4a00] shadow-[0_3px_0_rgba(107,74,0,0.3)]"
+                  : "bg-black/15 text-cream hover:bg-black/25"
+              }`}
+            >
+              내 학급
+            </Link>
+            <span className="badge-pill hidden md:inline-flex">교사</span>
             <span className="hidden max-w-[8rem] truncate text-sm font-semibold text-cream sm:inline">
               {actor.name}
             </span>

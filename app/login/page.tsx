@@ -12,7 +12,7 @@ export const metadata: Metadata = {
 export default async function LoginChooserPage() {
   const actor = await getActor();
   if (actor?.type === "teacher") redirect("/teacher");
-  if (actor?.type === "student") redirect("/");
+  if (actor?.type === "student") redirect("/adventure");
 
   return (
     <AuthShell

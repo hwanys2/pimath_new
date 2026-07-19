@@ -145,3 +145,12 @@ export async function requireStudent(): Promise<StudentActor> {
   redirect("/login/student");
   throw new Error("unreachable");
 }
+
+/** Keep logged-in students inside the /adventure shell. */
+export async function redirectStudentToAdventure(): Promise<void> {
+  const actor = await getActor();
+  if (actor?.type === "student") {
+    const { redirect } = await import("next/navigation");
+    redirect("/adventure");
+  }
+}

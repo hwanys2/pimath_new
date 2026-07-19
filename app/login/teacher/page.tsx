@@ -18,7 +18,7 @@ type Props = {
 export default async function TeacherLoginPage({ searchParams }: Props) {
   const actor = await getActor();
   if (actor?.type === "teacher") redirect("/teacher");
-  if (actor?.type === "student") redirect("/");
+  if (actor?.type === "student") redirect("/adventure");
 
   const params = await searchParams;
 

@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
-import Link from "next/link";
 import FactorRain from "@/components/games/FactorRain";
 import AssignContentButton from "@/components/content/AssignContentButton";
+import PlayBreadcrumb from "@/components/content/PlayBreadcrumb";
 import { getContent } from "@/lib/contents";
 import { fetchTeacherAssignContext } from "@/lib/teacher-classes";
 
@@ -19,29 +19,10 @@ export default async function FactorRainPage() {
 
   return (
     <div className="space-y-4">
-      <nav className="flex flex-wrap items-center gap-3 text-sm font-semibold text-wood/70">
-        <Link href="/" className="underline-offset-2 hover:underline">
-          홈
-        </Link>
-        <span aria-hidden>/</span>
-        <Link href="/grade/1" className="underline-offset-2 hover:underline">
-          중1
-        </Link>
-        <span aria-hidden>/</span>
-        <Link
-          href="/grade/1/g1-1-1"
-          className="underline-offset-2 hover:underline"
-        >
-          1.1 소인수분해
-        </Link>
-        {content ? (
-          <>
-            <span aria-hidden>/</span>
-            <span className="text-foreground/60">{content.title}</span>
-          </>
-        ) : null}
-        {assignCtx ? (
-          <span className="ml-auto">
+      <PlayBreadcrumb
+        contentTitle={content?.title}
+        assignSlot={
+          assignCtx ? (
             <AssignContentButton
               contentKey={CONTENT_KEY}
               classes={assignCtx.classes}
@@ -49,9 +30,9 @@ export default async function FactorRainPage() {
                 assignCtx.assignedByContent[CONTENT_KEY] ?? []
               }
             />
-          </span>
-        ) : null}
-      </nav>
+          ) : null
+        }
+      />
 
       <FactorRain />
     </div>
