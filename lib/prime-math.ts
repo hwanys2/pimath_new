@@ -45,15 +45,12 @@ export type NumberBand = {
   max: number;
 };
 
-/** Escalating bands by round index (1-based). */
+/** Escalating bands by round index (1-based). Cap at 999. */
 export function bandForRound(round: number): NumberBand {
-  if (round <= 4) return { min: 9, max: 49 };
-  if (round <= 8) return { min: 51, max: 199 };
-  if (round <= 13) return { min: 201, max: 999 };
-  if (round <= 18) return { min: 1001, max: 4999 };
-  if (round <= 23) return { min: 5001, max: 19999 };
-  if (round <= 29) return { min: 20001, max: 79999 };
-  return { min: 80001, max: 199999 };
+  if (round <= 5) return { min: 9, max: 49 };
+  if (round <= 12) return { min: 51, max: 199 };
+  if (round <= 20) return { min: 201, max: 499 };
+  return { min: 501, max: 999 };
 }
 
 /**
@@ -74,10 +71,13 @@ export function dealOddNumber(round: number, preferPrime?: boolean): number {
   return randomOddInRange(band.min, band.max);
 }
 
-/** Points for a correct answer on n with current streak (before this hit). */
+/**
+ * Points for a correct answer on n with current streak (before this hit).
+ * Tuned so a strong ~30–40 correct run lands near the soft cap (~1000).
+ */
 export function pointsForCorrect(n: number, streakBefore: number): number {
-  const base = Math.round(18 + 22 * Math.log10(Math.max(n, 10)));
-  const streakBonus = Math.min(streakBefore, 8) * 4;
+  const base = Math.round(8 + 8 * Math.log10(Math.max(n, 10)));
+  const streakBonus = Math.min(streakBefore, 8) * 2;
   return base + streakBonus;
 }
 

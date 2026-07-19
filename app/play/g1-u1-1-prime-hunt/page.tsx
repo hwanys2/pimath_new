@@ -10,7 +10,7 @@ const CONTENT_KEY = "g1-u1-1-prime-hunt";
 export const metadata: Metadata = {
   title: "소수 찾기 | 수학하는 즐거움",
   description:
-    "한 판에 나눠 보기 10번, 문제당 10초. 제곱근 이하 소수로 나눠 보며 소수인지 판정하는 게임. 학급 배정 시 XP와 랭킹이 쌓입니다.",
+    "1000 이하 홀수 · 한 판에 나눠 보기 10번, 문제당 10초. 제곱근 이하 소수로 나눠 보며 소수인지 판정하는 게임. 학급 배정 시 XP와 랭킹이 쌓입니다.",
 };
 
 export default async function PrimeHuntPage() {

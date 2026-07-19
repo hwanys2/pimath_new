@@ -149,9 +149,9 @@ export default function PrimeHunt() {
       let gained = 0;
 
       if (correct) {
-        gained = pointsForCorrect(n, streak);
-        if (bonus) gained += 10;
-        nextScore = applyScoreGain(score, gained);
+        const raw = pointsForCorrect(n, streak) + (bonus ? 5 : 0);
+        nextScore = applyScoreGain(score, raw);
+        gained = nextScore - score;
         nextStreak = streak + 1;
         if (bonus && lives < MAX_LIVES) {
           nextLives = lives + 1;
@@ -254,7 +254,7 @@ export default function PrimeHunt() {
           소수 찾기
         </h1>
         <p className="mt-3 max-w-2xl text-sm leading-relaxed text-foreground/75 sm:text-base">
-          점점 커지는 홀수가 나와요. 한 판에 나눠 보기 {MAX_TRIALS}번, 문제당{" "}
+          1000 이하의 홀수가 나와요. 한 판에 나눠 보기 {MAX_TRIALS}번, 문제당{" "}
           {ROUND_TIME_SEC}초. 시간이 지나면 자동으로 틀려요. O / X 로
           판정하고, 생명은 {START_LIVES}개 · 보너스 문항에서 회복할 수 있어요.
         </p>
