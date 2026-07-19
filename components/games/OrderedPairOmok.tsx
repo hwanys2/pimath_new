@@ -16,8 +16,10 @@ import {
   omokLobbyContextAction,
   omokPlaceMoveAction,
   omokPollAction,
+  omokTimeoutMoveAction,
 } from "@/app/play/g1-u2-3-ordered-pair-omok/actions";
 import type { OmokPollState } from "@/lib/omok-types";
+import { OMOK_TURN_SECONDS } from "@/lib/omok-types";
 import {
   boardFromObject,
   boardIsFull,
@@ -85,6 +87,8 @@ export default function OrderedPairOmok() {
   const [xpMessage, setXpMessage] = useState<string | null>(null);
   const [practiceOnly, setPracticeOnly] = useState(true);
   const [placing, setPlacing] = useState(false);
+  const [turnDeadline, setTurnDeadline] = useState<string | null>(null);
+  const [secondsLeft, setSecondsLeft] = useState<number | null>(null);
 
   const [ranking, setRanking] = useState<RankingRow[]>([]);
   const [rankingScope, setRankingScope] = useState<RankingScope>("class");
@@ -96,6 +100,8 @@ export default function OrderedPairOmok() {
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const pollInFlightRef = useRef(false);
   const placingRef = useRef(false);
+  const timeoutInFlightRef = useRef(false);
+  const turnDeadlineRef = useRef<string | null>(null);
   const snapshotRef = useRef({
     gameId: null as string | null,
     moveCount: -1,
@@ -105,6 +111,7 @@ export default function OrderedPairOmok() {
   const gameIdRef = useRef<string | null>(null);
   const guestIdRef = useRef("");
   const myStoneRef = useRef<Stone>("black");
+  const modeRef = useRef<Mode>("ai");
 
   useEffect(() => {
     gameIdRef.current = gameId;
@@ -115,6 +122,12 @@ export default function OrderedPairOmok() {
   useEffect(() => {
     myStoneRef.current = myStone;
   }, [myStone]);
+  useEffect(() => {
+    turnDeadlineRef.current = turnDeadline;
+  }, [turnDeadline]);
+  useEffect(() => {
+    modeRef.current = mode;
+  }, [mode]);
 
   useEffect(() => {
     setGuestId(ensureGuestId());
@@ -143,6 +156,8 @@ export default function OrderedPairOmok() {
       setScreen("ended");
       setPlacing(false);
       placingRef.current = false;
+      setTurnDeadline(null);
+      setSecondsLeft(null);
 
       const finished = await omokFinishWithRatingAction({ outcome: result });
       if ("error" in finished && finished.error) {
@@ -164,6 +179,57 @@ export default function OrderedPairOmok() {
     [stopPoll],
   );
 
+  const applyTimeoutIfNeeded = useCallback(async (): Promise<boolean> => {
+    if (modeRef.current !== "pvp") return false;
+    if (endingRef.current || placingRef.current || timeoutInFlightRef.current) {
+      return false;
+    }
+    const gid = gameIdRef.current;
+    const deadline = turnDeadlineRef.current;
+    if (!gid || !deadline) return false;
+    if (Date.now() < new Date(deadline).getTime()) return false;
+
+    timeoutInFlightRef.current = true;
+    try {
+      const res = await omokTimeoutMoveAction({
+        guestId: guestIdRef.current,
+        gameId: gid,
+      });
+      if (!res.ok) {
+        if (res.error !== "not_expired") {
+          // ignore race; next poll retries
+        }
+        return false;
+      }
+      snapshotRef.current = {
+        gameId: gid,
+        moveCount: res.moveCount,
+        turn: res.turn,
+        status: res.status,
+      };
+      setBoard(boardFromObject(res.board));
+      setTurn(res.turn);
+      setLastMove({ x: res.lastX, y: res.lastY });
+      setTurnDeadline(res.turnDeadline);
+      turnDeadlineRef.current = res.turnDeadline;
+      const who =
+        res.autoStone === myStoneRef.current ? "내" : "상대";
+      setStatusMsg(
+        `시간 초과! ${who} 차례에 ${formatPair(res.autoX, res.autoY)}가 자동으로 두어졌어요.`,
+      );
+      if (res.outcome) {
+        await omokClaimResultAction({
+          guestId: guestIdRef.current,
+          gameId: gid,
+        });
+        await finishWithOutcome(res.outcome);
+      }
+      return true;
+    } finally {
+      timeoutInFlightRef.current = false;
+    }
+  }, [finishWithOutcome]);
+
   const applyPollPlaying = useCallback(
     (state: OmokPollState) => {
       const snap = snapshotRef.current;
@@ -172,13 +238,13 @@ export default function OrderedPairOmok() {
         state.moveCount === snap.moveCount &&
         state.turn === snap.turn &&
         state.gameStatus === snap.status &&
-        state.phase !== "ended";
+        state.phase !== "ended" &&
+        state.turnDeadline === turnDeadlineRef.current;
 
       if (sameSnapshot && state.phase === "playing") {
         return;
       }
 
-      // Don't overwrite with older moveCount after we placed
       if (
         state.phase === "playing" &&
         snap.gameId &&
@@ -230,6 +296,8 @@ export default function OrderedPairOmok() {
         if (state.lastX != null && state.lastY != null) {
           setLastMove({ x: state.lastX, y: state.lastY });
         }
+        setTurnDeadline(state.turnDeadline);
+        turnDeadlineRef.current = state.turnDeadline;
         setScreen("playing");
         setMode("pvp");
         return;
@@ -251,12 +319,21 @@ export default function OrderedPairOmok() {
         if (placingRef.current) return;
         pollInFlightRef.current = true;
         try {
+          await applyTimeoutIfNeeded();
+          if (endingRef.current) return;
           const state = await omokPollAction({
             guestId: guestIdRef.current,
             gameId: gid ?? gameIdRef.current,
           });
           if ("error" in state) return;
           applyPollPlaying(state);
+          if (
+            state.phase === "playing" &&
+            state.turnDeadline &&
+            Date.now() >= new Date(state.turnDeadline).getTime()
+          ) {
+            await applyTimeoutIfNeeded();
+          }
         } finally {
           pollInFlightRef.current = false;
         }
@@ -264,12 +341,32 @@ export default function OrderedPairOmok() {
       void tick();
       pollRef.current = setInterval(() => {
         void tick();
-      }, 1600);
+      }, 1200);
     },
-    [applyPollPlaying, stopPoll],
+    [applyPollPlaying, applyTimeoutIfNeeded, stopPoll],
   );
 
   useEffect(() => () => stopPoll(), [stopPoll]);
+
+  useEffect(() => {
+    if (screen !== "playing" || mode !== "pvp" || !turnDeadline) {
+      setSecondsLeft(null);
+      return;
+    }
+    const tick = () => {
+      const left = Math.max(
+        0,
+        Math.ceil((new Date(turnDeadline).getTime() - Date.now()) / 1000),
+      );
+      setSecondsLeft(left);
+      if (left <= 0 && !timeoutInFlightRef.current && !endingRef.current) {
+        void applyTimeoutIfNeeded();
+      }
+    };
+    tick();
+    const id = window.setInterval(tick, 250);
+    return () => window.clearInterval(id);
+  }, [applyTimeoutIfNeeded, mode, screen, turnDeadline]);
 
   useEffect(() => {
     if (screen !== "waiting") {
@@ -478,6 +575,8 @@ export default function OrderedPairOmok() {
       setBoard(boardFromObject(res.board));
       setTurn(res.turn);
       setLastMove({ x: res.lastX, y: res.lastY });
+      setTurnDeadline(res.turnDeadline);
+      turnDeadlineRef.current = res.turnDeadline;
       setStatusMsg(`${formatPair(padX, padY)}에 두었어요!`);
       resetPad();
       if (res.outcome) {
@@ -649,6 +748,16 @@ export default function OrderedPairOmok() {
                 : myTurn
                   ? "내 차례 · 순서쌍을 입력하세요"
                   : "상대 차례"}
+              {mode === "pvp" && secondsLeft != null ? (
+                <span
+                  className={[
+                    "ml-2 tabular-nums",
+                    secondsLeft <= 5 ? "text-[#c44]" : "",
+                  ].join(" ")}
+                >
+                  {secondsLeft}초
+                </span>
+              ) : null}
             </div>
           </div>
 
@@ -677,6 +786,13 @@ export default function OrderedPairOmok() {
 
           <p className="text-center text-xs text-wood/50">
             흑 금수: 한 수로 열린 삼이 두 방향에 생기면 둘 수 없어요 (쌍삼).
+            {mode === "pvp" ? (
+              <>
+                {" "}
+                · 대전은 수당 {OMOK_TURN_SECONDS}초, 시간이 끝나면 아무 빈칸에
+                자동으로 둡니다.
+              </>
+            ) : null}
           </p>
         </section>
       ) : null}

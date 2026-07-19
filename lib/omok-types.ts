@@ -4,6 +4,9 @@ export type OmokQueueScope = "class" | "global";
 
 export type OmokStone = "black" | "white";
 
+/** Seconds allowed per PvP turn before a random legal move is forced. */
+export const OMOK_TURN_SECONDS = 20;
+
 export type OmokPollState = {
   phase: "idle" | "waiting" | "playing" | "ended";
   queueId: string | null;
@@ -25,4 +28,6 @@ export type OmokPollState = {
   moveCount: number;
   myScore: number | null;
   opponentName: string | null;
+  /** ISO timestamp when current turn expires (PvP). */
+  turnDeadline: string | null;
 };

@@ -8,6 +8,7 @@ import {
   omokLeaveQueue,
   omokPlaceMove,
   omokPoll,
+  omokTimeoutMove,
 } from "@/lib/omok-match";
 import {
   applyOmokRatingFromSession,
@@ -53,6 +54,13 @@ export async function omokPlaceMoveAction(input: {
   y: number;
 }) {
   return omokPlaceMove(input);
+}
+
+export async function omokTimeoutMoveAction(input: {
+  guestId?: string | null;
+  gameId: string;
+}) {
+  return omokTimeoutMove(input);
 }
 
 export async function omokClaimResultAction(input: {

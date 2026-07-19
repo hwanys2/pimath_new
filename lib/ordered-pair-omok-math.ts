@@ -290,6 +290,33 @@ export function boardIsFull(board: BoardMap): boolean {
   return board.size >= size * size;
 }
 
+/** Random legal empty cell for `stone` (skips 금수 for black). */
+export function pickRandomLegalMove(
+  board: BoardMap,
+  stone: Stone,
+  rng: () => number = Math.random,
+): Point | null {
+  const empties: Point[] = [];
+  for (let x = BOARD_MIN; x <= BOARD_MAX; x++) {
+    for (let y = BOARD_MIN; y <= BOARD_MAX; y++) {
+      if (getStone(board, x, y) !== null) continue;
+      empties.push({ x, y });
+    }
+  }
+  // Fisher–Yates shuffle sample
+  for (let i = empties.length - 1; i > 0; i--) {
+    const j = Math.floor(rng() * (i + 1));
+    const tmp = empties[i]!;
+    empties[i] = empties[j]!;
+    empties[j] = tmp;
+  }
+  for (const p of empties) {
+    const r = tryPlace(board, p.x, p.y, stone);
+    if (r.ok) return p;
+  }
+  return null;
+}
+
 export type OmokOutcome = "win" | "loss" | "draw";
 
 /** Tiered delta from cumulative omok rating before this game. */

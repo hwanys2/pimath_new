@@ -7,6 +7,7 @@ import {
   boardIsFull,
   boardToObject,
   opponent,
+  pickRandomLegalMove,
   tryPlace,
   type BoardMap,
   type Stone,
@@ -14,6 +15,7 @@ import {
 import type { OmokPollState, OmokQueueScope } from "@/lib/omok-types";
 
 export type { OmokPollState, OmokQueueScope } from "@/lib/omok-types";
+export { OMOK_TURN_SECONDS } from "@/lib/omok-types";
 
 function firstRow<T>(data: T | T[] | null): T | null {
   if (!data) return null;
@@ -171,6 +173,7 @@ export async function omokPoll(input: {
     move_count: number | null;
     my_score: number | null;
     opponent_name: string | null;
+    turn_deadline: string | null;
   } | null;
 
   if (!row) {
@@ -195,6 +198,7 @@ export async function omokPoll(input: {
       moveCount: 0,
       myScore: null,
       opponentName: null,
+      turnDeadline: null,
     };
   }
 
@@ -234,6 +238,7 @@ export async function omokPoll(input: {
     moveCount: row.move_count ?? 0,
     myScore: row.my_score,
     opponentName: row.opponent_name,
+    turnDeadline: row.turn_deadline ?? null,
   };
 }
 
@@ -252,6 +257,7 @@ export async function omokPlaceMove(input: {
       lastY: number;
       moveCount: number;
       outcome: "win" | "loss" | "draw" | null;
+      turnDeadline: string | null;
     }
   | { ok: false; error: string; message?: string }
 > {
@@ -314,6 +320,7 @@ export async function omokPlaceMove(input: {
     last_y: number;
     move_count: number;
     error_code: string | null;
+    turn_deadline?: string | null;
   } | null;
 
   if (!row?.ok) {
@@ -342,6 +349,136 @@ export async function omokPlaceMove(input: {
     lastY: row.last_y,
     moveCount: row.move_count,
     outcome,
+    turnDeadline: row.turn_deadline ?? null,
+  };
+}
+
+/**
+ * After turn_deadline, any participant may place a random legal move
+ * for whoever's turn it is (AFK / closed tab recovery).
+ */
+export async function omokTimeoutMove(input: {
+  guestId?: string | null;
+  gameId: string;
+}): Promise<
+  | {
+      ok: true;
+      board: Record<string, Stone>;
+      turn: Stone;
+      status: string;
+      lastX: number;
+      lastY: number;
+      moveCount: number;
+      outcome: "win" | "loss" | "draw" | null;
+      turnDeadline: string | null;
+      autoX: number;
+      autoY: number;
+      autoStone: Stone;
+    }
+  | { ok: false; error: string; message?: string }
+> {
+  const poll = await omokPoll({
+    guestId: input.guestId,
+    gameId: input.gameId,
+  });
+  if ("error" in poll) return { ok: false, error: poll.error };
+  if (poll.phase !== "playing" || !poll.turn) {
+    return { ok: false, error: "game_over", message: "이미 끝난 대국이에요." };
+  }
+  if (!poll.turnDeadline) {
+    return { ok: false, error: "no_deadline", message: "제한 시간이 없어요." };
+  }
+  if (Date.now() < new Date(poll.turnDeadline).getTime()) {
+    return { ok: false, error: "not_expired", message: "아직 시간이 남았어요." };
+  }
+
+  const stoneToMove = poll.turn;
+  const board = boardFromObject(poll.board);
+  const move = pickRandomLegalMove(board, stoneToMove);
+  if (!move) {
+    return { ok: false, error: "no_move", message: "둘 곳이 없어요." };
+  }
+
+  const placed = tryPlace(board, move.x, move.y, stoneToMove);
+  if (!placed.ok) {
+    return { ok: false, error: placed.error, message: placed.message };
+  }
+
+  let status = "playing";
+  let nextTurn: Stone = opponent(stoneToMove);
+  if (placed.won) {
+    status = stoneToMove === "black" ? "black_win" : "white_win";
+  } else if (boardIsFull(placed.board)) {
+    status = "draw";
+  }
+
+  const moveCount = poll.moveCount + 1;
+  const supabase = await createClient();
+  const id = await identityArgs(input.guestId);
+
+  const { data, error } = await supabase.rpc("pm_omok_timeout_apply_move", {
+    ...id,
+    p_game_id: input.gameId,
+    p_x: move.x,
+    p_y: move.y,
+    p_board: boardToObject(placed.board),
+    p_next_turn: nextTurn,
+    p_status: status,
+    p_move_count: moveCount,
+  });
+
+  if (error) {
+    console.error("[pm] pm_omok_timeout_apply_move:", error.message);
+    return { ok: false, error: "apply_failed", message: "자동 수를 반영하지 못했어요." };
+  }
+
+  const row = firstRow(data) as {
+    ok: boolean;
+    board: Record<string, Stone>;
+    turn: string;
+    status: string;
+    last_x: number;
+    last_y: number;
+    move_count: number;
+    error_code: string | null;
+    turn_deadline: string | null;
+  } | null;
+
+  if (!row?.ok) {
+    return {
+      ok: false,
+      error: row?.error_code ?? "apply_failed",
+      message:
+        row?.error_code === "not_expired"
+          ? "아직 시간이 남았어요."
+          : "자동 수를 반영하지 못했어요.",
+    };
+  }
+
+  let outcome: "win" | "loss" | "draw" | null = null;
+  if (poll.myStone) {
+    if (row.status === "black_win") {
+      outcome = poll.myStone === "black" ? "win" : "loss";
+    } else if (row.status === "white_win") {
+      outcome = poll.myStone === "white" ? "win" : "loss";
+    } else if (row.status === "draw") {
+      outcome = "draw";
+    }
+  }
+
+  return {
+    ok: true,
+    board: row.board ?? boardToObject(placed.board),
+    turn: (row.turn === "white" ? "white" : "black") as Stone,
+    status: row.status,
+    lastX: row.last_x,
+    lastY: row.last_y,
+    moveCount: row.move_count,
+    outcome,
+    turnDeadline: row.turn_deadline ?? null,
+    autoX: move.x,
+    autoY: move.y,
+    autoStone: stoneToMove,
   };
 }
 
