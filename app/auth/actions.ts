@@ -5,6 +5,11 @@ import { redirect } from "next/navigation";
 import type { Provider } from "@supabase/supabase-js";
 import { createClient } from "@/lib/supabase/server";
 import { syncForeducatorAccount } from "@/lib/supabase/account";
+import {
+  clearStudentSessionCookie,
+  setStudentSessionCookie,
+} from "@/lib/student-session";
+import { isValidLoginId, normalizeLoginId } from "@/lib/students";
 
 export type AuthState = {
   error?: string;
@@ -72,7 +77,62 @@ export async function signInWithEmail(
     return { error: mapSignInError(error.message, error.code) };
   }
 
+  await clearStudentSessionCookie();
   await syncForeducatorAccount(supabase, data.user);
+  redirect("/teacher");
+}
+
+export async function signInAsStudent(
+  _prevState: AuthState,
+  formData: FormData,
+): Promise<AuthState> {
+  const loginId = normalizeLoginId(String(formData.get("loginId") ?? ""));
+  const password = String(formData.get("password") ?? "");
+
+  if (!isValidLoginId(loginId)) {
+    return { error: "아이디를 올바르게 입력해 주세요." };
+  }
+  if (!password) {
+    return { error: "비밀번호를 입력해 주세요." };
+  }
+
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("pm_authenticate_student", {
+    p_login_id: loginId,
+    p_password: password,
+  });
+
+  if (error) {
+    console.error("[pm] pm_authenticate_student failed:", error.message);
+    return { error: "로그인에 실패했어요. 잠시 후 다시 시도해 주세요." };
+  }
+
+  const row = Array.isArray(data) ? data[0] : data;
+  if (!row || typeof row !== "object") {
+    return { error: "아이디 또는 비밀번호가 올바르지 않아요." };
+  }
+
+  const student = row as {
+    id: string;
+    login_id: string;
+    display_name: string;
+    class_id: string;
+    class_name: string;
+    teacher_id: string;
+  };
+
+  // Clear any teacher session so roles don't mix.
+  await supabase.auth.signOut();
+
+  await setStudentSessionCookie({
+    id: student.id,
+    loginId: student.login_id,
+    displayName: student.display_name,
+    classId: student.class_id,
+    className: student.class_name,
+    teacherId: student.teacher_id,
+  });
+
   redirect("/");
 }
 
@@ -112,11 +172,12 @@ export async function signUpWithEmail(
     };
   }
 
+  await clearStudentSessionCookie();
   // Sync the foreducator account right away (idempotent, email-matched).
   await syncForeducatorAccount(supabase, data.user);
 
   if (data.session) {
-    redirect("/");
+    redirect("/teacher");
   }
 
   return {
@@ -193,7 +254,7 @@ export async function updatePassword(
     };
   }
 
-  redirect("/login?reset=1");
+  redirect("/login/teacher?reset=1");
 }
 
 export async function signInWithProvider(formData: FormData): Promise<void> {
@@ -207,13 +268,14 @@ export async function signInWithProvider(formData: FormData): Promise<void> {
   });
 
   if (error || !data.url) {
-    redirect("/login?error=oauth");
+    redirect("/login/teacher?error=oauth");
   }
 
   redirect(data.url);
 }
 
 export async function signOut(): Promise<void> {
+  await clearStudentSessionCookie();
   const supabase = await createClient();
   await supabase.auth.signOut();
   redirect("/");

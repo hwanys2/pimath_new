@@ -5,9 +5,9 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { GRADES } from "@/lib/grades";
 import { signOut } from "@/app/auth/actions";
-import type { DisplayUser } from "@/lib/auth";
+import type { Actor } from "@/lib/auth";
 
-export default function TopMenuBar({ user }: { user: DisplayUser | null }) {
+export default function TopMenuBar({ actor }: { actor: Actor | null }) {
   const pathname = usePathname();
 
   return (
@@ -57,11 +57,29 @@ export default function TopMenuBar({ user }: { user: DisplayUser | null }) {
           })}
         </div>
 
-        {user ? (
+        {actor ? (
           <div className="flex shrink-0 items-center gap-2">
-            <span className="badge-pill hidden md:inline-flex">Lv.1 탐험가</span>
+            {actor.type === "teacher" ? (
+              <>
+                <Link
+                  href="/teacher"
+                  className={`font-display rounded-xl px-3 py-2 text-sm transition ${
+                    pathname.startsWith("/teacher")
+                      ? "bg-gold text-[#6b4a00] shadow-[0_3px_0_rgba(107,74,0,0.3)]"
+                      : "bg-black/15 text-cream hover:bg-black/25"
+                  }`}
+                >
+                  내 학급
+                </Link>
+                <span className="badge-pill hidden md:inline-flex">교사</span>
+              </>
+            ) : (
+              <span className="badge-pill hidden md:inline-flex">
+                {actor.className}
+              </span>
+            )}
             <span className="hidden max-w-[8rem] truncate text-sm font-semibold text-cream sm:inline">
-              {user.name}
+              {actor.name}
             </span>
             <form action={signOut}>
               <button

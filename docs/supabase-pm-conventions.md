@@ -111,6 +111,33 @@ PM_SUPABASE_ANON_KEY=eyJhbGci...   # anon (legacy JWT) 키
 - 비밀번호 재설정: `resetPasswordForEmail` → 메일 링크 → `/auth/callback?next=/reset-password` → `updateUser({ password })`.
 - 재설정한 Auth 비밀번호는 **양쪽 사이트에서 동일**하게 적용된다 (공유 `auth.users`).
 
+### 교사 / 학생 이중 로그인 (pimath)
+
+| 역할 | 인증 | 비고 |
+|------|------|------|
+| 교사 | 공유 Supabase Auth (이메일/Google/Kakao) | 기존 플로우 + `ensure_supabase_django_user` |
+| 학생 | `pm_students` + 서명 쿠키 `pm_student_session` | **auth.users 미사용** — foreducator에 학생 계정 생기지 않음 |
+
+학생 세션 서명 키:
+
+```bash
+PM_STUDENT_SESSION_SECRET=...  # 서버 전용, 긴 랜덤 문자열
+```
+
+관련 `pm_` 객체 (마이그레이션: `supabase/migrations/*_pm_classes_students.sql`):
+
+| 객체 | 역할 |
+|------|------|
+| `pm_classes` | 교사 소유 학급 |
+| `pm_students` | 학급 학생 (login_id 전역 unique, password_hash) |
+| `pm_authenticate_student` | 학생 로그인 검증 RPC (anon 호출 가능) |
+| `pm_create_student` / `pm_bulk_create_students` | 교사 소유 검증 후 해시 포함 생성 |
+| `pm_set_student_password` / `pm_update_student` | 비밀번호·프로필 수정 |
+
+- `password_hash` 는 authenticated SELECT/UPDATE 불가. 비밀번호는 RPC로만 설정.
+- 앱에서 학생 세션은 `lib/student-session.ts` (`jose` JWT 쿠키). 교사 식별은 계속 `getUser()`.
+- UI: `/login` 선택 → `/login/teacher` 또는 `/login/student`. 학급 관리: `/teacher`.
+
 ---
 
 ## 5. Auth Redirect URL

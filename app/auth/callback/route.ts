@@ -1,14 +1,15 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { syncForeducatorAccount } from "@/lib/supabase/account";
+import { clearStudentSessionCookie } from "@/lib/student-session";
 
 export async function GET(request: Request) {
   const { searchParams, origin } = new URL(request.url);
   const code = searchParams.get("code");
 
-  let next = searchParams.get("next") ?? "/";
+  let next = searchParams.get("next") ?? "/teacher";
   if (!next.startsWith("/")) {
-    next = "/";
+    next = "/teacher";
   }
 
   if (code) {
@@ -16,7 +17,7 @@ export async function GET(request: Request) {
     const { data, error } = await supabase.auth.exchangeCodeForSession(code);
 
     if (!error) {
-      // Keep the foreducator account in sync (same email = same account).
+      await clearStudentSessionCookie();
       await syncForeducatorAccount(supabase, data.user);
 
       const forwardedHost = request.headers.get("x-forwarded-host");
@@ -31,5 +32,5 @@ export async function GET(request: Request) {
     }
   }
 
-  return NextResponse.redirect(`${origin}/login?error=auth`);
+  return NextResponse.redirect(`${origin}/login/teacher?error=auth`);
 }

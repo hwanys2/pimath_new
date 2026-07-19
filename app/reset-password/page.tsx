@@ -23,7 +23,7 @@ export default async function ResetPasswordPage() {
       footer={
         <>
           <Link
-            href="/login"
+            href="/login/teacher"
             className="font-bold text-sky underline-offset-2 hover:underline"
           >
             로그인으로 돌아가기
