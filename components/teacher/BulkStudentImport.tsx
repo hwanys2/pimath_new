@@ -71,12 +71,27 @@ export default function BulkStudentImport({ classId }: Props) {
     });
   }
 
+  function downloadSample() {
+    const csv =
+      "\uFEFF" +
+      ["이름,아이디,비밀번호", "김민수,minsu01,1234", "이서연,seoyeon,abcd"].join(
+        "\n",
+      );
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "학생등록_샘플.csv";
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
   return (
     <div className="quest-card p-5 sm:p-6">
       <h2 className="font-display text-xl text-wood">엑셀·CSV로 한 번에 등록</h2>
       <p className="mt-1 text-sm text-foreground/65">
-        엑셀에서 이름·아이디·비밀번호 세 열을 복사해 붙여 넣거나, CSV 파일을
-        올려 주세요.
+        샘플을 받아 엑셀에서 채운 뒤 CSV로 저장·업로드하거나, 이름·아이디·비밀번호
+        세 열을 복사해 붙여 넣으세요.
       </p>
 
       <textarea
@@ -88,6 +103,13 @@ export default function BulkStudentImport({ classId }: Props) {
       />
 
       <div className="mt-3 flex flex-wrap items-center gap-3">
+        <button
+          type="button"
+          onClick={downloadSample}
+          className="font-display rounded-xl bg-wood/10 px-4 py-2 text-sm text-wood transition hover:bg-wood/15"
+        >
+          샘플 다운로드
+        </button>
         <label className="font-display cursor-pointer rounded-xl bg-lavender/50 px-4 py-2 text-sm text-[#4a2a7a] transition hover:brightness-105">
           CSV 파일 선택
           <input

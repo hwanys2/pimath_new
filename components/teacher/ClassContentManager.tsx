@@ -183,6 +183,20 @@ export default function ClassContentManager({ classId, assignments }: Props) {
     return map;
   }, [assignments]);
 
+  const { primary, inactive } = useMemo(() => {
+    const primaryList: ContentMeta[] = [];
+    const inactiveList: ContentMeta[] = [];
+    for (const content of CONTENTS) {
+      const assignment = byKey.get(content.key);
+      if (assignment && !assignment.isActive) {
+        inactiveList.push(content);
+      } else {
+        primaryList.push(content);
+      }
+    }
+    return { primary: primaryList, inactive: inactiveList };
+  }, [byKey]);
+
   return (
     <div className="flex flex-col gap-4">
       <div>
@@ -196,16 +210,46 @@ export default function ClassContentManager({ classId, assignments }: Props) {
       {CONTENTS.length === 0 ? (
         <p className="text-sm text-foreground/50">등록된 콘텐츠가 아직 없어요.</p>
       ) : (
-        <ul className="flex flex-col gap-2">
-          {CONTENTS.map((content) => (
-            <ContentRow
-              key={content.key}
-              classId={classId}
-              content={content}
-              assignment={byKey.get(content.key)}
-            />
-          ))}
-        </ul>
+        <div className="flex flex-col gap-3">
+          {primary.length > 0 ? (
+            <ul className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+              {primary.map((content) => (
+                <ContentRow
+                  key={content.key}
+                  classId={classId}
+                  content={content}
+                  assignment={byKey.get(content.key)}
+                />
+              ))}
+            </ul>
+          ) : null}
+
+          {inactive.length > 0 ? (
+            <details className="group rounded-2xl bg-wood/5 open:bg-wood/[0.07]">
+              <summary className="cursor-pointer list-none px-4 py-3 text-sm font-bold text-foreground/65 marker:content-none [&::-webkit-details-marker]:hidden">
+                <span className="inline-flex items-center gap-2">
+                  <span
+                    aria-hidden
+                    className="inline-block text-xs transition group-open:rotate-90"
+                  >
+                    ▸
+                  </span>
+                  비활성 {inactive.length}개
+                </span>
+              </summary>
+              <ul className="grid grid-cols-1 gap-2 px-3 pb-3 sm:grid-cols-2">
+                {inactive.map((content) => (
+                  <ContentRow
+                    key={content.key}
+                    classId={classId}
+                    content={content}
+                    assignment={byKey.get(content.key)}
+                  />
+                ))}
+              </ul>
+            </details>
+          ) : null}
+        </div>
       )}
     </div>
   );
