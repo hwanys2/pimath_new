@@ -12,6 +12,8 @@ export type StudentSessionPayload = {
   classId: string;
   className: string;
   teacherId: string;
+  /** Opaque DB session token for XP RPCs */
+  sessionToken: string;
 };
 
 function getSecretKey(): Uint8Array | null {
@@ -34,6 +36,7 @@ export async function createStudentSessionToken(
     classId: payload.classId,
     className: payload.className,
     teacherId: payload.teacherId,
+    sessionToken: payload.sessionToken,
   })
     .setProtectedHeader({ alg: "HS256" })
     .setSubject(payload.id)
@@ -64,12 +67,30 @@ export async function verifyStudentSessionToken(
       typeof payload.className === "string" ? payload.className : null;
     const teacherId =
       typeof payload.teacherId === "string" ? payload.teacherId : null;
+    const sessionToken =
+      typeof payload.sessionToken === "string" ? payload.sessionToken : null;
 
-    if (!id || !loginId || !displayName || !classId || !className || !teacherId) {
+    if (
+      !id ||
+      !loginId ||
+      !displayName ||
+      !classId ||
+      !className ||
+      !teacherId ||
+      !sessionToken
+    ) {
       return null;
     }
 
-    return { id, loginId, displayName, classId, className, teacherId };
+    return {
+      id,
+      loginId,
+      displayName,
+      classId,
+      className,
+      teacherId,
+      sessionToken,
+    };
   } catch {
     return null;
   }
@@ -99,4 +120,9 @@ export async function getStudentSession(): Promise<StudentSessionPayload | null>
   const token = cookieStore.get(STUDENT_SESSION_COOKIE)?.value;
   if (!token) return null;
   return verifyStudentSessionToken(token);
+}
+
+export async function getStudentSessionToken(): Promise<string | null> {
+  const session = await getStudentSession();
+  return session?.sessionToken ?? null;
 }

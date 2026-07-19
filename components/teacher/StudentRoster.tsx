@@ -15,6 +15,8 @@ type Student = {
   id: string;
   display_name: string;
   login_id: string;
+  level: number;
+  total_xp: number;
 };
 
 type Props = {
@@ -27,11 +29,12 @@ const empty: ActionResult = {};
 export default function StudentRoster({ classId, students }: Props) {
   return (
     <div className="overflow-x-auto">
-      <table className="w-full min-w-[40rem] border-separate border-spacing-y-2 text-left">
+      <table className="w-full min-w-[48rem] border-separate border-spacing-y-2 text-left">
         <thead>
           <tr className="text-xs font-bold uppercase tracking-wide text-wood/70">
             <th className="px-2 py-1">이름</th>
             <th className="px-2 py-1">아이디</th>
+            <th className="px-2 py-1">레벨</th>
             <th className="px-2 py-1">비밀번호</th>
             <th className="px-2 py-1 text-right">관리</th>
           </tr>
@@ -64,7 +67,7 @@ function StudentRow({
       <td colSpan={4} className="p-0">
         <form
           action={action}
-          className="grid grid-cols-[1fr_1fr_1fr_auto] items-start gap-2 rounded-xl bg-cream/60 px-2 py-2"
+          className="grid grid-cols-[1fr_1fr_auto_1fr_auto] items-start gap-2 rounded-xl bg-cream/60 px-2 py-2"
         >
           <input type="hidden" name="classId" value={classId} />
           <input type="hidden" name="studentId" value={student.id} />
@@ -82,6 +85,12 @@ function StudentRow({
             aria-label="아이디"
             className={inputClass}
           />
+          <div className="px-1 py-2 text-sm font-semibold text-wood whitespace-nowrap">
+            Lv.{student.level}
+            <span className="mt-0.5 block text-[10px] font-normal text-foreground/45">
+              {Number(student.total_xp).toLocaleString()} XP
+            </span>
+          </div>
           <input
             name="password"
             type="text"
@@ -112,12 +121,12 @@ function StudentRow({
             </button>
           </div>
           {state.error && (
-            <p className="col-span-4 rounded-lg bg-peach/40 px-2 py-1 text-xs font-semibold text-[#a63a1a]">
+            <p className="col-span-5 rounded-lg bg-peach/40 px-2 py-1 text-xs font-semibold text-[#a63a1a]">
               {state.error}
             </p>
           )}
           {state.message && (
-            <p className="col-span-4 rounded-lg bg-mint/30 px-2 py-1 text-xs font-semibold text-wood">
+            <p className="col-span-5 rounded-lg bg-mint/30 px-2 py-1 text-xs font-semibold text-wood">
               {state.message}
             </p>
           )}
@@ -142,7 +151,7 @@ function NewStudentRow({
         <form
           key={resetToken}
           action={action}
-          className="grid grid-cols-[1fr_1fr_1fr_auto] items-start gap-2 rounded-xl border-2 border-dashed border-wood/20 bg-white/70 px-2 py-2"
+          className="grid grid-cols-[1fr_1fr_auto_1fr_auto] items-start gap-2 rounded-xl border-2 border-dashed border-wood/20 bg-white/70 px-2 py-2"
         >
           <input type="hidden" name="classId" value={classId} />
           <input
@@ -159,6 +168,7 @@ function NewStudentRow({
             aria-label="아이디"
             className={inputClass}
           />
+          <div className="px-1 py-2 text-xs text-foreground/40">Lv.1</div>
           <input
             name="password"
             required
@@ -175,7 +185,7 @@ function NewStudentRow({
             {pending ? "추가…" : "추가"}
           </button>
           {state.error && (
-            <p className="col-span-4 rounded-lg bg-peach/40 px-2 py-1 text-xs font-semibold text-[#a63a1a]">
+            <p className="col-span-5 rounded-lg bg-peach/40 px-2 py-1 text-xs font-semibold text-[#a63a1a]">
               {state.error}
             </p>
           )}

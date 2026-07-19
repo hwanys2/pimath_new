@@ -1,8 +1,28 @@
+import Image from "next/image";
+import Link from "next/link";
 import HeroBanner from "@/components/HeroBanner";
 import QuestCard from "@/components/QuestCard";
 import { GRADES } from "@/lib/grades";
+import { getActor } from "@/lib/auth";
+import {
+  getNextUnlock,
+  resolveAvatar,
+} from "@/lib/progression";
+import { xpProgressInLevel } from "@/lib/xp";
 
-export default function HomePage() {
+export default async function HomePage() {
+  const actor = await getActor();
+  const studentProgress =
+    actor?.type === "student" ? xpProgressInLevel(actor.totalXp) : null;
+  const studentAvatar =
+    actor?.type === "student"
+      ? resolveAvatar(actor.level, actor.activeAvatar)
+      : null;
+  const nextUnlock =
+    actor?.type === "student"
+      ? getNextUnlock(actor.totalXp, actor.level)
+      : null;
+
   return (
     <div className="space-y-10">
       <HeroBanner />
@@ -27,20 +47,74 @@ export default function HomePage() {
         </div>
       </section>
 
-      <section className="quest-card grid gap-6 p-6 sm:grid-cols-[auto_1fr] sm:items-center sm:p-8">
-        <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-gold text-3xl shadow-[0_4px_0_rgba(0,0,0,0.15)]">
-          🏆
-        </div>
-        <div>
-          <h2 className="font-display text-xl sm:text-2xl">
-            레벨 업 & 배지 시스템 준비 중!
-          </h2>
-          <p className="mt-2 text-sm leading-relaxed text-foreground/70 sm:text-base">
-            곧 미션을 클리어하면 경험치와 배지를 모을 수 있어요.
-            시뮬레이션·게임 콘텐츠가 하나씩 추가될 예정이니 기대해 주세요!
-          </p>
-        </div>
-      </section>
+      {actor?.type === "student" && studentProgress && studentAvatar ? (
+        <section className="quest-card grid gap-6 p-6 sm:grid-cols-[auto_1fr_auto] sm:items-center sm:p-8">
+          <div className="relative mx-auto h-24 w-24 sm:mx-0">
+            <Image
+              src={studentAvatar.image}
+              alt={studentAvatar.title}
+              fill
+              className="object-contain"
+              sizes="96px"
+            />
+          </div>
+          <div>
+            <p className="badge-pill">Lv.{studentProgress.level}</p>
+            <h2 className="font-display mt-2 text-xl sm:text-2xl">
+              {studentAvatar.title} · {actor.name}
+            </h2>
+            <div className="mt-3 max-w-md">
+              <div className="xp-bar">
+                <div
+                  className="xp-bar-fill"
+                  style={{ width: `${studentProgress.percent}%` }}
+                />
+              </div>
+              <p className="mt-1.5 text-xs text-foreground/60">
+                {studentProgress.isMaxLevel
+                  ? "최고 레벨에 도달했어요!"
+                  : `다음 레벨까지 ${studentProgress.xpToNextLevel.toLocaleString()} XP`}
+                {nextUnlock
+                  ? ` · 다음 해금: ${nextUnlock.name} (Lv.${nextUnlock.atLevel})`
+                  : ""}
+              </p>
+            </div>
+          </div>
+          <Link
+            href="/adventure"
+            className="block-btn block-btn-gold font-display justify-self-start px-5 py-3 text-sm sm:justify-self-end"
+          >
+            나의 모험
+          </Link>
+        </section>
+      ) : (
+        <section className="quest-card grid gap-6 p-6 sm:grid-cols-[auto_1fr] sm:items-center sm:p-8">
+          <div className="relative h-16 w-16">
+            <Image
+              src="/images/mascot-v2.png"
+              alt="파이"
+              fill
+              className="object-contain"
+              sizes="64px"
+            />
+          </div>
+          <div>
+            <h2 className="font-display text-xl sm:text-2xl">
+              레벨 업 & 캐릭터 육성
+            </h2>
+            <p className="mt-2 text-sm leading-relaxed text-foreground/70 sm:text-base">
+              학생으로 로그인하면 미션 XP로 파이가 성장하고, 초원·언덕·별빛
+              동료를 해금할 수 있어요. 한 판 만점 기준은 1000점!
+            </p>
+            <Link
+              href="/login/student"
+              className="mt-3 inline-flex font-display text-sm font-bold text-wood underline-offset-2 hover:underline"
+            >
+              학생 로그인 →
+            </Link>
+          </div>
+        </section>
+      )}
     </div>
   );
 }

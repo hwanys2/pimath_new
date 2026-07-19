@@ -7,6 +7,7 @@ import { createClient } from "@/lib/supabase/server";
 import { syncForeducatorAccount } from "@/lib/supabase/account";
 import {
   clearStudentSessionCookie,
+  getStudentSession,
   setStudentSessionCookie,
 } from "@/lib/student-session";
 import { isValidLoginId, normalizeLoginId } from "@/lib/students";
@@ -119,7 +120,12 @@ export async function signInAsStudent(
     class_id: string;
     class_name: string;
     teacher_id: string;
+    session_token: string;
   };
+
+  if (!student.session_token) {
+    return { error: "세션을 만들지 못했어요. 다시 로그인해 주세요." };
+  }
 
   // Clear any teacher session so roles don't mix.
   await supabase.auth.signOut();
@@ -131,9 +137,10 @@ export async function signInAsStudent(
     classId: student.class_id,
     className: student.class_name,
     teacherId: student.teacher_id,
+    sessionToken: student.session_token,
   });
 
-  redirect("/");
+  redirect("/adventure");
 }
 
 export async function signUpWithEmail(
@@ -275,6 +282,17 @@ export async function signInWithProvider(formData: FormData): Promise<void> {
 }
 
 export async function signOut(): Promise<void> {
+  const session = await getStudentSession();
+  if (session?.sessionToken) {
+    try {
+      const supabase = await createClient();
+      await supabase.rpc("pm_revoke_student_session", {
+        p_session_token: session.sessionToken,
+      });
+    } catch (error) {
+      console.error("[pm] revoke student session failed:", error);
+    }
+  }
   await clearStudentSessionCookie();
   const supabase = await createClient();
   await supabase.auth.signOut();

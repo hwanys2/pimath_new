@@ -10,7 +10,7 @@
 중학교 수학을 **캐주얼 RPG / 모험 게임**처럼 탐험한다.  
 학습 = 미션·퀘스트, 성취 = 레벨·배지. 캐릭터는 “선생님”이 아니라 **또래 모험가 동료**다.
 
-브랜드명: **수학하는 즐거움** / **Math Adventure**
+브랜드명: **수학하는 즐거움** / **Pleasure In Math**
 
 ---
 
@@ -113,6 +113,22 @@ casual mobile RPG art style, soft cel-shading, bright pastel, transparent backgr
 **활용 장면 예**
 
 - 환영 / 미션 시작 / 클리어 축하 / 힌트 제공 / 로딩·대기
+
+### 4.1.1 파이 레벨 성장 단계
+
+학생 레벨에 따라 **같은 파이**가 장비·아우라만 강화된다. 정체성(머리·눈·옷 기본)은 유지.
+상세 수치·해금: [`progression-system.md`](./progression-system.md), 코드 [`lib/progression.ts`](../lib/progression.ts)
+
+| 단계 | 레벨 | 파일 | 연출 포인트 |
+|------|------|------|-------------|
+| 견습 | 1–9 | `mascot-v2.png` | 기본 |
+| 모험가 | 10–24 | `pi-adventurer.png` | 별 핀·배낭·스태프 스파클 |
+| 탐험대장 | 25–44 | `pi-captain.png` | 짧은 망토·대장 배지 |
+| 수식 기사 | 45–64 | `pi-knight.png` | 금테 갑옷 악센트 |
+| 아크메이지 | 65–84 | `pi-archmage.png` | 떠다니는 수식 오브 |
+| 전설 | 85–100 | `pi-legend.png` | 금·하늘빛 아우라 |
+
+동료 해금: Lv.5 초원, Lv.15 언덕, Lv.30 별빛 (기존 grade PNG).
 
 ---
 
@@ -274,13 +290,18 @@ Do not change costume, hair, eye color, or signature props.
 
 | 파일 | 캐릭터 | 용도 | 비고 |
 |------|--------|------|------|
-| `public/images/mascot-v2.png` | 파이 | 메인 마스코트 전신 | 투명 PNG |
-| `public/images/grade-1-v2.png` | 초원 | 중1 전신 | 투명 PNG |
-| `public/images/grade-2-v2.png` | 언덕 | 중2 전신 | 투명 PNG |
-| `public/images/grade-3-v2.png` | 별빛 | 중3 전신 | 투명 PNG |
+| `public/images/mascot-v2.png` | 파이 | 메인 마스코트·견습(Lv1–9) | 투명 PNG |
+| `public/images/pi-adventurer.png` | 파이 | 모험가(Lv10–24) | 성장 단계 |
+| `public/images/pi-captain.png` | 파이 | 탐험대장(Lv25–44) | 성장 단계 |
+| `public/images/pi-knight.png` | 파이 | 수식 기사(Lv45–64) | 성장 단계 |
+| `public/images/pi-archmage.png` | 파이 | 아크메이지(Lv65–84) | 성장 단계 |
+| `public/images/pi-legend.png` | 파이 | 전설(Lv85–100) | 성장 단계 |
+| `public/images/grade-1-v2.png` | 초원 | 중1 전신 · Lv5 해금 | 투명 PNG |
+| `public/images/grade-2-v2.png` | 언덕 | 중2 전신 · Lv15 해금 | 투명 PNG |
+| `public/images/grade-3-v2.png` | 별빛 | 중3 전신 · Lv30 해금 | 투명 PNG |
 | `public/images/hero-banner.png` | (배경) | 홈 탐험 배너 | 풍경 일러스트 |
 
-코드에서 경로 참조: [`lib/grades.ts`](../lib/grades.ts), [`components/HeroBanner.tsx`](../components/HeroBanner.tsx), [`components/TopMenuBar.tsx`](../components/TopMenuBar.tsx)
+코드에서 경로 참조: [`lib/grades.ts`](../lib/grades.ts), [`lib/progression.ts`](../lib/progression.ts), [`docs/progression-system.md`](./progression-system.md)
 
 ---
 
@@ -299,3 +320,4 @@ docs/character-style-guide.md 와 public/images/ 의 레퍼런스 PNG를 보고,
 | 날짜 | 내용 |
 |------|------|
 | 2026-07-13 | 초판: 파이·초원·언덕·별빛 시트, 팔레트, 프롬프트, 워크플로 정리 |
+| 2026-07-19 | 파이 레벨 성장 단계 5종 에셋 + 동료 해금(초원/언덕/별빛) 연동 |

@@ -41,7 +41,7 @@ export default async function ClassDetailPage({ params }: Props) {
 
   const { data: students, error: studentError } = await supabase
     .from("pm_students")
-    .select("id, display_name, login_id")
+    .select("id, display_name, login_id, level, total_xp")
     .eq("class_id", classId)
     .order("display_name", { ascending: true });
 

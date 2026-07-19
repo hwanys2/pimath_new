@@ -4,6 +4,7 @@ import {
   getStudentSession,
   type StudentSessionPayload,
 } from "@/lib/student-session";
+import { fetchStudentProgress, type StudentProgress } from "@/lib/xp-award";
 
 export type DisplayUser = {
   id: string;
@@ -26,6 +27,9 @@ export type StudentActor = {
   classId: string;
   className: string;
   teacherId: string;
+  level: number;
+  totalXp: number;
+  activeAvatar: string;
 };
 
 export type Actor = TeacherActor | StudentActor;
@@ -80,15 +84,21 @@ export async function getDisplayUser(): Promise<DisplayUser | null> {
   }
 }
 
-function studentToActor(session: StudentSessionPayload): StudentActor {
+function studentToActor(
+  session: StudentSessionPayload,
+  progress: StudentProgress | null,
+): StudentActor {
   return {
     type: "student",
     id: session.id,
-    name: session.displayName,
+    name: progress?.displayName ?? session.displayName,
     loginId: session.loginId,
     classId: session.classId,
-    className: session.className,
+    className: progress?.className ?? session.className,
     teacherId: session.teacherId,
+    level: progress?.level ?? 1,
+    totalXp: progress?.totalXp ?? 0,
+    activeAvatar: progress?.activeAvatar ?? "pi",
   };
 }
 
@@ -109,8 +119,10 @@ export async function getActor(): Promise<Actor | null> {
     }
 
     const student = await getStudentSession();
-    if (student) return studentToActor(student);
-    return null;
+    if (!student) return null;
+
+    const progress = await fetchStudentProgress(student.sessionToken);
+    return studentToActor(student, progress);
   } catch (error) {
     if (isNextControlFlowError(error)) throw error;
     console.error("[pm] getActor failed:", error);
@@ -123,6 +135,13 @@ export async function requireTeacher(): Promise<TeacherActor> {
   if (actor?.type === "teacher") return actor;
   const { redirect } = await import("next/navigation");
   redirect("/login/teacher");
-  // redirect() never returns; satisfy the type checker.
+  throw new Error("unreachable");
+}
+
+export async function requireStudent(): Promise<StudentActor> {
+  const actor = await getActor();
+  if (actor?.type === "student") return actor;
+  const { redirect } = await import("next/navigation");
+  redirect("/login/student");
   throw new Error("unreachable");
 }
