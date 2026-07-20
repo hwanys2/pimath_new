@@ -58,6 +58,16 @@ export const CONTENTS: ContentMeta[] = [
     description:
       "좌표평면에서 순서쌍 (x, y)만으로 오목을 두는 게임입니다. 컴퓨터·같은 반·전체 매칭. 학급 배정·활성 시 XP와 랭킹이 쌓여요.",
   },
+  {
+    key: "g1-u3-1-angle-guess",
+    unitId: "g1-3-1",
+    type: "game",
+    title: "각도 맞히기",
+    href: "/play/g1-u3-1-angle-guess",
+    awardsXp: true,
+    description:
+      "벌어지는 각의 크기를 맞히는 게임입니다. 30→10→5→1도 간격으로 승급. 학급 배정·활성 시 XP와 랭킹이 쌓여요.",
+  },
 ];
 
 export function getContent(key: string): ContentMeta | undefined {
