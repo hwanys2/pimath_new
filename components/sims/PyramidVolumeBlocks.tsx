@@ -3,15 +3,17 @@
 import dynamic from "next/dynamic";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
+  CUBE_SIDE,
+  CUBE_VOLUME,
   DEFAULT_N,
+  EXACT_PYRAMID,
   MAX_N,
   MIN_N,
-  TARGET_RATIO,
+  TARGET_VOLUME,
   type ViewMode,
   clampN,
   computeStats,
-  formatNum,
-  formatRatio,
+  formatVolume,
 } from "@/lib/pyramid-volume-math";
 
 const PyramidVolumeScene = dynamic(
@@ -29,31 +31,31 @@ const PyramidVolumeScene = dynamic(
 const LAYER_MS = 220;
 const INSIGHT_N = 12;
 
-function RatioBar({
+function VolumeBar({
   label,
-  ratio,
+  volume,
   colorClass,
-  count,
   sumText,
 }: {
   label: string;
-  ratio: number;
+  volume: number;
   colorClass: string;
-  count: number;
   sumText: string;
 }) {
-  const pct = Math.min(100, Math.max(0, ratio * 100));
-  const thirdPct = TARGET_RATIO * 100;
+  const pct = Math.min(100, Math.max(0, (volume / CUBE_VOLUME) * 100));
+  const targetPct = (TARGET_VOLUME / CUBE_VOLUME) * 100;
 
   return (
     <div className="space-y-1.5">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
         <p className="text-sm font-bold text-wood">{label}</p>
         <p className="text-sm font-semibold text-foreground/80">
-          {count}칸 · 비 ≈ {formatRatio(ratio)}
+          ≈ {formatVolume(volume)}
         </p>
       </div>
-      <p className="text-xs font-medium text-foreground/60">{sumText}</p>
+      <p className="text-xs font-medium leading-relaxed text-foreground/60">
+        {sumText}
+      </p>
       <div className="relative h-4 overflow-hidden rounded-full bg-wood/10">
         <div
           className={`absolute inset-y-0 left-0 rounded-full ${colorClass} transition-[width] duration-300`}
@@ -61,12 +63,12 @@ function RatioBar({
         />
         <div
           className="absolute inset-y-0 w-0.5 bg-wood/80"
-          style={{ left: `${thirdPct}%` }}
-          title="1/3"
+          style={{ left: `${targetPct}%` }}
+          title="1000/3"
         />
       </div>
       <p className="text-[11px] font-semibold text-wood/70">
-        목표선 = 1/3 ≈ {formatRatio(TARGET_RATIO)}
+        목표선 = 1000 ÷ 3 ≈ {formatVolume(TARGET_VOLUME)}
       </p>
     </div>
   );
@@ -82,7 +84,7 @@ export default function PyramidVolumeBlocks() {
   const [cameraResetKey, setCameraResetKey] = useState(0);
   const [hasStacked, setHasStacked] = useState(false);
   const [message, setMessage] = useState(
-    "한 변 n인 정육면체 안에 사각뿔을 두고, 단위 블럭 계단으로 부피를 세어 보세요.",
+    "한 변 10인 정육면체(부피 1000) 안에 사각뿔을 두고, 층을 나눠 부피를 세어 보세요.",
   );
 
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -107,9 +109,8 @@ export default function PyramidVolumeBlocks() {
       setN(next);
       setRevealedLayers(next);
       setMessage(
-        `한 변 ${next}인 정육면체예요. 바깥쪽은 ${next}²+…+1², 안쪽은 ${next - 1}²+…+1² 로 근사해요.`,
+        `정육면체는 그대로 1000이에요. 높이를 ${next}층으로 나눠 바깥·안쪽 계단을 비교해 보세요.`,
       );
-      setCameraResetKey((k) => k + 1);
     },
     [stopPlay],
   );
@@ -135,15 +136,15 @@ export default function PyramidVolumeBlocks() {
         const mode = viewModeRef.current;
         if (mode === "inner") {
           setMessage(
-            `안쪽 계단 ${s.inner}칸을 다 쌓았어요. 정육면체(${s.cube})와 비교해 보세요.`,
+            `안쪽 근사 ≈ ${formatVolume(s.inner)}. 정육면체 1000, 목표는 ≈ ${formatVolume(EXACT_PYRAMID)}이에요.`,
           );
         } else if (mode === "both") {
           setMessage(
-            "바깥·안쪽 계단을 함께 봤어요. n을 키우면 두 비가 모두 1/3에 가까워져요.",
+            "바깥·안쪽을 함께 봤어요. 분할을 키우면 둘 다 ≈ 333.333에 가까워져요.",
           );
         } else {
           setMessage(
-            `바깥쪽 계단 ${s.outer}칸을 다 쌓았어요. 정육면체(${s.cube})와 비교해 보세요.`,
+            `바깥쪽 근사 ≈ ${formatVolume(s.outer)}. 정육면체 1000, 목표는 ≈ ${formatVolume(EXACT_PYRAMID)}이에요.`,
           );
         }
       }
@@ -166,7 +167,7 @@ export default function PyramidVolumeBlocks() {
     setHasStacked(false);
     setCameraResetKey((k) => k + 1);
     setMessage(
-      "한 변 n인 정육면체 안에 사각뿔을 두고, 단위 블럭 계단으로 부피를 세어 보세요.",
+      "한 변 10인 정육면체(부피 1000) 안에 사각뿔을 두고, 층을 나눠 부피를 세어 보세요.",
     );
   }, [stopPlay]);
 
@@ -177,16 +178,12 @@ export default function PyramidVolumeBlocks() {
       setRevealedLayers(n);
       const s = computeStats(n);
       if (mode === "outer") {
-        setMessage(
-          `바깥쪽(상계): 각 층의 큰 면으로 쌓아요. ${s.outerSumText} = ${s.outer}`,
-        );
+        setMessage(`바깥쪽(상계): ${s.outerSumText}`);
       } else if (mode === "inner") {
-        setMessage(
-          `안쪽(하계): 각 층의 작은 면으로 쌓아요. ${s.innerSumText} = ${s.inner}`,
-        );
+        setMessage(`안쪽(하계): ${s.innerSumText}`);
       } else {
         setMessage(
-          "바깥(민트)과 안쪽(하늘)을 함께 봐요. 참 부피는 둘 사이에 있어요.",
+          "바깥(민트)과 안쪽(하늘)을 함께 봐요. 참 부피 ≈ 333.333은 둘 사이에 있어요.",
         );
       }
     },
@@ -208,15 +205,21 @@ export default function PyramidVolumeBlocks() {
           블럭으로 보는 뿔의 부피
         </h1>
         <p className="mt-3 max-w-2xl text-sm leading-relaxed text-foreground/75 sm:text-base">
-          한 변이 n인 정육면체(기둥) 안에 같은 밑·높이의 사각뿔을 두고, 단위
-          정육면체 계단으로 부피를 세어 보세요. 바깥쪽·안쪽 근사를 키우면 둘 다
-          기둥 부피의{" "}
-          <span className="font-semibold text-wood">1/3</span>에 다가가요.
+          한 변이{" "}
+          <span className="font-semibold text-wood">{CUBE_SIDE}</span>인
+          정육면체(부피{" "}
+          <span className="font-semibold text-wood">{CUBE_VOLUME}</span>)는
+          고정이에요. 높이만 n등분해서 바깥·안쪽 계단으로 사각뿔 부피를 세어
+          보세요. 층을 잘게 나누면 둘 다{" "}
+          <span className="font-semibold text-wood">
+            ≈ {formatVolume(EXACT_PYRAMID)}
+          </span>
+          (1000의 1/3)에 다가가요.
         </p>
 
         <div className="mt-5 flex flex-wrap items-end gap-4">
           <label className="flex flex-col gap-1 text-sm font-semibold text-foreground/70">
-            한 변 n
+            분할 수 n (층)
             <div className="flex items-center gap-2">
               <input
                 type="range"
@@ -322,7 +325,7 @@ export default function PyramidVolumeBlocks() {
         <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
           <p className="text-sm font-semibold text-foreground/70">{message}</p>
           <p className="text-xs font-bold text-wood">
-            n = {n} · 층 {revealedLayers}/{n} · 정육면체 {stats.cube}
+            분할 n = {n} · 층 {revealedLayers}/{n} · 정육면체 {CUBE_VOLUME}
           </p>
         </div>
 
@@ -341,30 +344,28 @@ export default function PyramidVolumeBlocks() {
           <div className="flex flex-col gap-5 rounded-2xl bg-cream/60 p-4 ring-1 ring-wood/10 sm:p-5">
             <div>
               <p className="text-xs font-bold uppercase tracking-wide text-wood/60">
-                기둥(정육면체)
+                기둥(정육면체) · 고정
               </p>
               <p className="mt-1 font-display text-2xl text-wood">
-                V = n³ = {stats.cube}
+                V = {CUBE_SIDE}³ = {CUBE_VOLUME}
               </p>
             </div>
 
             {(viewMode === "outer" || viewMode === "both") && (
-              <RatioBar
+              <VolumeBar
                 label="바깥쪽 계단 (상계)"
-                ratio={stats.outerRatio}
+                volume={stats.outer}
                 colorClass="bg-mint/80"
-                count={stats.outer}
-                sumText={`${stats.outerSumText} = ${stats.outer}`}
+                sumText={stats.outerSumText}
               />
             )}
 
             {(viewMode === "inner" || viewMode === "both") && (
-              <RatioBar
+              <VolumeBar
                 label="안쪽 계단 (하계)"
-                ratio={stats.innerRatio}
+                volume={stats.inner}
                 colorClass="bg-sky/80"
-                count={stats.inner}
-                sumText={`${stats.innerSumText} = ${stats.inner}`}
+                sumText={stats.innerSumText}
               />
             )}
 
@@ -372,13 +373,14 @@ export default function PyramidVolumeBlocks() {
               <p>
                 참 부피(사각뿔) ={" "}
                 <span className="font-bold text-wood">
-                  n³ / 3 ≈ {formatNum(stats.exact, 2)}
+                  {CUBE_VOLUME} ÷ 3 ≈ {formatVolume(stats.exact)}
                 </span>
               </p>
               <p className="mt-1">
                 안쪽 ≤ 뿔 ≤ 바깥쪽 →{" "}
                 <span className="font-semibold">
-                  {stats.inner} ≤ {formatNum(stats.exact, 1)} ≤ {stats.outer}
+                  {formatVolume(stats.inner)} ≤ {formatVolume(stats.exact)} ≤{" "}
+                  {formatVolume(stats.outer)}
                 </span>
               </p>
             </div>
@@ -416,18 +418,20 @@ export default function PyramidVolumeBlocks() {
           </p>
           <ol className="mt-4 space-y-3 text-sm leading-relaxed text-foreground/80 sm:text-base">
             <li>
-              <span className="font-bold text-wood">1.</span> 바깥쪽 합{" "}
-              <span className="font-bold">n²+(n−1)²+…+1²</span>, 안쪽 합{" "}
-              <span className="font-bold">(n−1)²+…+1²</span> 로 사각뿔을
-              끼워 넣어요. (구분구적법)
+              <span className="font-bold text-wood">1.</span> 정육면체 부피{" "}
+              <span className="font-bold">{CUBE_VOLUME}</span>은 고정하고, 높이만
+              n등분해 바깥·안쪽 계단으로 사각뿔을 끼워 넣어요. (구분구적법)
             </li>
             <li>
-              <span className="font-bold text-wood">2.</span> n을 키울수록 두 비
-              모두 정육면체 부피 n³의{" "}
-              <span className="font-bold">1/3</span>에 가까워져요.
+              <span className="font-bold text-wood">2.</span> n을 키울수록 바깥·안쪽
+              부피가 모두{" "}
+              <span className="font-bold">
+                ≈ {formatVolume(EXACT_PYRAMID)}
+              </span>
+              에 가까워져요.
               {n >= INSIGHT_N
-                ? ` 지금 n=${n}: 바깥 ≈ ${formatRatio(stats.outerRatio)}, 안쪽 ≈ ${formatRatio(stats.innerRatio)}.`
-                : " n을 더 키워 보세요."}
+                ? ` 지금 n=${n}: 바깥 ≈ ${formatVolume(stats.outer)}, 안쪽 ≈ ${formatVolume(stats.inner)}.`
+                : " 분할 수를 더 키워 보세요."}
             </li>
             <li>
               <span className="font-bold text-wood">3.</span> 따라서 같은 밑면과
@@ -445,10 +449,13 @@ export default function PyramidVolumeBlocks() {
           <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-foreground/75">
             <li>
               n=10일 때 바깥쪽은 100+81+…+1 = 385, 안쪽은 81+…+1 = 285, 정육면체는
-              1000이에요.
+              언제나 1000이에요.
             </li>
-            <li>바깥쪽과 안쪽을 바꿔 가며, 참 부피가 그 사이에 있음을 느껴 보세요.</li>
-            <li>n을 키울수록 두 비가 같은 값(1/3)으로 모이는지 막대의 목표선을 보세요.</li>
+            <li>
+              목표는 항상 ≈ {formatVolume(EXACT_PYRAMID)} (1000÷3). 막대의 목표선을
+              보세요.
+            </li>
+            <li>분할을 키울수록 바깥·안쪽이 같은 값으로 모이는지 비교해 보세요.</li>
           </ul>
         </section>
       )}

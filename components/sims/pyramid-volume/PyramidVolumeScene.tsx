@@ -4,7 +4,12 @@ import { useLayoutEffect, useMemo, useRef } from "react";
 import { Canvas, useThree } from "@react-three/fiber";
 import { Edges, Line, OrbitControls } from "@react-three/drei";
 import * as THREE from "three";
-import type { ViewMode } from "@/lib/pyramid-volume-math";
+import {
+  CUBE_SIDE,
+  type ViewMode,
+  innerLayerSideLength,
+  outerLayerSideLength,
+} from "@/lib/pyramid-volume-math";
 
 const COLOR_OUTER = "#7DD3B0";
 const COLOR_INNER = "#7EC8F5";
@@ -14,78 +19,90 @@ const COLOR_PYRAMID = "#FFD76A";
 type SceneProps = {
   n: number;
   viewMode: ViewMode;
-  /** How many layers revealed from the bottom (0 = none, n = all for outer). */
+  /** How many layers revealed from the bottom (0 = none, n = all). */
   revealedLayers: number;
   showCube: boolean;
   showPyramid: boolean;
   cameraResetKey: number;
 };
 
-function CameraReset({ resetKey, n }: { resetKey: number; n: number }) {
+function CameraReset({ resetKey }: { resetKey: number }) {
   const { camera, controls } = useThree();
   const prev = useRef(resetKey);
+  const half = CUBE_SIDE / 2;
 
   useLayoutEffect(() => {
     if (prev.current === resetKey && resetKey !== 0) return;
     prev.current = resetKey;
-    const dist = Math.max(6, n * 1.55);
-    camera.position.set(dist * 0.95, dist * 0.72, dist * 0.95);
-    camera.lookAt(0, n / 2, 0);
+    camera.position.set(14, 11, 14);
+    camera.lookAt(0, half, 0);
     camera.updateProjectionMatrix();
     const orbit = controls as
       | { target: THREE.Vector3; update: () => void }
       | null
       | undefined;
     if (orbit?.target) {
-      orbit.target.set(0, n / 2, 0);
+      orbit.target.set(0, half, 0);
       orbit.update();
     }
-  }, [resetKey, n, camera, controls]);
+  }, [resetKey, camera, controls, half]);
 
   return null;
 }
 
-function LayerGrid({ side, y, unit }: { side: number; y: number; unit: number }) {
+function LayerGrid({
+  sideLength,
+  y,
+  cell,
+  count,
+}: {
+  sideLength: number;
+  y: number;
+  cell: number;
+  count: number;
+}) {
   const points = useMemo(() => {
-    const w = side * unit;
-    const half = w / 2;
-    const topY = y + unit * 0.49;
+    const half = sideLength / 2;
+    const topY = y + cell * 0.49;
     const pts: [number, number, number][] = [];
-    for (let i = 0; i <= side; i++) {
-      const t = -half + i * unit;
+    for (let i = 0; i <= count; i++) {
+      const t = -half + i * cell;
       pts.push([t, topY, -half], [t, topY, half]);
       pts.push([-half, topY, t], [half, topY, t]);
     }
     return pts;
-  }, [side, y, unit]);
+  }, [sideLength, y, cell, count]);
 
-  if (side <= 0 || side > 12) return null;
+  if (count <= 0 || count > 12) return null;
   return <Line points={points} segments color="rgba(92,64,51,0.3)" lineWidth={1} />;
 }
 
 function StairLayer({
-  side,
+  sideLength,
   y,
+  height,
   color,
   opacity,
   showGrid,
-  unit,
+  cell,
+  count,
 }: {
-  side: number;
+  sideLength: number;
   y: number;
+  height: number;
   color: string;
   opacity: number;
   showGrid: boolean;
-  unit: number;
+  cell: number;
+  count: number;
 }) {
-  if (side <= 0) return null;
-  const w = side * unit;
-  const h = unit * 0.98;
+  if (sideLength <= 0) return null;
+  const h = height * 0.98;
 
   return (
     <group>
       <mesh position={[0, y, 0]} castShadow receiveShadow>
-        <boxGeometry args={[w, h, w]} />
+        <boxGeometry args={[sideLength, h, sideLength]} />
         <meshStandardMaterial
           color={color}
           roughness={0.42}
@@ -96,15 +113,17 @@ function StairLayer({
         />
         <Edges threshold={15} color="rgba(92,64,51,0.38)" />
       </mesh>
-      {showGrid ? <LayerGrid side={side} y={y} unit={unit} /> : null}
+      {showGrid ? (
+        <LayerGrid sideLength={sideLength} y={y} cell={cell} count={count} />
+      ) : null}
     </group>
   );
 }
 
-function CubeWire({ n, unit }: { n: number; unit: number }) {
-  const s = n * unit;
+function CubeWire() {
+  const s = CUBE_SIDE;
   return (
-    <mesh position={[0, (n * unit) / 2, 0]}>
+    <mesh position={[0, s / 2, 0]}>
       <boxGeometry args={[s, s, s]} />
       <meshBasicMaterial visible={false} />
       <Edges color={COLOR_CUBE} />
@@ -112,9 +131,9 @@ function CubeWire({ n, unit }: { n: number; unit: number }) {
   );
 }
 
-function PyramidWire({ n, unit }: { n: number; unit: number }) {
-  const half = (n * unit) / 2;
-  const top = n * unit;
+function PyramidWire() {
+  const half = CUBE_SIDE / 2;
+  const top = CUBE_SIDE;
   const points = useMemo((): [number, number, number][] => {
     const apex: [number, number, number] = [0, top, 0];
     const b0: [number, number, number] = [-half, 0, -half];
@@ -153,26 +172,30 @@ function Staircases({
   viewMode: ViewMode;
   revealedLayers: number;
 }) {
-  const unit = 1;
+  const cell = CUBE_SIDE / n;
   const showGrid = n <= 12;
   const layers = [];
 
   for (let i = 0; i < n; i++) {
     if (i >= revealedLayers) break;
-    const y = i * unit + unit / 2;
-    const outerSide = n - i;
-    const innerSide = n - 1 - i;
+    const y = i * cell + cell / 2;
+    const outerSide = outerLayerSideLength(n, i);
+    const innerSide = innerLayerSideLength(n, i);
+    const outerCount = n - i;
+    const innerCount = n - 1 - i;
 
     if (viewMode === "outer" || viewMode === "both") {
       layers.push(
         <StairLayer
           key={`o-${i}`}
-          side={outerSide}
+          sideLength={outerSide}
           y={y}
+          height={cell}
           color={COLOR_OUTER}
           opacity={viewMode === "both" ? 0.52 : 0.92}
           showGrid={showGrid && viewMode === "outer"}
-          unit={unit}
+          cell={cell}
+          count={outerCount}
         />,
       );
     }
@@ -181,12 +204,14 @@ function Staircases({
       layers.push(
         <StairLayer
           key={`i-${i}`}
-          side={innerSide}
+          sideLength={innerSide}
           y={y}
+          height={cell}
           color={COLOR_INNER}
           opacity={viewMode === "both" ? 0.9 : 0.92}
           showGrid={showGrid && viewMode === "inner"}
-          unit={unit}
+          cell={cell}
+          count={innerCount}
         />,
       );
     }
@@ -203,8 +228,7 @@ function SceneContents({
   showPyramid,
   cameraResetKey,
 }: SceneProps) {
-  const unit = 1;
-  const gridSize = Math.max(8, n + 4);
+  const half = CUBE_SIDE / 2;
 
   return (
     <>
@@ -214,12 +238,12 @@ function SceneContents({
       <directionalLight position={[-4, 4, -5]} intensity={0.35} />
 
       <gridHelper
-        args={[gridSize, gridSize * 2, "#c49a6c", "rgba(196,154,108,0.32)"]}
+        args={[16, 32, "#c49a6c", "rgba(196,154,108,0.32)"]}
         position={[0, -0.02, 0]}
       />
 
-      {showCube ? <CubeWire n={n} unit={unit} /> : null}
-      {showPyramid ? <PyramidWire n={n} unit={unit} /> : null}
+      {showCube ? <CubeWire /> : null}
+      {showPyramid ? <PyramidWire /> : null}
 
       <Staircases n={n} viewMode={viewMode} revealedLayers={revealedLayers} />
 
@@ -227,11 +251,11 @@ function SceneContents({
         makeDefault
         enableDamping
         dampingFactor={0.08}
-        minDistance={Math.max(4, n * 0.6)}
-        maxDistance={Math.max(18, n * 3.2)}
-        target={[0, n / 2, 0]}
+        minDistance={6}
+        maxDistance={36}
+        target={[0, half, 0]}
       />
-      <CameraReset resetKey={cameraResetKey} n={n} />
+      <CameraReset resetKey={cameraResetKey} />
     </>
   );
 }
@@ -241,7 +265,7 @@ export default function PyramidVolumeScene(props: SceneProps) {
     <div className="h-full min-h-[320px] w-full overflow-hidden rounded-2xl ring-1 ring-wood/10">
       <Canvas
         camera={{
-          position: [12, 9, 12],
+          position: [14, 11, 14],
           fov: 42,
           near: 0.1,
           far: 200,
