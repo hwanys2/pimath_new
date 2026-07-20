@@ -68,6 +68,16 @@ export const CONTENTS: ContentMeta[] = [
     description:
       "벌어지는 각의 크기를 맞히는 게임입니다. 30→10→5→1도 간격으로 승급. 학급 배정·활성 시 XP와 랭킹이 쌓여요.",
   },
+  {
+    key: "g1-u3-3-sector-area-rect",
+    unitId: "g1-3-3",
+    type: "simulation",
+    title: "부채꼴을 직사각형으로",
+    href: "/play/g1-u3-3-sector-area-rect",
+    awardsXp: false,
+    description:
+      "부채꼴을 작게 나눠 직사각형으로 재배열하며 넓이 공식(½×r×l)을 유추하는 시뮬레이션입니다. 점수는 없어요.",
+  },
 ];
 
 export function getContent(key: string): ContentMeta | undefined {
