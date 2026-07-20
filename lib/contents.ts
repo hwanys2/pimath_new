@@ -118,6 +118,16 @@ export const CONTENTS: ContentMeta[] = [
     description:
       "가위바위보 후 도형을 고르고, 격자에 돌을 두어 먼저 사각형을 완성하는 게임입니다. 컴퓨터·같은 반·전체 매칭. 학급 배정·활성 시 XP와 랭킹이 쌓여요.",
   },
+  {
+    key: "g2-u4-dice-sum-race",
+    unitId: "g2-4",
+    type: "game",
+    title: "주사위 합 10번 채우기",
+    href: "/play/g2-u4-dice-sum-race",
+    awardsXp: true,
+    description:
+      "교사가 주사위를 굴리면 2~12 합 칸이 채워져요. 10번 먼저 채워지는 합을 맞히고, 내 숫자가 나올 때마다 10점! 학급 배정·활성 시 XP와 랭킹이 쌓여요.",
+  },
 ];
 
 export function getContent(key: string): ContentMeta | undefined {
