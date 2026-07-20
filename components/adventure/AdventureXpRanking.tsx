@@ -3,6 +3,7 @@
 import { useState, useTransition } from "react";
 import type { RankingScope, XpRankingRow } from "@/lib/game-types";
 import { fetchXpRankingAction } from "@/app/adventure/actions";
+import { buildXpRankingDisplayItems } from "@/lib/xp-ranking-display";
 
 type Props = {
   initialRows: XpRankingRow[];
@@ -31,6 +32,8 @@ export default function AdventureXpRanking({
       setRows(nextRows);
     });
   };
+
+  const items = buildXpRankingDisplayItems(rows);
 
   return (
     <div className="flex h-full min-h-0 flex-col rounded-2xl bg-gradient-to-b from-wood/10 via-white/80 to-mint/20 p-3 ring-1 ring-wood/10 sm:p-4">
@@ -68,56 +71,70 @@ export default function AdventureXpRanking({
         })}
       </div>
 
-      <div className="relative mt-3 min-h-0 flex-1 overflow-y-auto">
+      <div className="relative mt-3 min-h-0 flex-1">
         {isPending ? (
           <p className="py-6 text-center text-xs text-foreground/40">
             불러오는 중…
           </p>
-        ) : rows.length === 0 ? (
+        ) : items.length === 0 ? (
           <p className="py-6 text-center text-xs text-foreground/40">
             아직 순위가 없어요
           </p>
         ) : (
           <ol className="space-y-1.5">
-            {rows.map((row) => (
-              <li
-                key={`${row.studentId}-${row.rank}`}
-                className={[
-                  "flex items-center gap-2 rounded-xl px-2 py-1.5",
-                  row.isMe
-                    ? "bg-mint/40 ring-1 ring-mint/70"
-                    : "bg-white/60",
-                ].join(" ")}
-              >
-                <span
+            {items.map((item) =>
+              item.kind === "gap" ? (
+                <li
+                  key={`gap-${item.afterRank}`}
+                  aria-hidden
+                  className="flex items-center justify-center py-0.5"
+                >
+                  <span className="text-[11px] font-black tracking-[0.35em] text-wood/30">
+                    ···
+                  </span>
+                </li>
+              ) : (
+                <li
+                  key={`${item.row.studentId}-${item.row.rank}`}
                   className={[
-                    "flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[11px] font-black",
-                    row.rank <= 3
-                      ? "bg-gold/70 text-wood"
-                      : "bg-wood/10 text-wood/60",
+                    "flex items-center gap-2 rounded-xl px-2 py-1.5",
+                    item.row.isMe
+                      ? "bg-mint/40 ring-1 ring-mint/70"
+                      : "bg-white/60",
                   ].join(" ")}
                 >
-                  {row.rank}
-                </span>
-                <span className="min-w-0 flex-1">
-                  <span className="block truncate text-xs font-bold text-foreground">
-                    {row.displayName}
-                    {row.isMe ? (
-                      <span className="ml-1 text-[10px] text-wood/60">(나)</span>
-                    ) : null}
+                  <span
+                    className={[
+                      "flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[11px] font-black",
+                      item.row.rank <= 3
+                        ? "bg-gold/70 text-wood"
+                        : "bg-wood/10 text-wood/60",
+                    ].join(" ")}
+                  >
+                    {item.row.rank}
                   </span>
-                  <span className="block truncate text-[10px] text-foreground/45">
-                    Lv.{row.level}
-                    {scope !== "class" && row.className
-                      ? ` · ${row.className}`
-                      : ""}
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate text-xs font-bold text-foreground">
+                      {item.row.displayName}
+                      {item.row.isMe ? (
+                        <span className="ml-1 text-[10px] text-wood/60">
+                          (나)
+                        </span>
+                      ) : null}
+                    </span>
+                    <span className="block truncate text-[10px] text-foreground/45">
+                      Lv.{item.row.level}
+                      {scope !== "class" && item.row.className
+                        ? ` · ${item.row.className}`
+                        : ""}
+                    </span>
                   </span>
-                </span>
-                <span className="shrink-0 text-[11px] font-black tabular-nums text-wood">
-                  {row.totalXp.toLocaleString()}
-                </span>
-              </li>
-            ))}
+                  <span className="shrink-0 text-[11px] font-black tabular-nums text-wood">
+                    {item.row.totalXp.toLocaleString()}
+                  </span>
+                </li>
+              ),
+            )}
           </ol>
         )}
       </div>

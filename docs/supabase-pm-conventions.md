@@ -143,7 +143,7 @@ PM_STUDENT_SESSION_SECRET=...  # 서버 전용, 긴 랜덤 문자열
 | `pm_submit_game_run` | 학생 세션 + 배정·활성일 때만 기록 + XP |
 | `pm_list_game_ranking` | 랭킹 — `world`(전체) / `school`(같은 teacher_id) / `class` × `all`/`best` |
 | `pm_list_class_game_ranking` | (레거시) class 스코프 위임 |
-| `pm_list_xp_ranking` | 어드벤처 누적 XP 랭킹 (`world`/`school`/`class`) |
+| `pm_list_xp_ranking` | 어드벤처 누적 XP 랭킹 (`world`/`school`/`class`) — 상위 3 + 내 등수 ±1 |
 
 - `password_hash` 는 authenticated SELECT/UPDATE 불가. 비밀번호는 RPC로만 설정.
 - 앱에서 학생 세션은 `lib/student-session.ts` (`jose` JWT 쿠키 + DB session token). 교사 식별은 계속 `getUser()`.

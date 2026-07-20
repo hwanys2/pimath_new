@@ -123,6 +123,7 @@ await submitGameRun({ contentKey: "g1-u1-1-prime-hunt", score });
 | 어드벤처 | 학생 `total_xp` / 레벨 | `AdventureXpRanking` |
 
 - RPC: `pm_list_xp_ranking(session, scope)` — `world` / `school` / `class`
+- 표시: 상위 3명 + 내 등수 ±1 (중복 제거). 순위 틈이 있으면 UI에서 `···`로 구분
 
 ---
 
@@ -183,7 +184,7 @@ await submitGameRun({ contentKey: "g1-u1-1-prime-hunt", score });
 | `pm_submit_game_run` | 배정·활성일 때 기록 + XP |
 | `pm_list_game_ranking` | 랭킹 — scope `world`/`school`/`class` × mode `all`/`best` |
 | `pm_list_class_game_ranking` | (레거시) class 스코프 위임 |
-| `pm_list_xp_ranking` | 어드벤처 누적 XP 랭킹 (`world`/`school`/`class`) |
+| `pm_list_xp_ranking` | 어드벤처 누적 XP 랭킹 (`world`/`school`/`class`) — 상위 3 + 내 등수 ±1 |
 
 UI: `/adventure` (폼 도감 + 장비 + **누적 XP 랭킹**). 게임 결과 화면에서 콘텐츠별 월드·학교·학급 랭킹.
 
