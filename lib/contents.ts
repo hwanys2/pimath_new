@@ -98,6 +98,16 @@ export const CONTENTS: ContentMeta[] = [
     description:
       "정육면체 단위 블럭 계단(바깥·안쪽)으로 사각뿔 부피를 세며, 기둥 부피의 1/3에 다가감을 탐구하는 시뮬레이션입니다. 점수는 없어요.",
   },
+  {
+    key: "g2-u1-repeating-decimal",
+    unitId: "g2-1",
+    type: "simulation",
+    title: "분수를 순환소수로",
+    href: "/play/g2-u1-repeating-decimal",
+    awardsXp: false,
+    description:
+      "분자·분모를 넣으면 소수로 바꾸고, 순환마디 길이와 한국식 순환 표기를 보여 주는 시뮬레이션입니다. 점수는 없어요.",
+  },
 ];
 
 export function getContent(key: string): ContentMeta | undefined {
