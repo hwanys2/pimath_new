@@ -4,7 +4,12 @@ export type Pt = { x: number; y: number };
 
 export type DrawMode = "grid" | "free" | "preset";
 
-export type PresetId = "rectangle" | "triangle" | "semicircle" | "trapezoid";
+export type PresetId =
+  | "rectangle"
+  | "triangle"
+  | "semicircle"
+  | "trapezoid"
+  | "circle";
 
 export type PresetMeta = {
   id: PresetId;
@@ -64,6 +69,13 @@ export const PRESETS: PresetMeta[] = [
       { x: 0, y: 2 },
     ],
   },
+  {
+    id: "circle",
+    label: "원",
+    solidName: "원환면",
+    hint: "축에서 떨어진 원을 돌리면 원환면(도넛 모양)이 됩니다.",
+    points: circlePoints(2.5, 0, 1, 32),
+  },
 ];
 
 function semicirclePoints(radius: number, segments: number): Pt[] {
@@ -77,6 +89,24 @@ function semicirclePoints(radius: number, segments: number): Pt[] {
   }
   pts.push({ x: 0, y: radius });
   return pts;
+}
+
+/** Closed circle centered at (cx, cy) — used for torus preset. */
+function circlePoints(
+  cx: number,
+  cy: number,
+  radius: number,
+  segments: number,
+): Pt[] {
+  const pts: Pt[] = [];
+  for (let i = 0; i < segments; i++) {
+    const t = (i / segments) * Math.PI * 2;
+    pts.push({
+      x: cx + radius * Math.cos(t),
+      y: cy + radius * Math.sin(t),
+    });
+  }
+  return pts.map(clampToRightHalf);
 }
 
 export function getPreset(id: PresetId): PresetMeta {
@@ -117,28 +147,6 @@ export function appendFreePoint(points: Pt[], next: Pt): Pt[] {
   return [...points, p];
 }
 
-/**
- * Ensure the profile starts/ends on the axis when possible so Lathe
- * produces a closed solid. Does not mutate if already on axis.
- */
-export function sealProfileToAxis(points: Pt[]): Pt[] {
-  if (points.length < 2) return points.map(clampToRightHalf);
-  const sealed = points.map(clampToRightHalf);
-  const first = sealed[0];
-  const last = sealed[sealed.length - 1];
-  if (first.x > 0.01) {
-    sealed.unshift({ x: 0, y: first.y });
-  } else {
-    sealed[0] = { x: 0, y: first.y };
-  }
-  if (last.x > 0.01) {
-    sealed.push({ x: 0, y: last.y });
-  } else {
-    sealed[sealed.length - 1] = { x: 0, y: last.y };
-  }
-  return dedupeConsecutive(sealed);
-}
-
 function dedupeConsecutive(points: Pt[]): Pt[] {
   const out: Pt[] = [];
   for (const p of points) {
@@ -148,14 +156,32 @@ function dedupeConsecutive(points: Pt[]): Pt[] {
   return out;
 }
 
-export function isProfileReady(points: Pt[]): boolean {
-  return sealProfileToAxis(points).length >= MIN_PROFILE_POINTS;
+/** Close a polygon loop for Lathe without forcing points onto the axis. */
+export function closeLoop(points: Pt[]): Pt[] {
+  const clamped = dedupeConsecutive(points.map(clampToRightHalf));
+  if (clamped.length < 2) return clamped;
+  const first = clamped[0];
+  const last = clamped[clamped.length - 1];
+  if (dist(first, last) > 1e-6) {
+    return [...clamped, { x: first.x, y: first.y }];
+  }
+  return clamped;
+}
+
+export function isProfileReady(points: Pt[], closed: boolean): boolean {
+  return closed && points.length >= MIN_PROFILE_POINTS;
 }
 
 /** Degrees → radians for Three.js LatheGeometry phiLength. */
 export function degToRad(deg: number): number {
   return (deg * Math.PI) / 180;
 }
+
+/**
+ * Three.js LatheGeometry at phi=0 places the profile in the +Z (YZ) plane.
+ * Start at π/2 so the generating face lies on +X (XY, z=0), matching the yellow ribbon.
+ */
+export const LATHE_PHI_START = Math.PI / 2;
 
 export function clampAngle(deg: number): number {
   if (!Number.isFinite(deg)) return 0;
@@ -164,10 +190,10 @@ export function clampAngle(deg: number): number {
 
 /**
  * Points for LatheGeometry: x = radius (>=0), y = height.
- * Input points are already in that convention after sealing.
+ * Closed loops away from the axis become surfaces of revolution (e.g. torus).
  */
 export function toLatheProfile(points: Pt[]): Pt[] {
-  return sealProfileToAxis(points);
+  return closeLoop(points);
 }
 
 export function samePoint(a: Pt, b: Pt, eps = 0.05): boolean {

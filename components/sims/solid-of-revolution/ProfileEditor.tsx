@@ -5,11 +5,10 @@ import {
   type DrawMode,
   type Pt,
   GRID_STEP,
+  MIN_PROFILE_POINTS,
   WORLD_HALF,
   appendFreePoint,
   clampToRightHalf,
-  isProfileReady,
-  sealProfileToAxis,
   shouldClosePolygon,
   snapToGrid,
 } from "@/lib/solid-of-revolution-math";
@@ -126,9 +125,9 @@ export default function ProfileEditor({
     }
     if (
       stateRef.current.mode === "free" &&
-      isProfileReady(pointsRef.current)
+      pointsRef.current.length >= MIN_PROFILE_POINTS
     ) {
-      stateRef.current.onChange(sealProfileToAxis(pointsRef.current), true);
+      stateRef.current.onChange(pointsRef.current, true);
     }
   };
 
@@ -239,10 +238,10 @@ export default function ProfileEditor({
               key={`d-${p.x}-${p.y}`}
               cx={s.x}
               cy={s.y}
-              r={4.5}
-              fill="rgba(77,182,160,0.45)"
-              stroke="rgba(42,157,143,0.7)"
-              strokeWidth={1}
+              r={1.6}
+              fill="rgba(77,182,160,0.55)"
+              stroke="rgba(42,157,143,0.35)"
+              strokeWidth={0.5}
               className={disabled || closed ? "" : "cursor-pointer"}
             />
           );

@@ -6,6 +6,7 @@ import { OrbitControls, Line } from "@react-three/drei";
 import * as THREE from "three";
 import {
   type Pt,
+  LATHE_PHI_START,
   degToRad,
   toLatheProfile,
 } from "@/lib/solid-of-revolution-math";
@@ -38,8 +39,8 @@ function AxisHelper() {
 
 function ProfileRibbon({ points }: { points: Pt[] }) {
   const linePoints = useMemo(() => {
-    const sealed = toLatheProfile(points);
-    return sealed.map((p) => [p.x, p.y, 0] as [number, number, number]);
+    const profile = toLatheProfile(points);
+    return profile.map((p) => [p.x, p.y, 0] as [number, number, number]);
   }, [points]);
 
   if (linePoints.length < 2) return null;
@@ -60,10 +61,11 @@ function RevolutionSolid({
     if (profile.length < 3 || angleDeg < 1) return null;
     const vectors = profile.map((p) => new THREE.Vector2(p.x, p.y));
     const segments = Math.max(8, Math.ceil(angleDeg / 6));
+    // phiStart = π/2 → generating face on +X (z=0), same as yellow ribbon
     return new THREE.LatheGeometry(
       vectors,
       segments,
-      0,
+      LATHE_PHI_START,
       degToRad(Math.max(1, angleDeg)),
     );
   }, [points, angleDeg]);

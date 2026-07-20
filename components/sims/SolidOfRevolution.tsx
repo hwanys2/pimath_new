@@ -11,7 +11,7 @@ import {
   clampAngle,
   getPreset,
   isProfileReady,
-  sealProfileToAxis,
+  toLatheProfile,
 } from "@/lib/solid-of-revolution-math";
 
 const RevolutionScene = dynamic(
@@ -49,8 +49,8 @@ export default function SolidOfRevolution() {
     presetIdRef.current = presetId;
   }, [presetId]);
 
-  const ready = isProfileReady(points);
-  const lathePoints = ready ? sealProfileToAxis(points) : [];
+  const ready = isProfileReady(points, closed);
+  const lathePoints = ready ? toLatheProfile(points) : [];
 
   const stopPlay = useCallback(() => {
     setPlaying(false);
@@ -386,9 +386,9 @@ export default function SolidOfRevolution() {
       <section className="quest-card bg-mint/15 p-5 sm:p-6">
         <p className="text-sm font-bold text-wood">탐구 힌트</p>
         <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-foreground/75">
-          <li>직사각형 → 원기둥, 직각삼각형 → 원뿔, 반원 → 구를 먼저 확인해 보세요.</li>
+          <li>직사각형 → 원기둥, 직각삼각형 → 원뿔, 반원 → 구, 원 → 원환면을 먼저 확인해 보세요.</li>
           <li>각도를 조금씩 올리면 회전체가 “쌓이는” 느낌을 볼 수 있어요.</li>
-          <li>같은 도형이라도 축과의 거리에 따라 생기는 입체가 달라져요.</li>
+          <li>축에서 떨어진 도형을 돌리면 가운데가 비는 입체(원환면 등)가 됩니다.</li>
         </ul>
       </section>
     </div>
