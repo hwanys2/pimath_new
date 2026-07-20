@@ -25,12 +25,23 @@ import {
 import type { GameSubmitClientResult } from "@/app/adventure/actions";
 import { DICE_RACE_POLL_MS, type DiceRacePollState } from "@/lib/dice-race-types";
 
+const FAST_MODE_KEY = "pm_dice_race_fast_mode";
+const ROLL_ANIM_MIN_MS = 520;
+const STUDENT_ANIM_MS = 400;
+const SHUFFLE_INTERVAL_MS = 80;
+
 type Props = {
   actorType: "teacher" | "student" | null;
   teacherClasses: TeacherClassOption[];
   studentClassId: string | null;
   studentClassName: string | null;
   studentName: string | null;
+};
+
+type DisplayRoll = {
+  d1: number;
+  d2: number;
+  sum: number | null;
 };
 
 const IDLE_STATE: DiceRacePollState = {
@@ -68,6 +79,10 @@ function errMsg(error: string | undefined): string {
   return error ?? "오류가 발생했어요.";
 }
 
+function randomFace(): number {
+  return Math.floor(Math.random() * 6) + 1;
+}
+
 function phaseLabel(phase: DiceRacePollState["phase"]): string {
   switch (phase) {
     case "lobby":
@@ -83,6 +98,10 @@ function phaseLabel(phase: DiceRacePollState["phase"]): string {
     default:
       return "대기";
   }
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => window.setTimeout(resolve, ms));
 }
 
 export default function DiceSumRace({
@@ -101,10 +120,58 @@ export default function DiceSumRace({
   const [waitingForTeacher, setWaitingForTeacher] = useState(false);
   const [xpResult, setXpResult] = useState<GameSubmitClientResult | null>(null);
   const [isPending, startTransition] = useTransition();
+  const [isRolling, setIsRolling] = useState(false);
+  const [fastMode, setFastMode] = useState(false);
+  const [displayRoll, setDisplayRoll] = useState<DisplayRoll | null>(null);
+  const [justFilledSum, setJustFilledSum] = useState<number | null>(null);
+  const [highlightSum, setHighlightSum] = useState(false);
+
   const claimedRoundRef = useRef(0);
+  const prevRollCountRef = useRef(0);
+  const shuffleTimerRef = useRef<number | null>(null);
+  const rollSyncInitializedRef = useRef(false);
 
   const isTeacher = actorType === "teacher";
   const isStudent = actorType === "student";
+
+  useEffect(() => {
+    try {
+      setFastMode(window.localStorage.getItem(FAST_MODE_KEY) === "1");
+    } catch {
+      setFastMode(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (shuffleTimerRef.current != null) {
+        window.clearInterval(shuffleTimerRef.current);
+      }
+    };
+  }, []);
+
+  const stopShuffle = useCallback(() => {
+    if (shuffleTimerRef.current != null) {
+      window.clearInterval(shuffleTimerRef.current);
+      shuffleTimerRef.current = null;
+    }
+  }, []);
+
+  const startShuffle = useCallback(() => {
+    stopShuffle();
+    shuffleTimerRef.current = window.setInterval(() => {
+      setDisplayRoll({ d1: randomFace(), d2: randomFace(), sum: null });
+    }, SHUFFLE_INTERVAL_MS);
+  }, [stopShuffle]);
+
+  const flashFilledSum = useCallback((sum: number) => {
+    setJustFilledSum(sum);
+    setHighlightSum(true);
+    window.setTimeout(() => {
+      setJustFilledSum(null);
+      setHighlightSum(false);
+    }, 450);
+  }, []);
 
   const poll = useCallback(async () => {
     if (!sessionId) return;
@@ -132,7 +199,23 @@ export default function DiceSumRace({
         setXpResult(xpRes.xp);
       }
     }
+
+    return result;
   }, [isTeacher, isStudent, sessionId]);
+
+  const playStudentRollAnim = useCallback(
+    async (d1: number, d2: number, sum: number) => {
+      setIsRolling(true);
+      startShuffle();
+      await sleep(STUDENT_ANIM_MS);
+      stopShuffle();
+      setDisplayRoll({ d1, d2, sum });
+      flashFilledSum(sum);
+      await sleep(200);
+      setIsRolling(false);
+    },
+    [flashFilledSum, startShuffle, stopShuffle],
+  );
 
   useEffect(() => {
     if (!sessionId) return;
@@ -140,6 +223,46 @@ export default function DiceSumRace({
     const id = window.setInterval(() => void poll(), DICE_RACE_POLL_MS);
     return () => window.clearInterval(id);
   }, [poll, sessionId]);
+
+  useEffect(() => {
+    if (!isStudent || isRolling) return;
+
+    if (!rollSyncInitializedRef.current) {
+      rollSyncInitializedRef.current = true;
+      prevRollCountRef.current = state.rollCount;
+      if (
+        state.rollCount > 0 &&
+        state.lastD1 != null &&
+        state.lastD2 != null &&
+        state.lastSum != null
+      ) {
+        setDisplayRoll({
+          d1: state.lastD1,
+          d2: state.lastD2,
+          sum: state.lastSum,
+        });
+      }
+      return;
+    }
+
+    if (
+      state.rollCount > prevRollCountRef.current &&
+      state.lastD1 != null &&
+      state.lastD2 != null &&
+      state.lastSum != null
+    ) {
+      prevRollCountRef.current = state.rollCount;
+      void playStudentRollAnim(state.lastD1, state.lastD2, state.lastSum);
+    }
+  }, [
+    isStudent,
+    isRolling,
+    state.rollCount,
+    state.lastD1,
+    state.lastD2,
+    state.lastSum,
+    playStudentRollAnim,
+  ]);
 
   useEffect(() => {
     if (isTeacher && teacherClasses.length > 0 && !selectedClassId) {
@@ -199,6 +322,15 @@ export default function DiceSumRace({
     });
   }, [isTeacher, selectedClassId]);
 
+  const handleFastModeChange = (checked: boolean) => {
+    setFastMode(checked);
+    try {
+      window.localStorage.setItem(FAST_MODE_KEY, checked ? "1" : "0");
+    } catch {
+      /* ignore */
+    }
+  };
+
   const handleCreateSession = () => {
     if (!selectedClassId) return;
     startTransition(async () => {
@@ -212,6 +344,9 @@ export default function DiceSumRace({
         setSessionId(res.sessionId);
         setXpResult(null);
         claimedRoundRef.current = 0;
+        prevRollCountRef.current = 0;
+        rollSyncInitializedRef.current = false;
+        setDisplayRoll(null);
       }
     });
   };
@@ -232,19 +367,50 @@ export default function DiceSumRace({
     });
   };
 
-  const handleRoll = () => {
+  const handleRoll = async () => {
     if (!sessionId) return;
-    startTransition(async () => {
-      const res = await diceRaceRollAction({ sessionId });
-      if ("error" in res) setMessage(errMsg(res.error));
-      else void poll();
-    });
+    if (isRolling && !fastMode) return;
+
+    setMessage(null);
+    const animStart = Date.now();
+
+    if (fastMode) {
+      setIsRolling(false);
+    } else {
+      setIsRolling(true);
+      startShuffle();
+    }
+
+    const res = await diceRaceRollAction({ sessionId });
+
+    if (!fastMode) {
+      const elapsed = Date.now() - animStart;
+      if (elapsed < ROLL_ANIM_MIN_MS) {
+        await sleep(ROLL_ANIM_MIN_MS - elapsed);
+      }
+      stopShuffle();
+    }
+
+    if ("error" in res) {
+      setMessage(errMsg(res.error));
+      setIsRolling(false);
+      stopShuffle();
+      return;
+    }
+
+    setDisplayRoll({ d1: res.d1, d2: res.d2, sum: res.sum });
+    flashFilledSum(res.sum);
+    await poll();
+    setIsRolling(false);
   };
 
   const handleNextRound = () => {
     if (!sessionId) return;
     startTransition(async () => {
       setXpResult(null);
+      setDisplayRoll(null);
+      prevRollCountRef.current = 0;
+      rollSyncInitializedRef.current = false;
       const res = await diceRaceNextRoundAction({ sessionId });
       if ("error" in res) setMessage(errMsg(res.error));
     });
@@ -258,6 +424,8 @@ export default function DiceSumRace({
       else {
         setSessionId(null);
         setState(IDLE_STATE);
+        setDisplayRoll(null);
+        rollSyncInitializedRef.current = false;
       }
     });
   };
@@ -270,6 +438,16 @@ export default function DiceSumRace({
       else void poll();
     });
   };
+
+  const showD1 = isRolling
+    ? (displayRoll?.d1 ?? state.lastD1)
+    : (displayRoll?.d1 ?? state.lastD1);
+  const showD2 = isRolling
+    ? (displayRoll?.d2 ?? state.lastD2)
+    : (displayRoll?.d2 ?? state.lastD2);
+  const showSum = isRolling
+    ? null
+    : (displayRoll?.sum ?? state.lastSum);
 
   if (!isTeacher && !isStudent) {
     return (
@@ -355,13 +533,13 @@ export default function DiceSumRace({
         <div className="grid gap-5 lg:grid-cols-[1fr_280px]">
           <div className="space-y-5">
             {isTeacher && (
-              <div className="flex flex-wrap gap-2">
+              <div className="flex flex-wrap items-center gap-3">
                 {state.phase === "lobby" && (
                   <button
                     type="button"
                     disabled={isPending}
                     onClick={handleOpenPicking}
-                    className="rounded-xl bg-sky px-4 py-2 font-display text-wood hover:bg-sky/80"
+                    className="rounded-xl bg-sky px-4 py-2 font-display text-wood transition active:scale-95 hover:bg-sky/80"
                   >
                     학생 입장 열기
                   </button>
@@ -371,27 +549,43 @@ export default function DiceSumRace({
                     type="button"
                     disabled={isPending}
                     onClick={handleStartRolling}
-                    className="rounded-xl bg-gold px-4 py-2 font-display text-wood hover:bg-gold/80"
+                    className="rounded-xl bg-gold px-4 py-2 font-display text-wood transition active:scale-95 hover:bg-gold/80"
                   >
                     주사위 굴리기 시작
                   </button>
                 )}
                 {state.phase === "rolling" && (
-                  <button
-                    type="button"
-                    disabled={isPending}
-                    onClick={handleRoll}
-                    className="rounded-xl bg-gold px-4 py-2 font-display text-lg text-wood hover:bg-gold/80"
-                  >
-                    주사위 굴리기
-                  </button>
+                  <>
+                    <button
+                      type="button"
+                      disabled={!fastMode && isRolling}
+                      onClick={() => void handleRoll()}
+                      className={[
+                        "rounded-xl px-5 py-2.5 font-display text-lg text-wood shadow-sm transition",
+                        !fastMode && isRolling
+                          ? "scale-95 cursor-wait bg-gold/70 opacity-80"
+                          : "bg-gold hover:bg-gold/85 active:scale-95",
+                      ].join(" ")}
+                    >
+                      {!fastMode && isRolling ? "🎲 굴리는 중…" : "주사위 굴리기"}
+                    </button>
+                    <label className="flex cursor-pointer items-center gap-2 rounded-xl border border-wood/15 bg-white/60 px-3 py-2 text-sm text-foreground/75">
+                      <input
+                        type="checkbox"
+                        checked={fastMode}
+                        onChange={(e) => handleFastModeChange(e.target.checked)}
+                        className="h-4 w-4 accent-wood"
+                      />
+                      빠른 모드 (애니 없이 연속 굴리기)
+                    </label>
+                  </>
                 )}
                 {state.phase === "round_end" && (
                   <button
                     type="button"
                     disabled={isPending}
                     onClick={handleNextRound}
-                    className="rounded-xl bg-sky px-4 py-2 font-display text-wood hover:bg-sky/80"
+                    className="rounded-xl bg-sky px-4 py-2 font-display text-wood transition active:scale-95 hover:bg-sky/80"
                   >
                     다시하기
                   </button>
@@ -400,7 +594,7 @@ export default function DiceSumRace({
                   type="button"
                   disabled={isPending}
                   onClick={handleClose}
-                  className="rounded-xl border border-wood/20 px-4 py-2 text-sm text-foreground/70 hover:bg-wood/5"
+                  className="rounded-xl border border-wood/20 px-4 py-2 text-sm text-foreground/70 transition hover:bg-wood/5"
                 >
                   세션 종료
                 </button>
@@ -423,15 +617,20 @@ export default function DiceSumRace({
             )}
 
             <DiceRollDisplay
-              d1={state.lastD1}
-              d2={state.lastD2}
-              sum={state.lastSum}
+              d1={showD1}
+              d2={showD2}
+              sum={showSum}
+              displayD1={displayRoll?.d1}
+              displayD2={displayRoll?.d2}
+              isRolling={isRolling}
+              highlightSum={highlightSum}
             />
 
             <DiceSumRaceBoard
               counts={state.counts}
               myPick={isStudent ? state.myPick : null}
               winningSum={state.winningSum}
+              justFilledSum={justFilledSum}
             />
 
             {state.phase === "round_end" && state.winningSum != null && (

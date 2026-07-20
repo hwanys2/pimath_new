@@ -2,17 +2,19 @@
 
 import { SUMS, WIN_THRESHOLD, type SumCounts } from "@/lib/dice-race-math";
 
-type Props = {
+type BoardProps = {
   counts: SumCounts;
   myPick?: number | null;
   winningSum?: number | null;
+  justFilledSum?: number | null;
 };
 
 export default function DiceSumRaceBoard({
   counts,
   myPick = null,
   winningSum = null,
-}: Props) {
+  justFilledSum = null,
+}: BoardProps) {
   return (
     <div className="space-y-3">
       <p className="text-center text-sm font-medium text-foreground/70">
@@ -22,31 +24,37 @@ export default function DiceSumRaceBoard({
         <div className="mx-auto flex min-w-[520px] items-end justify-center gap-1.5 sm:gap-2">
           {SUMS.map((sum) => {
             const filled = counts[String(sum)] ?? 0;
+            const fillPct = Math.min(100, (filled / WIN_THRESHOLD) * 100);
             const isMyPick = myPick === sum;
             const isWinner = winningSum === sum;
+            const justFilled = justFilledSum === sum;
+
+            let fillClass = "bg-sky";
+            if (isWinner) fillClass = "bg-gold";
+            else if (isMyPick) fillClass = "bg-sky ring-2 ring-gold ring-inset";
 
             return (
-              <div key={sum} className="flex w-10 flex-col items-center gap-1.5 sm:w-11">
-                <div className="flex h-[200px] flex-col-reverse gap-0.5">
-                  {Array.from({ length: WIN_THRESHOLD }, (_, row) => {
-                    const level = row + 1;
-                    const active = level <= filled;
-                    return (
-                      <div
-                        key={level}
-                        className={[
-                          "h-[18px] w-full rounded-sm border transition-colors",
-                          active
-                            ? isWinner
-                              ? "border-gold bg-gold/80"
-                              : isMyPick
-                                ? "border-sky bg-sky/75"
-                                : "border-sky/60 bg-sky/55"
-                            : "border-wood/15 bg-white/80",
-                        ].join(" ")}
-                      />
-                    );
-                  })}
+              <div
+                key={sum}
+                className="flex w-10 flex-col items-center gap-1.5 sm:w-11"
+              >
+                <div
+                  className="relative h-[220px] w-full overflow-hidden rounded-lg border-2 border-wood/15 bg-cream/90"
+                  style={{
+                    backgroundImage:
+                      "repeating-linear-gradient(to top, rgba(139,94,60,0.12) 0, rgba(139,94,60,0.12) 1px, transparent 1px, transparent 10%)",
+                  }}
+                >
+                  {filled > 0 && (
+                    <div
+                      className={[
+                        "absolute bottom-0 left-0 right-0 rounded-md transition-[height] duration-300 ease-out",
+                        fillClass,
+                        justFilled ? "dice-column-pop" : "",
+                      ].join(" ")}
+                      style={{ height: `${fillPct}%` }}
+                    />
+                  )}
                 </div>
                 <span
                   className={[
@@ -54,8 +62,8 @@ export default function DiceSumRaceBoard({
                     isMyPick
                       ? "bg-gold text-wood ring-2 ring-gold/60"
                       : isWinner
-                        ? "bg-gold/70 text-wood"
-                        : "bg-sky/55 text-wood",
+                        ? "bg-gold text-wood"
+                        : "bg-sky text-wood",
                   ].join(" ")}
                 >
                   {sum}
@@ -69,7 +77,15 @@ export default function DiceSumRaceBoard({
   );
 }
 
-function DieFace({ value }: { value: number }) {
+function DieFace({
+  value,
+  shaking,
+  settling,
+}: {
+  value: number;
+  shaking?: boolean;
+  settling?: boolean;
+}) {
   const dots: Record<number, number[][]> = {
     1: [[1, 1]],
     2: [
@@ -106,7 +122,11 @@ function DieFace({ value }: { value: number }) {
 
   return (
     <div
-      className="relative grid h-14 w-14 grid-cols-3 grid-rows-3 rounded-xl border-2 border-wood/20 bg-white p-1.5 shadow-sm"
+      className={[
+        "relative grid h-16 w-16 grid-cols-3 grid-rows-3 rounded-xl border-2 border-wood/25 bg-white p-2 shadow-md",
+        shaking ? "dice-shake" : "",
+        settling ? "dice-settle" : "",
+      ].join(" ")}
       aria-label={`주사위 ${value}`}
     >
       {(dots[value] ?? []).map(([r, c], i) => (
@@ -115,7 +135,7 @@ function DieFace({ value }: { value: number }) {
           className="flex items-center justify-center"
           style={{ gridRow: r + 1, gridColumn: c + 1 }}
         >
-          <span className="h-2.5 w-2.5 rounded-full bg-wood" />
+          <span className="h-3 w-3 rounded-full bg-wood" />
         </span>
       ))}
     </div>
@@ -126,28 +146,66 @@ export function DiceRollDisplay({
   d1,
   d2,
   sum,
+  displayD1,
+  displayD2,
+  isRolling = false,
+  highlightSum = false,
 }: {
   d1: number | null;
   d2: number | null;
   sum: number | null;
+  displayD1?: number | null;
+  displayD2?: number | null;
+  isRolling?: boolean;
+  highlightSum?: boolean;
 }) {
-  if (d1 == null || d2 == null || sum == null) {
+  const showD1 = isRolling ? (displayD1 ?? d1 ?? 1) : (d1 ?? displayD1);
+  const showD2 = isRolling ? (displayD2 ?? d2 ?? 1) : (d2 ?? displayD2);
+  const showSum = isRolling ? null : sum;
+
+  if (showD1 == null && showD2 == null && !isRolling) {
     return (
-      <div className="flex items-center justify-center gap-3 rounded-2xl border border-wood/10 bg-peach/20 px-6 py-4">
+      <div className="flex items-center justify-center gap-3 rounded-2xl border border-wood/10 bg-peach/20 px-6 py-5">
         <p className="text-sm text-foreground/60">아직 주사위를 굴리지 않았어요</p>
       </div>
     );
   }
 
   return (
-    <div className="flex flex-wrap items-center justify-center gap-3 rounded-2xl border border-wood/10 bg-peach/20 px-6 py-4">
-      <DieFace value={d1} />
+    <div
+      className={[
+        "flex flex-wrap items-center justify-center gap-3 rounded-2xl border px-6 py-5 transition-colors",
+        isRolling
+          ? "border-gold/40 bg-gold/15"
+          : "border-wood/10 bg-peach/20",
+      ].join(" ")}
+    >
+      <DieFace
+        value={showD1 ?? 1}
+        shaking={isRolling}
+        settling={!isRolling && d1 != null}
+      />
       <span className="font-display text-2xl text-wood">+</span>
-      <DieFace value={d2} />
-      <span className="font-display text-2xl text-wood">=</span>
-      <span className="flex h-14 min-w-14 items-center justify-center rounded-xl bg-sky/55 px-3 font-display text-3xl text-wood">
-        {sum}
-      </span>
+      <DieFace
+        value={showD2 ?? 1}
+        shaking={isRolling}
+        settling={!isRolling && d2 != null}
+      />
+      {showSum != null ? (
+        <>
+          <span className="font-display text-2xl text-wood">=</span>
+          <span
+            className={[
+              "flex h-16 min-w-16 items-center justify-center rounded-xl bg-sky px-3 font-display text-3xl text-wood shadow-sm",
+              highlightSum ? "dice-result-pop" : "",
+            ].join(" ")}
+          >
+            {showSum}
+          </span>
+        </>
+      ) : (
+        <span className="font-display text-lg text-wood/60">?</span>
+      )}
     </div>
   );
 }
