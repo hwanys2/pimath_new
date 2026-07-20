@@ -78,6 +78,16 @@ export const CONTENTS: ContentMeta[] = [
     description:
       "부채꼴을 작게 나눠 직사각형으로 재배열하며 넓이 공식(½×r×l)을 유추하는 시뮬레이션입니다. 점수는 없어요.",
   },
+  {
+    key: "g1-u3-4-solid-of-revolution",
+    unitId: "g1-3-4",
+    type: "simulation",
+    title: "회전체 만들기",
+    href: "/play/g1-u3-4-solid-of-revolution",
+    awardsXp: false,
+    description:
+      "축을 중심으로 평면도형을 회전시켜 회전체를 만들고, 각도를 바꿔 형성 과정을 확인하는 시뮬레이션입니다. 점수는 없어요.",
+  },
 ];
 
 export function getContent(key: string): ContentMeta | undefined {
