@@ -88,6 +88,16 @@ export const CONTENTS: ContentMeta[] = [
     description:
       "축을 중심으로 평면도형을 회전시켜 회전체를 만들고, 각도를 바꿔 형성 과정을 확인하는 시뮬레이션입니다. 점수는 없어요.",
   },
+  {
+    key: "g1-u3-4-pyramid-volume-blocks",
+    unitId: "g1-3-4",
+    type: "simulation",
+    title: "블럭으로 보는 뿔의 부피",
+    href: "/play/g1-u3-4-pyramid-volume-blocks",
+    awardsXp: false,
+    description:
+      "정육면체 단위 블럭 계단(바깥·안쪽)으로 사각뿔 부피를 세며, 기둥 부피의 1/3에 다가감을 탐구하는 시뮬레이션입니다. 점수는 없어요.",
+  },
 ];
 
 export function getContent(key: string): ContentMeta | undefined {
