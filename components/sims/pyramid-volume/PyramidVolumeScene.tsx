@@ -86,6 +86,7 @@ function StairLayer({
   showGrid,
   cell,
   count,
+  showEdges,
 }: {
   sideLength: number;
   y: number;
@@ -95,6 +96,7 @@ function StairLayer({
   showGrid: boolean;
   cell: number;
   count: number;
+  showEdges: boolean;
 }) {
   if (sideLength <= 0) return null;
   const h = height * 0.98;
@@ -111,7 +113,9 @@ function StairLayer({
           opacity={opacity}
           depthWrite={opacity >= 0.95}
         />
-        <Edges threshold={15} color="rgba(92,64,51,0.38)" />
+        {showEdges ? (
+          <Edges threshold={15} color="rgba(92,64,51,0.38)" />
+        ) : null}
       </mesh>
       {showGrid ? (
         <LayerGrid sideLength={sideLength} y={y} cell={cell} count={count} />
@@ -174,6 +178,7 @@ function Staircases({
 }) {
   const cell = CUBE_SIDE / n;
   const showGrid = n <= 12;
+  const showEdges = n <= 40;
   const layers = [];
 
   for (let i = 0; i < n; i++) {
@@ -196,6 +201,7 @@ function Staircases({
           showGrid={showGrid && viewMode === "outer"}
           cell={cell}
           count={outerCount}
+          showEdges={showEdges}
         />,
       );
     }
@@ -212,6 +218,7 @@ function Staircases({
           showGrid={showGrid && viewMode === "inner"}
           cell={cell}
           count={innerCount}
+          showEdges={showEdges}
         />,
       );
     }

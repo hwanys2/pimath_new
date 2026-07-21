@@ -8,8 +8,17 @@ export const CUBE_SIDE = 10;
 export const CUBE_VOLUME = CUBE_SIDE * CUBE_SIDE * CUBE_SIDE; // 1000
 export const EXACT_PYRAMID = CUBE_VOLUME / 3; // ≈ 333.333…
 
-export const MIN_N = 2;
-export const MAX_N = 30;
+export const MIN_N = 1;
+export const CONTINUOUS_MAX_N = 30;
+export const EXTENDED_N_VALUES = [100, 200, 500, 1000] as const;
+export const N_STOPS: readonly number[] = [
+  ...Array.from(
+    { length: CONTINUOUS_MAX_N - MIN_N + 1 },
+    (_, i) => MIN_N + i,
+  ),
+  ...EXTENDED_N_VALUES,
+];
+export const MAX_N = EXTENDED_N_VALUES[EXTENDED_N_VALUES.length - 1];
 export const DEFAULT_N = 10;
 
 export const TARGET_RATIO = 1 / 3;
@@ -17,9 +26,46 @@ export const TARGET_VOLUME = EXACT_PYRAMID;
 
 export type ViewMode = "outer" | "inner" | "both";
 
+/** Snap to the nearest allowed n (1..30 continuous, then 100/200/500/1000). */
+export function snapN(raw: number): number {
+  if (!Number.isFinite(raw)) return DEFAULT_N;
+  const rounded = Math.round(raw);
+  const exact = N_STOPS.indexOf(rounded);
+  if (exact >= 0) return N_STOPS[exact];
+
+  let best = N_STOPS[0];
+  let bestDist = Math.abs(rounded - best);
+  for (const stop of N_STOPS) {
+    const dist = Math.abs(rounded - stop);
+    if (dist < bestDist) {
+      best = stop;
+      bestDist = dist;
+    }
+  }
+  return best;
+}
+
+/** @deprecated Use snapN — kept for call sites that still import clampN. */
 export function clampN(n: number): number {
-  if (!Number.isFinite(n)) return DEFAULT_N;
-  return Math.min(MAX_N, Math.max(MIN_N, Math.round(n)));
+  return snapN(n);
+}
+
+export function nIndex(n: number): number {
+  const snapped = snapN(n);
+  const idx = N_STOPS.indexOf(snapped);
+  return idx >= 0 ? idx : N_STOPS.indexOf(DEFAULT_N);
+}
+
+export function nFromIndex(i: number): number {
+  const idx = Math.min(N_STOPS.length - 1, Math.max(0, Math.round(i)));
+  return N_STOPS[idx];
+}
+
+/** Layer reveal interval (ms) for stack animation; caps total time at high n. */
+export function stackLayerMs(n: number): number {
+  const nn = snapN(n);
+  if (nn <= CONTINUOUS_MAX_N) return 220;
+  return Math.max(20, Math.floor(8000 / nn));
 }
 
 /** Σ_{k=1}^{m} k² = m(m+1)(2m+1)/6 */
@@ -113,6 +159,9 @@ export function formatVolumeSumText(
 ): string {
   const sumExpr = formatSquareSum(counts);
   const blockCount = counts.reduce((a, c) => a + c * c, 0);
+  if (n === 1) {
+    return `나누지 않음 → 정육면체 전체 = ${formatVolume(volume)}`;
+  }
   if (n === CUBE_SIDE) {
     return `${sumExpr} = ${formatVolume(volume)}`;
   }
@@ -152,7 +201,7 @@ export type PyramidVolumeStats = {
 };
 
 export function computeStats(n: number): PyramidVolumeStats {
-  const nn = clampN(n);
+  const nn = snapN(n);
   const outerCounts = outerLayerCounts(nn);
   const innerCounts = innerLayerCounts(nn);
   const outer = outerVolume(nn);

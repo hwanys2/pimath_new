@@ -7,13 +7,15 @@ import {
   CUBE_VOLUME,
   DEFAULT_N,
   EXACT_PYRAMID,
-  MAX_N,
-  MIN_N,
+  N_STOPS,
   TARGET_VOLUME,
   type ViewMode,
-  clampN,
   computeStats,
   formatVolume,
+  nFromIndex,
+  nIndex,
+  snapN,
+  stackLayerMs,
 } from "@/lib/pyramid-volume-math";
 
 const PyramidVolumeScene = dynamic(
@@ -28,7 +30,6 @@ const PyramidVolumeScene = dynamic(
   },
 );
 
-const LAYER_MS = 220;
 const INSIGHT_N = 12;
 
 function VolumeBar({
@@ -104,15 +105,24 @@ export default function PyramidVolumeBlocks() {
 
   const applyN = useCallback(
     (raw: number) => {
-      const next = clampN(raw);
+      const next = snapN(raw);
       stopPlay();
       setN(next);
       setRevealedLayers(next);
       setMessage(
-        `정육면체는 그대로 1000이에요. 높이를 ${next}층으로 나눠 바깥·안쪽 계단을 비교해 보세요.`,
+        next === 1
+          ? "n=1이면 층으로 나누지 않아요. 정육면체 부피 1000 전체를 확인해 보세요."
+          : `정육면체는 그대로 1000이에요. 높이를 ${next}층으로 나눠 바깥·안쪽 계단을 비교해 보세요.`,
       );
     },
     [stopPlay],
+  );
+
+  const applyNIndex = useCallback(
+    (index: number) => {
+      applyN(nFromIndex(index));
+    },
+    [applyN],
   );
 
   const startStack = useCallback(() => {
@@ -122,6 +132,7 @@ export default function PyramidVolumeBlocks() {
     setMessage("아래에서부터 한 층씩 쌓고 있어요…");
     let layer = 0;
     const targetN = n;
+    const layerMs = stackLayerMs(targetN);
     timerRef.current = setInterval(() => {
       layer += 1;
       setRevealedLayers(layer);
@@ -148,7 +159,7 @@ export default function PyramidVolumeBlocks() {
           );
         }
       }
-    }, LAYER_MS);
+    }, layerMs);
   }, [n, stopPlay]);
 
   const revealAll = useCallback(() => {
@@ -223,18 +234,27 @@ export default function PyramidVolumeBlocks() {
             <div className="flex items-center gap-2">
               <input
                 type="range"
-                min={MIN_N}
-                max={MAX_N}
+                min={0}
+                max={N_STOPS.length - 1}
                 step={1}
-                value={n}
+                value={nIndex(n)}
                 disabled={playing}
-                onChange={(e) => applyN(Number(e.target.value))}
+                onChange={(e) => applyNIndex(Number(e.target.value))}
                 className="w-40 accent-[#4DB6A0] disabled:opacity-50 sm:w-52"
               />
               <span className="min-w-[2.75rem] rounded-xl bg-white/80 px-2 py-2 text-center text-base font-bold text-foreground">
                 {n}
               </span>
             </div>
+            {n === 1 ? (
+              <span className="text-xs font-medium text-foreground/55">
+                n=1은 층 분할 없이 정육면체 전체(부피 1000)예요.
+              </span>
+            ) : n >= 100 ? (
+              <span className="text-xs font-medium text-foreground/55">
+                층이 많아 쌓기는 빠르게 재생돼요.
+              </span>
+            ) : null}
           </label>
 
           <div className="flex flex-col gap-1 text-sm font-semibold text-foreground/70">
@@ -448,8 +468,8 @@ export default function PyramidVolumeBlocks() {
           <p className="text-sm font-bold text-wood">탐구 힌트</p>
           <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-foreground/75">
             <li>
-              n=10일 때 바깥쪽은 100+81+…+1 = 385, 안쪽은 81+…+1 = 285, 정육면체는
-              언제나 1000이에요.
+              n=1이면 나누지 않은 정육면체 전체(부피 1000)를 볼 수 있어요. n=10일 때
+              바깥쪽은 100+81+…+1 = 385, 안쪽은 81+…+1 = 285예요.
             </li>
             <li>
               목표는 항상 ≈ {formatVolume(EXACT_PYRAMID)} (1000÷3). 막대의 목표선을
