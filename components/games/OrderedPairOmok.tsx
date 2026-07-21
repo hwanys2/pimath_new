@@ -816,6 +816,17 @@ export default function OrderedPairOmok() {
 
       {screen === "ended" ? (
         <section className="quest-card space-y-4 p-5">
+          <div>
+            <p className="mb-2 text-center text-xs font-semibold text-wood/50">
+              최종 판
+            </p>
+            <div className="pointer-events-none select-none opacity-80 blur-[1px]">
+              <div className="quest-card p-3 sm:p-4">
+                <CoordinatePlaneBoard board={board} lastMove={lastMove} />
+              </div>
+            </div>
+          </div>
+
           <div className="text-center">
             <p className="font-display text-3xl text-wood">
               {outcome === "win"

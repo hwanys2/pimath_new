@@ -1057,6 +1057,30 @@ export default function QuadrilateralMaker() {
 
       {screen === "ended" ? (
         <section className="quest-card space-y-4 p-5">
+          <div>
+            <p className="mb-2 text-center text-xs font-semibold text-wood/50">
+              최종 판
+            </p>
+            {myShape ? (
+              <p className="mb-2 text-center text-sm text-wood/60">
+                내 목표: {SHAPE_LABELS[myShape]}
+                {opponentShape ? (
+                  <> · 상대 목표: {SHAPE_LABELS[opponentShape]}</>
+                ) : null}
+              </p>
+            ) : null}
+            <div className="pointer-events-none select-none opacity-80 blur-[1px]">
+              <div className="quest-card p-3 sm:p-4">
+                <QuadGridBoard
+                  board={board}
+                  lastMove={lastMove}
+                  onCellClick={() => {}}
+                  disabled
+                />
+              </div>
+            </div>
+          </div>
+
           <div className="text-center">
             <p className="font-display text-3xl text-wood">
               {outcome === "win"
