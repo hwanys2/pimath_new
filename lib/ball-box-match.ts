@@ -44,6 +44,8 @@ type PollRow = {
   total: number;
   answer_colors: unknown;
   revealed_answer: unknown;
+  join_code: string | null;
+  pid: string | null;
   student_id: string | null;
   display_name: string | null;
   observed: unknown;
@@ -51,6 +53,7 @@ type PollRow = {
   wrong_attempts: number;
   solved: boolean;
   score: number;
+  session_score: number;
   is_me: boolean;
 };
 
@@ -63,12 +66,14 @@ const IDLE: BallBoxPollState = {
   total: 0,
   answerColors: [],
   revealedAnswer: null,
+  joinCode: null,
   players: [],
   myObserved: {},
   myDrawCount: 0,
   myWrongAttempts: 0,
   mySolved: false,
   myScore: 0,
+  mySessionScore: 0,
 };
 
 function mapPollRows(rows: PollRow[]): BallBoxPollState {
@@ -76,13 +81,15 @@ function mapPollRows(rows: PollRow[]): BallBoxPollState {
 
   const head = rows[0]!;
   const players: BallBoxPlayerRow[] = rows
-    .filter((r) => r.student_id != null)
+    .filter((r) => r.pid != null)
     .map((r) => ({
-      studentId: r.student_id as string,
+      pid: r.pid as string,
+      studentId: r.student_id ?? null,
       displayName: r.display_name ?? "탐험가",
       drawCount: r.draw_count ?? 0,
       solved: Boolean(r.solved),
       score: r.score ?? 0,
+      sessionScore: r.session_score ?? 0,
       isMe: Boolean(r.is_me),
     }));
 
@@ -101,12 +108,14 @@ function mapPollRows(rows: PollRow[]): BallBoxPollState {
     total: head.total ?? 0,
     answerColors,
     revealedAnswer,
+    joinCode: head.join_code ?? null,
     players,
     myObserved: me ? parseCounts(me.observed) : {},
     myDrawCount: me?.draw_count ?? 0,
     myWrongAttempts: me?.wrong_attempts ?? 0,
     mySolved: Boolean(me?.solved),
     myScore: me?.score ?? 0,
+    mySessionScore: me?.session_score ?? 0,
   };
 }
 
@@ -338,4 +347,145 @@ export async function ballBoxFindActiveForTeacher(input: { classId: string }) {
   }
 
   return { sessionId: (data as string | null) ?? null };
+}
+
+// ---------------------------------------------------------------------------
+// Guest (QR, no class) mode
+// ---------------------------------------------------------------------------
+
+export async function ballBoxCreateGuestSession() {
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("pm_ball_box_create_guest_session", {
+    p_content_key: CONTENT_KEY,
+  });
+
+  if (error) {
+    console.error("[pm] pm_ball_box_create_guest_session failed:", error.message);
+    return { error: "QR 세션을 만들지 못했어요." };
+  }
+
+  const row = firstRow(data);
+  if (!row) return { error: "세션 정보가 없어요." };
+
+  return {
+    sessionId: row.session_id as string,
+    joinCode: row.join_code as string,
+  };
+}
+
+export async function ballBoxTeacherFindGuest() {
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("pm_ball_box_teacher_find_guest");
+
+  if (error) {
+    console.error("[pm] pm_ball_box_teacher_find_guest failed:", error.message);
+    return { sessionId: null as string | null };
+  }
+
+  return { sessionId: (data as string | null) ?? null };
+}
+
+export async function ballBoxFindByCode(input: { joinCode: string }) {
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("pm_ball_box_find_by_code", {
+    p_join_code: input.joinCode,
+  });
+
+  if (error) {
+    console.error("[pm] pm_ball_box_find_by_code failed:", error.message);
+    return { sessionId: null as string | null };
+  }
+
+  return { sessionId: (data as string | null) ?? null };
+}
+
+export async function ballBoxGuestJoin(input: {
+  joinCode: string;
+  guestKey: string;
+  name: string;
+}) {
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("pm_ball_box_guest_join", {
+    p_join_code: input.joinCode,
+    p_guest_key: input.guestKey,
+    p_name: input.name,
+  });
+
+  if (error) {
+    console.error("[pm] pm_ball_box_guest_join failed:", error.message);
+    if (error.message.includes("no active session")) {
+      return { error: "no_session" as const };
+    }
+    return { error: "입장하지 못했어요." };
+  }
+
+  return { sessionId: data as string };
+}
+
+export async function ballBoxGuestDraw(input: {
+  guestKey: string;
+  sessionId: string;
+}) {
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("pm_ball_box_guest_draw", {
+    p_guest_key: input.guestKey,
+    p_session_id: input.sessionId,
+  });
+
+  if (error) {
+    console.error("[pm] pm_ball_box_guest_draw failed:", error.message);
+    return { error: "공을 뽑지 못했어요." };
+  }
+
+  const row = firstRow(data);
+  if (!row) return { error: "뽑기 결과가 없어요." };
+
+  return { color: row.color as string };
+}
+
+export async function ballBoxGuestGuess(input: {
+  guestKey: string;
+  sessionId: string;
+  guess: Record<string, number>;
+}) {
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("pm_ball_box_guest_guess", {
+    p_guest_key: input.guestKey,
+    p_session_id: input.sessionId,
+    p_guess: input.guess,
+  });
+
+  if (error) {
+    console.error("[pm] pm_ball_box_guest_guess failed:", error.message);
+    return { error: "정답을 제출하지 못했어요." };
+  }
+
+  const row = firstRow(data);
+  if (!row) return { error: "채점 결과가 없어요." };
+
+  return {
+    correct: Boolean(row.correct),
+    score: row.score as number,
+    alreadySolved: Boolean(row.already_solved),
+    drawCount: row.draw_count as number,
+    wrongAttempts: row.wrong_attempts as number,
+  };
+}
+
+export async function ballBoxGuestPoll(input: {
+  guestKey: string;
+  sessionId: string;
+}) {
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("pm_ball_box_guest_poll", {
+    p_guest_key: input.guestKey,
+    p_session_id: input.sessionId,
+  });
+
+  if (error) {
+    console.error("[pm] pm_ball_box_guest_poll failed:", error.message);
+    return { error: "상태를 불러오지 못했어요." };
+  }
+
+  return mapPollRows(firstRows(data) as PollRow[]);
 }

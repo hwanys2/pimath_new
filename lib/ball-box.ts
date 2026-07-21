@@ -79,3 +79,10 @@ export function parseAnswerColors(raw: unknown): BallColorKey[] {
 export function totalObserved(observed: BallCounts): number {
   return BALL_COLOR_KEYS.reduce((sum, k) => sum + (observed[k] ?? 0), 0);
 }
+
+export const GUEST_NAME_MAX = 20;
+
+/** Trim + length-limit a guest-provided display name. */
+export function sanitizeGuestName(raw: string): string {
+  return raw.trim().slice(0, GUEST_NAME_MAX);
+}

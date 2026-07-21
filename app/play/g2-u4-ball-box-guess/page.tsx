@@ -14,10 +14,19 @@ export const metadata: Metadata = {
     "교사가 숨긴 색깔 공 상자에서 복원추출로 뽑으며 색깔별 개수를 추정해 맞히는 확률 게임. 중2 4. 경우의 수와 확률. 학급 배정 시 XP와 랭킹이 쌓입니다.",
 };
 
-export default async function BallBoxGuessPage() {
+export default async function BallBoxGuessPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ join?: string }>;
+}) {
   const content = getContent(CONTENT_KEY);
   const assignCtx = await fetchTeacherAssignContext([CONTENT_KEY]);
   const actor = await getActor();
+
+  const { join } = await searchParams;
+  const joinCode = typeof join === "string" ? join.trim() : null;
+  // Not logged in + a join code => guest (QR) mode.
+  const guestMode = Boolean(joinCode) && actor == null;
 
   return (
     <div className="space-y-4">
@@ -44,6 +53,8 @@ export default async function BallBoxGuessPage() {
         studentClassId={actor?.type === "student" ? actor.classId : null}
         studentClassName={actor?.type === "student" ? actor.className : null}
         studentName={actor?.type === "student" ? actor.name : null}
+        guestMode={guestMode}
+        joinCode={joinCode}
       />
     </div>
   );

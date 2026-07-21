@@ -3,16 +3,23 @@
 import { submitGameRun } from "@/app/adventure/actions";
 import {
   ballBoxClose,
+  ballBoxCreateGuestSession,
   ballBoxCreateSession,
   ballBoxDraw,
   ballBoxFindActiveForStudent,
   ballBoxFindActiveForTeacher,
+  ballBoxFindByCode,
   ballBoxGuess,
+  ballBoxGuestDraw,
+  ballBoxGuestGuess,
+  ballBoxGuestJoin,
+  ballBoxGuestPoll,
   ballBoxJoin,
   ballBoxNextRound,
   ballBoxReveal,
   ballBoxStart,
   ballBoxStudentPoll,
+  ballBoxTeacherFindGuest,
   ballBoxTeacherPoll,
 } from "@/lib/ball-box-match";
 
@@ -92,4 +99,53 @@ export async function ballBoxGuessAction(input: {
   });
 
   return { error: null, result, xp };
+}
+
+// ---------------------------------------------------------------------------
+// Guest (QR, no class) actions
+// ---------------------------------------------------------------------------
+
+export async function ballBoxCreateGuestSessionAction() {
+  return ballBoxCreateGuestSession();
+}
+
+export async function ballBoxTeacherFindGuestAction() {
+  return ballBoxTeacherFindGuest();
+}
+
+export async function ballBoxFindByCodeAction(input: { joinCode: string }) {
+  return ballBoxFindByCode(input);
+}
+
+export async function ballBoxGuestJoinAction(input: {
+  joinCode: string;
+  guestKey: string;
+  name: string;
+}) {
+  return ballBoxGuestJoin(input);
+}
+
+export async function ballBoxGuestDrawAction(input: {
+  guestKey: string;
+  sessionId: string;
+}) {
+  return ballBoxGuestDraw(input);
+}
+
+export async function ballBoxGuestPollAction(input: {
+  guestKey: string;
+  sessionId: string;
+}) {
+  return ballBoxGuestPoll(input);
+}
+
+export async function ballBoxGuestGuessAction(input: {
+  guestKey: string;
+  sessionId: string;
+  guess: Record<string, number>;
+}) {
+  // Guests never earn XP; grading only.
+  const result = await ballBoxGuestGuess(input);
+  if ("error" in result) return { error: result.error, result: null };
+  return { error: null, result };
 }

@@ -1,8 +1,11 @@
 "use client";
 
+import { useEffect, useState } from "react";
+import QRCode from "qrcode";
 import {
   BALL_COLORS,
   getBallColor,
+  GUEST_NAME_MAX,
   totalObserved,
   type BallColorKey,
   type BallCounts,
@@ -165,55 +168,204 @@ export function GuessInputGrid({
   );
 }
 
-/** Live session ranking (solved first, then score). */
+/** Rank movement indicator vs. the previous set. */
+function RankMove({ delta }: { delta: number | null }) {
+  if (delta == null) {
+    return <span className="w-4 text-center text-xs text-foreground/30">·</span>;
+  }
+  if (delta > 0) {
+    return (
+      <span className="w-4 text-center text-xs font-bold text-green-600">▲</span>
+    );
+  }
+  if (delta < 0) {
+    return (
+      <span className="w-4 text-center text-xs font-bold text-red-500">▼</span>
+    );
+  }
+  return <span className="w-4 text-center text-xs text-foreground/40">–</span>;
+}
+
+/** Cumulative session ranking (by session score) with rank movement. */
 export function SessionRanking({
   players,
+  prevRanks = null,
   highlightMe = true,
 }: {
   players: BallBoxPlayerRow[];
+  /** Map of pid -> rank (1-based) in the previous set, for movement arrows. */
+  prevRanks?: Record<string, number> | null;
   highlightMe?: boolean;
 }) {
   return (
     <div className="rounded-2xl border border-wood/10 bg-white/70 p-4">
-      <h3 className="font-display text-lg text-wood">참가자</h3>
+      <div className="flex items-baseline justify-between">
+        <h3 className="font-display text-lg text-wood">누적 랭킹</h3>
+        <span className="text-xs text-foreground/50">세트 합계 점수</span>
+      </div>
       {players.length === 0 ? (
         <p className="mt-3 text-sm text-foreground/50">아직 참가자가 없어요</p>
       ) : (
         <ol className="mt-3 space-y-2">
-          {players.map((p, i) => (
-            <li
-              key={p.studentId}
-              className={[
-                "flex items-center justify-between rounded-xl px-3 py-2 text-sm",
-                highlightMe && p.isMe
-                  ? "bg-gold/35 ring-1 ring-gold/50"
-                  : "bg-cream/80",
-              ].join(" ")}
-            >
-              <span className="flex items-center gap-2">
-                <span className="font-display text-base text-wood/70">
-                  {i + 1}
-                </span>
-                <span className="font-medium">{p.displayName}</span>
-                {p.solved && (
-                  <span className="rounded-md bg-gold/50 px-1.5 py-0.5 text-xs text-wood">
-                    정답
+          {players.map((p, i) => {
+            const rank = i + 1;
+            const prev = prevRanks?.[p.pid];
+            const delta =
+              prev == null || prevRanks == null ? null : prev - rank;
+            const medal =
+              rank === 1
+                ? "bg-gold/70 text-wood"
+                : rank === 2
+                  ? "bg-wood/20 text-wood"
+                  : rank === 3
+                    ? "bg-[#c4785a]/35 text-wood"
+                    : "bg-cream text-wood/70";
+            return (
+              <li
+                key={p.pid}
+                className={[
+                  "flex items-center justify-between rounded-xl px-2.5 py-2 text-sm",
+                  highlightMe && p.isMe
+                    ? "bg-gold/35 ring-1 ring-gold/50"
+                    : "bg-cream/80",
+                ].join(" ")}
+              >
+                <span className="flex min-w-0 items-center gap-1.5">
+                  <RankMove delta={delta} />
+                  <span
+                    className={[
+                      "flex h-6 w-6 shrink-0 items-center justify-center rounded-full font-display text-xs",
+                      medal,
+                    ].join(" ")}
+                  >
+                    {rank}
                   </span>
-                )}
-              </span>
-              <span className="text-right text-xs text-foreground/60">
-                {p.solved ? (
+                  <span className="truncate font-medium">{p.displayName}</span>
+                  {p.solved && (
+                    <span className="shrink-0 rounded-md bg-gold/50 px-1 py-0.5 text-[10px] text-wood">
+                      정답
+                    </span>
+                  )}
+                </span>
+                <span className="shrink-0 text-right">
                   <strong className="font-display text-sm text-wood">
-                    {p.score}점
+                    {p.sessionScore}
                   </strong>
-                ) : (
-                  <span>{p.drawCount}번 뽑음</span>
-                )}
-              </span>
-            </li>
-          ))}
+                  <span className="text-xs text-foreground/50">점</span>
+                </span>
+              </li>
+            );
+          })}
         </ol>
       )}
+    </div>
+  );
+}
+
+/** QR + join code for guest (no-class) sessions. */
+export function BallBoxJoinQR({ joinCode }: { joinCode: string }) {
+  const [qrDataUrl, setQrDataUrl] = useState<string | null>(null);
+  const [joinUrl, setJoinUrl] = useState<string>("");
+  const [copied, setCopied] = useState(false);
+
+  useEffect(() => {
+    const origin =
+      typeof window !== "undefined" ? window.location.origin : "";
+    const url = `${origin}/play/g2-u4-ball-box-guess?join=${joinCode}`;
+    setJoinUrl(url);
+    QRCode.toDataURL(url, {
+      width: 320,
+      margin: 1,
+      color: { dark: "#5b3d29", light: "#ffffff" },
+    })
+      .then(setQrDataUrl)
+      .catch(() => setQrDataUrl(null));
+  }, [joinCode]);
+
+  const handleCopy = async () => {
+    try {
+      await navigator.clipboard.writeText(joinUrl);
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 1500);
+    } catch {
+      /* ignore */
+    }
+  };
+
+  return (
+    <div className="flex flex-col items-center gap-3 rounded-2xl border border-wood/10 bg-white/70 p-5">
+      <h3 className="font-display text-lg text-wood">QR로 학생 초대</h3>
+      {qrDataUrl ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src={qrDataUrl}
+          alt="참여 QR 코드"
+          className="h-52 w-52 rounded-xl border border-wood/10"
+        />
+      ) : (
+        <div className="flex h-52 w-52 items-center justify-center rounded-xl bg-cream text-sm text-foreground/50">
+          QR 생성 중…
+        </div>
+      )}
+      <div className="text-center">
+        <p className="text-sm text-foreground/60">참여 코드</p>
+        <p className="font-display text-3xl tracking-[0.3em] text-wood">
+          {joinCode}
+        </p>
+      </div>
+      <button
+        type="button"
+        onClick={handleCopy}
+        className="rounded-xl border border-wood/20 px-4 py-2 text-sm text-foreground/70 transition hover:bg-wood/5"
+      >
+        {copied ? "링크 복사됨!" : "참여 링크 복사"}
+      </button>
+      <p className="text-center text-xs text-foreground/50">
+        학생이 QR을 찍고 이름을 입력하면 바로 입장해요 (로그인 불필요)
+      </p>
+    </div>
+  );
+}
+
+/** Guest name entry before joining. */
+export function GuestNameEntry({
+  onSubmit,
+  disabled,
+  joinCode,
+}: {
+  onSubmit: (name: string) => void;
+  disabled?: boolean;
+  joinCode: string;
+}) {
+  const [name, setName] = useState("");
+  const trimmed = name.trim();
+
+  return (
+    <div className="mx-auto max-w-sm space-y-4 rounded-2xl border border-wood/10 bg-white/70 p-6 text-center">
+      <h2 className="font-display text-2xl text-wood">상자 속 공 개수 맞히기</h2>
+      <p className="text-sm text-foreground/60">
+        참여 코드 <strong className="text-wood">{joinCode}</strong> · 이름을
+        입력하고 입장하세요
+      </p>
+      <input
+        type="text"
+        value={name}
+        maxLength={GUEST_NAME_MAX}
+        onChange={(e) => setName(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" && trimmed) onSubmit(trimmed);
+        }}
+        placeholder="이름 (예: 김파이)"
+        className="w-full rounded-xl border border-wood/15 bg-cream px-4 py-3 text-center text-lg text-wood outline-none focus:border-sky"
+      />
+      <button
+        type="button"
+        disabled={disabled || !trimmed}
+        onClick={() => onSubmit(trimmed)}
+        className="w-full rounded-xl bg-sky px-5 py-3 font-display text-lg text-wood transition hover:bg-sky/80 active:scale-95 disabled:opacity-60"
+      >
+        입장하기
+      </button>
     </div>
   );
 }
