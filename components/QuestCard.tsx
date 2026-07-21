@@ -9,6 +9,12 @@ type Props = {
   grade: GradeMeta;
 };
 
+const promoHoverClass: Record<GradeMeta["theme"], string> = {
+  mint: "hover:border-mint/35 hover:bg-mint/8",
+  peach: "hover:border-peach/35 hover:bg-peach/8",
+  lavender: "hover:border-lavender/35 hover:bg-lavender/8",
+};
+
 export default function QuestCard({ grade }: Props) {
   const units = getUnitsForGrade(grade.id);
   const readyUnits = units.filter((u) => getContentsForUnit(u.id).length > 0);
@@ -84,24 +90,37 @@ export default function QuestCard({ grade }: Props) {
               href={bookPromo.href}
               target="_blank"
               rel="noopener noreferrer"
-              className="group mt-3 block"
+              className={`group mt-3 block rounded-xl border border-wood/15 bg-gradient-to-b from-white/85 to-wood/5 p-3 transition ${promoHoverClass[grade.theme]}`}
             >
-              <div className="relative h-20 w-full overflow-hidden rounded-xl border border-wood/15 bg-white/60">
+              <div className="relative mx-auto aspect-square h-24 w-24 overflow-hidden rounded-lg bg-white/70 shadow-sm ring-1 ring-wood/10">
                 <Image
                   src={bookPromo.imageUrl}
                   alt={bookPromo.label}
                   fill
-                  className="object-contain p-1 transition group-hover:scale-[1.02]"
-                  sizes="(max-width: 640px) 100vw, 320px"
+                  className="object-cover transition duration-200 group-hover:scale-[1.03]"
+                  sizes="96px"
                 />
               </div>
-              <p className="mt-1.5 text-center text-xs font-semibold text-foreground/70 transition group-hover:text-foreground/90">
-                {bookPromo.label}
-              </p>
+              <div className="mt-2.5 flex items-center justify-center gap-1.5">
+                <p className="font-display text-center text-xs font-bold leading-snug text-foreground/80 transition group-hover:text-foreground">
+                  {bookPromo.label}
+                </p>
+                <span
+                  className="shrink-0 text-[10px] font-bold text-foreground/35 transition group-hover:text-foreground/55"
+                  aria-hidden
+                >
+                  ↗
+                </span>
+              </div>
             </a>
           ) : (
-            <div className="mt-3 flex h-20 items-center justify-center rounded-xl bg-wood/5 px-3">
-              <p className="text-center text-sm text-foreground/50">
+            <div className="mt-3 rounded-xl border border-dashed border-wood/20 bg-wood/5 p-3">
+              <div className="mx-auto flex aspect-square h-24 w-24 items-center justify-center rounded-lg bg-white/50 ring-1 ring-wood/10">
+                <span className="text-3xl opacity-60" aria-hidden>
+                  📚
+                </span>
+              </div>
+              <p className="mt-2.5 text-center text-sm font-medium text-foreground/50">
                 {bookPromo.message}
               </p>
             </div>
