@@ -12,6 +12,7 @@ import {
 type Props = {
   board: BoardMap;
   lastMove: Point | null;
+  highlightPoints?: Point[];
   onCellClick?: (x: number, y: number) => void;
   disabled?: boolean;
 };
@@ -23,9 +24,13 @@ const SIZE = PAD * 2 + CELL * (BOARD_SIZE - 1);
 export default function QuadGridBoard({
   board,
   lastMove,
+  highlightPoints,
   onCellClick,
   disabled,
 }: Props) {
+  const highlightSet = new Set(
+    (highlightPoints ?? []).map((p) => `${p.x},${p.y}`),
+  );
   const points: { x: number; y: number }[] = [];
   for (let x = BOARD_MIN; x <= BOARD_MAX; x++) {
     for (let y = BOARD_MIN; y <= BOARD_MAX; y++) {
@@ -88,6 +93,7 @@ export default function QuadGridBoard({
         {points.map(({ x, y }) => {
           const stone = board.get(`${x},${y}`);
           const isLast = lastMove?.x === x && lastMove?.y === y;
+          const isHighlight = highlightSet.has(`${x},${y}`);
           const cx = toPx(x);
           const cy = toPx(y);
           const canClick = !disabled && !stone && onCellClick;
@@ -114,6 +120,17 @@ export default function QuadGridBoard({
                     stroke={stone === "black" ? "#1a1510" : "#8B6914"}
                     strokeWidth={1}
                   />
+                  {isHighlight ? (
+                    <circle
+                      cx={cx}
+                      cy={cy}
+                      r={13}
+                      fill="none"
+                      stroke="#7c3aed"
+                      strokeWidth={2}
+                      opacity={0.85}
+                    />
+                  ) : null}
                   {isLast ? (
                     <circle
                       cx={cx}

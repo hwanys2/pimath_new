@@ -8,11 +8,11 @@ import {
   boardToObject,
   opponent,
   pickRandomLegalMove,
-  tryPlace,
   type BoardMap,
   type RpsChoice,
   type Stone,
 } from "@/lib/quadrilateral-maker-math";
+import { tryPlaceSquare } from "@/lib/square-maker-math";
 import type { SqGamePhase, SqPollState, SqQueueScope } from "@/lib/sq-types";
 
 export type { SqPollState, SqQueueScope } from "@/lib/sq-types";
@@ -64,6 +64,8 @@ function mapPollRow(row: {
   last_y: number | null;
   move_count: number | null;
   my_score: number | null;
+  winner_area: number | null;
+  winner_axis_aligned: boolean | null;
   opponent_name: string | null;
   turn_deadline: string | null;
   rps_winner_key: string | null;
@@ -109,6 +111,8 @@ function mapPollRow(row: {
     lastY: row.last_y,
     moveCount: row.move_count ?? 0,
     myScore: row.my_score,
+    winnerArea: row.winner_area,
+    winnerAxisAligned: row.winner_axis_aligned,
     opponentName: row.opponent_name,
     turnDeadline: row.turn_deadline ?? null,
     rpsWinnerKey: row.rps_winner_key,
@@ -243,6 +247,8 @@ export async function sqPoll(input: {
       lastY: null,
       moveCount: 0,
       myScore: null,
+      winnerArea: null,
+      winnerAxisAligned: null,
       opponentName: null,
       turnDeadline: null,
       rpsWinnerKey: null,
@@ -309,6 +315,8 @@ export async function sqPlaceMove(input: {
       moveCount: number;
       outcome: "win" | "loss" | "draw" | null;
       turnDeadline: string | null;
+      winnerArea: number | null;
+      winnerAxisAligned: boolean | null;
     }
   | { ok: false; error: string; message?: string }
 > {
@@ -329,7 +337,7 @@ export async function sqPlaceMove(input: {
   }
 
   const board: BoardMap = boardFromObject(poll.board);
-  const placed = tryPlace(board, input.x, input.y, poll.myStone, TARGET_SHAPE);
+  const placed = tryPlaceSquare(board, input.x, input.y, poll.myStone);
   if (!placed.ok) {
     return { ok: false, error: placed.error, message: placed.message };
   }
@@ -355,6 +363,8 @@ export async function sqPlaceMove(input: {
     p_next_turn: nextTurn,
     p_status: status,
     p_move_count: moveCount,
+    p_winner_area: placed.winInfo?.area ?? null,
+    p_winner_axis_aligned: placed.winInfo?.axisAligned ?? null,
   });
 
   if (error) {
@@ -401,6 +411,8 @@ export async function sqPlaceMove(input: {
     moveCount: row.move_count,
     outcome,
     turnDeadline: row.turn_deadline ?? null,
+    winnerArea: placed.winInfo?.area ?? null,
+    winnerAxisAligned: placed.winInfo?.axisAligned ?? null,
   };
 }
 
@@ -421,6 +433,8 @@ export async function sqTimeoutMove(input: {
       autoX: number;
       autoY: number;
       autoStone: Stone;
+      winnerArea: number | null;
+      winnerAxisAligned: boolean | null;
     }
   | { ok: false; error: string; message?: string }
 > {
@@ -446,7 +460,7 @@ export async function sqTimeoutMove(input: {
     return { ok: false, error: "no_move", message: "둘 곳이 없어요." };
   }
 
-  const placed = tryPlace(board, move.x, move.y, stoneToMove, TARGET_SHAPE);
+  const placed = tryPlaceSquare(board, move.x, move.y, stoneToMove);
   if (!placed.ok) {
     return { ok: false, error: placed.error, message: placed.message };
   }
@@ -472,6 +486,8 @@ export async function sqTimeoutMove(input: {
     p_next_turn: nextTurn,
     p_status: status,
     p_move_count: moveCount,
+    p_winner_area: placed.winInfo?.area ?? null,
+    p_winner_axis_aligned: placed.winInfo?.axisAligned ?? null,
   });
 
   if (error) {
@@ -526,6 +542,8 @@ export async function sqTimeoutMove(input: {
     autoX: move.x,
     autoY: move.y,
     autoStone: stoneToMove,
+    winnerArea: placed.winInfo?.area ?? null,
+    winnerAxisAligned: placed.winInfo?.axisAligned ?? null,
   };
 }
 

@@ -30,6 +30,8 @@ export type SqPollState = {
   lastY: number | null;
   moveCount: number;
   myScore: number | null;
+  winnerArea: number | null;
+  winnerAxisAligned: boolean | null;
   opponentName: string | null;
   turnDeadline: string | null;
   rpsWinnerKey: string | null;

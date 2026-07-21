@@ -22,6 +22,13 @@ import {
 import type { SqPollState } from "@/lib/sq-types";
 import { SQ_TURN_SECONDS } from "@/lib/sq-types";
 import {
+  findWinningSquare,
+  sqRunScore,
+  squareTypeLabel,
+  tryPlaceSquare,
+  type SquareWinInfo,
+} from "@/lib/square-maker-math";
+import {
   SHAPE_LABELS,
   RPS_LABELS,
   boardFromObject,
@@ -31,7 +38,6 @@ import {
   opponent,
   rpsWinner,
   stoneLabel,
-  tryPlace,
   type BoardMap,
   type QuadOutcome,
   type QuadShape,
@@ -67,6 +73,56 @@ function outcomeFromGameStatus(
   if (status === "black_win") return myStone === "black" ? "win" : "loss";
   if (status === "white_win") return myStone === "white" ? "win" : "loss";
   return null;
+}
+
+function outcomeFromMyScore(score: number | null | undefined): QuadOutcome | null {
+  if (score == null) return null;
+  if (score === 150) return "draw";
+  if (score === 100) return "loss";
+  if (score === 200 || score === 300) return "win";
+  return null;
+}
+
+function winnerStoneFromStatus(
+  status: string | null | undefined,
+): Stone | null {
+  if (status === "black_win") return "black";
+  if (status === "white_win") return "white";
+  return null;
+}
+
+function applyWinDisplay(
+  board: BoardMap,
+  outcome: QuadOutcome,
+  gameStatus: string | null | undefined,
+  winnerArea: number | null | undefined,
+  winnerAxisAligned: boolean | null | undefined,
+  winInfo?: SquareWinInfo | null,
+): {
+  winArea: number | null;
+  axisAligned: boolean | null;
+  winVertices: SquareWinInfo["vertices"] | null;
+} {
+  if (winInfo) {
+    return {
+      winArea: winInfo.area,
+      axisAligned: winInfo.axisAligned,
+      winVertices: winInfo.vertices,
+    };
+  }
+  const winner = winnerStoneFromStatus(gameStatus);
+  if (!winner) {
+    return { winArea: null, axisAligned: null, winVertices: null };
+  }
+  const detected = findWinningSquare(board, winner);
+  if (outcome === "win" || outcome === "loss") {
+    return {
+      winArea: winnerArea ?? detected?.area ?? null,
+      axisAligned: winnerAxisAligned ?? detected?.axisAligned ?? null,
+      winVertices: detected?.vertices ?? null,
+    };
+  }
+  return { winArea: null, axisAligned: null, winVertices: null };
 }
 
 function randomRps(): RpsChoice {
@@ -156,6 +212,12 @@ export default function SquareMaker() {
   const [statusMsg, setStatusMsg] = useState("");
   const [opponentName, setOpponentName] = useState("컴퓨터");
   const [outcome, setOutcome] = useState<QuadOutcome | null>(null);
+  const [runScore, setRunScore] = useState(0);
+  const [winArea, setWinArea] = useState<number | null>(null);
+  const [axisAligned, setAxisAligned] = useState<boolean | null>(null);
+  const [winVertices, setWinVertices] = useState<SquareWinInfo["vertices"] | null>(
+    null,
+  );
   const [delta, setDelta] = useState(0);
   const [totalAfter, setTotalAfter] = useState(0);
   const [xpMessage, setXpMessage] = useState<string | null>(null);
@@ -229,18 +291,45 @@ export default function SquareMaker() {
   }, []);
 
   const finishWithOutcome = useCallback(
-    async (result: QuadOutcome) => {
+    async (
+      result: QuadOutcome,
+      score?: number,
+      winInfo?: SquareWinInfo | null,
+      display?: {
+        board?: BoardMap;
+        gameStatus?: string | null;
+        winnerArea?: number | null;
+        winnerAxisAligned?: boolean | null;
+      },
+    ) => {
       if (endingRef.current) return;
       endingRef.current = true;
       stopPoll();
       setOutcome(result);
+      const resolvedScore = score ?? sqRunScore(result, winInfo);
+      setRunScore(resolvedScore);
+      const displayBoard = display?.board ?? board;
+      const winDisplay = applyWinDisplay(
+        displayBoard,
+        result,
+        display?.gameStatus,
+        display?.winnerArea,
+        display?.winnerAxisAligned,
+        winInfo,
+      );
+      setWinArea(winDisplay.winArea);
+      setAxisAligned(winDisplay.axisAligned);
+      setWinVertices(winDisplay.winVertices);
       setScreen("ended");
       setPlacing(false);
       placingRef.current = false;
       setTurnDeadline(null);
       setSecondsLeft(null);
 
-      const finished = await sqFinishWithRatingAction({ outcome: result });
+      const finished = await sqFinishWithRatingAction({
+        outcome: result,
+        runScore: resolvedScore,
+      });
       if ("error" in finished && finished.error) {
         setStatusMsg(finished.error);
       }
@@ -257,7 +346,7 @@ export default function SquareMaker() {
         setRankingLoading(false);
       }
     },
-    [stopPoll],
+    [board, stopPoll],
   );
 
   const applyPollState = useCallback(
@@ -295,14 +384,7 @@ export default function SquareMaker() {
           const result =
             (state.gameStatus
               ? outcomeFromGameStatus(state.gameStatus, state.myStone)
-              : null) ??
-            (state.myScore === 300
-              ? "win"
-              : state.myScore === 150
-                ? "draw"
-                : state.myScore != null
-                  ? "loss"
-                  : null);
+              : null) ?? outcomeFromMyScore(state.myScore);
           if (result) {
             void (async () => {
               if (state.gameId) {
@@ -311,7 +393,13 @@ export default function SquareMaker() {
                   gameId: state.gameId!,
                 });
               }
-              await finishWithOutcome(result);
+              const endBoard = boardFromObject(state.board);
+              await finishWithOutcome(result, state.myScore ?? undefined, null, {
+                board: endBoard,
+                gameStatus: state.gameStatus,
+                winnerArea: state.winnerArea,
+                winnerAxisAligned: state.winnerAxisAligned,
+              });
             })();
           }
           return;
@@ -390,7 +478,12 @@ export default function SquareMaker() {
           guestId: guestIdRef.current,
           gameId: gid,
         });
-        await finishWithOutcome(res.outcome);
+        await finishWithOutcome(res.outcome, undefined, null, {
+          board: boardFromObject(res.board),
+          gameStatus: res.status,
+          winnerArea: res.winnerArea,
+          winnerAxisAligned: res.winnerAxisAligned,
+        });
       }
       return true;
     } finally {
@@ -501,6 +594,10 @@ export default function SquareMaker() {
     setTurn("black");
     setOpponentName("컴퓨터");
     setOutcome(null);
+    setRunScore(0);
+    setWinArea(null);
+    setAxisAligned(null);
+    setWinVertices(null);
     setDelta(0);
     setXpMessage(null);
     setGameId(null);
@@ -512,6 +609,10 @@ export default function SquareMaker() {
   const startMatchmaking = async (scope: "class" | "global") => {
     endingRef.current = false;
     setOutcome(null);
+    setRunScore(0);
+    setWinArea(null);
+    setAxisAligned(null);
+    setWinVertices(null);
     setDelta(0);
     setXpMessage(null);
     resetGameState();
@@ -640,7 +741,7 @@ export default function SquareMaker() {
     }
 
     if (mode === "ai") {
-      const placed = tryPlace(board, x, y, myStone, TARGET_SHAPE);
+      const placed = tryPlaceSquare(board, x, y, myStone);
       if (!placed.ok) {
         setStatusMsg(placed.message);
         return;
@@ -648,11 +749,16 @@ export default function SquareMaker() {
       setBoard(placed.board);
       setLastMove({ x, y });
       if (placed.won) {
-        void finishWithOutcome("win");
+        void finishWithOutcome(
+          "win",
+          sqRunScore("win", placed.winInfo),
+          placed.winInfo,
+          { board: placed.board },
+        );
         return;
       }
       if (boardIsFull(placed.board)) {
-        void finishWithOutcome("draw");
+        void finishWithOutcome("draw", sqRunScore("draw"));
         return;
       }
       setTurn(opponent(myStone));
@@ -692,7 +798,12 @@ export default function SquareMaker() {
           guestId: guestIdRef.current,
           gameId: gameIdRef.current,
         });
-        await finishWithOutcome(res.outcome);
+        await finishWithOutcome(res.outcome, undefined, null, {
+          board: boardFromObject(res.board),
+          gameStatus: res.status,
+          winnerArea: res.winnerArea,
+          winnerAxisAligned: res.winnerAxisAligned,
+        });
       }
     } finally {
       placingRef.current = false;
@@ -710,10 +821,10 @@ export default function SquareMaker() {
       const move = chooseAiMove(board, turn, TARGET_SHAPE, TARGET_SHAPE);
       aiThinkingRef.current = false;
       if (!move) {
-        void finishWithOutcome("draw");
+        void finishWithOutcome("draw", sqRunScore("draw"));
         return;
       }
-      const placed = tryPlace(board, move.x, move.y, turn, TARGET_SHAPE);
+      const placed = tryPlaceSquare(board, move.x, move.y, turn);
       if (!placed.ok) {
         setTurn(myStone);
         return;
@@ -722,11 +833,16 @@ export default function SquareMaker() {
       setLastMove(move);
       setStatusMsg(`컴퓨터가 (${move.x}, ${move.y})에 두었어요.`);
       if (placed.won) {
-        void finishWithOutcome("loss");
+        void finishWithOutcome(
+          "loss",
+          sqRunScore("loss"),
+          placed.winInfo,
+          { board: placed.board, gameStatus: turn === "black" ? "black_win" : "white_win" },
+        );
         return;
       }
       if (boardIsFull(placed.board)) {
-        void finishWithOutcome("draw");
+        void finishWithOutcome("draw", sqRunScore("draw"));
         return;
       }
       setTurn(myStone);
@@ -753,6 +869,10 @@ export default function SquareMaker() {
     resetGameState();
     setStatusMsg("");
     setOutcome(null);
+    setRunScore(0);
+    setWinArea(null);
+    setAxisAligned(null);
+    setWinVertices(null);
     setDelta(0);
     setXpMessage(null);
   };
@@ -984,11 +1104,12 @@ export default function SquareMaker() {
                 목표: {SHAPE_LABELS[TARGET_SHAPE]}
               </span>
             </div>
-            <div className="pointer-events-none select-none opacity-80 blur-[1px]">
+            <div className="pointer-events-none select-none">
               <div className="quest-card p-3 sm:p-4">
                 <QuadGridBoard
                   board={board}
                   lastMove={lastMove}
+                  highlightPoints={winVertices ?? undefined}
                   onCellClick={() => {}}
                   disabled
                 />
@@ -1004,6 +1125,17 @@ export default function SquareMaker() {
                   ? "무승부"
                   : "아쉬운 패배"}
             </p>
+            {winArea != null && outcome !== "draw" ? (
+              <p className="mt-2 text-base font-semibold text-wood/80">
+                {outcome === "win" ? "정사각형 넓이" : "상대 정사각형 넓이"}:{" "}
+                <span className="font-black tabular-nums">{winArea}</span>
+              </p>
+            ) : null}
+            {outcome === "win" && axisAligned != null ? (
+              <p className="mt-1 text-sm font-semibold text-violet-700">
+                {squareTypeLabel(axisAligned)} · +{runScore}점
+              </p>
+            ) : null}
             <p className="mt-2 text-lg font-black tabular-nums text-wood">
               {delta >= 0 ? "+" : ""}
               {delta}점

@@ -2,10 +2,7 @@ import "server-only";
 
 import { createClient } from "@/lib/supabase/server";
 import { getStudentSessionToken } from "@/lib/student-session";
-import {
-  deltaForQuadOutcome,
-  type QuadOutcome,
-} from "@/lib/quadrilateral-maker-math";
+import { type QuadOutcome } from "@/lib/quadrilateral-maker-math";
 import type { RankingRow, RankingScope } from "@/lib/game-types";
 
 function firstRow<T>(data: T | T[] | null): T | null {
@@ -24,16 +21,16 @@ export type SqRatingResult = {
 
 export async function applySqRatingFromSession(input: {
   outcome: QuadOutcome;
+  runScore: number;
   sessionToken?: string | null;
 }): Promise<SqRatingResult | { error: string }> {
   const token = input.sessionToken ?? (await getStudentSessionToken());
   if (!token) {
-    const delta = deltaForQuadOutcome(0, input.outcome);
     return {
       recorded: false,
       practiceOnly: true,
       outcome: input.outcome,
-      delta,
+      delta: input.runScore,
       totalBefore: 0,
       totalAfter: 0,
     };
@@ -43,6 +40,7 @@ export async function applySqRatingFromSession(input: {
   const { data, error } = await supabase.rpc("pm_sq_apply_rating", {
     p_session_token: token,
     p_outcome: input.outcome,
+    p_run_score: input.runScore,
   });
 
   if (error) {

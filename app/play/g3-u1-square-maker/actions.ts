@@ -85,8 +85,12 @@ export async function sqLobbyContextAction() {
 
 export async function sqFinishWithRatingAction(input: {
   outcome: QuadOutcome;
+  runScore: number;
 }) {
-  const rating = await applySqRatingFromSession({ outcome: input.outcome });
+  const rating = await applySqRatingFromSession({
+    outcome: input.outcome,
+    runScore: input.runScore,
+  });
   if ("error" in rating) {
     return {
       error: rating.error,
