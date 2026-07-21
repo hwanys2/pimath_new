@@ -24,6 +24,9 @@ const DICE_TYPES: DiceType[] = ["fair", "cuboid"];
 /** 자동 굴리기가 무한히 돌지 않도록 상한. */
 const AUTO_MAX_TRIALS = 100000;
 
+/** 직육면체 주사위의 확률을 공개하기 전 권장하는 최소 시행 횟수. */
+const MIN_ROLLS_TO_REVEAL = 30;
+
 /** 현재 시행 횟수에 따라 자동 굴리기 한 프레임당 굴리는 개수(점점 빨라짐). */
 function autoBatchSize(total: number): number {
   if (total < 40) return 1;
@@ -65,9 +68,9 @@ const PIP_LAYOUT: Record<DieFace, Array<[number, number]>> = {
     [0.72, 0.72],
   ],
   3: [
-    [0.28, 0.28],
+    [0.26, 0.26],
     [0.5, 0.5],
-    [0.72, 0.72],
+    [0.74, 0.74],
   ],
   4: [
     [0.28, 0.28],
@@ -76,71 +79,150 @@ const PIP_LAYOUT: Record<DieFace, Array<[number, number]>> = {
     [0.72, 0.72],
   ],
   5: [
-    [0.28, 0.28],
-    [0.72, 0.28],
+    [0.26, 0.26],
+    [0.74, 0.26],
     [0.5, 0.5],
-    [0.28, 0.72],
-    [0.72, 0.72],
+    [0.26, 0.74],
+    [0.74, 0.74],
   ],
   6: [
-    [0.3, 0.26],
-    [0.7, 0.26],
+    [0.3, 0.24],
+    [0.7, 0.24],
     [0.3, 0.5],
     [0.7, 0.5],
-    [0.3, 0.74],
-    [0.7, 0.74],
+    [0.3, 0.76],
+    [0.7, 0.76],
   ],
 };
 
-function DieFaceGraphic({
+// ── 3D 주사위 ──────────────────────────────────────────────────
+/** 정지 상태의 보기 좋은 기울기. */
+const TILT_X = -18;
+const TILT_Y = 24;
+
+/** 각 눈을 앞으로 오게 하는 회전(면 배치의 역회전). */
+const FACE_BASE: Record<DieFace, { rx: number; ry: number }> = {
+  1: { rx: 0, ry: 0 },
+  2: { rx: -90, ry: 0 },
+  3: { rx: 0, ry: -90 },
+  4: { rx: 0, ry: 90 },
+  5: { rx: 90, ry: 0 },
+  6: { rx: 0, ry: 180 },
+};
+
+type Dims = { wx: number; wy: number; wz: number };
+
+function faceGeometry(
+  face: DieFace,
+  dims: Dims,
+): { w: number; h: number; placement: string } {
+  const { wx, wy, wz } = dims;
+  switch (face) {
+    case 1:
+      return { w: wx, h: wy, placement: `rotateY(0deg) translateZ(${wz / 2}px)` };
+    case 6:
+      return {
+        w: wx,
+        h: wy,
+        placement: `rotateY(180deg) translateZ(${wz / 2}px)`,
+      };
+    case 3:
+      return {
+        w: wz,
+        h: wy,
+        placement: `rotateY(90deg) translateZ(${wx / 2}px)`,
+      };
+    case 4:
+      return {
+        w: wz,
+        h: wy,
+        placement: `rotateY(-90deg) translateZ(${wx / 2}px)`,
+      };
+    case 2:
+      return {
+        w: wx,
+        h: wz,
+        placement: `rotateX(90deg) translateZ(${wy / 2}px)`,
+      };
+    case 5:
+      return {
+        w: wx,
+        h: wz,
+        placement: `rotateX(-90deg) translateZ(${wy / 2}px)`,
+      };
+  }
+}
+
+function Die3D({
   face,
-  diceType,
-  bounceKey,
+  long,
+  spins,
+  animate,
 }: {
   face: DieFace | null;
-  diceType: DiceType;
-  bounceKey: number;
+  long: boolean;
+  spins: number;
+  animate: boolean;
 }) {
-  // 직육면체는 살짝 납작한 비율로 표현.
-  const w = 96;
-  const h = diceType === "cuboid" ? 66 : 96;
-  const pipR = diceType === "cuboid" ? 6 : 8;
+  // 직육면체는 앞·뒤(1, 6)가 좁은 정사각형 끝면, 네 옆면(2~5)이 길쭉한 면.
+  const dims: Dims = long
+    ? { wx: 54, wy: 54, wz: 120 }
+    : { wx: 84, wy: 84, wz: 84 };
+  const C = Math.max(dims.wx, dims.wy, dims.wz);
+  const shown = face ?? 1;
+  const base = FACE_BASE[shown];
+  const rx = base.rx + TILT_X - spins * 360;
+  const ry = base.ry + TILT_Y + spins * 360;
 
   return (
-    <div
-      key={bounceKey}
-      className="dice-bounce"
-      style={{ width: 96, height: 96, display: "grid", placeItems: "center" }}
-    >
-      <svg
-        viewBox={`0 0 ${w} ${h}`}
-        width={w}
-        height={h}
+    <div className="die-stage">
+      <div className="die-shadow" style={{ width: long ? 150 : 100 }} />
+      <div
+        className="die-solid"
         role="img"
-        aria-label={face ? `주사위 눈 ${face}` : "아직 굴리지 않음"}
+        aria-label={face ? `주사위 눈 ${face}` : "주사위"}
+        style={{
+          width: C,
+          height: C,
+          transform: `rotateX(${rx}deg) rotateY(${ry}deg)`,
+          transition: animate
+            ? "transform 0.7s cubic-bezier(0.2,0.85,0.3,1)"
+            : "none",
+        }}
       >
-        <rect
-          x={2}
-          y={2}
-          width={w - 4}
-          height={h - 4}
-          rx={14}
-          fill="#fff"
-          stroke="rgba(92,64,51,0.35)"
-          strokeWidth={3}
-        />
-        {face
-          ? PIP_LAYOUT[face].map(([px, py], i) => (
-              <circle
-                key={i}
-                cx={px * w}
-                cy={py * h}
-                r={pipR}
-                fill="#5C4033"
-              />
-            ))
-          : null}
-      </svg>
+        {DIE_FACES.map((f) => {
+          const g = faceGeometry(f, dims);
+          const pipD = Math.max(6, Math.round(Math.min(g.w, g.h) * 0.16));
+          return (
+            <div
+              key={f}
+              className="die-face"
+              style={{
+                width: g.w,
+                height: g.h,
+                left: (C - g.w) / 2,
+                top: (C - g.h) / 2,
+                transform: g.placement,
+              }}
+            >
+              {PIP_LAYOUT[f].map(([px, py], i) => (
+                <span
+                  key={i}
+                  className="die-pip"
+                  style={{
+                    width: pipD,
+                    height: pipD,
+                    left: `${px * 100}%`,
+                    top: `${py * 100}%`,
+                    marginLeft: -pipD / 2,
+                    marginTop: -pipD / 2,
+                  }}
+                />
+              ))}
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 }
@@ -154,7 +236,10 @@ export default function DiceSimulation() {
   );
   const [lastRoll, setLastRoll] = useState<DieFace | null>(null);
   const [autoRunning, setAutoRunning] = useState(false);
-  const [bounceKey, setBounceKey] = useState(0);
+  const [spins, setSpins] = useState(0);
+  const [animateRoll, setAnimateRoll] = useState(false);
+  const [revealed, setRevealed] = useState(false);
+  const [guessInput, setGuessInput] = useState("");
 
   // rAF 루프에서 최신 값을 참조하기 위한 refs.
   const tallyRef = useRef<Tally>(tally);
@@ -175,6 +260,10 @@ export default function DiceSimulation() {
   const relFreq = relativeFrequency(tally, targetFace);
   const targetHits = tally[targetFace];
 
+  const isCuboid = diceType === "cuboid";
+  // 직육면체는 확률이 숨겨진 '추측' 모드. 정답을 확인하면 공개됨.
+  const discovery = isCuboid && !revealed;
+
   const stopAuto = useCallback(() => {
     if (rafRef.current != null) {
       cancelAnimationFrame(rafRef.current);
@@ -183,8 +272,7 @@ export default function DiceSimulation() {
     setAutoRunning(false);
   }, []);
 
-  const resetAll = useCallback(() => {
-    stopAuto();
+  const resetExperiment = useCallback(() => {
     const freshTally = createTally();
     const freshSeries = createConvergenceSeries();
     tallyRef.current = freshTally;
@@ -192,10 +280,17 @@ export default function DiceSimulation() {
     setTally(freshTally);
     setSeries(freshSeries);
     setLastRoll(null);
-  }, [stopAuto]);
+    setRevealed(false);
+    setGuessInput("");
+  }, []);
 
-  /** count번 굴려 상태를 갱신. bounce=true면 주사위 흔들림 애니메이션 재생. */
-  const applyRolls = useCallback((count: number, bounce: boolean) => {
+  const resetAll = useCallback(() => {
+    stopAuto();
+    resetExperiment();
+  }, [stopAuto, resetExperiment]);
+
+  /** count번 굴려 상태를 갱신. animate=true면 3D 굴림 애니메이션 재생(단발 굴리기). */
+  const applyRolls = useCallback((count: number, animate: boolean) => {
     const t = tallyRef.current;
     const type = diceTypeRef.current;
     let last: DieFace | null = null;
@@ -211,7 +306,8 @@ export default function DiceSimulation() {
     setTally({ ...t });
     setSeries(seriesRef.current);
     if (last != null) setLastRoll(last);
-    if (bounce) setBounceKey((k) => k + 1);
+    setAnimateRoll(animate);
+    if (animate) setSpins((s) => s + 1);
   }, []);
 
   const handleManualRoll = useCallback(
@@ -235,7 +331,7 @@ export default function DiceSimulation() {
         return;
       }
       const batch = autoBatchSize(currentTotal);
-      applyRolls(batch, batch === 1);
+      applyRolls(batch, false);
       rafRef.current = requestAnimationFrame(step);
     };
     rafRef.current = requestAnimationFrame(step);
@@ -254,16 +350,9 @@ export default function DiceSimulation() {
       stopAuto();
       setDiceType(type);
       diceTypeRef.current = type;
-      // 주사위가 바뀌면 새로운 실험이므로 초기화.
-      const freshTally = createTally();
-      const freshSeries = createConvergenceSeries();
-      tallyRef.current = freshTally;
-      seriesRef.current = freshSeries;
-      setTally(freshTally);
-      setSeries(freshSeries);
-      setLastRoll(null);
+      resetExperiment();
     },
-    [diceType, stopAuto],
+    [diceType, stopAuto, resetExperiment],
   );
 
   const handleTargetChange = useCallback(
@@ -272,21 +361,22 @@ export default function DiceSimulation() {
       stopAuto();
       setTargetFace(face);
       targetFaceRef.current = face;
-      // 관찰 대상이 바뀌면 상대도수 그래프를 새로 그리기 위해 초기화.
-      const freshTally = createTally();
-      const freshSeries = createConvergenceSeries();
-      tallyRef.current = freshTally;
-      seriesRef.current = freshSeries;
-      setTally(freshTally);
-      setSeries(freshSeries);
-      setLastRoll(null);
+      resetExperiment();
     },
-    [targetFace, stopAuto],
+    [targetFace, stopAuto, resetExperiment],
   );
+
+  const canReveal = total >= MIN_ROLLS_TO_REVEAL;
+
+  const handleReveal = useCallback(() => {
+    stopAuto();
+    setRevealed(true);
+  }, [stopAuto]);
 
   // ── 수렴 그래프 계산 ────────────────────────────────────────
   const lineChart = useMemo(() => {
-    const yMax = clamp(theoretical * 3, 0.4, 1);
+    // 추측 모드에서는 이론값이 축 눈금으로 새어 나가지 않도록 고정 범위 사용.
+    const yMax = discovery ? 0.5 : clamp(theoretical * 3, 0.4, 1);
     const denomTrials = Math.max(total, 1);
 
     const xFor = (trials: number) =>
@@ -307,7 +397,7 @@ export default function DiceSimulation() {
     }));
 
     return { yMax, xFor, yFor, polyline, theoreticalY, yTicks, denomTrials };
-  }, [series, theoretical, total]);
+  }, [series, theoretical, total, discovery]);
 
   // ── 분포 막대그래프 계산 ────────────────────────────────────
   const barChart = useMemo(() => {
@@ -315,7 +405,10 @@ export default function DiceSimulation() {
     const observed = DIE_FACES.map((f) => relativeFrequency(tally, f));
     const maxObserved = Math.max(...observed, 0);
     const maxTheoretical = Math.max(...DIE_FACES.map((f) => probs[f]));
-    const yMax = clamp(Math.max(maxObserved, maxTheoretical) * 1.25, 0.3, 1);
+    // 추측 모드에서는 이론값을 축 범위에 반영하지 않음.
+    const yMax = discovery
+      ? clamp(maxObserved * 1.3, 0.3, 1)
+      : clamp(Math.max(maxObserved, maxTheoretical) * 1.25, 0.3, 1);
 
     const bandW = BC_PLOT_W / DIE_FACES.length;
     const barW = bandW * 0.54;
@@ -350,9 +443,20 @@ export default function DiceSimulation() {
 
     const baseline = BC_PAD_T + BC_PLOT_H;
     return { yMax, bars, yTicks, baseline };
-  }, [diceType, tally]);
+  }, [diceType, tally, discovery]);
 
   const diffAbs = Math.abs(relFreq - theoretical);
+
+  const guessNum = parseFloat(guessInput);
+  const guessValid =
+    Number.isFinite(guessNum) && guessNum >= 0 && guessNum <= 100;
+  const guessDiff = guessValid
+    ? Math.abs(guessNum / 100 - theoretical)
+    : null;
+
+  const diceDescription = discovery
+    ? "이 직육면체 주사위는 면마다 나올 확률이 서로 달라요. 그런데 그 확률은 숨겨져 있어요! 여러 번 굴려서 상대도수를 관찰하고, 각 눈이 나올 확률을 직접 추측해 보세요."
+    : DICE[diceType].description;
 
   return (
     <div className="flex flex-col gap-6">
@@ -397,7 +501,7 @@ export default function DiceSimulation() {
               })}
             </div>
             <p className="mt-3 rounded-xl bg-peach/15 px-4 py-3 text-xs leading-relaxed text-foreground/75">
-              {DICE[diceType].description}
+              {diceDescription}
             </p>
           </div>
 
@@ -424,20 +528,28 @@ export default function DiceSimulation() {
                 );
               })}
             </div>
-            <p className="mt-3 rounded-xl bg-gold/15 px-4 py-3 text-xs leading-relaxed text-foreground/75">
-              눈 <b>{targetFace}</b>이(가) 나올 이론적 확률은{" "}
-              <b>{formatProbability(diceType, targetFace)}</b> ={" "}
-              <b>{formatPercent(theoretical, 2)}</b> 입니다.
-            </p>
+            {discovery ? (
+              <p className="mt-3 rounded-xl bg-gold/15 px-4 py-3 text-xs leading-relaxed text-foreground/75">
+                눈 <b>{targetFace}</b>이(가) 나올 확률은 <b>숨겨져 있어요.</b>{" "}
+                충분히 굴린 뒤 아래 상대도수를 보고 확률을 추측해 보세요.
+              </p>
+            ) : (
+              <p className="mt-3 rounded-xl bg-gold/15 px-4 py-3 text-xs leading-relaxed text-foreground/75">
+                눈 <b>{targetFace}</b>이(가) 나올 이론적 확률은{" "}
+                <b>{formatProbability(diceType, targetFace)}</b> ={" "}
+                <b>{formatPercent(theoretical, 2)}</b> 입니다.
+              </p>
+            )}
           </div>
         </div>
 
         {/* 굴리기 버튼 */}
         <div className="mt-6 flex flex-col items-center gap-4">
-          <DieFaceGraphic
+          <Die3D
             face={lastRoll}
-            diceType={diceType}
-            bounceKey={bounceKey}
+            long={isCuboid}
+            spins={spins}
+            animate={animateRoll}
           />
           <p className="text-sm font-semibold text-foreground/70">
             {lastRoll
@@ -484,7 +596,13 @@ export default function DiceSimulation() {
         <p className="mb-4 text-sm font-bold text-wood">
           눈 {targetFace} 관찰 결과
         </p>
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+        <div
+          className={`grid gap-3 ${
+            discovery
+              ? "grid-cols-3"
+              : "grid-cols-2 sm:grid-cols-3 lg:grid-cols-5"
+          }`}
+        >
           <StatBox label="총 시행 횟수" value={total.toLocaleString()} />
           <StatBox
             label={`눈 ${targetFace}이 나온 횟수`}
@@ -495,29 +613,120 @@ export default function DiceSimulation() {
             value={total === 0 ? "-" : formatPercent(relFreq, 2)}
             highlight
           />
-          <StatBox
-            label="이론적 확률"
-            value={formatPercent(theoretical, 2)}
-          />
-          <StatBox
-            label="차이(오차)"
-            value={total === 0 ? "-" : formatPercent(diffAbs, 2)}
-          />
+          {!discovery ? (
+            <>
+              <StatBox
+                label="이론적 확률"
+                value={formatPercent(theoretical, 2)}
+              />
+              <StatBox
+                label="차이(오차)"
+                value={total === 0 ? "-" : formatPercent(diffAbs, 2)}
+              />
+            </>
+          ) : null}
         </div>
         <p className="mt-4 text-xs leading-relaxed text-foreground/60">
           상대도수 = (눈 {targetFace}이 나온 횟수) ÷ (총 시행 횟수). 시행 초반에는
-          이론적 확률과 차이가 크게 요동치지만, 시행 횟수가 많아질수록 그 차이가
-          점점 줄어들며 이론적 확률에 수렴합니다. 이것을 <b>큰 수의 법칙</b>이라고
-          해요.
+          상대도수가 크게 요동치지만, 시행 횟수가 많아질수록 어떤 일정한 값에
+          점점 가까워집니다. 이렇게 상대도수가 수렴하는 값이 바로 그 눈이 나올
+          확률이에요. 이것을 <b>큰 수의 법칙</b>이라고 해요.
         </p>
       </section>
+
+      {/* 확률 추측하기 (직육면체 전용) */}
+      {isCuboid ? (
+        <section className="quest-card bg-gradient-to-br from-sky/25 to-peach/20 p-5 sm:p-7">
+          <p className="mb-2 text-sm font-bold text-wood">확률 추측하기</p>
+          {!revealed ? (
+            <>
+              <p className="text-xs leading-relaxed text-foreground/75">
+                눈 <b>{targetFace}</b>이(가) 나올 확률이 얼마일지 추측해서 적어
+                보세요. <b>자동 굴리기</b>로 충분히(예: 500번 이상) 굴린 뒤
+                상대도수를 참고하면 더 정확하게 맞힐 수 있어요. 여섯 개의 눈이 모두
+                똑같은 확률은 아니랍니다!
+              </p>
+              <div className="mt-4 flex flex-wrap items-center gap-3">
+                <label className="flex items-center gap-2 text-sm font-semibold text-foreground/80">
+                  내 추측
+                  <input
+                    type="text"
+                    inputMode="decimal"
+                    value={guessInput}
+                    onChange={(e) => setGuessInput(e.target.value)}
+                    placeholder="예: 15"
+                    className="w-24 rounded-xl border-2 border-wood/20 bg-white/85 px-3 py-2 text-center font-display text-xl text-foreground outline-none focus:border-peach"
+                    aria-label={`눈 ${targetFace}이 나올 확률 추측 (퍼센트)`}
+                  />
+                  %
+                </label>
+                <button
+                  type="button"
+                  onClick={handleReveal}
+                  disabled={!canReveal}
+                  className="rounded-2xl bg-gold px-5 py-2.5 text-sm font-bold text-wood shadow-sm ring-2 ring-wood/20 transition hover:bg-gold/80 disabled:cursor-not-allowed disabled:opacity-40"
+                >
+                  정답 확인
+                </button>
+              </div>
+              {!canReveal ? (
+                <p className="mt-3 text-xs font-medium text-[#a63a1a]">
+                  조금 더 굴려 보세요. (최소 {MIN_ROLLS_TO_REVEAL}번 이상 굴린 뒤
+                  확인할 수 있어요. 지금 {total.toLocaleString()}번)
+                </p>
+              ) : null}
+            </>
+          ) : (
+            <>
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                <StatBox
+                  label={`눈 ${targetFace} · 내 추측`}
+                  value={guessValid ? formatPercent(guessNum / 100, 1) : "-"}
+                />
+                <StatBox
+                  label={`눈 ${targetFace} · 실제 확률`}
+                  value={formatPercent(theoretical, 1)}
+                  highlight
+                />
+                <StatBox
+                  label={`눈 ${targetFace} · 상대도수`}
+                  value={total === 0 ? "-" : formatPercent(relFreq, 1)}
+                />
+              </div>
+              <p className="mt-3 text-xs leading-relaxed text-foreground/70">
+                이 직육면체 주사위는 넓이가 좁은 두 끝면(<b>1</b>, <b>6</b>)이 나올
+                확률이 각각 <b>0.1</b>, 넓은 네 옆면(<b>2, 3, 4, 5</b>)이 나올 확률이
+                각각 <b>0.2</b>로 설정되어 있어요.{" "}
+                {guessValid ? (
+                  guessDiff != null && guessDiff <= 0.03 ? (
+                    <b>추측이 실제 확률과 아주 가까워요! 훌륭해요.</b>
+                  ) : (
+                    <>
+                      내 추측과 실제 확률의 차이는{" "}
+                      <b>{formatPercent(guessDiff ?? 0, 1)}</b> 예요. 더 많이
+                      굴려서 다시 추측해 볼까요?
+                    </>
+                  )
+                ) : (
+                  <>이제 위·아래 그래프의 초록 점선(이론적 확률)과 비교해 보세요.</>
+                )}
+              </p>
+              <button
+                type="button"
+                onClick={resetAll}
+                className="mt-4 rounded-2xl bg-white/70 px-5 py-2.5 text-sm font-bold text-foreground/70 ring-1 ring-wood/15 transition hover:bg-white"
+              >
+                다른 눈으로 다시 도전 (초기화)
+              </button>
+            </>
+          )}
+        </section>
+      ) : null}
 
       {/* 수렴 그래프 */}
       <section className="quest-card p-5 sm:p-7">
         <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-          <p className="text-sm font-bold text-wood">
-            상대도수의 수렴 그래프
-          </p>
+          <p className="text-sm font-bold text-wood">상대도수의 수렴 그래프</p>
           <p className="text-xs font-semibold text-foreground/60">
             가로: 시행 횟수 · 세로: 눈 {targetFace}의 상대도수
           </p>
@@ -570,26 +779,30 @@ export default function DiceSimulation() {
               strokeWidth={1.5}
             />
 
-            {/* 이론적 확률 기준선 */}
-            <line
-              x1={LC_PAD_L}
-              y1={lineChart.theoreticalY}
-              x2={LC_W - LC_PAD_R}
-              y2={lineChart.theoreticalY}
-              stroke="#2f9e6f"
-              strokeWidth={2}
-              strokeDasharray="7 5"
-            />
-            <text
-              x={LC_W - LC_PAD_R}
-              y={lineChart.theoreticalY - 6}
-              textAnchor="end"
-              className="fill-[#2f9e6f]"
-              fontSize={12}
-              fontWeight={700}
-            >
-              이론적 확률 {formatPercent(theoretical, 1)}
-            </text>
+            {/* 이론적 확률 기준선 (추측 모드에서는 숨김) */}
+            {!discovery ? (
+              <>
+                <line
+                  x1={LC_PAD_L}
+                  y1={lineChart.theoreticalY}
+                  x2={LC_W - LC_PAD_R}
+                  y2={lineChart.theoreticalY}
+                  stroke="#2f9e6f"
+                  strokeWidth={2}
+                  strokeDasharray="7 5"
+                />
+                <text
+                  x={LC_W - LC_PAD_R}
+                  y={lineChart.theoreticalY - 6}
+                  textAnchor="end"
+                  className="fill-[#2f9e6f]"
+                  fontSize={12}
+                  fontWeight={700}
+                >
+                  이론적 확률 {formatPercent(theoretical, 1)}
+                </text>
+              </>
+            ) : null}
 
             {/* 상대도수 꺾은선 */}
             {series.points.length > 0 ? (
@@ -650,10 +863,12 @@ export default function DiceSimulation() {
               <span className="inline-block h-3 w-3 rounded-sm bg-[#e8823c]" />
               상대도수(실제)
             </span>
-            <span className="flex items-center gap-1">
-              <span className="inline-block h-3 w-4 border-t-2 border-dashed border-[#2f9e6f]" />
-              이론적 확률
-            </span>
+            {!discovery ? (
+              <span className="flex items-center gap-1">
+                <span className="inline-block h-3 w-4 border-t-2 border-dashed border-[#2f9e6f]" />
+                이론적 확률
+              </span>
+            ) : null}
           </p>
         </div>
         <div className="overflow-hidden rounded-2xl bg-gradient-to-b from-[#FEF9F0] to-sky/15 ring-1 ring-wood/10">
@@ -661,7 +876,7 @@ export default function DiceSimulation() {
             viewBox={`0 0 ${BC_W} ${BC_H}`}
             className="mx-auto h-auto w-full"
             role="img"
-            aria-label="주사위 눈 1부터 6까지의 상대도수와 이론적 확률을 비교한 막대그래프"
+            aria-label="주사위 눈 1부터 6까지의 상대도수를 비교한 막대그래프"
           >
             {/* y축 눈금 + 격자 */}
             {barChart.yTicks.map((tick) => (
@@ -701,16 +916,18 @@ export default function DiceSimulation() {
                     stroke={isTarget ? "#c9631f" : "none"}
                     strokeWidth={isTarget ? 2 : 0}
                   />
-                  {/* 이론적 확률 기준선 */}
-                  <line
-                    x1={bar.cx - bar.barW / 2 - 6}
-                    y1={bar.yTheoretical}
-                    x2={bar.cx + bar.barW / 2 + 6}
-                    y2={bar.yTheoretical}
-                    stroke="#2f9e6f"
-                    strokeWidth={2.4}
-                    strokeDasharray="6 4"
-                  />
+                  {/* 이론적 확률 기준선 (추측 모드에서는 숨김) */}
+                  {!discovery ? (
+                    <line
+                      x1={bar.cx - bar.barW / 2 - 6}
+                      y1={bar.yTheoretical}
+                      x2={bar.cx + bar.barW / 2 + 6}
+                      y2={bar.yTheoretical}
+                      stroke="#2f9e6f"
+                      strokeWidth={2.4}
+                      strokeDasharray="6 4"
+                    />
+                  ) : null}
                   {/* 눈 라벨 */}
                   <text
                     x={bar.cx}
@@ -751,28 +968,54 @@ export default function DiceSimulation() {
           </svg>
         </div>
         <p className="mt-3 text-xs leading-relaxed text-foreground/60">
-          주황 막대는 실제로 굴려서 나온 상대도수, 초록 점선은 이론적 확률이에요.
-          시행 횟수를 늘리면 모든 막대가 각자의 점선 높이에 가까워집니다.
+          {discovery
+            ? "주황 막대는 실제로 굴려서 나온 상대도수예요. 시행을 늘리면 막대 높이가 점점 안정돼요. 어떤 눈이 자주 나오고 어떤 눈이 드물게 나오는지 관찰해 확률을 추측해 보세요."
+            : "주황 막대는 실제로 굴려서 나온 상대도수, 초록 점선은 이론적 확률이에요. 시행 횟수를 늘리면 모든 막대가 각자의 점선 높이에 가까워집니다."}
         </p>
       </section>
 
       <style jsx>{`
-        @keyframes dice-bounce {
-          0% {
-            transform: translateY(0) rotate(0deg) scale(1);
-          }
-          30% {
-            transform: translateY(-14px) rotate(-12deg) scale(1.06);
-          }
-          60% {
-            transform: translateY(0) rotate(8deg) scale(0.98);
-          }
-          100% {
-            transform: translateY(0) rotate(0deg) scale(1);
-          }
+        .die-stage {
+          position: relative;
+          height: 190px;
+          width: 100%;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          perspective: 800px;
         }
-        .dice-bounce {
-          animation: dice-bounce 0.32s ease-out;
+        .die-shadow {
+          position: absolute;
+          bottom: 22px;
+          left: 50%;
+          height: 22px;
+          transform: translateX(-50%);
+          background: radial-gradient(
+            ellipse at center,
+            rgba(92, 64, 51, 0.28),
+            rgba(92, 64, 51, 0) 70%
+          );
+          filter: blur(2px);
+        }
+        .die-solid {
+          position: relative;
+          transform-style: preserve-3d;
+          will-change: transform;
+        }
+        .die-face {
+          position: absolute;
+          box-sizing: border-box;
+          border: 2px solid rgba(92, 64, 51, 0.3);
+          border-radius: 12px;
+          background: linear-gradient(150deg, #ffffff 0%, #fbeede 100%);
+          box-shadow: inset 0 0 12px rgba(92, 64, 51, 0.08);
+          backface-visibility: hidden;
+        }
+        .die-pip {
+          position: absolute;
+          border-radius: 9999px;
+          background: #5c4033;
+          box-shadow: inset 0 -1px 1px rgba(0, 0, 0, 0.28);
         }
       `}</style>
     </div>
