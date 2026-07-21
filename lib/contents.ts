@@ -119,6 +119,16 @@ export const CONTENTS: ContentMeta[] = [
       "가위바위보 후 도형을 고르고, 격자에 돌을 두어 먼저 사각형을 완성하는 게임입니다. 컴퓨터·같은 반·전체 매칭. 학급 배정·활성 시 XP와 랭킹이 쌓여요.",
   },
   {
+    key: "g2-u4-dice-simulation",
+    unitId: "g2-4",
+    type: "simulation",
+    title: "주사위 확률 시뮬레이션",
+    href: "/play/g2-u4-dice-simulation",
+    awardsXp: false,
+    description:
+      "일반 주사위와 직육면체 주사위(윗·아랫면 0.1, 옆면 0.2)를 굴리며 특정 눈이 나올 상대도수가 이론적 확률에 수렴함을 그래프로 확인하는 시뮬레이션입니다. 점수는 없어요.",
+  },
+  {
     key: "g2-u4-dice-sum-race",
     unitId: "g2-4",
     type: "game",
