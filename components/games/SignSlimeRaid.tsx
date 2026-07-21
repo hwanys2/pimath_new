@@ -9,6 +9,8 @@ import {
 } from "react";
 import type { RankingMode, RankingRow, RankingScope } from "@/lib/game-types";
 import GameRankingBoard from "@/components/games/GameRankingBoard";
+import MathAnswerDisplay from "@/components/math/MathAnswerDisplay";
+import MathExpressionDisplay from "@/components/math/MathExpressionDisplay";
 import {
   submitGameRun,
   fetchGameRanking,
@@ -139,12 +141,12 @@ function StagePicker({
 }
 
 function SlimeMonster({
-  expression,
+  problem,
   scale,
   hit,
   angry,
 }: {
-  expression: string;
+  problem: Pick<Problem, "left" | "op" | "right">;
   scale: number;
   hit: boolean;
   angry: boolean;
@@ -164,7 +166,7 @@ function SlimeMonster({
       >
       <div
         className={[
-          "relative flex min-h-[7.5rem] min-w-[9rem] flex-col items-center justify-center rounded-[45%_45%_40%_40%]",
+          "relative flex min-h-[8rem] min-w-[11rem] flex-col items-center justify-center rounded-[45%_45%_40%_40%] px-2",
           "bg-gradient-to-b from-[#7ee0a8] via-[#5ecf96] to-[#3fb87f]",
           "shadow-[inset_0_-8px_0_rgba(0,0,0,0.08),0_8px_24px_rgba(47,120,90,0.25)]",
           angry ? "from-[#ff9f8a] via-[#f07d68] to-[#e85d4c]" : "",
@@ -188,9 +190,14 @@ function SlimeMonster({
           <span className="h-1.5 w-2 rounded-full bg-wood/70" />
           <span className="h-1.5 w-2 rounded-full bg-wood/70" />
         </div>
-        <p className="px-3 text-center font-display text-lg font-black leading-tight text-wood sm:text-xl">
-          {expression}
-        </p>
+        <div className="px-2 text-center text-wood">
+          <MathExpressionDisplay
+            left={problem.left}
+            op={problem.op}
+            right={problem.right}
+            size="md"
+          />
+        </div>
         <span className="mt-1 text-sm font-bold text-wood/60">= ?</span>
       </div>
       <div className="absolute -bottom-1 h-4 w-16 rounded-full bg-wood/15 blur-[2px]" />
@@ -224,8 +231,8 @@ function CrystalOrb({
       aria-label={`답 ${formatAnswer(answer)}`}
       className={[
         "absolute z-20 -translate-x-1/2 -translate-y-1/2",
-        "flex h-[4.25rem] w-[4.25rem] items-center justify-center rounded-full sm:h-[4.75rem] sm:w-[4.75rem]",
-        "font-display text-lg font-black tabular-nums shadow-lg transition active:scale-95 sm:text-xl",
+        "flex min-h-[4.75rem] min-w-[4.75rem] items-center justify-center rounded-full p-1.5 sm:min-h-[5.25rem] sm:min-w-[5.25rem]",
+        "shadow-lg transition active:scale-95",
         "bg-gradient-to-br from-sky/90 via-white to-mint/80 text-wood ring-2 ring-white/80",
         disabled ? "pointer-events-none opacity-70" : "hover:scale-105",
         flash === "correct"
@@ -236,7 +243,7 @@ function CrystalOrb({
       ].join(" ")}
       style={{ left: `${x}%`, top: `${y}%` }}
     >
-      <span className="max-w-[3.5rem] truncate px-1">{formatAnswer(answer)}</span>
+      <MathAnswerDisplay answer={answer} variant="answer" size="sm" />
     </button>
   );
 }
@@ -252,7 +259,6 @@ export default function SignSlimeRaid() {
   const [cleared, setCleared] = useState(0);
   const [maxStreak, setMaxStreak] = useState(0);
   const [problem, setProblem] = useState<Problem | null>(null);
-  const [roundTimeLeft, setRoundTimeLeft] = useState(12);
   const [gameTimeLeft, setGameTimeLeft] = useState(GAME_DURATION_SEC);
   const [slimeScale, setSlimeScale] = useState(1);
   const [orbitSlots, setOrbitSlots] = useState<OrbitSlot[]>(() =>
@@ -280,8 +286,8 @@ export default function SignSlimeRaid() {
   const streakRef = useRef(streak);
   const clearedRef = useRef(cleared);
   const problemRef = useRef(problem);
-  const roundTimeLeftRef = useRef(roundTimeLeft);
   const gameTimeLeftRef = useRef(gameTimeLeft);
+  const roundStartedAtRef = useRef(0);
   const selectedStagesRef = useRef(selectedStages);
   const startedAtRef = useRef(0);
   const resolvingRef = useRef(false);
@@ -295,7 +301,6 @@ export default function SignSlimeRaid() {
   streakRef.current = streak;
   clearedRef.current = cleared;
   problemRef.current = problem;
-  roundTimeLeftRef.current = roundTimeLeft;
   gameTimeLeftRef.current = gameTimeLeft;
   selectedStagesRef.current = selectedStages;
 
@@ -316,8 +321,7 @@ export default function SignSlimeRaid() {
       (Date.now() - startedAtRef.current) / 1000,
       clearedRef.current,
     );
-    setRoundTimeLeft(diff.roundTimeSec);
-    roundTimeLeftRef.current = diff.roundTimeSec;
+    roundStartedAtRef.current = Date.now();
     setSlimeScale(diff.slimeScale);
     setOrbitSlots(
       ORBIT_SPEEDS.map((speed, i) => ({
@@ -360,7 +364,7 @@ export default function SignSlimeRaid() {
   );
 
   const resolveAnswer = useCallback(
-    (picked: Answer, timedOut = false) => {
+    (picked: Answer) => {
       if (phaseRef.current !== "playing" || !problemRef.current) return;
       if (resolvingRef.current) return;
       resolvingRef.current = true;
@@ -368,8 +372,7 @@ export default function SignSlimeRaid() {
       setPhase("feedback");
 
       const currentProblem = problemRef.current;
-      const correct =
-        !timedOut && answersEqual(picked, currentProblem.answer);
+      const correct = answersEqual(picked, currentProblem.answer);
       setFlashOx(correct ? "O" : "X");
 
       let nextHp = hpRef.current;
@@ -384,12 +387,12 @@ export default function SignSlimeRaid() {
       setPickedIndex(idx >= 0 ? idx : null);
 
       if (correct) {
-        const timerRatio =
-          roundTimeLeftRef.current / Math.max(1, difficultyAt(0, 0).roundTimeSec);
+        const answerTimeSec =
+          (Date.now() - roundStartedAtRef.current) / 1000;
         const raw = pointsForCorrect(
           currentProblem.stageId,
           streakRef.current,
-          timerRatio,
+          answerTimeSec,
         );
         nextScore = applyScoreGain(scoreRef.current, raw);
         gained = nextScore - scoreRef.current;
@@ -401,11 +404,7 @@ export default function SignSlimeRaid() {
       } else {
         nextHp = hpRef.current - 1;
         nextStreak = 0;
-        setStatusMsg(
-          timedOut
-            ? `시간 초과! 정답은 ${formatAnswer(currentProblem.answer)}`
-            : `빗나감! 정답은 ${formatAnswer(currentProblem.answer)}`,
-        );
+        setStatusMsg(`빗나감! 정답은 ${formatAnswer(currentProblem.answer)}`);
       }
 
       setHp(nextHp);
@@ -485,19 +484,6 @@ export default function SignSlimeRaid() {
           }
           return next;
         });
-
-        setRoundTimeLeft((prev) => {
-          const next = Math.max(0, prev - dt);
-          roundTimeLeftRef.current = next;
-          if (next <= 0 && phaseRef.current === "playing" && problemRef.current) {
-            const wrong =
-              problemRef.current.choices.find(
-                (c) => !answersEqual(c, problemRef.current!.answer),
-              ) ?? problemRef.current.answer;
-            resolveAnswer(wrong, true);
-          }
-          return next;
-        });
       }
 
       rafRef.current = requestAnimationFrame(tick);
@@ -527,10 +513,6 @@ export default function SignSlimeRaid() {
     });
   };
 
-  const roundPct =
-    problem != null
-      ? (roundTimeLeft / Math.max(1, difficultyAt(0, 0).roundTimeSec)) * 100
-      : 100;
   const gamePct = (gameTimeLeft / GAME_DURATION_SEC) * 100;
 
   return (
@@ -541,9 +523,9 @@ export default function SignSlimeRaid() {
           부호 슬라임 대소동
         </h1>
         <p className="mt-3 max-w-2xl text-sm leading-relaxed text-foreground/75 sm:text-base">
-          슬라임 배에 뜬 수식과 같은 답이 적힌 수정구슬을 맞춰 공격하세요! 궤도를
-          도는 4개 구슬 중 정답을 빠르게 탭하면 콤보가 쌓여요. {GAME_DURATION_SEC}
-          초 동안 생존하거나, 생명 {START_HP}개를 모두 잃으면 게임이 끝나요.
+          슬라임 배에 뜬 수식과 같은 답이 적힌 수정구슬을 맞춰 공격하세요!{" "}
+          {GAME_DURATION_SEC}초 동안 최대한 많이 맞히고, 생명 {START_HP}개를 모두
+          잃으면 게임이 끝나요. 빠르게 맞출수록 보너스 점수가 올라가요.
         </p>
       </section>
 
@@ -567,7 +549,7 @@ export default function SignSlimeRaid() {
               <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-gold font-black text-wood">
                 3
               </span>
-              <span>빠르게 맞출수록 보너스! 오답·시간 초과 시 슬라임이 반격해요.</span>
+              <span>빠르게 맞출수록 보너스! 3번 틀리면 게임이 끝나요.</span>
             </li>
           </ol>
           <button
@@ -667,21 +649,12 @@ export default function SignSlimeRaid() {
               </div>
             </div>
 
-            <div className="space-y-1 border-b border-wood/10 px-4 py-2 sm:px-5">
+            <div className="border-b border-wood/10 px-4 py-2 sm:px-5">
               <div className="flex items-center justify-between text-xs font-semibold text-foreground/55">
-                <span>라운드 타이머</span>
-                <span>{Math.ceil(roundTimeLeft)}초</span>
+                <span>남은 시간</span>
+                <span>{Math.ceil(gameTimeLeft)}초</span>
               </div>
-              <div className="h-2 overflow-hidden rounded-full bg-wood/10">
-                <div
-                  className={[
-                    "h-full rounded-full transition-[width] duration-100",
-                    roundPct < 30 ? "bg-[#e85d4c]" : "bg-mint",
-                  ].join(" ")}
-                  style={{ width: `${roundPct}%` }}
-                />
-              </div>
-              <div className="h-1 overflow-hidden rounded-full bg-wood/5">
+              <div className="mt-1 h-2 overflow-hidden rounded-full bg-wood/10">
                 <div
                   className="h-full rounded-full bg-sky/70 transition-[width] duration-100"
                   style={{ width: `${gamePct}%` }}
@@ -706,7 +679,7 @@ export default function SignSlimeRaid() {
               <div className="absolute left-1/2 top-1/2 z-10 -translate-x-1/2 -translate-y-1/2">
                 {problem ? (
                   <SlimeMonster
-                    expression={problem.expression}
+                    problem={problem}
                     scale={slimeScale}
                     hit={slimeHit}
                     angry={phase === "feedback" && feedback != null && !feedback.correct}

@@ -4,7 +4,12 @@ import { gcd } from "@/lib/repeating-decimal-math";
 
 export const GAME_DURATION_SEC = 180;
 export const START_HP = 3;
-export const ROUND_TIME_SEC = 12;
+/** Full speed bonus when answered within this many seconds. */
+export const SPEED_BONUS_FULL_SEC = 3;
+/** No speed bonus after this many seconds (no per-round limit). */
+export const SPEED_BONUS_ZERO_SEC = 20;
+
+export type MathOp = "+" | "−" | "×" | "÷";
 
 export type StageId =
   | "int_add"
@@ -63,14 +68,16 @@ export type Answer =
 
 export type Problem = {
   stageId: StageId;
+  left: Answer;
+  op: MathOp;
+  right: Answer;
+  /** Plain-text for a11y and status messages. */
   expression: string;
   answer: Answer;
   choices: Answer[];
 };
 
 export type Difficulty = {
-  /** Round timer in seconds (shrinks as play progresses). */
-  roundTimeSec: number;
   /** Slime scale 1.0 – 1.35 */
   slimeScale: number;
 };
@@ -162,15 +169,29 @@ export function formatAnswer(a: Answer): string {
   return `${sign}${Math.abs(s.num)}/${s.den}`;
 }
 
-const OP_SYMBOL: Record<"+" | "−" | "×" | "÷", string> = {
+const OP_SYMBOL: Record<MathOp, string> = {
   "+": "+",
   "−": "−",
   "×": "×",
   "÷": "÷",
 };
 
-function makeExpression(left: Answer, op: "+" | "−" | "×" | "÷", right: Answer): string {
-  return `${formatOperand(left)} ${OP_SYMBOL[op]} ${formatOperand(right)}`;
+function makeProblem(
+  stageId: StageId,
+  left: Answer,
+  op: MathOp,
+  right: Answer,
+  answer: Answer,
+): Problem {
+  return {
+    stageId,
+    left,
+    op,
+    right,
+    expression: `${formatOperand(left)} ${OP_SYMBOL[op]} ${formatOperand(right)}`,
+    answer,
+    choices: buildChoices(answer),
+  };
 }
 
 function intAnswer(n: number): Answer {
@@ -239,51 +260,29 @@ function divAnswers(a: Answer, b: Answer): Answer {
 function dealIntAdd(): Problem {
   const left = intAnswer(randomInt(-20, 20));
   const right = intAnswer(randomInt(-20, 20));
-  const answer = addAnswers(left, right);
-  return {
-    stageId: "int_add",
-    expression: makeExpression(left, "+", right),
-    answer,
-    choices: buildChoices(answer),
-  };
+  return makeProblem("int_add", left, "+", right, addAnswers(left, right));
 }
 
 function dealIntAddSub(): Problem {
   const left = intAnswer(randomInt(-20, 20));
   const right = intAnswer(randomInt(-20, 20));
-  const op = Math.random() < 0.5 ? "+" : "−";
+  const op: MathOp = Math.random() < 0.5 ? "+" : "−";
   const answer = op === "+" ? addAnswers(left, right) : subAnswers(left, right);
-  return {
-    stageId: "int_add_sub",
-    expression: makeExpression(left, op, right),
-    answer,
-    choices: buildChoices(answer),
-  };
+  return makeProblem("int_add_sub", left, op, right, answer);
 }
 
 function dealRationalAddSub(): Problem {
   const left = randomFraction();
   const right = randomFraction();
-  const op = Math.random() < 0.5 ? "+" : "−";
+  const op: MathOp = Math.random() < 0.5 ? "+" : "−";
   const answer = op === "+" ? addAnswers(left, right) : subAnswers(left, right);
-  return {
-    stageId: "rational_add_sub",
-    expression: makeExpression(left, op, right),
-    answer,
-    choices: buildChoices(answer),
-  };
+  return makeProblem("rational_add_sub", left, op, right, answer);
 }
 
 function dealIntMul(): Problem {
   const left = intAnswer(randomInt(-12, 12));
   const right = intAnswer(randomInt(-12, 12));
-  const answer = mulAnswers(left, right);
-  return {
-    stageId: "int_mul",
-    expression: makeExpression(left, "×", right),
-    answer,
-    choices: buildChoices(answer),
-  };
+  return makeProblem("int_mul", left, "×", right, mulAnswers(left, right));
 }
 
 function dealIntDiv(): Problem {
@@ -292,26 +291,15 @@ function dealIntDiv(): Problem {
   const dividend = divisor * quotient;
   const left = intAnswer(dividend);
   const right = intAnswer(divisor);
-  const answer = intAnswer(quotient);
-  return {
-    stageId: "int_div",
-    expression: makeExpression(left, "÷", right),
-    answer,
-    choices: buildChoices(answer),
-  };
+  return makeProblem("int_div", left, "÷", right, intAnswer(quotient));
 }
 
 function dealRationalMulDiv(): Problem {
   const left = randomFraction();
   const right = randomFraction();
-  const op = Math.random() < 0.5 ? "×" : "÷";
+  const op: MathOp = Math.random() < 0.5 ? "×" : "÷";
   const answer = op === "×" ? mulAnswers(left, right) : divAnswers(left, right);
-  return {
-    stageId: "rational_mul_div",
-    expression: makeExpression(left, op, right),
-    answer,
-    choices: buildChoices(answer),
-  };
+  return makeProblem("rational_mul_div", left, op, right, answer);
 }
 
 const DEALERS: Record<StageId, () => Problem> = {
@@ -399,14 +387,24 @@ const BASE_POINTS: Record<StageId, number> = {
   rational_mul_div: 42,
 };
 
+/** Bonus 0–10 from how quickly the player answered (no round time limit). */
+export function speedBonusFor(answerTimeSec: number): number {
+  const t = Math.max(0, answerTimeSec);
+  if (t <= SPEED_BONUS_FULL_SEC) return 10;
+  if (t >= SPEED_BONUS_ZERO_SEC) return 0;
+  const ratio =
+    (t - SPEED_BONUS_FULL_SEC) / (SPEED_BONUS_ZERO_SEC - SPEED_BONUS_FULL_SEC);
+  return Math.round(10 * (1 - ratio));
+}
+
 export function pointsForCorrect(
   stageId: StageId,
   streakBefore: number,
-  timerRatio: number,
+  answerTimeSec: number,
 ): number {
   const base = BASE_POINTS[stageId];
   const streakBonus = Math.min(streakBefore, 12) * 2;
-  const speedBonus = Math.round(Math.max(0, Math.min(1, timerRatio)) * 8);
+  const speedBonus = speedBonusFor(answerTimeSec);
   return base + streakBonus + speedBonus;
 }
 
@@ -414,9 +412,8 @@ export function difficultyAt(elapsedSec: number, cleared: number): Difficulty {
   const t = Math.max(0, elapsedSec);
   const c = Math.max(0, cleared);
   const progress = Math.min(1, t / GAME_DURATION_SEC + c / 55);
-  const roundTimeSec = Math.max(5.5, ROUND_TIME_SEC - progress * 5);
   const slimeScale = 1 + progress * 0.35;
-  return { roundTimeSec, slimeScale };
+  return { slimeScale };
 }
 
 export function clampScore(score: number): number {
