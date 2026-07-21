@@ -1,4 +1,5 @@
 import "server-only";
+import { cache } from "react";
 import { createClient } from "@/lib/supabase/server";
 import {
   getStudentSession,
@@ -63,7 +64,7 @@ function isNextControlFlowError(error: unknown): boolean {
  * Uses getUser() (validated) rather than getSession().
  * Prefer getActor() when student sessions also matter.
  */
-export async function getDisplayUser(): Promise<DisplayUser | null> {
+export const getDisplayUser = cache(async (): Promise<DisplayUser | null> => {
   try {
     const supabase = await createClient();
     const {
@@ -82,7 +83,7 @@ export async function getDisplayUser(): Promise<DisplayUser | null> {
     console.error("[pm] getDisplayUser failed:", error);
     return null;
   }
-}
+});
 
 function studentToActor(
   session: StudentSessionPayload,
@@ -106,7 +107,7 @@ function studentToActor(
  * Teacher Supabase session takes precedence over student cookie
  * when both somehow exist.
  */
-export async function getActor(): Promise<Actor | null> {
+export const getActor = cache(async (): Promise<Actor | null> => {
   try {
     const teacher = await getDisplayUser();
     if (teacher) {
@@ -128,7 +129,7 @@ export async function getActor(): Promise<Actor | null> {
     console.error("[pm] getActor failed:", error);
     return null;
   }
-}
+});
 
 export async function requireTeacher(): Promise<TeacherActor> {
   const actor = await getActor();
@@ -147,9 +148,11 @@ export async function requireStudent(): Promise<StudentActor> {
 }
 
 /** Keep logged-in students inside the /adventure shell. */
-export async function redirectStudentToAdventure(): Promise<void> {
-  const actor = await getActor();
-  if (actor?.type === "student") {
+export async function redirectStudentToAdventure(
+  actor?: Actor | null,
+): Promise<void> {
+  const resolved = actor !== undefined ? actor : await getActor();
+  if (resolved?.type === "student") {
     const { redirect } = await import("next/navigation");
     redirect("/adventure");
   }

@@ -27,7 +27,6 @@ export default function TopMenuBar({
             width={40}
             height={40}
             className="h-9 w-9 rounded-full border-2 border-white/40 object-cover shadow sm:h-10 sm:w-10"
-            priority
           />
           <div className="hidden leading-tight sm:block">
             <p className="font-display text-base text-cream drop-shadow-sm sm:text-lg">

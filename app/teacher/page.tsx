@@ -28,15 +28,20 @@ export default async function TeacherPage() {
   let counts: Record<string, number> = {};
 
   if (classIds.length > 0) {
-    const { data: students } = await supabase
-      .from("pm_students")
-      .select("class_id")
-      .in("class_id", classIds);
-
-    counts = (students ?? []).reduce<Record<string, number>>((acc, s) => {
-      acc[s.class_id] = (acc[s.class_id] ?? 0) + 1;
-      return acc;
-    }, {});
+    const countResults = await Promise.all(
+      classIds.map(async (classId) => {
+        const { count, error: countError } = await supabase
+          .from("pm_students")
+          .select("*", { count: "exact", head: true })
+          .eq("class_id", classId);
+        if (countError) {
+          console.error("[pm] count students failed:", countError.message);
+          return [classId, 0] as const;
+        }
+        return [classId, count ?? 0] as const;
+      }),
+    );
+    counts = Object.fromEntries(countResults);
   }
 
   return (

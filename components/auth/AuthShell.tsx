@@ -25,7 +25,6 @@ export default function AuthShell({
             fill
             sizes="112px"
             className="object-contain"
-            priority
           />
         </div>
         <h1 className="font-display text-2xl text-foreground sm:text-3xl">
