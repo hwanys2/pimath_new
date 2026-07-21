@@ -748,34 +748,6 @@ export default function BallBoxGuess({
                     </button>
                   </div>
                 </div>
-                {state.revealedAnswer && (
-                  <div className="rounded-xl bg-peach/25 p-3">
-                    <p className="text-xs text-foreground/60">
-                      상자 구성 (교사만 보임)
-                    </p>
-                    <div className="mt-2 flex flex-wrap gap-2">
-                      {state.answerColors.map((key) => {
-                        const meta = getBallColor(key);
-                        if (!meta) return null;
-                        return (
-                          <span
-                            key={key}
-                            className="flex items-center gap-1.5 rounded-lg bg-white/80 px-2 py-1 text-sm"
-                          >
-                            <span
-                              className="h-4 w-4 rounded-full border border-white"
-                              style={{ backgroundColor: meta.hex }}
-                            />
-                            {meta.label}{" "}
-                            <strong className="text-wood">
-                              {state.revealedAnswer?.[key] ?? 0}
-                            </strong>
-                          </span>
-                        );
-                      })}
-                    </div>
-                  </div>
-                )}
               </div>
             )}
 

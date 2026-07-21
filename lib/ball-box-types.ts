@@ -26,7 +26,7 @@ export type BallBoxPollState = {
   total: number;
   /** Colors students must guess (public — keys only). */
   answerColors: BallColorKey[];
-  /** Full composition, only present when phase === "revealed" (students) or always (teacher). */
+  /** Full composition, only present when phase === "revealed". */
   revealedAnswer: BallCounts | null;
   /** Guest join code (teacher/guest poll only). */
   joinCode: string | null;
