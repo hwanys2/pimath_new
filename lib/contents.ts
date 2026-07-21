@@ -148,6 +148,16 @@ export const CONTENTS: ContentMeta[] = [
     description:
       "교사가 숨긴 색깔 공 상자에서 복원추출로 공을 뽑으며 색깔별 개수를 추정해 맞히는 확률 게임. 빠르게 맞힐수록 높은 점수! 학급 배정·활성 시 XP와 랭킹이 쌓여요.",
   },
+  {
+    key: "g3-u1-square-maker",
+    unitId: "g3-1",
+    type: "game",
+    title: "정사각형 만들기",
+    href: "/play/g3-u1-square-maker",
+    awardsXp: true,
+    description:
+      "가위바위보로 선공을 정하고, 격자에 돌을 두어 먼저 정사각형을 완성하는 게임입니다. 컴퓨터·같은 반·전체 매칭. 학급 배정·활성 시 XP와 랭킹이 쌓여요.",
+  },
 ];
 
 export function getContent(key: string): ContentMeta | undefined {
