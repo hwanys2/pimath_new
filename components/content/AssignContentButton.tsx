@@ -54,20 +54,23 @@ export default function AssignContentButton({
       );
       if (!ok) return;
 
+      setAssigned((prev) => {
+        const next = new Set(prev);
+        next.delete(klass.id);
+        return next;
+      });
+      setFeedback({});
+
       startTransition(async () => {
         const fd = new FormData();
         fd.set("classId", klass.id);
         fd.set("contentKey", contentKey);
         const result = await unassignContentFromClass({}, fd);
         if (result.error) {
+          setAssigned((prev) => new Set(prev).add(klass.id));
           setFeedback({ error: result.error });
           return;
         }
-        setAssigned((prev) => {
-          const next = new Set(prev);
-          next.delete(klass.id);
-          return next;
-        });
         setFeedback({
           message: result.message ?? "배정을 취소했어요.",
         });
@@ -75,16 +78,23 @@ export default function AssignContentButton({
       return;
     }
 
+    setAssigned((prev) => new Set(prev).add(klass.id));
+    setFeedback({});
+
     startTransition(async () => {
       const fd = new FormData();
       fd.set("classId", klass.id);
       fd.set("contentKey", contentKey);
       const result = await assignContentToClassActive({}, fd);
       if (result.error) {
+        setAssigned((prev) => {
+          const next = new Set(prev);
+          next.delete(klass.id);
+          return next;
+        });
         setFeedback({ error: result.error });
         return;
       }
-      setAssigned((prev) => new Set(prev).add(klass.id));
       setFeedback({
         message: result.message ?? "학급에 배정했어요.",
       });

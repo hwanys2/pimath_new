@@ -41,17 +41,19 @@ export default async function ClassDetailPage({ params }: Props) {
     notFound();
   }
 
-  const { data: students, error: studentError } = await supabase
-    .from("pm_students")
-    .select("id, display_name, login_id, level, total_xp")
-    .eq("class_id", classId)
-    .order("display_name", { ascending: true });
+  const [{ data: students, error: studentError }, assignments] =
+    await Promise.all([
+      supabase
+        .from("pm_students")
+        .select("id, display_name, login_id, level, total_xp")
+        .eq("class_id", classId)
+        .order("display_name", { ascending: true }),
+      fetchClassContentAssignments(classId),
+    ]);
 
   if (studentError) {
     console.error("[pm] load students failed:", studentError.message);
   }
-
-  const assignments = await fetchClassContentAssignments(classId);
 
   return (
     <div className="flex flex-col gap-8">

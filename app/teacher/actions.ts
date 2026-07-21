@@ -279,25 +279,19 @@ export async function bulkCreateStudents(
   };
 }
 
-async function assertClassOwned(
-  supabase: Awaited<ReturnType<typeof createClient>>,
-  classId: string,
-  teacherId: string,
-): Promise<boolean> {
-  const { data } = await supabase
-    .from("pm_classes")
-    .select("id")
-    .eq("id", classId)
-    .eq("teacher_id", teacherId)
-    .maybeSingle();
-  return Boolean(data);
+function mapClassContentError(error: { message: string }): ActionResult {
+  const msg = mapDbError(error.message);
+  if (msg.includes("not found") || msg.includes("not owned") || msg.includes("permission")) {
+    return { error: "학급을 찾을 수 없어요." };
+  }
+  return { error: msg };
 }
 
 export async function assignContentToClass(
   _prev: ActionResult,
   formData: FormData,
 ): Promise<ActionResult> {
-  const teacher = await requireTeacher();
+  await requireTeacher();
   const classId = String(formData.get("classId") ?? "");
   const contentKey = String(formData.get("contentKey") ?? "").trim();
 
@@ -309,10 +303,6 @@ export async function assignContentToClass(
   }
 
   const supabase = await createClient();
-  if (!(await assertClassOwned(supabase, classId, teacher.id))) {
-    return { error: "학급을 찾을 수 없어요." };
-  }
-
   const { error } = await supabase.from("pm_class_contents").insert({
     class_id: classId,
     content_key: contentKey,
@@ -321,11 +311,10 @@ export async function assignContentToClass(
 
   if (error) {
     console.error("[pm] assignContentToClass failed:", error.message);
-    return { error: mapDbError(error.message) };
+    return mapClassContentError(error);
   }
 
   revalidatePath(`/teacher/classes/${classId}`);
-  revalidatePath("/adventure");
   return { message: "학급에 콘텐츠를 담아 두었어요." };
 }
 
@@ -333,17 +322,13 @@ export async function unassignContentFromClass(
   _prev: ActionResult,
   formData: FormData,
 ): Promise<ActionResult> {
-  const teacher = await requireTeacher();
+  await requireTeacher();
   const classId = String(formData.get("classId") ?? "");
   const contentKey = String(formData.get("contentKey") ?? "").trim();
 
   if (!classId || !contentKey) return { error: "콘텐츠 정보가 없어요." };
 
   const supabase = await createClient();
-  if (!(await assertClassOwned(supabase, classId, teacher.id))) {
-    return { error: "학급을 찾을 수 없어요." };
-  }
-
   const { error } = await supabase
     .from("pm_class_contents")
     .delete()
@@ -352,11 +337,10 @@ export async function unassignContentFromClass(
 
   if (error) {
     console.error("[pm] unassignContentFromClass failed:", error.message);
-    return { error: mapDbError(error.message) };
+    return mapClassContentError(error);
   }
 
   revalidatePath(`/teacher/classes/${classId}`);
-  revalidatePath("/adventure");
   return { message: "학급에서 콘텐츠를 빼 두었어요." };
 }
 
@@ -364,7 +348,7 @@ export async function setClassContentActive(
   _prev: ActionResult,
   formData: FormData,
 ): Promise<ActionResult> {
-  const teacher = await requireTeacher();
+  await requireTeacher();
   const classId = String(formData.get("classId") ?? "");
   const contentKey = String(formData.get("contentKey") ?? "").trim();
   const activeRaw = String(formData.get("isActive") ?? "");
@@ -373,10 +357,6 @@ export async function setClassContentActive(
   if (!classId || !contentKey) return { error: "콘텐츠 정보가 없어요." };
 
   const supabase = await createClient();
-  if (!(await assertClassOwned(supabase, classId, teacher.id))) {
-    return { error: "학급을 찾을 수 없어요." };
-  }
-
   const { error } = await supabase
     .from("pm_class_contents")
     .update({ is_active: isActive })
@@ -385,11 +365,10 @@ export async function setClassContentActive(
 
   if (error) {
     console.error("[pm] setClassContentActive failed:", error.message);
-    return { error: mapDbError(error.message) };
+    return mapClassContentError(error);
   }
 
   revalidatePath(`/teacher/classes/${classId}`);
-  revalidatePath("/adventure");
   return {
     message: isActive
       ? "콘텐츠를 활성화했어요. 학생 목록에서 플레이할 수 있어요."
@@ -405,7 +384,7 @@ export async function assignContentToClassActive(
   _prev: ActionResult,
   formData: FormData,
 ): Promise<ActionResult> {
-  const teacher = await requireTeacher();
+  await requireTeacher();
   const classId = String(formData.get("classId") ?? "");
   const contentKey = String(formData.get("contentKey") ?? "").trim();
 
@@ -417,51 +396,21 @@ export async function assignContentToClassActive(
   }
 
   const supabase = await createClient();
-  if (!(await assertClassOwned(supabase, classId, teacher.id))) {
-    return { error: "학급을 찾을 수 없어요." };
-  }
-
-  const { data: existing } = await supabase
-    .from("pm_class_contents")
-    .select("id, is_active")
-    .eq("class_id", classId)
-    .eq("content_key", contentKey)
-    .maybeSingle();
-
-  if (existing) {
-    if (existing.is_active) {
-      revalidatePath(`/teacher/classes/${classId}`);
-      revalidatePath("/adventure");
-      return { message: "이미 이 학급에 배정·활성화되어 있어요." };
-    }
-    const { error } = await supabase
-      .from("pm_class_contents")
-      .update({ is_active: true })
-      .eq("id", existing.id);
-    if (error) {
-      console.error("[pm] assignContentToClassActive update failed:", error.message);
-      return { error: mapDbError(error.message) };
-    }
-    revalidatePath(`/teacher/classes/${classId}`);
-    revalidatePath("/adventure");
-    return {
-      message: "이미 담아둔 학급이에요. 활성화했어요.",
-    };
-  }
-
-  const { error } = await supabase.from("pm_class_contents").insert({
-    class_id: classId,
-    content_key: contentKey,
-    is_active: true,
-  });
+  const { error } = await supabase.from("pm_class_contents").upsert(
+    {
+      class_id: classId,
+      content_key: contentKey,
+      is_active: true,
+    },
+    { onConflict: "class_id,content_key" },
+  );
 
   if (error) {
-    console.error("[pm] assignContentToClassActive insert failed:", error.message);
-    return { error: mapDbError(error.message) };
+    console.error("[pm] assignContentToClassActive failed:", error.message);
+    return mapClassContentError(error);
   }
 
   revalidatePath(`/teacher/classes/${classId}`);
-  revalidatePath("/adventure");
   return {
     message: "학급에 배정하고 활성화했어요. 학생이 목록에서 플레이할 수 있어요.",
   };

@@ -61,22 +61,23 @@ function isNextControlFlowError(error: unknown): boolean {
 
 /**
  * Returns the current signed-in teacher for display, or null.
- * Uses getUser() (validated) rather than getSession().
+ * Uses getClaims() (local JWT validation) — proxy already refreshes the session.
  * Prefer getActor() when student sessions also matter.
  */
 export const getDisplayUser = cache(async (): Promise<DisplayUser | null> => {
   try {
     const supabase = await createClient();
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
+    const { data } = await supabase.auth.getClaims();
+    const claims = data?.claims;
+    if (!claims?.sub) return null;
 
-    if (!user) return null;
+    const meta = claims.user_metadata as Record<string, unknown> | undefined;
+    const email = (claims.email as string | undefined) ?? null;
 
     return {
-      id: user.id,
-      email: user.email ?? null,
-      name: pickName(user.email, user.user_metadata),
+      id: claims.sub,
+      email,
+      name: pickName(email, meta),
     };
   } catch (error) {
     if (isNextControlFlowError(error)) throw error;

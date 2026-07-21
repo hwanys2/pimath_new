@@ -40,16 +40,15 @@ export default async function AdventurePage() {
   const equipped = getEquippedCosmetics(level);
   const unlockedCosmeticIds = getUnlockedCosmetics(level).map((c) => c.id);
 
-  const assignedContents = session
-    ? await fetchMyClassContents(session.sessionToken)
-    : [];
-
-  const xpRanking = session
-    ? await fetchXpRanking({
-        scope: "class",
-        sessionToken: session.sessionToken,
-      })
-    : [];
+  const [assignedContents, xpRanking] = session
+    ? await Promise.all([
+        fetchMyClassContents(session.sessionToken),
+        fetchXpRanking({
+          scope: "class",
+          sessionToken: session.sessionToken,
+        }),
+      ])
+    : [[], []];
 
   return (
     <div className="flex flex-col gap-8">

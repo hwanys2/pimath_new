@@ -1,4 +1,5 @@
 import "server-only";
+import { cache } from "react";
 import { createClient } from "@/lib/supabase/server";
 import { getStudentSessionToken } from "@/lib/student-session";
 import { scoreToXp } from "@/lib/xp";
@@ -29,48 +30,48 @@ function firstRow<T>(data: T | T[] | null): T | null {
   return Array.isArray(data) ? (data[0] ?? null) : data;
 }
 
-export async function fetchStudentProgress(
-  sessionToken?: string | null,
-): Promise<StudentProgress | null> {
-  const token = sessionToken ?? (await getStudentSessionToken());
-  if (!token) return null;
+export const fetchStudentProgress = cache(
+  async (sessionToken?: string | null): Promise<StudentProgress | null> => {
+    const token = sessionToken ?? (await getStudentSessionToken());
+    if (!token) return null;
 
-  const supabase = await createClient();
-  const { data, error } = await supabase.rpc("pm_get_student_progress", {
-    p_session_token: token,
-  });
+    const supabase = await createClient();
+    const { data, error } = await supabase.rpc("pm_get_student_progress", {
+      p_session_token: token,
+    });
 
-  if (error) {
-    console.error("[pm] pm_get_student_progress failed:", error.message);
-    return null;
-  }
+    if (error) {
+      console.error("[pm] pm_get_student_progress failed:", error.message);
+      return null;
+    }
 
-  const row = firstRow(data) as {
-    id: string;
-    login_id: string;
-    display_name: string;
-    class_id: string;
-    class_name: string;
-    teacher_id: string;
-    total_xp: number | string;
-    level: number;
-    active_avatar: string;
-  } | null;
+    const row = firstRow(data) as {
+      id: string;
+      login_id: string;
+      display_name: string;
+      class_id: string;
+      class_name: string;
+      teacher_id: string;
+      total_xp: number | string;
+      level: number;
+      active_avatar: string;
+    } | null;
 
-  if (!row) return null;
+    if (!row) return null;
 
-  return {
-    id: row.id,
-    loginId: row.login_id,
-    displayName: row.display_name,
-    classId: row.class_id,
-    className: row.class_name,
-    teacherId: row.teacher_id,
-    totalXp: Number(row.total_xp),
-    level: row.level,
-    activeAvatar: row.active_avatar,
-  };
-}
+    return {
+      id: row.id,
+      loginId: row.login_id,
+      displayName: row.display_name,
+      classId: row.class_id,
+      className: row.class_name,
+      teacherId: row.teacher_id,
+      totalXp: Number(row.total_xp),
+      level: row.level,
+      activeAvatar: row.active_avatar,
+    };
+  },
+);
 
 /**
  * Award XP from a finished **game** run (not simulations).
