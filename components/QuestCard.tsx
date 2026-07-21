@@ -1,5 +1,6 @@
 import Image from "next/image";
 import type { GradeMeta } from "@/lib/grades";
+import { getBookPromo } from "@/lib/book-promos";
 import { getUnitsForGrade, getUnitLabel } from "@/lib/curriculum";
 import { getContentsForUnit } from "@/lib/contents";
 import BlockButton from "./BlockButton";
@@ -12,6 +13,7 @@ export default function QuestCard({ grade }: Props) {
   const units = getUnitsForGrade(grade.id);
   const readyUnits = units.filter((u) => getContentsForUnit(u.id).length > 0);
   const preview = (readyUnits.length > 0 ? readyUnits : units).slice(0, 3);
+  const bookPromo = getBookPromo(grade.id);
 
   return (
     <article className="quest-card flex flex-col overflow-hidden">
@@ -76,6 +78,34 @@ export default function QuestCard({ grade }: Props) {
           >
             {grade.label} 입장하기
           </BlockButton>
+
+          {bookPromo.kind === "link" ? (
+            <a
+              href={bookPromo.href}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="group mt-3 block"
+            >
+              <div className="relative h-20 w-full overflow-hidden rounded-xl border border-wood/15 bg-white/60">
+                <Image
+                  src={bookPromo.imageUrl}
+                  alt={bookPromo.label}
+                  fill
+                  className="object-contain p-1 transition group-hover:scale-[1.02]"
+                  sizes="(max-width: 640px) 100vw, 320px"
+                />
+              </div>
+              <p className="mt-1.5 text-center text-xs font-semibold text-foreground/70 transition group-hover:text-foreground/90">
+                {bookPromo.label}
+              </p>
+            </a>
+          ) : (
+            <div className="mt-3 flex h-20 items-center justify-center rounded-xl bg-wood/5 px-3">
+              <p className="text-center text-sm text-foreground/50">
+                {bookPromo.message}
+              </p>
+            </div>
+          )}
         </div>
       </div>
     </article>
