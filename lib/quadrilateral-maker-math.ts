@@ -312,50 +312,223 @@ export function pickRandomLegalMove(
   return shuffled[0] ?? null;
 }
 
-/** Simple AI: win → block opponent win → extend toward shape → random. */
-export function chooseAiMove(
+function parallelogramCompletions(a: Point, b: Point, c: Point): Point[] {
+  return [
+    { x: a.x + b.x - c.x, y: a.y + b.y - c.y },
+    { x: a.x + c.x - b.x, y: a.y + c.y - b.y },
+    { x: b.x + c.x - a.x, y: b.y + c.y - a.y },
+  ];
+}
+
+/**
+ * Empty, in-bounds cells that immediately complete `shape` for `stone`.
+ * Every target shape is a parallelogram, so given 3 stones the 4th vertex is
+ * one of only three candidates — no need to brute-force every empty cell.
+ */
+export function winningCells(
   board: BoardMap,
   stone: Stone,
-  myShape: QuadShape,
-  oppShape: QuadShape,
-): Point | null {
+  shape: QuadShape,
+): Point[] {
+  const mine = stonesForPlayer(board, stone);
+  if (mine.length < 3) return [];
+  const seen = new Set<string>();
+  const out: Point[] = [];
+  for (let i = 0; i < mine.length; i++) {
+    for (let j = i + 1; j < mine.length; j++) {
+      for (let k = j + 1; k < mine.length; k++) {
+        for (const p of parallelogramCompletions(
+          mine[i]!,
+          mine[j]!,
+          mine[k]!,
+        )) {
+          if (!inBounds(p.x, p.y) || getStone(board, p.x, p.y)) continue;
+          const key = coordKey(p.x, p.y);
+          if (seen.has(key)) continue;
+          if (fourPointsFormShape([mine[i]!, mine[j]!, mine[k]!, p], shape)) {
+            seen.add(key);
+            out.push(p);
+          }
+        }
+      }
+    }
+  }
+  return out;
+}
+
+function emptyCells(board: BoardMap): Point[] {
   const empty: Point[] = [];
   for (let x = BOARD_MIN; x <= BOARD_MAX; x++) {
     for (let y = BOARD_MIN; y <= BOARD_MAX; y++) {
       if (!getStone(board, x, y)) empty.push({ x, y });
     }
   }
+  return empty;
+}
+
+/** Empty cells within Chebyshev distance `radius` of any placed stone. */
+function candidateCells(board: BoardMap, radius = 2): Point[] {
+  if (board.size === 0) {
+    const mid = Math.floor(BOARD_SIZE / 2);
+    return [{ x: mid, y: mid }];
+  }
+  const stones: Point[] = [];
+  for (const [k] of board) stones.push(parseKey(k));
+  const out: Point[] = [];
+  for (let x = BOARD_MIN; x <= BOARD_MAX; x++) {
+    for (let y = BOARD_MIN; y <= BOARD_MAX; y++) {
+      if (getStone(board, x, y)) continue;
+      let near = false;
+      for (const s of stones) {
+        if (Math.abs(s.x - x) <= radius && Math.abs(s.y - y) <= radius) {
+          near = true;
+          break;
+        }
+      }
+      if (near) out.push({ x, y });
+    }
+  }
+  return out;
+}
+
+function placedBoard(board: BoardMap, p: Point, stone: Stone): BoardMap {
+  const next = cloneBoard(board);
+  next.set(coordKey(p.x, p.y), stone);
+  return next;
+}
+
+/**
+ * Count triples of `stone`'s stones whose parallelogram completion is an
+ * in-bounds empty cell and forms `shape` — i.e. developing (near-complete)
+ * configurations that could become threats.
+ */
+function developmentScore(
+  board: BoardMap,
+  stone: Stone,
+  shape: QuadShape,
+): number {
+  const mine = stonesForPlayer(board, stone);
+  if (mine.length < 3) {
+    // With <3 stones, reward tight, aligned clusters that can still form shapes.
+    let s = 0;
+    for (let i = 0; i < mine.length; i++) {
+      for (let j = i + 1; j < mine.length; j++) {
+        const d = Math.abs(mine[i]!.x - mine[j]!.x) +
+          Math.abs(mine[i]!.y - mine[j]!.y);
+        if (d > 0 && d <= 8) s += (8 - d) * 0.1;
+      }
+    }
+    return s;
+  }
+  let score = 0;
+  const seen = new Set<string>();
+  for (let i = 0; i < mine.length; i++) {
+    for (let j = i + 1; j < mine.length; j++) {
+      for (let k = j + 1; k < mine.length; k++) {
+        for (const p of parallelogramCompletions(
+          mine[i]!,
+          mine[j]!,
+          mine[k]!,
+        )) {
+          if (!inBounds(p.x, p.y) || getStone(board, p.x, p.y)) continue;
+          const key = `${i}-${coordKey(p.x, p.y)}`;
+          if (seen.has(key)) continue;
+          if (fourPointsFormShape([mine[i]!, mine[j]!, mine[k]!, p], shape)) {
+            seen.add(key);
+            score += 1;
+          }
+        }
+      }
+    }
+  }
+  return score;
+}
+
+/**
+ * Threat-aware AI: win → block win → make a double threat → block the
+ * opponent's double threat → positional build toward the target shape.
+ */
+export function chooseAiMove(
+  board: BoardMap,
+  stone: Stone,
+  myShape: QuadShape,
+  oppShape: QuadShape,
+): Point | null {
+  const empty = emptyCells(board);
   if (empty.length === 0) return null;
 
-  const winMoves: Point[] = [];
-  const blockMoves: Point[] = [];
-  for (const p of empty) {
-    const mine = tryPlace(board, p.x, p.y, stone, myShape);
-    if (mine.ok && mine.won) winMoves.push(p);
-    const block = tryPlace(board, p.x, p.y, opponent(stone), oppShape);
-    if (block.ok && block.won) blockMoves.push(p);
-  }
-  if (winMoves.length > 0) {
-    return winMoves[Math.floor(Math.random() * winMoves.length)]!;
-  }
-  if (blockMoves.length > 0) {
-    return blockMoves[Math.floor(Math.random() * blockMoves.length)]!;
+  const opp = opponent(stone);
+
+  // 1. Immediate win.
+  const myWins = winningCells(board, stone, myShape);
+  if (myWins.length > 0) {
+    return myWins[Math.floor(Math.random() * myWins.length)]!;
   }
 
-  const myStones = stonesForPlayer(board, stone);
-  if (myStones.length > 0 && myStones.length < 4) {
-    const scored = empty.map((p) => {
-      let score = Math.random() * 2;
-      for (const s of myStones) {
-        score -= Math.abs(p.x - s.x) + Math.abs(p.y - s.y);
-      }
-      return { p, score };
-    });
-    scored.sort((a, b) => b.score - a.score);
-    return scored[0]?.p ?? empty[0]!;
+  // 2. Block the opponent's immediate win.
+  const oppWins = winningCells(board, opp, oppShape);
+  if (oppWins.length > 0) {
+    return oppWins[Math.floor(Math.random() * oppWins.length)]!;
   }
 
-  return empty[Math.floor(Math.random() * empty.length)]!;
+  const cands = candidateCells(board);
+  const pool = cands.length > 0 ? cands : empty;
+
+  // 3. Create a double threat (forced win next turn), if it doesn't hand the
+  //    opponent an immediate win in return.
+  const doubleThreats: Point[] = [];
+  for (const q of pool) {
+    const nb = placedBoard(board, q, stone);
+    if (winningCells(nb, stone, myShape).length >= 2) {
+      if (winningCells(nb, opp, oppShape).length === 0) doubleThreats.push(q);
+    }
+  }
+  if (doubleThreats.length > 0) {
+    return doubleThreats[Math.floor(Math.random() * doubleThreats.length)]!;
+  }
+
+  // 4. Block a cell where the opponent could build a double threat.
+  const oppDoubleThreats: Point[] = [];
+  for (const q of pool) {
+    const nb = placedBoard(board, q, opp);
+    if (winningCells(nb, opp, oppShape).length >= 2) oppDoubleThreats.push(q);
+  }
+
+  // 5. Positional scoring fallback (also used to pick the best block above).
+  const scoreMove = (q: Point): number => {
+    const afterMine = placedBoard(board, q, stone);
+    const myThreats = winningCells(afterMine, stone, myShape).length;
+    const myDev = developmentScore(afterMine, stone, myShape);
+
+    // How much the opponent could gain by taking this same cell.
+    const afterOpp = placedBoard(board, q, opp);
+    const oppThreats = winningCells(afterOpp, opp, oppShape).length;
+    const oppDev = developmentScore(afterOpp, opp, oppShape);
+
+    const mid = (BOARD_MAX + BOARD_MIN) / 2;
+    const centrality = -(Math.abs(q.x - mid) + Math.abs(q.y - mid)) * 0.05;
+
+    return (
+      myThreats * 100 +
+      myDev * 4 +
+      oppThreats * 60 +
+      oppDev * 2 +
+      centrality +
+      Math.random() * 0.5
+    );
+  };
+
+  const blockPool = oppDoubleThreats.length > 0 ? oppDoubleThreats : pool;
+  let best: Point | null = null;
+  let bestScore = -Infinity;
+  for (const q of blockPool) {
+    const s = scoreMove(q);
+    if (s > bestScore) {
+      bestScore = s;
+      best = q;
+    }
+  }
+  return best ?? pool[0] ?? empty[0]!;
 }
 
 export function deltaForQuadOutcome(

@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import Image from "next/image";
 import type { RankingRow, RankingScope } from "@/lib/game-types";
 import QuadGridBoard from "@/components/games/QuadGridBoard";
+import QuadShapeIcon from "@/components/games/QuadShapeIcon";
 import QuadRatingBoard from "@/components/games/QuadRatingBoard";
 import {
   quadClaimResultAction,
@@ -85,6 +86,78 @@ function randomAiShape(exclude?: QuadShape): QuadShape {
     ? QUAD_SHAPES.filter((s) => s !== exclude)
     : QUAD_SHAPES;
   return pool[Math.floor(Math.random() * pool.length)]!;
+}
+
+function PlayerTargetCard({
+  name,
+  stone,
+  shape,
+  active,
+  placing,
+  secondsLeft,
+  activeLabel,
+}: {
+  name: string;
+  stone: Stone;
+  shape: QuadShape | null;
+  active: boolean;
+  placing: boolean;
+  secondsLeft: number | null;
+  activeLabel: string;
+}) {
+  return (
+    <div
+      className={[
+        "rounded-2xl p-3 ring-1 transition",
+        active
+          ? "bg-gold/20 ring-2 ring-gold shadow-sm"
+          : "bg-white/40 ring-wood/10 opacity-60",
+      ].join(" ")}
+    >
+      <div className="flex items-center gap-1.5">
+        <span
+          className="inline-block h-3.5 w-3.5 rounded-full ring-1 ring-wood/30"
+          style={{ backgroundColor: stone === "black" ? "#2a2118" : "#f5f0e8" }}
+          aria-hidden="true"
+        />
+        <span className="truncate text-sm font-bold text-wood">{name}</span>
+        <span className="ml-auto text-xs font-semibold text-wood/50">
+          {stoneLabel(stone)}
+        </span>
+      </div>
+      <div className="mt-2 flex items-center gap-2">
+        {shape ? (
+          <>
+            <QuadShapeIcon shape={shape} className="h-9 w-12 shrink-0" />
+            <span className="font-display text-lg leading-tight text-wood">
+              {SHAPE_LABELS[shape]}
+            </span>
+          </>
+        ) : (
+          <span className="text-sm text-wood/40">목표 미정</span>
+        )}
+      </div>
+      <div className="mt-2 h-6">
+        {active ? (
+          <span className="inline-flex animate-pulse items-center gap-1 rounded-full bg-gold px-2.5 py-1 text-xs font-black text-wood">
+            {placing ? "두는 중…" : `▶ ${activeLabel}`}
+            {secondsLeft != null ? (
+              <span
+                className={[
+                  "tabular-nums",
+                  secondsLeft <= 5 ? "text-[#c44]" : "",
+                ].join(" ")}
+              >
+                {secondsLeft}초
+              </span>
+            ) : null}
+          </span>
+        ) : (
+          <span className="text-xs font-semibold text-wood/40">대기 중</span>
+        )}
+      </div>
+    </div>
+  );
 }
 
 export default function QuadrilateralMaker() {
@@ -569,7 +642,8 @@ export default function QuadrilateralMaker() {
         setShapePickerRole("loser");
         setStatusMsg("컴퓨터가 도형을 고르는 중…");
         window.setTimeout(() => {
-          const aiShape = randomAiShape();
+          // Parallelogram is the easiest target, so the AI grabs it on a win.
+          const aiShape: QuadShape = "parallelogram";
           setTakenShape(aiShape);
           setOpponentShape(aiShape);
           setStatusMsg(
@@ -970,8 +1044,9 @@ export default function QuadrilateralMaker() {
                   key={s}
                   type="button"
                   onClick={() => void pickShape(s)}
-                  className="rounded-xl bg-gold/50 px-4 py-4 font-bold text-wood transition hover:bg-gold/70"
+                  className="flex items-center justify-center gap-2 rounded-xl bg-gold/50 px-4 py-4 font-bold text-wood transition hover:bg-gold/70"
                 >
+                  <QuadShapeIcon shape={s} className="h-8 w-11 shrink-0" />
                   {SHAPE_LABELS[s]}
                 </button>
               ))}
@@ -989,43 +1064,40 @@ export default function QuadrilateralMaker() {
 
       {screen === "playing" ? (
         <section className="space-y-4">
-          <div className="quest-card flex flex-wrap items-center justify-between gap-3 p-4">
-            <div className="text-sm font-semibold text-wood">
-              <span className="mr-2 rounded-full bg-peach/60 px-2 py-0.5 text-xs">
+          <div className="quest-card p-3 sm:p-4">
+            <div className="mb-2 flex items-center justify-between">
+              <span className="rounded-full bg-peach/60 px-2 py-0.5 text-xs font-semibold text-wood">
                 {mode === "ai" ? "컴퓨터전" : "대전"}
               </span>
-              나: {stoneLabel(myStone)}
-              {myShape ? ` · 목표 ${SHAPE_LABELS[myShape]}` : ""}
+              <span className="text-xs font-semibold text-wood/50">
+                목표 사각형 · 차례
+              </span>
             </div>
-            <div
-              className={[
-                "rounded-full px-3 py-1 text-sm font-black",
-                myTurn ? "bg-gold text-wood" : "bg-wood/10 text-wood/60",
-              ].join(" ")}
-            >
-              {placing
-                ? "두는 중…"
-                : myTurn
-                  ? "내 차례"
-                  : "상대 차례"}
-              {mode === "pvp" && secondsLeft != null ? (
-                <span
-                  className={[
-                    "ml-2 tabular-nums",
-                    secondsLeft <= 5 ? "text-[#c44]" : "",
-                  ].join(" ")}
-                >
-                  {secondsLeft}초
-                </span>
-              ) : null}
+            <div className="grid grid-cols-2 gap-2 sm:gap-3">
+              <PlayerTargetCard
+                name="나"
+                stone={myStone}
+                shape={myShape}
+                active={myTurn}
+                placing={placing && myTurn}
+                secondsLeft={
+                  mode === "pvp" && myTurn ? secondsLeft : null
+                }
+                activeLabel="내 차례"
+              />
+              <PlayerTargetCard
+                name={mode === "ai" ? "컴퓨터" : opponentName}
+                stone={opponent(myStone)}
+                shape={opponentShape}
+                active={!myTurn}
+                placing={placing && !myTurn}
+                secondsLeft={
+                  mode === "pvp" && !myTurn ? secondsLeft : null
+                }
+                activeLabel="상대 차례"
+              />
             </div>
           </div>
-
-          {opponentShape ? (
-            <p className="text-center text-sm text-wood/60">
-              상대 목표: {SHAPE_LABELS[opponentShape]} · {opponentName}
-            </p>
-          ) : null}
 
           {statusMsg ? (
             <p
@@ -1062,12 +1134,21 @@ export default function QuadrilateralMaker() {
               최종 판
             </p>
             {myShape ? (
-              <p className="mb-2 text-center text-sm text-wood/60">
-                내 목표: {SHAPE_LABELS[myShape]}
+              <div className="mb-2 flex flex-wrap items-center justify-center gap-x-3 gap-y-1 text-sm text-wood/70">
+                <span className="inline-flex items-center gap-1">
+                  <QuadShapeIcon shape={myShape} className="h-6 w-8 shrink-0" />
+                  내 목표: {SHAPE_LABELS[myShape]}
+                </span>
                 {opponentShape ? (
-                  <> · 상대 목표: {SHAPE_LABELS[opponentShape]}</>
+                  <span className="inline-flex items-center gap-1">
+                    <QuadShapeIcon
+                      shape={opponentShape}
+                      className="h-6 w-8 shrink-0"
+                    />
+                    상대 목표: {SHAPE_LABELS[opponentShape]}
+                  </span>
                 ) : null}
-              </p>
+              </div>
             ) : null}
             <div className="pointer-events-none select-none opacity-80 blur-[1px]">
               <div className="quest-card p-3 sm:p-4">
