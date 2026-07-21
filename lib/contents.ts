@@ -128,6 +128,16 @@ export const CONTENTS: ContentMeta[] = [
     description:
       "교사가 주사위를 굴리면 2~12 합 칸이 채워져요. 10번 먼저 채워지는 합을 맞히고, 내 숫자가 나올 때마다 10점! 학급 배정·활성 시 XP와 랭킹이 쌓여요.",
   },
+  {
+    key: "g2-u4-ball-box-guess",
+    unitId: "g2-4",
+    type: "game",
+    title: "상자 속 공 개수 맞히기",
+    href: "/play/g2-u4-ball-box-guess",
+    awardsXp: true,
+    description:
+      "교사가 숨긴 색깔 공 상자에서 복원추출로 공을 뽑으며 색깔별 개수를 추정해 맞히는 확률 게임. 빠르게 맞힐수록 높은 점수! 학급 배정·활성 시 XP와 랭킹이 쌓여요.",
+  },
 ];
 
 export function getContent(key: string): ContentMeta | undefined {
