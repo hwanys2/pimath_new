@@ -144,8 +144,11 @@ PM_STUDENT_SESSION_SECRET=...  # 서버 전용, 긴 랜덤 문자열
 | `pm_list_game_ranking` | 랭킹 — `world`(전체) / `school`(같은 teacher_id) / `class` × `all`/`best` |
 | `pm_list_class_game_ranking` | (레거시) class 스코프 위임 |
 | `pm_list_xp_ranking` | 어드벤처 누적 XP 랭킹 (`world`/`school`/`class`) — 상위 3 + 내 등수 ±1 |
+| `pm_pvp_rematch_block` | 대전 게임 직전 상대 재매칭 방지 (게임별 20초 쿨다운) |
+| `pm_pvp_record_rematch_block` | 대국 종료 시 양방향 블록 기록 (내부 헬퍼) |
+| `pm_omok_*` / `pm_quad_*` / `pm_sq_*` | 1:1 대전 매칭·게임·랭킹 RPC (오목 / 사각형 / 정사각형) |
 
-- `password_hash` 는 authenticated SELECT/UPDATE 불가. 비밀번호는 RPC로만 설정.
+대전 매칭 규칙(스코프, 재매칭 20초 등): [`docs/content-system.md`](content-system.md) §5.4.
 - 앱에서 학생 세션은 `lib/student-session.ts` (`jose` JWT 쿠키 + DB session token). 교사 식별은 계속 `getUser()`.
 - 레벨/XP 규칙: [`docs/progression-system.md`](progression-system.md)
 - 콘텐츠·배정·공개 링크: [`docs/content-system.md`](content-system.md)
