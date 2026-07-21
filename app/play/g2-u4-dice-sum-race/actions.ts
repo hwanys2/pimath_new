@@ -4,9 +4,14 @@ import { submitGameRun } from "@/app/adventure/actions";
 import {
   diceRaceClaimRoundXp,
   diceRaceClose,
+  diceRaceCreateGuestSession,
   diceRaceCreateSession,
   diceRaceFindActiveForStudent,
   diceRaceFindActiveForTeacher,
+  diceRaceFindByCode,
+  diceRaceGuestJoin,
+  diceRaceGuestPick,
+  diceRaceGuestPoll,
   diceRaceJoin,
   diceRaceNextRound,
   diceRaceOpenPicking,
@@ -14,6 +19,7 @@ import {
   diceRaceRoll,
   diceRaceStartRolling,
   diceRaceStudentPoll,
+  diceRaceTeacherFindGuest,
   diceRaceTeacherPoll,
 } from "@/lib/dice-race-match";
 
@@ -90,4 +96,43 @@ export async function diceRaceClaimRoundXpAction(input: { sessionId: string }) {
   });
 
   return { claim, xp };
+}
+
+// ---------------------------------------------------------------------------
+// Guest (QR, no class) actions
+// ---------------------------------------------------------------------------
+
+export async function diceRaceCreateGuestSessionAction() {
+  return diceRaceCreateGuestSession();
+}
+
+export async function diceRaceTeacherFindGuestAction() {
+  return diceRaceTeacherFindGuest();
+}
+
+export async function diceRaceFindByCodeAction(input: { joinCode: string }) {
+  return diceRaceFindByCode(input);
+}
+
+export async function diceRaceGuestJoinAction(input: {
+  joinCode: string;
+  guestKey: string;
+  name: string;
+}) {
+  return diceRaceGuestJoin(input);
+}
+
+export async function diceRaceGuestPickAction(input: {
+  guestKey: string;
+  sessionId: string;
+  pick: number;
+}) {
+  return diceRaceGuestPick(input);
+}
+
+export async function diceRaceGuestPollAction(input: {
+  guestKey: string;
+  sessionId: string;
+}) {
+  return diceRaceGuestPoll(input);
 }

@@ -10,7 +10,8 @@ export type DiceRacePhase =
   | "closed";
 
 export type DiceRacePlayerRow = {
-  studentId: string;
+  pid: string;
+  studentId: string | null;
   displayName: string;
   pick: number | null;
   sessionScore: number;
@@ -23,6 +24,7 @@ export type DiceRacePollState = {
   sessionId: string | null;
   classId: string | null;
   className: string | null;
+  joinCode: string | null;
   phase: DiceRacePhase | "idle";
   roundNumber: number;
   counts: SumCounts;

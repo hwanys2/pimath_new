@@ -36,54 +36,58 @@ function parsePhase(s: string | null | undefined): DiceRacePhase | "idle" {
   return "idle";
 }
 
-function mapPollRows(
-  rows: Array<{
-    session_id: string;
-    class_id: string;
-    class_name: string | null;
-    phase: string;
-    round_number: number;
-    counts: unknown;
-    winning_sum: number | null;
-    last_d1: number | null;
-    last_d2: number | null;
-    last_sum: number | null;
-    roll_count: number;
-    student_id: string;
-    display_name: string;
-    pick: number | null;
-    session_score: number;
-    round_score: number;
-    xp_claimed_round: number;
-    is_me: boolean;
-  }>,
-): DiceRacePollState {
-  if (rows.length === 0) {
-    return {
-      sessionId: null,
-      classId: null,
-      className: null,
-      phase: "idle",
-      roundNumber: 1,
-      counts: parseCounts(null),
-      winningSum: null,
-      lastD1: null,
-      lastD2: null,
-      lastSum: null,
-      rollCount: 0,
-      players: [],
-      myPick: null,
-      mySessionScore: 0,
-      myRoundScore: 0,
-      myXpClaimedRound: 0,
-    };
-  }
+type PollRow = {
+  session_id: string;
+  class_id: string | null;
+  class_name: string | null;
+  phase: string;
+  round_number: number;
+  counts: unknown;
+  winning_sum: number | null;
+  last_d1: number | null;
+  last_d2: number | null;
+  last_sum: number | null;
+  roll_count: number;
+  join_code?: string | null;
+  pid?: string | null;
+  student_id: string | null;
+  display_name: string | null;
+  pick: number | null;
+  session_score: number;
+  round_score: number;
+  xp_claimed_round: number;
+  is_me: boolean;
+};
+
+const IDLE: DiceRacePollState = {
+  sessionId: null,
+  classId: null,
+  className: null,
+  joinCode: null,
+  phase: "idle",
+  roundNumber: 1,
+  counts: parseCounts(null),
+  winningSum: null,
+  lastD1: null,
+  lastD2: null,
+  lastSum: null,
+  rollCount: 0,
+  players: [],
+  myPick: null,
+  mySessionScore: 0,
+  myRoundScore: 0,
+  myXpClaimedRound: 0,
+};
+
+function mapPollRows(rows: PollRow[]): DiceRacePollState {
+  if (rows.length === 0) return IDLE;
 
   const head = rows[0]!;
   const players: DiceRacePlayerRow[] = rows
-    .filter((r) => r.student_id != null)
+    .filter((r) => r.pid != null || r.student_id != null)
     .map((r) => ({
-      studentId: r.student_id,
+      pid: (r.pid ?? r.student_id) as string,
+      studentId: r.student_id ?? null,
       displayName: r.display_name ?? "탐험가",
       pick: r.pick,
       sessionScore: r.session_score,
@@ -98,6 +102,7 @@ function mapPollRows(
     sessionId: head.session_id,
     classId: head.class_id,
     className: head.class_name,
+    joinCode: head.join_code ?? null,
     phase: parsePhase(head.phase),
     roundNumber: head.round_number,
     counts: parseCounts(head.counts),
@@ -291,9 +296,7 @@ export async function diceRaceStudentPoll(input: { sessionId: string }) {
     return { error: "상태를 불러오지 못했어요." };
   }
 
-  return mapPollRows(
-    firstRows(data) as Parameters<typeof mapPollRows>[0],
-  );
+  return mapPollRows(firstRows(data) as PollRow[]);
 }
 
 export async function diceRaceTeacherPoll(input: { sessionId: string }) {
@@ -313,9 +316,7 @@ export async function diceRaceTeacherPoll(input: { sessionId: string }) {
     return { error: "상태를 불러오지 못했어요." };
   }
 
-  return mapPollRows(
-    firstRows(data) as Parameters<typeof mapPollRows>[0],
-  );
+  return mapPollRows(firstRows(data) as PollRow[]);
 }
 
 export async function diceRaceFindActiveForStudent(input: { classId: string }) {
@@ -347,4 +348,115 @@ export async function diceRaceFindActiveForTeacher(input: { classId: string }) {
   }
 
   return { sessionId: (data as string | null) ?? null };
+}
+
+// ---------------------------------------------------------------------------
+// Guest (QR, no class) mode
+// ---------------------------------------------------------------------------
+
+export async function diceRaceCreateGuestSession() {
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("pm_dice_race_create_guest_session", {
+    p_content_key: CONTENT_KEY,
+  });
+
+  if (error) {
+    console.error("[pm] pm_dice_race_create_guest_session failed:", error.message);
+    return { error: "QR 세션을 만들지 못했어요." };
+  }
+
+  const row = firstRow(data);
+  if (!row) return { error: "세션 정보가 없어요." };
+
+  return {
+    sessionId: row.session_id as string,
+    joinCode: row.join_code as string,
+  };
+}
+
+export async function diceRaceTeacherFindGuest() {
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("pm_dice_race_teacher_find_guest");
+
+  if (error) {
+    console.error("[pm] pm_dice_race_teacher_find_guest failed:", error.message);
+    return { sessionId: null as string | null };
+  }
+
+  return { sessionId: (data as string | null) ?? null };
+}
+
+export async function diceRaceFindByCode(input: { joinCode: string }) {
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("pm_dice_race_find_by_code", {
+    p_join_code: input.joinCode,
+  });
+
+  if (error) {
+    console.error("[pm] pm_dice_race_find_by_code failed:", error.message);
+    return { sessionId: null as string | null };
+  }
+
+  return { sessionId: (data as string | null) ?? null };
+}
+
+export async function diceRaceGuestJoin(input: {
+  joinCode: string;
+  guestKey: string;
+  name: string;
+}) {
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("pm_dice_race_guest_join", {
+    p_join_code: input.joinCode,
+    p_guest_key: input.guestKey,
+    p_name: input.name,
+  });
+
+  if (error) {
+    console.error("[pm] pm_dice_race_guest_join failed:", error.message);
+    if (error.message.includes("no active session")) {
+      return { error: "no_session" as const };
+    }
+    return { error: "입장하지 못했어요." };
+  }
+
+  return { sessionId: data as string };
+}
+
+export async function diceRaceGuestPick(input: {
+  guestKey: string;
+  sessionId: string;
+  pick: number;
+}) {
+  const supabase = await createClient();
+  const { error } = await supabase.rpc("pm_dice_race_guest_pick", {
+    p_guest_key: input.guestKey,
+    p_session_id: input.sessionId,
+    p_pick: input.pick,
+  });
+
+  if (error) {
+    console.error("[pm] pm_dice_race_guest_pick failed:", error.message);
+    return { error: "숫자를 선택하지 못했어요." };
+  }
+
+  return { ok: true as const };
+}
+
+export async function diceRaceGuestPoll(input: {
+  guestKey: string;
+  sessionId: string;
+}) {
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("pm_dice_race_guest_poll", {
+    p_guest_key: input.guestKey,
+    p_session_id: input.sessionId,
+  });
+
+  if (error) {
+    console.error("[pm] pm_dice_race_guest_poll failed:", error.message);
+    return { error: "상태를 불러오지 못했어요." };
+  }
+
+  return mapPollRows(firstRows(data) as PollRow[]);
 }

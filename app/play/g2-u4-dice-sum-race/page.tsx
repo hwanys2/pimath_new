@@ -14,10 +14,18 @@ export const metadata: Metadata = {
     "교사가 주사위 2개를 굴리며 2~12 합 칸을 채우는 확률 게임. 중2 4. 경우의 수와 확률. 학급 배정 시 XP와 랭킹이 쌓입니다.",
 };
 
-export default async function DiceSumRacePage() {
+export default async function DiceSumRacePage({
+  searchParams,
+}: {
+  searchParams: Promise<{ join?: string }>;
+}) {
   const content = getContent(CONTENT_KEY);
   const assignCtx = await fetchTeacherAssignContext([CONTENT_KEY]);
   const actor = await getActor();
+
+  const { join } = await searchParams;
+  const joinCode = typeof join === "string" ? join.trim() : null;
+  const guestMode = Boolean(joinCode) && actor == null;
 
   return (
     <div className="space-y-4">
@@ -50,6 +58,8 @@ export default async function DiceSumRacePage() {
           actor?.type === "student" ? actor.className : null
         }
         studentName={actor?.type === "student" ? actor.name : null}
+        guestMode={guestMode}
+        joinCode={joinCode}
       />
     </div>
   );

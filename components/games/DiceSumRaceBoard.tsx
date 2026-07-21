@@ -1,5 +1,7 @@
 "use client";
 
+import { useEffect, useState } from "react";
+import QRCode from "qrcode";
 import { SUMS, WIN_THRESHOLD, type SumCounts } from "@/lib/dice-race-math";
 
 type BoardProps = {
@@ -295,6 +297,114 @@ export function PickGrid({
           </button>
         ))}
       </div>
+    </div>
+  );
+}
+
+/** QR + join code for guest (no-class) sessions. */
+export function DiceRaceJoinQR({ joinCode }: { joinCode: string }) {
+  const [qrDataUrl, setQrDataUrl] = useState<string | null>(null);
+  const [joinUrl, setJoinUrl] = useState<string>("");
+  const [copied, setCopied] = useState(false);
+
+  useEffect(() => {
+    const origin =
+      typeof window !== "undefined" ? window.location.origin : "";
+    const url = `${origin}/play/g2-u4-dice-sum-race?join=${joinCode}`;
+    setJoinUrl(url);
+    QRCode.toDataURL(url, {
+      width: 320,
+      margin: 1,
+      color: { dark: "#5b3d29", light: "#ffffff" },
+    })
+      .then(setQrDataUrl)
+      .catch(() => setQrDataUrl(null));
+  }, [joinCode]);
+
+  const handleCopy = async () => {
+    try {
+      await navigator.clipboard.writeText(joinUrl);
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 1500);
+    } catch {
+      /* ignore */
+    }
+  };
+
+  return (
+    <div className="flex flex-col items-center gap-3 rounded-2xl border border-wood/10 bg-white/70 p-5">
+      <h3 className="font-display text-lg text-wood">QR로 학생 초대</h3>
+      {qrDataUrl ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src={qrDataUrl}
+          alt="참여 QR 코드"
+          className="h-52 w-52 rounded-xl border border-wood/10"
+        />
+      ) : (
+        <div className="flex h-52 w-52 items-center justify-center rounded-xl bg-cream text-sm text-foreground/50">
+          QR 생성 중…
+        </div>
+      )}
+      <div className="text-center">
+        <p className="text-sm text-foreground/60">참여 코드</p>
+        <p className="font-display text-3xl tracking-[0.3em] text-wood">
+          {joinCode}
+        </p>
+      </div>
+      <button
+        type="button"
+        onClick={handleCopy}
+        className="rounded-xl border border-wood/20 px-4 py-2 text-sm text-foreground/70 transition hover:bg-wood/5"
+      >
+        {copied ? "링크 복사됨!" : "참여 링크 복사"}
+      </button>
+      <p className="text-center text-xs text-foreground/50">
+        학생이 QR을 찍고 이름을 입력하면 바로 입장해요 (로그인 불필요)
+      </p>
+    </div>
+  );
+}
+
+/** Guest name entry before joining. */
+export function DiceRaceGuestNameEntry({
+  onSubmit,
+  disabled,
+  joinCode,
+}: {
+  onSubmit: (name: string) => void;
+  disabled?: boolean;
+  joinCode: string;
+}) {
+  const [name, setName] = useState("");
+  const trimmed = name.trim();
+
+  return (
+    <div className="mx-auto max-w-sm space-y-4 rounded-2xl border border-wood/10 bg-white/70 p-6 text-center">
+      <h2 className="font-display text-2xl text-wood">주사위 합 10번 채우기</h2>
+      <p className="text-sm text-foreground/60">
+        참여 코드 <strong className="text-wood">{joinCode}</strong> · 이름을
+        입력하고 입장하세요
+      </p>
+      <input
+        type="text"
+        value={name}
+        maxLength={20}
+        onChange={(e) => setName(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" && trimmed) onSubmit(trimmed);
+        }}
+        placeholder="이름 (예: 김파이)"
+        className="w-full rounded-xl border border-wood/15 bg-cream px-4 py-3 text-center text-lg text-wood outline-none focus:border-sky"
+      />
+      <button
+        type="button"
+        disabled={disabled || !trimmed}
+        onClick={() => onSubmit(trimmed)}
+        className="w-full rounded-xl bg-sky px-5 py-3 font-display text-lg text-wood transition hover:bg-sky/80 active:scale-95 disabled:opacity-60"
+      >
+        입장하기
+      </button>
     </div>
   );
 }
