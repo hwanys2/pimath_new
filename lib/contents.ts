@@ -49,6 +49,16 @@ export const CONTENTS: ContentMeta[] = [
       "떨어지는 숫자를 소수로 나눠 1까지 소인수분해하는 게임입니다. 학급 배정·활성 시 XP와 랭킹이 쌓여요.",
   },
   {
+    key: "g1-u1-2-sign-slime",
+    unitId: "g1-1-2",
+    type: "game",
+    title: "부호 슬라임 대소동",
+    href: "/play/g1-u1-2-sign-slime",
+    awardsXp: true,
+    description:
+      "슬라임의 수식을 맞춰 수정구슬로 공격! 6가지 연산 단계를 골라 정수·유리수 사칙연산을 연습하는 게임. 학급 배정·활성 시 XP와 랭킹이 쌓여요.",
+  },
+  {
     key: "g1-u2-3-ordered-pair-omok",
     unitId: "g1-2-3",
     type: "game",
