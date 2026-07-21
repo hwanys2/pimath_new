@@ -620,11 +620,11 @@ export default function DiceSumRace({
   }
 
   return (
-    <div className="space-y-5">
-      <div className="rounded-2xl border border-wood/10 bg-gradient-to-br from-peach/25 to-lavender/15 p-5">
+    <div className="min-w-0 max-w-full space-y-5">
+      <div className="rounded-2xl border border-wood/10 bg-gradient-to-br from-peach/25 to-lavender/15 p-4 sm:p-5">
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <h2 className="font-display text-2xl text-wood">주사위 합 10번 채우기</h2>
+          <div className="min-w-0">
+            <h2 className="font-display text-xl text-wood sm:text-2xl">주사위 합 10번 채우기</h2>
             <p className="mt-1 text-sm text-foreground/65">
               {isTeacher
                 ? "학급 또는 QR로 세션을 시작한 뒤, 주사위를 굴려 주세요."
@@ -703,8 +703,8 @@ export default function DiceSumRace({
       )}
 
       {sessionId && (
-        <div className="grid gap-5 lg:grid-cols-[1fr_280px]">
-          <div className="space-y-5">
+        <div className="grid min-w-0 gap-5 lg:grid-cols-[1fr_280px]">
+          <div className="min-w-0 space-y-5">
             {isTeacher && isGuestSession && state.joinCode && (
               <DiceRaceJoinQR joinCode={state.joinCode} />
             )}
@@ -746,7 +746,7 @@ export default function DiceSumRace({
                     >
                       {!fastMode && isRolling ? "🎲 굴리는 중…" : "주사위 굴리기"}
                     </button>
-                    <label className="flex cursor-pointer items-center gap-2 rounded-xl border border-wood/15 bg-white/60 px-3 py-2 text-sm text-foreground/75">
+                    <label className="flex cursor-pointer flex-col gap-1 rounded-xl border border-wood/15 bg-white/60 px-3 py-2 text-xs text-foreground/75 sm:flex-row sm:items-center sm:gap-2 sm:text-sm">
                       <input
                         type="checkbox"
                         checked={fastMode}
@@ -787,7 +787,7 @@ export default function DiceSumRace({
             )}
 
             {isPlayer && state.phase !== "picking" && state.myPick != null && (
-              <p className="rounded-xl bg-gold/25 px-4 py-2 text-sm text-wood">
+              <p className="break-words rounded-xl bg-gold/25 px-4 py-2 text-center text-sm text-wood sm:text-left">
                 내 선택: <strong>{state.myPick}</strong> · 이번 라운드{" "}
                 {state.myRoundScore}점 · 세션 누적 {state.mySessionScore}점
               </p>
@@ -839,7 +839,9 @@ export default function DiceSumRace({
             )}
           </div>
 
-          <SessionRanking players={state.players} highlightMe={isPlayer} />
+          <div className="order-first min-w-0 lg:order-none">
+            <SessionRanking players={state.players} highlightMe={isPlayer} />
+          </div>
         </div>
       )}
     </div>

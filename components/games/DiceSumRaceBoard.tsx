@@ -22,8 +22,8 @@ export default function DiceSumRaceBoard({
       <p className="text-center text-sm font-medium text-foreground/70">
         게임판 ({WIN_THRESHOLD}칸 먼저 채우기)
       </p>
-      <div className="overflow-x-auto pb-1">
-        <div className="mx-auto flex min-w-[520px] items-end justify-center gap-1.5 sm:gap-2">
+      <div className="w-full min-w-0 overflow-x-auto pb-1">
+        <div className="mx-auto flex w-full min-w-0 items-end justify-center gap-0.5 sm:gap-1.5 md:gap-2">
           {SUMS.map((sum) => {
             const filled = counts[String(sum)] ?? 0;
             const fillPct = Math.min(100, (filled / WIN_THRESHOLD) * 100);
@@ -38,10 +38,10 @@ export default function DiceSumRaceBoard({
             return (
               <div
                 key={sum}
-                className="flex w-10 flex-col items-center gap-1.5 sm:w-11"
+                className="flex min-w-0 max-w-9 flex-1 flex-col items-center gap-1 sm:max-w-11 sm:gap-1.5"
               >
                 <div
-                  className="relative h-[220px] w-full overflow-hidden rounded-lg border-2 border-wood/15 bg-cream/90"
+                  className="relative h-[110px] w-full overflow-hidden rounded-lg border-2 border-wood/15 bg-cream/90 sm:h-[150px] md:h-[220px]"
                   style={{
                     backgroundImage:
                       "repeating-linear-gradient(to top, rgba(139,94,60,0.12) 0, rgba(139,94,60,0.12) 1px, transparent 1px, transparent 10%)",
@@ -60,7 +60,7 @@ export default function DiceSumRaceBoard({
                 </div>
                 <span
                   className={[
-                    "flex h-8 w-full items-center justify-center rounded-lg text-sm font-black",
+                    "flex h-7 w-full items-center justify-center rounded-lg text-xs font-black sm:h-8 sm:text-sm",
                     isMyPick
                       ? "bg-gold text-wood ring-2 ring-gold/60"
                       : isWinner
@@ -125,7 +125,7 @@ function DieFace({
   return (
     <div
       className={[
-        "relative grid h-16 w-16 grid-cols-3 grid-rows-3 rounded-xl border-2 border-wood/25 bg-white p-2 shadow-md",
+        "relative grid h-12 w-12 grid-cols-3 grid-rows-3 rounded-xl border-2 border-wood/25 bg-white p-1.5 shadow-md sm:h-16 sm:w-16 sm:p-2",
         shaking ? "dice-shake" : "",
         settling ? "dice-settle" : "",
       ].join(" ")}
@@ -137,7 +137,7 @@ function DieFace({
           className="flex items-center justify-center"
           style={{ gridRow: r + 1, gridColumn: c + 1 }}
         >
-          <span className="h-3 w-3 rounded-full bg-wood" />
+          <span className="h-2.5 w-2.5 rounded-full bg-wood sm:h-3 sm:w-3" />
         </span>
       ))}
     </div>
@@ -167,7 +167,7 @@ export function DiceRollDisplay({
 
   if (showD1 == null && showD2 == null && !isRolling) {
     return (
-      <div className="flex items-center justify-center gap-3 rounded-2xl border border-wood/10 bg-peach/20 px-6 py-5">
+      <div className="flex items-center justify-center gap-3 rounded-2xl border border-wood/10 bg-peach/20 px-3 py-4 sm:px-6 sm:py-5">
         <p className="text-sm text-foreground/60">아직 주사위를 굴리지 않았어요</p>
       </div>
     );
@@ -176,7 +176,7 @@ export function DiceRollDisplay({
   return (
     <div
       className={[
-        "flex flex-wrap items-center justify-center gap-3 rounded-2xl border px-6 py-5 transition-colors",
+        "flex flex-wrap items-center justify-center gap-2 rounded-2xl border px-3 py-4 transition-colors sm:gap-3 sm:px-6 sm:py-5",
         isRolling
           ? "border-gold/40 bg-gold/15"
           : "border-wood/10 bg-peach/20",
@@ -187,7 +187,7 @@ export function DiceRollDisplay({
         shaking={isRolling}
         settling={!isRolling && d1 != null}
       />
-      <span className="font-display text-2xl text-wood">+</span>
+      <span className="font-display text-xl text-wood sm:text-2xl">+</span>
       <DieFace
         value={showD2 ?? 1}
         shaking={isRolling}
@@ -195,10 +195,10 @@ export function DiceRollDisplay({
       />
       {showSum != null ? (
         <>
-          <span className="font-display text-2xl text-wood">=</span>
+          <span className="font-display text-xl text-wood sm:text-2xl">=</span>
           <span
             className={[
-              "flex h-16 min-w-16 items-center justify-center rounded-xl bg-sky px-3 font-display text-3xl text-wood shadow-sm",
+              "flex h-12 min-w-12 items-center justify-center rounded-xl bg-sky px-2 font-display text-2xl text-wood shadow-sm sm:h-16 sm:min-w-16 sm:px-3 sm:text-3xl",
               highlightSum ? "dice-result-pop" : "",
             ].join(" ")}
           >
@@ -236,24 +236,26 @@ export function SessionRanking({
             <li
               key={`${p.displayName}-${i}`}
               className={[
-                "flex items-center justify-between rounded-xl px-3 py-2 text-sm",
+                "flex min-w-0 items-center justify-between gap-2 rounded-xl px-3 py-2 text-sm",
                 highlightMe && p.isMe
                   ? "bg-gold/35 ring-1 ring-gold/50"
                   : "bg-cream/80",
               ].join(" ")}
             >
-              <span className="flex items-center gap-2">
-                <span className="font-display text-base text-wood/70">
+              <span className="flex min-w-0 items-center gap-2">
+                <span className="shrink-0 font-display text-base text-wood/70">
                   {i + 1}
                 </span>
-                <span className="font-medium">{p.displayName}</span>
+                <span className="truncate max-w-[9rem] font-medium sm:max-w-none">
+                  {p.displayName}
+                </span>
                 {p.pick != null && (
                   <span className="rounded-md bg-sky/40 px-1.5 py-0.5 text-xs text-wood">
                     {p.pick}
                   </span>
                 )}
               </span>
-              <span className="font-display text-base text-wood">
+              <span className="shrink-0 font-display text-base text-wood">
                 {p.sessionScore}점
               </span>
             </li>
@@ -278,7 +280,7 @@ export function PickGrid({
       <p className="text-sm font-medium text-foreground/70">
         2부터 12까지 숫자 중 하나를 고르세요
       </p>
-      <div className="flex flex-wrap justify-center gap-2">
+      <div className="grid grid-cols-4 gap-2 sm:grid-cols-6 md:grid-cols-11">
         {SUMS.map((n) => (
           <button
             key={n}
@@ -286,7 +288,7 @@ export function PickGrid({
             disabled={disabled}
             onClick={() => onPick(n)}
             className={[
-              "h-11 min-w-11 rounded-xl px-3 font-display text-lg transition",
+              "h-10 rounded-xl px-2 font-display text-base transition sm:h-11 sm:px-3 sm:text-lg",
               selected === n
                 ? "bg-gold text-wood ring-2 ring-gold/70"
                 : "bg-sky/45 text-wood hover:bg-sky/65",
