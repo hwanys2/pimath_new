@@ -1,0 +1,40 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" role="img" aria-label="Pleasure in Math">
+  <defs>
+    <linearGradient id="cream" x1="4" y1="2" x2="28" y2="30" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#fff8eb"/>
+      <stop offset="100%" stop-color="#fef9f0"/>
+    </linearGradient>
+    <linearGradient id="gold" x1="9" y1="10" x2="23" y2="24" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#ffe999"/>
+      <stop offset="45%" stop-color="#ffd76a"/>
+      <stop offset="100%" stop-color="#e8b84a"/>
+    </linearGradient>
+    <radialGradient id="sky" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(25 7) scale(7)">
+      <stop offset="0%" stop-color="#a8d8ff" stop-opacity="0.5"/>
+      <stop offset="100%" stop-color="#a8d8ff" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="mint" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(7 25) scale(6)">
+      <stop offset="0%" stop-color="#9de8c8" stop-opacity="0.4"/>
+      <stop offset="100%" stop-color="#9de8c8" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <rect x="3" y="5" width="26" height="26" rx="7" fill="#5a3a22"/>
+  <rect x="3" y="3" width="26" height="26" rx="7" fill="url(#cream)" stroke="#8b5e3c" stroke-width="2"/>
+  <rect x="3" y="3" width="26" height="26" rx="7" fill="url(#sky)"/>
+  <rect x="3" y="3" width="26" height="26" rx="7" fill="url(#mint)"/>
+  <path
+    d="M8.5 11.5h15v3.4h-5.8v8.6h-3.4v-8.6h-5.8v-3.4z"
+    fill="url(#gold)"
+    stroke="#8b5e3c"
+    stroke-width="1.1"
+    stroke-linejoin="round"
+  />
+  <path
+    d="M8.5 11.5h15"
+    fill="none"
+    stroke="#fff8eb"
+    stroke-width="0.7"
+    stroke-linecap="round"
+    opacity="0.55"
+  />
+</svg>
