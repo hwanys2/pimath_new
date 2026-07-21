@@ -18,7 +18,7 @@ import {
 } from "@/app/adventure/actions";
 import {
   ALL_STAGE_IDS,
-  GAME_DURATION_SEC,
+  ROUND_LIMIT_START,
   STAGE_PRESETS,
   STAGES_STORAGE_KEY,
   START_HP,
@@ -33,6 +33,7 @@ import {
   formatAnswer,
   parseStoredStages,
   pointsForCorrect,
+  roundLimitSec,
 } from "@/lib/sign-slime-math";
 
 const CONTENT_KEY = "g1-u1-2-sign-slime";
@@ -259,7 +260,8 @@ export default function SignSlimeRaid() {
   const [cleared, setCleared] = useState(0);
   const [maxStreak, setMaxStreak] = useState(0);
   const [problem, setProblem] = useState<Problem | null>(null);
-  const [gameTimeLeft, setGameTimeLeft] = useState(GAME_DURATION_SEC);
+  const [roundTimeLeft, setRoundTimeLeft] = useState(ROUND_LIMIT_START);
+  const [roundLimit, setRoundLimit] = useState(ROUND_LIMIT_START);
   const [slimeScale, setSlimeScale] = useState(1);
   const [orbitSlots, setOrbitSlots] = useState<OrbitSlot[]>(() =>
     ORBIT_SPEEDS.map((speed, i) => ({
@@ -286,10 +288,10 @@ export default function SignSlimeRaid() {
   const streakRef = useRef(streak);
   const clearedRef = useRef(cleared);
   const problemRef = useRef(problem);
-  const gameTimeLeftRef = useRef(gameTimeLeft);
+  const roundTimeLeftRef = useRef(roundTimeLeft);
+  const roundLimitRef = useRef(roundLimit);
   const roundStartedAtRef = useRef(0);
   const selectedStagesRef = useRef(selectedStages);
-  const startedAtRef = useRef(0);
   const resolvingRef = useRef(false);
   const endingRef = useRef(false);
   const rafRef = useRef<number | null>(null);
@@ -301,7 +303,8 @@ export default function SignSlimeRaid() {
   streakRef.current = streak;
   clearedRef.current = cleared;
   problemRef.current = problem;
-  gameTimeLeftRef.current = gameTimeLeft;
+  roundTimeLeftRef.current = roundTimeLeft;
+  roundLimitRef.current = roundLimit;
   selectedStagesRef.current = selectedStages;
 
   useEffect(() => {
@@ -316,12 +319,14 @@ export default function SignSlimeRaid() {
 
   const dealNextProblem = useCallback(() => {
     const next = dealProblem(selectedStagesRef.current);
+    const limit = roundLimitSec(clearedRef.current);
     setProblem(next);
-    const diff = difficultyAt(
-      (Date.now() - startedAtRef.current) / 1000,
-      clearedRef.current,
-    );
+    setRoundLimit(limit);
+    roundLimitRef.current = limit;
+    setRoundTimeLeft(limit);
+    roundTimeLeftRef.current = limit;
     roundStartedAtRef.current = Date.now();
+    const diff = difficultyAt(clearedRef.current);
     setSlimeScale(diff.slimeScale);
     setOrbitSlots(
       ORBIT_SPEEDS.map((speed, i) => ({
@@ -364,7 +369,7 @@ export default function SignSlimeRaid() {
   );
 
   const resolveAnswer = useCallback(
-    (picked: Answer) => {
+    (picked: Answer, timedOut = false) => {
       if (phaseRef.current !== "playing" || !problemRef.current) return;
       if (resolvingRef.current) return;
       resolvingRef.current = true;
@@ -372,7 +377,8 @@ export default function SignSlimeRaid() {
       setPhase("feedback");
 
       const currentProblem = problemRef.current;
-      const correct = answersEqual(picked, currentProblem.answer);
+      const correct =
+        !timedOut && answersEqual(picked, currentProblem.answer);
       setFlashOx(correct ? "O" : "X");
 
       let nextHp = hpRef.current;
@@ -381,9 +387,9 @@ export default function SignSlimeRaid() {
       let nextCleared = clearedRef.current;
       let gained = 0;
 
-      const idx = currentProblem.choices.findIndex((c) =>
-        answersEqual(c, picked),
-      );
+      const idx = timedOut
+        ? -1
+        : currentProblem.choices.findIndex((c) => answersEqual(c, picked));
       setPickedIndex(idx >= 0 ? idx : null);
 
       if (correct) {
@@ -393,6 +399,7 @@ export default function SignSlimeRaid() {
           currentProblem.stageId,
           streakRef.current,
           answerTimeSec,
+          roundLimitRef.current,
         );
         nextScore = applyScoreGain(scoreRef.current, raw);
         gained = nextScore - scoreRef.current;
@@ -404,7 +411,11 @@ export default function SignSlimeRaid() {
       } else {
         nextHp = hpRef.current - 1;
         nextStreak = 0;
-        setStatusMsg(`빗나감! 정답은 ${formatAnswer(currentProblem.answer)}`);
+        setStatusMsg(
+          timedOut
+            ? `시간 초과! 정답은 ${formatAnswer(currentProblem.answer)}`
+            : `빗나감! 정답은 ${formatAnswer(currentProblem.answer)}`,
+        );
       }
 
       setHp(nextHp);
@@ -417,14 +428,10 @@ export default function SignSlimeRaid() {
         window.setTimeout(() => endRun(nextScore), 1100);
         return;
       }
-      if (gameTimeLeftRef.current <= 0) {
-        window.setTimeout(() => endRun(nextScore), 1100);
-        return;
-      }
 
       window.setTimeout(() => {
         resolvingRef.current = false;
-        if (gameTimeLeftRef.current <= 0 || hpRef.current <= 0) return;
+        if (hpRef.current <= 0) return;
         dealNextProblem();
       }, 1000);
     },
@@ -433,14 +440,11 @@ export default function SignSlimeRaid() {
 
   const startGame = useCallback(() => {
     endingRef.current = false;
-    startedAtRef.current = Date.now();
     setHp(START_HP);
     setScore(0);
     setStreak(0);
     setCleared(0);
     setMaxStreak(0);
-    setGameTimeLeft(GAME_DURATION_SEC);
-    gameTimeLeftRef.current = GAME_DURATION_SEC;
     setSubmitResult(null);
     setRanking([]);
     setRankingScope("class");
@@ -476,11 +480,20 @@ export default function SignSlimeRaid() {
           })),
         );
 
-        setGameTimeLeft((prev) => {
+        setRoundTimeLeft((prev) => {
           const next = Math.max(0, prev - dt);
-          gameTimeLeftRef.current = next;
-          if (next <= 0 && !endingRef.current) {
-            endRun(scoreRef.current);
+          roundTimeLeftRef.current = next;
+          if (
+            next <= 0 &&
+            phaseRef.current === "playing" &&
+            problemRef.current &&
+            !resolvingRef.current
+          ) {
+            const wrong =
+              problemRef.current.choices.find(
+                (c) => !answersEqual(c, problemRef.current!.answer),
+              ) ?? problemRef.current.answer;
+            resolveAnswer(wrong, true);
           }
           return next;
         });
@@ -513,7 +526,8 @@ export default function SignSlimeRaid() {
     });
   };
 
-  const gamePct = (gameTimeLeft / GAME_DURATION_SEC) * 100;
+  const roundPct =
+    roundLimit > 0 ? (roundTimeLeft / roundLimit) * 100 : 0;
 
   return (
     <div className="flex flex-col gap-5">
@@ -523,9 +537,9 @@ export default function SignSlimeRaid() {
           부호 슬라임 대소동
         </h1>
         <p className="mt-3 max-w-2xl text-sm leading-relaxed text-foreground/75 sm:text-base">
-          슬라임 배에 뜬 수식과 같은 답이 적힌 수정구슬을 맞춰 공격하세요!{" "}
-          {GAME_DURATION_SEC}초 동안 최대한 많이 맞히고, 생명 {START_HP}개를 모두
-          잃으면 게임이 끝나요. 빠르게 맞출수록 보너스 점수가 올라가요.
+          슬라임 배에 뜬 수식과 같은 답이 적힌 수정구슬을 맞춰 공격하세요! 맞힐수록
+          라운드 제한 시간이 줄어들어요. 생명 {START_HP}개를 모두 잃으면 게임이
+          끝나요. 빠르게 맞출수록 보너스 점수가 올라가요.
         </p>
       </section>
 
@@ -549,7 +563,7 @@ export default function SignSlimeRaid() {
               <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-gold font-black text-wood">
                 3
               </span>
-              <span>빠르게 맞출수록 보너스! 3번 틀리면 게임이 끝나요.</span>
+              <span>맞힐수록 라운드 시간이 줄어요. 3번 틀리면 게임이 끝나요.</span>
             </li>
           </ol>
           <button
@@ -644,20 +658,25 @@ export default function SignSlimeRaid() {
                   </span>
                 ) : null}
                 <span className="rounded-xl bg-wood/8 px-3 py-1 tabular-nums">
-                  {Math.ceil(gameTimeLeft)}초
+                  {roundTimeLeft.toFixed(1)}초
                 </span>
               </div>
             </div>
 
             <div className="border-b border-wood/10 px-4 py-2 sm:px-5">
               <div className="flex items-center justify-between text-xs font-semibold text-foreground/55">
-                <span>남은 시간</span>
-                <span>{Math.ceil(gameTimeLeft)}초</span>
+                <span>라운드 제한</span>
+                <span>
+                  {roundTimeLeft.toFixed(1)}초 / {roundLimit.toFixed(1)}초
+                </span>
               </div>
               <div className="mt-1 h-2 overflow-hidden rounded-full bg-wood/10">
                 <div
-                  className="h-full rounded-full bg-sky/70 transition-[width] duration-100"
-                  style={{ width: `${gamePct}%` }}
+                  className={[
+                    "h-full rounded-full transition-[width] duration-100",
+                    roundPct < 30 ? "bg-[#e85d4c]" : "bg-mint",
+                  ].join(" ")}
+                  style={{ width: `${roundPct}%` }}
                 />
               </div>
             </div>

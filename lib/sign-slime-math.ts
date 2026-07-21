@@ -2,12 +2,11 @@
 
 import { gcd } from "@/lib/repeating-decimal-math";
 
-export const GAME_DURATION_SEC = 180;
 export const START_HP = 3;
-/** Full speed bonus when answered within this many seconds. */
-export const SPEED_BONUS_FULL_SEC = 3;
-/** No speed bonus after this many seconds (no per-round limit). */
-export const SPEED_BONUS_ZERO_SEC = 20;
+export const ROUND_LIMIT_START = 30;
+export const ROUND_LIMIT_MIN = 3;
+/** Max denominator for rational problem answers (middle-school friendly). */
+export const MAX_ANSWER_DENOM = 24;
 
 export type MathOp = "+" | "−" | "×" | "÷";
 
@@ -82,6 +81,8 @@ export type Difficulty = {
   slimeScale: number;
 };
 
+type Fraction = { num: number; den: number };
+
 const DENOMINATORS = [2, 3, 4, 5, 6, 8, 10, 12] as const;
 
 function randomInt(lo: number, hi: number): number {
@@ -118,6 +119,38 @@ export function simplifyRational(num: number, den: number): Answer {
   return { kind: "rational", num: n, den: d };
 }
 
+function toFraction(a: Answer): Fraction {
+  if (a.kind === "int") return { num: a.value, den: 1 };
+  return { num: a.num, den: a.den };
+}
+
+function fromFraction(f: Fraction): Answer {
+  return simplifyRational(f.num, f.den);
+}
+
+function addFrac(a: Fraction, b: Fraction): Answer {
+  return fromFraction({
+    num: a.num * b.den + b.num * a.den,
+    den: a.den * b.den,
+  });
+}
+
+function subFrac(a: Fraction, b: Fraction): Answer {
+  return fromFraction({
+    num: a.num * b.den - b.num * a.den,
+    den: a.den * b.den,
+  });
+}
+
+function mulFrac(a: Fraction, b: Fraction): Answer {
+  return fromFraction({ num: a.num * b.num, den: a.den * b.den });
+}
+
+function divFrac(a: Fraction, b: Fraction): Answer {
+  if (b.num === 0) return { kind: "int", value: 0 };
+  return fromFraction({ num: a.num * b.den, den: a.den * b.num });
+}
+
 export function answersEqual(a: Answer, b: Answer): boolean {
   if (a.kind === "int" && b.kind === "int") return a.value === b.value;
   if (a.kind === "rational" && b.kind === "rational") {
@@ -143,6 +176,11 @@ export function answersEqual(a: Answer, b: Answer): boolean {
 export function simplifyAnswer(a: Answer): Answer {
   if (a.kind === "int") return a;
   return simplifyRational(a.num, a.den);
+}
+
+function answerDenom(a: Answer): number {
+  const s = simplifyAnswer(a);
+  return s.kind === "rational" ? s.den : 1;
 }
 
 /** Korean textbook sign notation: (+3), (−5), (+1/2) */
@@ -209,52 +247,37 @@ function randomNonZeroInt(lo: number, hi: number): number {
   return n === 0 ? 1 : n;
 }
 
+/** Reduced proper/improper fraction with small denominators. */
 function randomFraction(): Answer {
-  const den = pick(DENOMINATORS);
-  const num = randomNonZeroInt(-den * 3, den * 3);
-  return fracAnswer(num, den);
+  for (let attempt = 0; attempt < 40; attempt++) {
+    const den = pick(DENOMINATORS);
+    const num = randomNonZeroInt(-den * 2, den * 2);
+    const f = simplifyRational(num, den);
+    if (f.kind === "rational" && intGcd(Math.abs(f.num), f.den) === 1) {
+      return f;
+    }
+  }
+  return fracAnswer(1, 2);
 }
 
 function addAnswers(a: Answer, b: Answer): Answer {
-  const av =
-    a.kind === "int" ? a.value : a.num / a.den;
-  const bv =
-    b.kind === "int" ? b.value : b.num / b.den;
-  const sum = av + bv;
-  if (Number.isInteger(sum)) return intAnswer(sum);
-  const scale = 1000;
-  return fracAnswer(Math.round(sum * scale), scale);
+  return addFrac(toFraction(a), toFraction(b));
 }
 
 function subAnswers(a: Answer, b: Answer): Answer {
-  const av =
-    a.kind === "int" ? a.value : a.num / a.den;
-  const bv =
-    b.kind === "int" ? b.value : b.num / b.den;
-  const diff = av - bv;
-  if (Number.isInteger(diff)) return intAnswer(diff);
-  const scale = 1000;
-  return fracAnswer(Math.round(diff * scale), scale);
+  return subFrac(toFraction(a), toFraction(b));
 }
 
 function mulAnswers(a: Answer, b: Answer): Answer {
-  if (a.kind === "int" && b.kind === "int") return intAnswer(a.value * b.value);
-  const av = a.kind === "int" ? a.value : a.num / a.den;
-  const bv = b.kind === "int" ? b.value : b.num / b.den;
-  const prod = av * bv;
-  if (Number.isInteger(prod)) return intAnswer(prod);
-  const scale = 1000;
-  return fracAnswer(Math.round(prod * scale), scale);
+  return mulFrac(toFraction(a), toFraction(b));
 }
 
 function divAnswers(a: Answer, b: Answer): Answer {
-  const av = a.kind === "int" ? a.value : a.num / a.den;
-  const bv = b.kind === "int" ? b.value : b.num / b.den;
-  if (bv === 0) return intAnswer(0);
-  const quot = av / bv;
-  if (Number.isInteger(quot)) return intAnswer(quot);
-  const scale = 1000;
-  return fracAnswer(Math.round(quot * scale), scale);
+  return divFrac(toFraction(a), toFraction(b));
+}
+
+function isAcceptableRationalAnswer(answer: Answer): boolean {
+  return answerDenom(answer) <= MAX_ANSWER_DENOM;
 }
 
 function dealIntAdd(): Problem {
@@ -272,11 +295,18 @@ function dealIntAddSub(): Problem {
 }
 
 function dealRationalAddSub(): Problem {
-  const left = randomFraction();
-  const right = randomFraction();
-  const op: MathOp = Math.random() < 0.5 ? "+" : "−";
-  const answer = op === "+" ? addAnswers(left, right) : subAnswers(left, right);
-  return makeProblem("rational_add_sub", left, op, right, answer);
+  for (let attempt = 0; attempt < 50; attempt++) {
+    const left = randomFraction();
+    const right = randomFraction();
+    const op: MathOp = Math.random() < 0.5 ? "+" : "−";
+    const answer = op === "+" ? addAnswers(left, right) : subAnswers(left, right);
+    if (isAcceptableRationalAnswer(answer)) {
+      return makeProblem("rational_add_sub", left, op, right, answer);
+    }
+  }
+  const left = fracAnswer(1, 2);
+  const right = fracAnswer(1, 3);
+  return makeProblem("rational_add_sub", left, "+", right, addAnswers(left, right));
 }
 
 function dealIntMul(): Problem {
@@ -295,11 +325,18 @@ function dealIntDiv(): Problem {
 }
 
 function dealRationalMulDiv(): Problem {
-  const left = randomFraction();
-  const right = randomFraction();
-  const op: MathOp = Math.random() < 0.5 ? "×" : "÷";
-  const answer = op === "×" ? mulAnswers(left, right) : divAnswers(left, right);
-  return makeProblem("rational_mul_div", left, op, right, answer);
+  for (let attempt = 0; attempt < 50; attempt++) {
+    const left = randomFraction();
+    const right = randomFraction();
+    const op: MathOp = Math.random() < 0.5 ? "×" : "÷";
+    const answer = op === "×" ? mulAnswers(left, right) : divAnswers(left, right);
+    if (isAcceptableRationalAnswer(answer)) {
+      return makeProblem("rational_mul_div", left, op, right, answer);
+    }
+  }
+  const left = fracAnswer(2, 3);
+  const right = fracAnswer(3, 4);
+  return makeProblem("rational_mul_div", left, "×", right, mulAnswers(left, right));
 }
 
 const DEALERS: Record<StageId, () => Problem> = {
@@ -316,7 +353,10 @@ export function dealProblem(stages: StageId[]): Problem {
   return DEALERS[stage]();
 }
 
-function mutateAnswer(answer: Answer, kind: "off_by_one" | "flip_sign" | "swap_frac" | "add_denom"): Answer | null {
+function mutateAnswer(
+  answer: Answer,
+  kind: "off_by_one" | "flip_sign" | "swap_frac" | "add_denom",
+): Answer | null {
   const s = simplifyAnswer(answer);
   if (kind === "off_by_one") {
     if (s.kind === "int") return intAnswer(s.value + (Math.random() < 0.5 ? 1 : -1));
@@ -365,7 +405,6 @@ export function buildChoices(answer: Answer): Answer[] {
     if (!pool.some((p) => answersEqual(p, extra))) pool.push(simplifyAnswer(extra));
   }
 
-  // Shuffle
   for (let i = pool.length - 1; i > 0; i--) {
     const j = Math.floor(Math.random() * (i + 1));
     [pool[i], pool[j]] = [pool[j]!, pool[i]!];
@@ -387,31 +426,48 @@ const BASE_POINTS: Record<StageId, number> = {
   rational_mul_div: 42,
 };
 
-/** Bonus 0–10 from how quickly the player answered (no round time limit). */
-export function speedBonusFor(answerTimeSec: number): number {
+/** clearedBefore = number of correct answers before this round. */
+export function roundLimitSec(clearedBefore: number): number {
+  let limit = ROUND_LIMIT_START;
+  let n = Math.max(0, clearedBefore);
+  const p1 = Math.min(n, 10);
+  limit -= p1;
+  n -= p1;
+  const p2 = Math.min(n, 20);
+  limit -= p2 * 0.5;
+  n -= p2;
+  limit -= n * 0.1;
+  return Math.max(ROUND_LIMIT_MIN, Math.round(limit * 10) / 10);
+}
+
+/** Bonus 0–10 from remaining time ratio within the round limit. */
+export function speedBonusFor(
+  answerTimeSec: number,
+  roundLimit: number,
+): number {
+  const limit = Math.max(ROUND_LIMIT_MIN, roundLimit);
   const t = Math.max(0, answerTimeSec);
-  if (t <= SPEED_BONUS_FULL_SEC) return 10;
-  if (t >= SPEED_BONUS_ZERO_SEC) return 0;
-  const ratio =
-    (t - SPEED_BONUS_FULL_SEC) / (SPEED_BONUS_ZERO_SEC - SPEED_BONUS_FULL_SEC);
-  return Math.round(10 * (1 - ratio));
+  const remainingRatio = Math.max(0, Math.min(1, 1 - t / limit));
+  if (remainingRatio >= 0.8) return 10;
+  if (remainingRatio <= 0.2) return 0;
+  return Math.round(((remainingRatio - 0.2) / 0.6) * 10);
 }
 
 export function pointsForCorrect(
   stageId: StageId,
   streakBefore: number,
   answerTimeSec: number,
+  roundLimit: number,
 ): number {
   const base = BASE_POINTS[stageId];
   const streakBonus = Math.min(streakBefore, 12) * 2;
-  const speedBonus = speedBonusFor(answerTimeSec);
+  const speedBonus = speedBonusFor(answerTimeSec, roundLimit);
   return base + streakBonus + speedBonus;
 }
 
-export function difficultyAt(elapsedSec: number, cleared: number): Difficulty {
-  const t = Math.max(0, elapsedSec);
+export function difficultyAt(cleared: number): Difficulty {
   const c = Math.max(0, cleared);
-  const progress = Math.min(1, t / GAME_DURATION_SEC + c / 55);
+  const progress = Math.min(1, c / 55);
   const slimeScale = 1 + progress * 0.35;
   return { slimeScale };
 }
