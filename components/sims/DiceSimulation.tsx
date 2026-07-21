@@ -175,7 +175,8 @@ function Die3D({
   const ry = base.ry + TILT_Y + spins * 360;
 
   return (
-    <div className="die-stage">
+    <>
+      <div className="die-stage">
       <div className="die-shadow" style={{ width: long ? 150 : 100 }} />
       <div
         className="die-solid"
@@ -223,7 +224,54 @@ function Die3D({
           );
         })}
       </div>
-    </div>
+      </div>
+      <style jsx>{`
+        .die-stage {
+          position: relative;
+          height: 190px;
+          width: 100%;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          perspective: 800px;
+        }
+        .die-shadow {
+          position: absolute;
+          bottom: 22px;
+          left: 50%;
+          height: 22px;
+          transform: translateX(-50%);
+          background: radial-gradient(
+            ellipse at center,
+            rgba(92, 64, 51, 0.28),
+            rgba(92, 64, 51, 0) 70%
+          );
+          filter: blur(2px);
+        }
+        .die-solid {
+          position: relative;
+          transform-style: preserve-3d;
+          -webkit-transform-style: preserve-3d;
+          will-change: transform;
+        }
+        .die-face {
+          position: absolute;
+          box-sizing: border-box;
+          border: 2px solid rgba(92, 64, 51, 0.3);
+          border-radius: 12px;
+          background: linear-gradient(150deg, #ffffff 0%, #fbeede 100%);
+          box-shadow: inset 0 0 12px rgba(92, 64, 51, 0.08);
+          backface-visibility: hidden;
+          -webkit-backface-visibility: hidden;
+        }
+        .die-pip {
+          position: absolute;
+          border-radius: 9999px;
+          background: #5c4033;
+          box-shadow: inset 0 -1px 1px rgba(0, 0, 0, 0.28);
+        }
+      `}</style>
+    </>
   );
 }
 
@@ -973,51 +1021,6 @@ export default function DiceSimulation() {
             : "주황 막대는 실제로 굴려서 나온 상대도수, 초록 점선은 이론적 확률이에요. 시행 횟수를 늘리면 모든 막대가 각자의 점선 높이에 가까워집니다."}
         </p>
       </section>
-
-      <style jsx>{`
-        .die-stage {
-          position: relative;
-          height: 190px;
-          width: 100%;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          perspective: 800px;
-        }
-        .die-shadow {
-          position: absolute;
-          bottom: 22px;
-          left: 50%;
-          height: 22px;
-          transform: translateX(-50%);
-          background: radial-gradient(
-            ellipse at center,
-            rgba(92, 64, 51, 0.28),
-            rgba(92, 64, 51, 0) 70%
-          );
-          filter: blur(2px);
-        }
-        .die-solid {
-          position: relative;
-          transform-style: preserve-3d;
-          will-change: transform;
-        }
-        .die-face {
-          position: absolute;
-          box-sizing: border-box;
-          border: 2px solid rgba(92, 64, 51, 0.3);
-          border-radius: 12px;
-          background: linear-gradient(150deg, #ffffff 0%, #fbeede 100%);
-          box-shadow: inset 0 0 12px rgba(92, 64, 51, 0.08);
-          backface-visibility: hidden;
-        }
-        .die-pip {
-          position: absolute;
-          border-radius: 9999px;
-          background: #5c4033;
-          box-shadow: inset 0 -1px 1px rgba(0, 0, 0, 0.28);
-        }
-      `}</style>
     </div>
   );
 }
