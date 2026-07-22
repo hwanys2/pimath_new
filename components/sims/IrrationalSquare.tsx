@@ -78,6 +78,53 @@ function squareCenterY(item: { y: number; size: number }) {
   return item.y + item.size / 2;
 }
 
+function areaLabelFontSize(size: number, text: string, isTarget: boolean): number {
+  const base = Math.max(isTarget ? 11 : 9, size * (isTarget ? 0.2 : 0.17));
+  const maxSide = size * 0.88;
+  const charCount = Math.max(text.length, 1);
+  const byWidth = maxSide / (charCount * 0.52);
+  const byHeight = maxSide / (Math.ceil(charCount / 4) * 1.2);
+  return Math.min(base, Math.max(7, Math.min(byWidth, byHeight)));
+}
+
+function SquareAreaLabel({
+  x,
+  y,
+  size,
+  text,
+  isTarget,
+}: {
+  x: number;
+  y: number;
+  size: number;
+  text: string;
+  isTarget?: boolean;
+}) {
+  const padding = Math.max(3, size * 0.1);
+  const inner = Math.max(0, size - padding * 2);
+  const fontSize = areaLabelFontSize(size, text, Boolean(isTarget));
+
+  return (
+    <foreignObject
+      x={x + padding}
+      y={y + padding}
+      width={inner}
+      height={inner}
+    >
+      <div
+        className="flex h-full w-full items-center justify-center overflow-hidden text-center font-bold leading-tight text-wood"
+        style={{
+          fontSize,
+          wordBreak: "break-all",
+          hyphens: "none",
+        }}
+      >
+        {text}
+      </div>
+    </foreignObject>
+  );
+}
+
 function SquareDiagram({
   area,
   visibleWindow,
@@ -147,21 +194,13 @@ function SquareDiagram({
                 stroke={colors.stroke}
                 strokeWidth={2}
               />
-              <text
-                x={item.x + item.size / 2}
-                y={item.y + item.size / 2}
-                textAnchor="middle"
-                dominantBaseline="middle"
-                className="fill-wood font-bold"
-                style={{
-                  fontSize: Math.max(
-                    item.spec.role === "target" ? 13 : 11,
-                    item.size * 0.22,
-                  ),
-                }}
-              >
-                {item.spec.label}
-              </text>
+              <SquareAreaLabel
+                x={item.x}
+                y={item.y}
+                size={item.size}
+                text={item.spec.label}
+                isTarget={item.spec.role === "target"}
+              />
               {item.spec.sublabel && item.spec.role !== "target" ? (
                 <text
                   x={item.x + item.size / 2}
