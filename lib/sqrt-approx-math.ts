@@ -6,8 +6,9 @@ const TEN = BigInt(10);
 export const TARGET_AREAS = [2, 3, 5, 8, 10, 12] as const;
 export type TargetArea = (typeof TARGET_AREAS)[number];
 
-export const MAX_ITERATIONS = 10;
-export const MAX_DECIMAL_PLACES = 10;
+export const MAX_DECIMAL_DIGITS = 10;
+/** @deprecated Use MAX_DECIMAL_DIGITS */
+export const MAX_DECIMAL_PLACES = MAX_DECIMAL_DIGITS;
 
 export type DecimalValue = {
   /** Canonical string, e.g. "2.23" or "2" */
@@ -22,15 +23,17 @@ export type Bracket = {
   high: DecimalValue;
 };
 
-export type IterationRecord = {
-  round: number;
-  guess: DecimalValue;
+export type ConfirmRecord = {
+  label: string;
+  value: string;
   square: string;
-  bracket: Bracket;
-  squareVsArea: "lt" | "eq" | "gt";
 };
 
-export type ParseSideError = "empty" | "invalid" | "non_positive" | "too_many_decimals";
+export type ParseSideError =
+  | "empty"
+  | "invalid"
+  | "non_positive"
+  | "too_many_decimals";
 
 export type ParseSideOutcome =
   | { ok: true; value: DecimalValue }
@@ -38,6 +41,14 @@ export type ParseSideOutcome =
 
 function stripLeadingZeros(s: string): string {
   return s.replace(/^0+(?=\d)/, "") || "0";
+}
+
+function formatScaled(scaled: bigint, scale: number): string {
+  if (scale === 0) return scaled.toString();
+  const factor = TEN ** BigInt(scale);
+  const intPart = scaled / factor;
+  const fracPart = (scaled % factor).toString().padStart(scale, "0");
+  return `${intPart}.${fracPart}`;
 }
 
 /** Parse a positive finite decimal string into an exact scaled bigint. */
@@ -50,7 +61,7 @@ export function parseSideInput(raw: string): ParseSideOutcome {
   }
 
   const [intPart, fracPart = ""] = trimmed.split(".");
-  if (fracPart.length > MAX_DECIMAL_PLACES) {
+  if (fracPart.length > MAX_DECIMAL_DIGITS) {
     return { ok: false, error: "too_many_decimals" };
   }
 
@@ -81,7 +92,7 @@ export function parseSideErrorMessage(error: ParseSideError): string {
     case "non_positive":
       return "0보다 큰 수를 입력해 주세요.";
     case "too_many_decimals":
-      return `소수점 아래는 ${MAX_DECIMAL_PLACES}자리까지 입력할 수 있어요.`;
+      return `소수점 아래는 ${MAX_DECIMAL_DIGITS}자리까지 입력할 수 있어요.`;
   }
 }
 
@@ -133,7 +144,8 @@ export function compareSquareToArea(
   area: number,
 ): "lt" | "eq" | "gt" {
   const [whole, frac = ""] = squareStr.split(".");
-  const squareScaled = BigInt(whole) * TEN ** BigInt(frac.length) + BigInt(frac || "0");
+  const squareScaled =
+    BigInt(whole) * TEN ** BigInt(frac.length) + BigInt(frac || "0");
   const areaScaled = BigInt(area) * TEN ** BigInt(frac.length);
   if (squareScaled < areaScaled) return "lt";
   if (squareScaled > areaScaled) return "gt";
@@ -149,7 +161,75 @@ export function getInitialBracket(area: number): Bracket {
   return { low: intToDecimal(low), high: intToDecimal(high) };
 }
 
-/** Refine bracket after a valid guess. */
+/** Floor(√area) as DecimalValue. */
+export function getCorrectIntegerPart(area: number): DecimalValue {
+  let low = 0;
+  while (low * low < area) low++;
+  return intToDecimal(low - 1);
+}
+
+/** Add 10^{-scale} to value (next step at current decimal precision). */
+export function incrementDecimal(value: DecimalValue): DecimalValue {
+  const newScaled = value.scaled + TEN ** BigInt(value.scale);
+  return {
+    raw: formatScaled(newScaled, value.scale),
+    scaled: newScaled,
+    scale: value.scale,
+  };
+}
+
+/** Bracket the student must reach before retrying a locked digit confirm. */
+export function getRequiredBracket(
+  confirmed: DecimalValue | null,
+  area: number,
+): Bracket {
+  if (!confirmed) {
+    return getInitialBracket(area);
+  }
+  if (confirmed.scale === 0) {
+    const i = Number(confirmed.scaled);
+    return { low: confirmed, high: intToDecimal(i + 1) };
+  }
+  return { low: confirmed, high: incrementDecimal(confirmed) };
+}
+
+export function bracketsMatch(a: Bracket, b: Bracket): boolean {
+  return (
+    compareDecimal(a.low, b.low) === 0 &&
+    compareDecimal(a.high, b.high) === 0
+  );
+}
+
+/** Append one decimal digit to a confirmed prefix. */
+export function appendDigit(
+  confirmed: DecimalValue,
+  digit: number,
+): DecimalValue {
+  const newRaw =
+    confirmed.scale === 0
+      ? `${confirmed.raw}.${digit}`
+      : `${confirmed.raw}${digit}`;
+  const parsed = parseSideInput(newRaw);
+  if (!parsed.ok) throw new Error("appendDigit: invalid digit");
+  return parsed.value;
+}
+
+/** Correct next decimal digit (0–9) for the current confirmed prefix. */
+export function getCorrectNextDigit(
+  confirmed: DecimalValue,
+  area: number,
+): number {
+  let best = -1;
+  for (let d = 0; d <= 9; d++) {
+    const candidate = appendDigit(confirmed, d);
+    if (compareSquareToArea(squareSide(candidate), area) === "lt") {
+      best = d;
+    }
+  }
+  return best;
+}
+
+/** Refine bracket after a valid probe guess. */
 export function refineBracket(
   bracket: Bracket,
   guess: DecimalValue,
@@ -164,11 +244,6 @@ export function refineBracket(
     return { low: bracket.low, high: guess };
   }
   return bracket;
-}
-
-/** Format a decimal string for display (no trailing-zero stripping). */
-export function formatSquareDisplay(square: string): string {
-  return square;
 }
 
 /** Square an integer and return as string. */

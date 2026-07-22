@@ -2,14 +2,19 @@
 
 import { useCallback, useMemo, useState } from "react";
 import {
-  MAX_ITERATIONS,
+  MAX_DECIMAL_DIGITS,
   TARGET_AREAS,
   type Bracket,
+  type ConfirmRecord,
   type DecimalValue,
-  type IterationRecord,
   type TargetArea,
-  compareSquareToArea,
+  appendDigit,
+  bracketsMatch,
+  compareDecimal,
+  getCorrectIntegerPart,
+  getCorrectNextDigit,
   getInitialBracket,
+  getRequiredBracket,
   isValidGuess,
   parseSideInput,
   parseSideInputErrorMessage,
@@ -19,9 +24,10 @@ import {
   squareSide,
 } from "@/lib/sqrt-approx-math";
 
-type Phase = "select" | "iterate" | "complete";
+type Phase = "select" | "explore" | "complete";
+type ConfirmStage = "integer" | "decimal";
 
-type WrongAttempt = {
+type WrongProbe = {
   guess: DecimalValue;
   square: string;
 };
@@ -34,7 +40,7 @@ const SYM_W = 36;
 const COLOR_LOW = { fill: "rgba(125, 200, 245, 0.75)", stroke: "#4A90C8" };
 const COLOR_TARGET = { fill: "rgba(212, 196, 255, 0.85)", stroke: "#7B5BB5" };
 const COLOR_HIGH = { fill: "rgba(255, 200, 160, 0.8)", stroke: "#D4845A" };
-const COLOR_GUESS = { fill: "rgba(255, 215, 100, 0.85)", stroke: "#C9A030" };
+const COLOR_PROBE = { fill: "rgba(255, 215, 100, 0.85)", stroke: "#C9A030" };
 
 type SquareSpec = {
   id: string;
@@ -42,13 +48,13 @@ type SquareSpec = {
   label: string;
   sublabel?: string;
   colors: { fill: string; stroke: string };
-  role: "low" | "target" | "high" | "guess";
+  role: "low" | "target" | "high" | "probe";
 };
 
 function buildSquareSpecs(
   area: number,
   bracket: Bracket,
-  wrong: WrongAttempt | null,
+  wrong: WrongProbe | null,
 ): { specs: SquareSpec[]; showInequalities: boolean } {
   const lowSq = squareSide(bracket.low);
   const highSq = squareSide(bracket.high);
@@ -58,7 +64,7 @@ function buildSquareSpecs(
     id: "low",
     side: bracket.low,
     label: bracket.low.raw,
-    sublabel: `${lowSq}`,
+    sublabel: lowSq,
     colors: COLOR_LOW,
     role: "low",
   };
@@ -70,7 +76,6 @@ function buildSquareSpecs(
       scale: 6,
     },
     label: `넓이 ${area}`,
-    sublabel: undefined,
     colors: COLOR_TARGET,
     role: "target",
   };
@@ -78,21 +83,21 @@ function buildSquareSpecs(
     id: "high",
     side: bracket.high,
     label: bracket.high.raw,
-    sublabel: `${highSq}`,
+    sublabel: highSq,
     colors: COLOR_HIGH,
     role: "high",
   };
 
   if (wrong) {
-    const guessSpec: SquareSpec = {
-      id: "guess",
+    const probeSpec: SquareSpec = {
+      id: "probe",
       side: wrong.guess,
       label: wrong.guess.raw,
       sublabel: wrong.square,
-      colors: COLOR_GUESS,
-      role: "guess",
+      colors: COLOR_PROBE,
+      role: "probe",
     };
-    const sorted = [lowSpec, targetSpec, highSpec, guessSpec].sort(
+    const sorted = [lowSpec, targetSpec, highSpec, probeSpec].sort(
       (a, b) => sideToNumber(a.side) - sideToNumber(b.side),
     );
     return { specs: sorted, showInequalities: false };
@@ -103,7 +108,9 @@ function buildSquareSpecs(
 
 function layoutSquares(specs: SquareSpec[]) {
   const sides = specs.map((s) =>
-    s.role === "target" ? Math.sqrt(Number(s.label.replace("넓이 ", ""))) : sideToNumber(s.side),
+    s.role === "target"
+      ? Math.sqrt(Number(s.label.replace("넓이 ", "")))
+      : sideToNumber(s.side),
   );
   const maxSide = Math.max(...sides, 1);
   const maxPx = 120;
@@ -111,8 +118,7 @@ function layoutSquares(specs: SquareSpec[]) {
 
   const sizes = sides.map((s) => s * scale);
   const totalW =
-    sizes.reduce((a, b) => a + b, 0) +
-    (specs.length - 1) * (GAP + SYM_W);
+    sizes.reduce((a, b) => a + b, 0) + (specs.length - 1) * (GAP + SYM_W);
   let x = (VB_W - totalW) / 2;
   const baseY = VB_H / 2;
 
@@ -125,6 +131,10 @@ function layoutSquares(specs: SquareSpec[]) {
   });
 }
 
+function squareCenterY(item: { y: number; size: number }) {
+  return item.y + item.size / 2;
+}
+
 function SquareDiagram({
   area,
   bracket,
@@ -132,7 +142,7 @@ function SquareDiagram({
 }: {
   area: number;
   bracket: Bracket;
-  wrong: WrongAttempt | null;
+  wrong: WrongProbe | null;
 }) {
   const { specs, showInequalities } = useMemo(
     () => buildSquareSpecs(area, bracket, wrong),
@@ -182,7 +192,7 @@ function SquareDiagram({
               y={item.y + item.size / 2 - (item.spec.sublabel ? 6 : 0)}
               textAnchor="middle"
               dominantBaseline="middle"
-              className="fill-wood text-[13px] font-bold"
+              className="fill-wood font-bold"
               style={{ fontSize: Math.max(10, item.size * 0.18) }}
             >
               {item.spec.label}
@@ -202,7 +212,7 @@ function SquareDiagram({
             {i < layout.length - 1 ? (
               <text
                 x={item.x + item.size + GAP / 2 + SYM_W / 2}
-                y={baseY(item)}
+                y={squareCenterY(item)}
                 textAnchor="middle"
                 dominantBaseline="middle"
                 className={
@@ -221,96 +231,263 @@ function SquareDiagram({
   );
 }
 
-function baseY(item: { y: number; size: number }) {
-  return item.y + item.size / 2;
+function DigitDisplay({
+  confirmed,
+  confirmStage,
+  decimalIndex,
+}: {
+  confirmed: DecimalValue | null;
+  confirmStage: ConfirmStage;
+  decimalIndex: number;
+}) {
+  const intPart = confirmed ? confirmed.raw.split(".")[0] : null;
+  const filledFrac =
+    confirmed && confirmed.scale > 0 ? confirmed.raw.split(".")[1] : "";
+
+  return (
+    <div className="flex flex-wrap items-center justify-center gap-1 font-display text-2xl font-bold sm:text-3xl">
+      <span
+        className={`min-w-[2rem] rounded-lg px-2 py-1 text-center ${
+          intPart
+            ? "bg-lavender/40 text-wood"
+            : confirmStage === "integer"
+              ? "bg-gold/40 text-wood ring-2 ring-gold/60"
+              : "bg-wood/10 text-foreground/30"
+        }`}
+      >
+        {intPart ?? "_"}
+      </span>
+      <span className="text-wood/60">.</span>
+      {Array.from({ length: MAX_DECIMAL_DIGITS }, (_, i) => {
+        const digit = filledFrac[i];
+        const isActive =
+          confirmStage === "decimal" && decimalIndex === i && !digit;
+        const isFuture = !digit && (i > filledFrac.length || !confirmed);
+        return (
+          <span
+            key={i}
+            className={`min-w-[1.75rem] rounded-lg px-1.5 py-1 text-center sm:min-w-[2rem] ${
+              digit
+                ? "bg-lavender/40 text-wood"
+                : isActive
+                  ? "bg-gold/40 text-wood ring-2 ring-gold/60"
+                  : "bg-wood/10 text-foreground/30"
+            } ${isFuture && !isActive ? "opacity-50" : ""}`}
+          >
+            {digit ?? (isActive ? "_" : "·")}
+          </span>
+        );
+      })}
+    </div>
+  );
 }
 
 export default function IrrationalSquare() {
   const [phase, setPhase] = useState<Phase>("select");
   const [area, setArea] = useState<TargetArea | null>(null);
-  const [bracket, setBracket] = useState<Bracket | null>(null);
-  const [round, setRound] = useState(1);
-  const [history, setHistory] = useState<IterationRecord[]>([]);
-  const [inputValue, setInputValue] = useState("");
-  const [inputError, setInputError] = useState<string | null>(null);
-  const [wrongAttempt, setWrongAttempt] = useState<WrongAttempt | null>(null);
-  const [lastSquare, setLastSquare] = useState<string | null>(null);
-  const [lastGuessRaw, setLastGuessRaw] = useState<string | null>(null);
+  const [confirmStage, setConfirmStage] = useState<ConfirmStage>("integer");
+  const [confirmed, setConfirmed] = useState<DecimalValue | null>(null);
+  const [decimalIndex, setDecimalIndex] = useState(0);
+  const [exploreBracket, setExploreBracket] = useState<Bracket | null>(null);
+  const [confirmLocked, setConfirmLocked] = useState(false);
+  const [history, setHistory] = useState<ConfirmRecord[]>([]);
+
+  const [probeInput, setProbeInput] = useState("");
+  const [confirmInput, setConfirmInput] = useState("");
+  const [probeError, setProbeError] = useState<string | null>(null);
+  const [confirmError, setConfirmError] = useState<string | null>(null);
+  const [wrongProbe, setWrongProbe] = useState<WrongProbe | null>(null);
+  const [probedSinceLock, setProbedSinceLock] = useState(false);
+  const [lastProbeSquare, setLastProbeSquare] = useState<{
+    raw: string;
+    square: string;
+  } | null>(null);
+
+  const requiredBracket = useMemo(() => {
+    if (!area) return null;
+    return getRequiredBracket(confirmed, area);
+  }, [area, confirmed]);
 
   const selectArea = useCallback((n: TargetArea) => {
+    const initial = getInitialBracket(n);
     setArea(n);
-    setBracket(getInitialBracket(n));
-    setRound(1);
+    setConfirmStage("integer");
+    setConfirmed(null);
+    setDecimalIndex(0);
+    setExploreBracket(initial);
+    setConfirmLocked(false);
     setHistory([]);
-    setInputValue("");
-    setInputError(null);
-    setWrongAttempt(null);
-    setLastSquare(null);
-    setLastGuessRaw(null);
-    setPhase("iterate");
+    setProbeInput("");
+    setConfirmInput("");
+    setProbeError(null);
+    setConfirmError(null);
+    setWrongProbe(null);
+    setProbedSinceLock(false);
+    setLastProbeSquare(null);
+    setPhase("explore");
   }, []);
 
   const reset = useCallback(() => {
     setPhase("select");
     setArea(null);
-    setBracket(null);
-    setRound(1);
+    setConfirmStage("integer");
+    setConfirmed(null);
+    setDecimalIndex(0);
+    setExploreBracket(null);
+    setConfirmLocked(false);
     setHistory([]);
-    setInputValue("");
-    setInputError(null);
-    setWrongAttempt(null);
-    setLastSquare(null);
-    setLastGuessRaw(null);
+    setProbeInput("");
+    setConfirmInput("");
+    setProbeError(null);
+    setConfirmError(null);
+    setWrongProbe(null);
+    setProbedSinceLock(false);
+    setLastProbeSquare(null);
   }, []);
 
-  const submitGuess = useCallback(() => {
-    if (!area || !bracket || phase !== "iterate") return;
+  const tryUnlock = useCallback(
+    (bracket: Bracket, stage: ConfirmStage) => {
+      if (!confirmLocked || !requiredBracket || !area) return;
+      if (!probedSinceLock) return;
 
-    const parsed = parseSideInput(inputValue);
-    if (!parsed.ok) {
-      if (parsed.error !== "empty") {
-        setInputError(parseSideInputErrorMessage(parsed.error));
-      } else {
-        setInputError(parseSideInputErrorMessage(parsed.error));
+      const canUnlock =
+        stage === "integer"
+          ? true
+          : bracketsMatch(bracket, requiredBracket);
+
+      if (canUnlock) {
+        setConfirmLocked(false);
+        setConfirmInput("");
+        setProbedSinceLock(false);
       }
+    },
+    [confirmLocked, requiredBracket, area, probedSinceLock],
+  );
+
+  const submitProbe = useCallback(() => {
+    if (!area || !exploreBracket || phase !== "explore") return;
+
+    const parsed = parseSideInput(probeInput);
+    if (!parsed.ok) {
+      setProbeError(parseSideInputErrorMessage(parsed.error));
       return;
     }
 
-    setInputError(null);
+    setProbeError(null);
     const guess = parsed.value;
     const square = squareSide(guess);
-    setLastSquare(square);
-    setLastGuessRaw(guess.raw);
+    setLastProbeSquare({ raw: guess.raw, square });
 
-    if (!isValidGuess(guess, bracket.low, bracket.high)) {
-      setWrongAttempt({ guess, square });
+    if (!isValidGuess(guess, exploreBracket.low, exploreBracket.high)) {
+      setWrongProbe({ guess, square });
       return;
     }
 
-    setWrongAttempt(null);
-    const squareVsArea = compareSquareToArea(square, area);
-    const newBracket = refineBracket(bracket, guess, area);
+    setWrongProbe(null);
+    const newBracket = refineBracket(exploreBracket, guess, area);
+    setExploreBracket(newBracket);
+    if (confirmLocked) {
+      setProbedSinceLock(true);
+      tryUnlock(newBracket, confirmStage);
+    }
+  }, [area, exploreBracket, phase, probeInput, tryUnlock, confirmLocked, confirmStage]);
 
-    const record: IterationRecord = {
-      round,
-      guess,
-      square,
-      bracket: { ...bracket },
-      squareVsArea,
-    };
+  const submitConfirm = useCallback(() => {
+    if (!area || !exploreBracket || phase !== "explore" || confirmLocked)
+      return;
 
-    setHistory((prev) => [...prev, record]);
-    setBracket(newBracket);
-    setInputValue("");
+    if (confirmStage === "integer") {
+      const parsed = parseSideInput(confirmInput);
+      if (!parsed.ok) {
+        setConfirmError(parseSideInputErrorMessage(parsed.error));
+        return;
+      }
 
-    if (round >= MAX_ITERATIONS) {
+      const correct = getCorrectIntegerPart(area);
+      if (compareDecimal(parsed.value, correct) !== 0) {
+        setConfirmLocked(true);
+        setProbedSinceLock(false);
+        setConfirmError(null);
+        setConfirmInput("");
+        setExploreBracket(getInitialBracket(area));
+        setWrongProbe(null);
+        return;
+      }
+
+      setConfirmError(null);
+      setConfirmed(parsed.value);
+      setConfirmStage("decimal");
+      setDecimalIndex(0);
+      const nextBracket = getRequiredBracket(parsed.value, area);
+      setExploreBracket(nextBracket);
+      setHistory((h) => [
+        ...h,
+        {
+          label: "정수부",
+          value: parsed.value.raw,
+          square: squareSide(parsed.value),
+        },
+      ]);
+      setConfirmInput("");
+      return;
+    }
+
+    if (!/^\d$/.test(confirmInput.trim())) {
+      setConfirmError("0~9 한 자리 숫자를 입력해 주세요.");
+      return;
+    }
+
+    const digit = Number.parseInt(confirmInput.trim(), 10);
+    if (!confirmed) return;
+
+    const correctDigit = getCorrectNextDigit(confirmed, area);
+    if (digit !== correctDigit) {
+      setConfirmLocked(true);
+      setProbedSinceLock(false);
+      setConfirmError(null);
+      setConfirmInput("");
+      setWrongProbe(null);
+      return;
+    }
+
+    const next = appendDigit(confirmed, digit);
+    setConfirmError(null);
+    setConfirmed(next);
+    setConfirmInput("");
+    setHistory((h) => [
+      ...h,
+      {
+        label: `소수 ${decimalIndex + 1}번째`,
+        value: next.raw,
+        square: squareSide(next),
+      },
+    ]);
+
+    if (decimalIndex + 1 >= MAX_DECIMAL_DIGITS) {
       setPhase("complete");
     } else {
-      setRound((r) => r + 1);
+      setDecimalIndex((i) => i + 1);
+      const nextBracket = getRequiredBracket(next, area);
+      setExploreBracket(nextBracket);
     }
-  }, [area, bracket, phase, inputValue, round]);
+  }, [
+    area,
+    exploreBracket,
+    phase,
+    confirmLocked,
+    confirmStage,
+    confirmInput,
+    confirmed,
+    decimalIndex,
+  ]);
 
   const initialBracket = area ? getInitialBracket(area) : null;
+  const confirmEnabled = !confirmLocked;
+
+  const stageLabel =
+    confirmStage === "integer"
+      ? "정수부 확정"
+      : `소수 ${decimalIndex + 1}번째 자릿수 확정`;
 
   return (
     <div className="flex flex-col gap-6">
@@ -320,9 +497,9 @@ export default function IrrationalSquare() {
           정사각형으로 만나는 무리수
         </h1>
         <p className="mt-3 max-w-2xl text-sm leading-relaxed text-foreground/75 sm:text-base">
-          넓이가 정수인 정사각형의 한 변 길이를 직접 찾아 보세요. 제곱값은
-          자동으로 계산해 드리지만, 어떤 수를 넣어야 하는지는 스스로
-          판단해야 합니다. 점수는 없고, 개념을 눈으로 익히는 시뮬레이션입니다.
+          넓이가 정수인 정사각형의 한 변 길이를 찾아 보세요. 정수부를 확정한 뒤
+          소수점 아래 자릿수를 하나씩 열어 가며, 탐색으로 넓이를 비교하고 확신이
+          들면 해당 자릿수를 확정합니다. 제곱값은 자동으로 계산해 드립니다.
         </p>
       </section>
 
@@ -344,18 +521,17 @@ export default function IrrationalSquare() {
             ))}
           </div>
           <p className="mt-6 text-center text-xs text-foreground/55">
-            완전제곱수가 아닌 넓이를 골라, 한 변의 길이를 10번 탐구해 보세요.
+            완전제곱수가 아닌 넓이를 골라, 소수점 아래 10번째 자리까지 찾아
+            보세요.
           </p>
         </section>
       ) : null}
 
-      {phase === "iterate" && area && bracket ? (
+      {phase === "explore" && area && exploreBracket ? (
         <>
           <section className="quest-card p-5 sm:p-8">
             <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
-              <p className="text-sm font-bold text-wood">
-                넓이 {area} — {round} / {MAX_ITERATIONS}차
-              </p>
+              <p className="text-sm font-bold text-wood">넓이 {area}</p>
               {initialBracket ? (
                 <p className="font-mono text-xs text-foreground/55">
                   {squareInt(Number(initialBracket.low.raw))} &lt; {area} &lt;{" "}
@@ -364,109 +540,161 @@ export default function IrrationalSquare() {
               ) : null}
             </div>
 
+            <div className="mb-6">
+              <DigitDisplay
+                confirmed={confirmed}
+                confirmStage={confirmStage}
+                decimalIndex={decimalIndex}
+              />
+            </div>
+
             <SquareDiagram
               area={area}
-              bracket={bracket}
-              wrong={wrongAttempt}
+              bracket={exploreBracket}
+              wrong={wrongProbe}
             />
 
-            <div className="mx-auto mt-8 max-w-sm">
-              <label className="flex flex-col items-center gap-2">
-                <span className="text-xs font-bold text-wood/70">
-                  한 변의 길이
-                </span>
-                <input
-                  type="text"
-                  inputMode="decimal"
-                  value={inputValue}
-                  onChange={(e) => {
-                    setInputValue(e.target.value);
-                    setInputError(null);
-                  }}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") submitGuess();
-                  }}
-                  className="w-full rounded-2xl border-2 border-wood/20 bg-white/85 px-4 py-3 text-center font-display text-3xl font-bold text-foreground outline-none focus:border-lavender sm:text-4xl"
-                  aria-label="한 변의 길이 입력"
-                />
-              </label>
-
-              {lastSquare && lastGuessRaw ? (
-                <p className="mt-3 text-center font-mono text-sm text-foreground/70">
-                  {lastGuessRaw}² ={" "}
-                  <span className="font-semibold text-wood">{lastSquare}</span>
-                </p>
-              ) : null}
-
-              {inputError ? (
-                <p
-                  className="mt-3 text-center text-sm font-semibold text-[#a63a1a]"
-                  role="alert"
+            <div className="mx-auto mt-8 grid max-w-lg gap-6 sm:grid-cols-2">
+              <div>
+                <label className="flex flex-col items-center gap-2">
+                  <span className="text-xs font-bold text-wood/70">
+                    탐색해 보기
+                  </span>
+                  <input
+                    type="text"
+                    inputMode="decimal"
+                    value={probeInput}
+                    onChange={(e) => {
+                      setProbeInput(e.target.value);
+                      setProbeError(null);
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") submitProbe();
+                    }}
+                    className="w-full rounded-2xl border-2 border-wood/20 bg-white/85 px-4 py-3 text-center font-display text-2xl font-bold text-foreground outline-none focus:border-sky sm:text-3xl"
+                    aria-label="탐색용 변 길이"
+                  />
+                </label>
+                {lastProbeSquare ? (
+                  <p className="mt-2 text-center font-mono text-xs text-foreground/70">
+                    {lastProbeSquare.raw}² ={" "}
+                    <span className="font-semibold text-wood">
+                      {lastProbeSquare.square}
+                    </span>
+                  </p>
+                ) : null}
+                {probeError ? (
+                  <p
+                    className="mt-2 text-center text-xs font-semibold text-[#a63a1a]"
+                    role="alert"
+                  >
+                    {probeError}
+                  </p>
+                ) : null}
+                <button
+                  type="button"
+                  onClick={submitProbe}
+                  className="mt-3 w-full rounded-2xl bg-sky/60 py-2.5 text-sm font-bold text-wood"
                 >
-                  {inputError}
-                </p>
-              ) : null}
+                  비교하기
+                </button>
+              </div>
 
-              <button
-                type="button"
-                onClick={submitGuess}
-                className="block-btn-lavender mt-5 w-full rounded-2xl py-3 text-base font-bold"
-              >
-                확인
-              </button>
+              <div>
+                <label className="flex flex-col items-center gap-2">
+                  <span className="text-xs font-bold text-wood/70">
+                    {stageLabel}
+                  </span>
+                  <input
+                    type="text"
+                    inputMode={
+                      confirmStage === "integer" ? "numeric" : "numeric"
+                    }
+                    value={confirmInput}
+                    disabled={!confirmEnabled}
+                    onChange={(e) => {
+                      setConfirmInput(e.target.value);
+                      setConfirmError(null);
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" && confirmEnabled) submitConfirm();
+                    }}
+                    className="w-full rounded-2xl border-2 border-wood/20 bg-white/85 px-4 py-3 text-center font-display text-2xl font-bold text-foreground outline-none focus:border-lavender disabled:cursor-not-allowed disabled:opacity-45 sm:text-3xl"
+                    aria-label={
+                      confirmStage === "integer"
+                        ? "정수부 입력"
+                        : "소수 자릿수 입력"
+                    }
+                    maxLength={confirmStage === "decimal" ? 1 : undefined}
+                  />
+                </label>
+                {confirmError ? (
+                  <p
+                    className="mt-2 text-center text-xs font-semibold text-[#a63a1a]"
+                    role="alert"
+                  >
+                    {confirmError}
+                  </p>
+                ) : null}
+                <button
+                  type="button"
+                  onClick={submitConfirm}
+                  disabled={!confirmEnabled}
+                  className="block-btn-lavender mt-3 w-full rounded-2xl py-2.5 text-sm font-bold disabled:cursor-not-allowed disabled:opacity-45"
+                >
+                  정답확인
+                </button>
+              </div>
             </div>
           </section>
 
           {history.length > 0 ? (
             <section className="quest-card p-5 sm:p-7">
-              <p className="mb-4 text-sm font-bold text-wood">탐구 기록</p>
+              <p className="mb-4 text-sm font-bold text-wood">확정 기록</p>
               <ol className="flex flex-col gap-3">
-                {history.map((rec) => {
-                  const bLowSq = squareSide(rec.bracket.low);
-                  const bHighSq = squareSide(rec.bracket.high);
-                  return (
-                    <li
-                      key={rec.round}
-                      className="rounded-xl bg-lavender/15 px-4 py-3 text-sm"
-                    >
-                      <span className="font-bold text-wood">{rec.round}차</span>
-                      <span className="mx-2 text-foreground/40">·</span>
-                      <span className="font-mono">
-                        변 {rec.guess.raw} → {rec.guess.raw}² = {rec.square}
-                      </span>
-                      <p className="mt-1 font-mono text-xs text-foreground/60">
-                        {bLowSq} &lt; {area} &lt; {bHighSq}
-                      </p>
-                    </li>
-                  );
-                })}
+                {history.map((rec, i) => (
+                  <li
+                    key={`${rec.label}-${i}`}
+                    className="rounded-xl bg-lavender/15 px-4 py-3 text-sm"
+                  >
+                    <span className="font-bold text-wood">{rec.label}</span>
+                    <span className="mx-2 text-foreground/40">·</span>
+                    <span className="font-mono">
+                      {rec.value} → {rec.value}² = {rec.square}
+                    </span>
+                  </li>
+                ))}
               </ol>
             </section>
           ) : null}
         </>
       ) : null}
 
-      {phase === "complete" && area ? (
+      {phase === "complete" && area && confirmed ? (
         <section className="quest-card p-5 sm:p-8">
           <p className="text-center font-display text-2xl font-bold text-foreground">
-            10차 탐구를 마쳤어요
+            소수점 아래 10번째 자리까지 찾았어요
+          </p>
+          <p className="mx-auto mt-4 max-w-lg text-center font-mono text-lg font-semibold text-wood">
+            {confirmed.raw}
           </p>
           <p className="mx-auto mt-4 max-w-lg text-center text-sm leading-relaxed text-foreground/75">
-            넓이 {area}인 정사각형의 한 변 길이를 10번 좁혀 왔습니다. 제곱값이
-            넓이 {area}과 <strong>정확히 같아진 적은 없었습니다.</strong> 소수
-            자릿수를 늘릴수록 제곱값의 소수 자릿수도 두 배로 늘어나지만, 넓이와
-            딱 맞는 유한소수 제곱은 나타나지 않았어요.
+            넓이 {area}인 정사각형의 한 변 길이를 소수점 아래 10자리까지
+            좁혀 왔습니다. 제곱값이 넓이 {area}과{" "}
+            <strong>정확히 같아진 적은 없었습니다.</strong> 소수 자릿수를
+            늘릴수록 제곱값의 소수 자릿수도 두 배로 늘어나지만, 넓이와 딱 맞는
+            유한소수 제곱은 나타나지 않았어요.
           </p>
 
           <div className="mt-6">
-            <p className="mb-3 text-sm font-bold text-wood">전체 기록</p>
+            <p className="mb-3 text-sm font-bold text-wood">확정 기록</p>
             <ol className="flex flex-col gap-2">
-              {history.map((rec) => (
+              {history.map((rec, i) => (
                 <li
-                  key={rec.round}
+                  key={`${rec.label}-${i}`}
                   className="rounded-xl bg-lavender/15 px-4 py-2 font-mono text-xs text-foreground/80 sm:text-sm"
                 >
-                  {rec.round}차: {rec.guess.raw}² = {rec.square}
+                  {rec.label}: {rec.value}² = {rec.square}
                 </li>
               ))}
             </ol>
