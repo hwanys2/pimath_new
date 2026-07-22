@@ -159,6 +159,16 @@ export const CONTENTS: ContentMeta[] = [
       "교사가 숨긴 색깔 공 상자에서 복원추출로 공을 뽑으며 색깔별 개수를 추정해 맞히는 확률 게임. 빠르게 맞힐수록 높은 점수! 학급 배정·활성 시 XP와 랭킹이 쌓여요.",
   },
   {
+    key: "g3-u1-irrational-square",
+    unitId: "g3-1",
+    type: "simulation",
+    title: "정사각형으로 만나는 무리수",
+    href: "/play/g3-u1-irrational-square",
+    awardsXp: false,
+    description:
+      "넓이가 정수인 정사각형의 한 변 길이를 10번 직접 찾아 보며, 제곱값이 넓이와 정확히 맞지 않음을 체험하는 시뮬레이션입니다. 점수는 없어요.",
+  },
+  {
     key: "g3-u1-square-maker",
     unitId: "g3-1",
     type: "game",
