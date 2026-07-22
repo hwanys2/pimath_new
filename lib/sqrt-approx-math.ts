@@ -170,7 +170,7 @@ export function getCorrectIntegerPart(area: number): DecimalValue {
 
 /** Add 10^{-scale} to value (next step at current decimal precision). */
 export function incrementDecimal(value: DecimalValue): DecimalValue {
-  const newScaled = value.scaled + TEN ** BigInt(value.scale);
+  const newScaled = value.scaled + BigInt(1);
   return {
     raw: formatScaled(newScaled, value.scale),
     scaled: newScaled,
