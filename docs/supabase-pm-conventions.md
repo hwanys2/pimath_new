@@ -95,6 +95,8 @@ await supabase.rpc("ensure_supabase_django_user", {
 # .env.local (커밋 금지 — .gitignore 처리됨). Vercel Production에도 동일 이름.
 PM_SUPABASE_URL=https://jmgoqpqyrnoamfjngcmy.supabase.co
 PM_SUPABASE_ANON_KEY=eyJhbGci...   # anon (legacy JWT) 키
+# pimath 프로덕션 canonical origin (auth redirectTo / emailRedirectTo)
+PM_SITE_URL=https://pimath.kr
 # (선택) 대시보드 중복용 — 서버 폴백
 # NEXT_PUBLIC_PM_SUPABASE_URL=...
 # NEXT_PUBLIC_PM_SUPABASE_ANON_KEY=...
@@ -160,10 +162,13 @@ PM_STUDENT_SESSION_SECRET=...  # 서버 전용, 긴 랜덤 문자열
 
 - Google/Kakao OAuth는 PKCE 플로우이며 **`redirectTo` 로 항상 pimath 콜백을 명시**한다: `<origin>/auth/callback`.
 - 비밀번호 재설정도 같은 콜백을 쓴다: `<origin>/auth/callback?next=/reset-password`.
+- `<origin>` 은 `lib/auth-origin.ts`의 `getAuthOrigin()`이 결정한다. **프로덕션에서는 `PM_SITE_URL`을 우선**하고, 없으면 request headers를 쓴다.
 - Supabase 대시보드의 **Redirect URL allow list**에 pimath 콜백을 추가해야 한다.
   - 로컬: `http://localhost:3000/auth/callback`
-  - 프로덕션: `https://pimath-new.vercel.app/auth/callback` (커스텀 도메인 전환 시 해당 도메인도)
-- Site URL 은 foreducator 기본값일 수 있으므로, pimath는 `redirectTo`를 명시적으로 넘겨 foreducator 로 튕기지 않게 한다.
+  - 프로덕션: `https://pimath.kr/auth/callback`, `https://www.pimath.kr/auth/callback`
+  - (선택) Vercel 기본 도메인: `https://pimath-new.vercel.app/auth/callback`
+  - 비밀번호 재설정: 위 도메인 + `?next=/reset-password` 변형도 등록
+- Site URL 은 foreducator 기본값일 수 있으므로, pimath는 `redirectTo`를 명시적으로 넘기고 allow list에 pimath 도메인을 등록해 foreducator 로 튕기지 않게 한다.
 
 ---
 

@@ -1,8 +1,8 @@
 "use server";
 
-import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import type { Provider } from "@supabase/supabase-js";
+import { getAuthCallbackUrl, getAuthOrigin } from "@/lib/auth-origin";
 import { createClient } from "@/lib/supabase/server";
 import { syncForeducatorAccount } from "@/lib/supabase/account";
 import {
@@ -16,15 +16,6 @@ export type AuthState = {
   error?: string;
   message?: string;
 };
-
-async function getOrigin(): Promise<string> {
-  const h = await headers();
-  const host = h.get("x-forwarded-host") ?? h.get("host");
-  const protocol =
-    h.get("x-forwarded-proto") ??
-    (process.env.NODE_ENV === "development" ? "http" : "https");
-  return `${protocol}://${host}`;
-}
 
 function isValidEmail(email: string): boolean {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
@@ -162,11 +153,11 @@ export async function signUpWithEmail(
   }
 
   const supabase = await createClient();
-  const origin = await getOrigin();
+  const origin = await getAuthOrigin();
   const { data, error } = await supabase.auth.signUp({
     email,
     password,
-    options: { emailRedirectTo: `${origin}/auth/callback` },
+    options: { emailRedirectTo: getAuthCallbackUrl(origin) },
   });
 
   if (error) {
@@ -177,6 +168,10 @@ export async function signUpWithEmail(
     return {
       error: `가입 중 문제가 발생했어요. (${error.message})`,
     };
+  }
+
+  if (data.user && (!data.user.identities || data.user.identities.length === 0)) {
+    return { error: "이미 가입된 이메일이에요. 로그인해 주세요." };
   }
 
   await clearStudentSessionCookie();
@@ -204,9 +199,9 @@ export async function requestPasswordReset(
   }
 
   const supabase = await createClient();
-  const origin = await getOrigin();
+  const origin = await getAuthOrigin();
   const { error } = await supabase.auth.resetPasswordForEmail(email, {
-    redirectTo: `${origin}/auth/callback?next=/reset-password`,
+    redirectTo: getAuthCallbackUrl(origin, "/reset-password"),
   });
 
   if (error) {
@@ -267,11 +262,11 @@ export async function updatePassword(
 export async function signInWithProvider(formData: FormData): Promise<void> {
   const provider = String(formData.get("provider") ?? "") as Provider;
   const supabase = await createClient();
-  const origin = await getOrigin();
+  const origin = await getAuthOrigin();
 
   const { data, error } = await supabase.auth.signInWithOAuth({
     provider,
-    options: { redirectTo: `${origin}/auth/callback` },
+    options: { redirectTo: getAuthCallbackUrl(origin) },
   });
 
   if (error || !data.url) {
