@@ -20,8 +20,6 @@ import {
   type DecimalValue,
   type TargetArea,
   appendDigit,
-  bracketBoundsArea,
-  bracketChanged,
   compareDecimal,
   getCorrectIntegerPart,
   getCorrectNextDigit,
@@ -32,9 +30,19 @@ import {
   parseSideInput,
   parseSideInputErrorMessage,
   refineBracket,
-  sideToNumber,
   squareSide,
 } from "@/lib/sqrt-approx-math";
+import {
+  GAP,
+  SYM_W,
+  VB_H,
+  VB_W,
+  inequalityLabel,
+  layoutAnchoredSquares,
+  selectVisibleSides,
+  showInequalities,
+  type VisualSideRole,
+} from "@/lib/sqrt-approx-visual";
 
 const CONTENT_KEY = "g3-u1-irrational-square";
 const COMPLETION_SCORE = 100;
@@ -47,257 +55,22 @@ type WrongProbe = {
   square: string;
 };
 
-const VB_W = 900;
-const VB_H = 280;
-const GAP = 16;
-const SYM_W = 24;
-
-const COLOR_LOW = { fill: "rgba(125, 200, 245, 0.85)", stroke: "#4A90C8" };
-const COLOR_LOW_OUTER = { fill: "rgba(125, 200, 245, 0.45)", stroke: "#7BB8D8" };
-const COLOR_TARGET = { fill: "rgba(212, 196, 255, 0.85)", stroke: "#7B5BB5" };
-const COLOR_HIGH = { fill: "rgba(255, 200, 160, 0.85)", stroke: "#D4845A" };
-const COLOR_HIGH_OUTER = { fill: "rgba(255, 200, 160, 0.45)", stroke: "#E8A878" };
-const COLOR_PROBE = { fill: "rgba(255, 215, 100, 0.85)", stroke: "#C9A030" };
-
-type SquareRole =
-  | "prevLow"
-  | "low"
-  | "target"
-  | "high"
-  | "prevHigh"
-  | "probe";
-
-type SquareSpec = {
-  id: string;
-  side: DecimalValue;
-  label: string;
-  sublabel?: string;
-  colors: { fill: string; stroke: string };
-  role: SquareRole;
+const ROLE_COLORS: Record<
+  VisualSideRole,
+  { fill: string; stroke: string }
+> = {
+  target: { fill: "rgba(212, 196, 255, 0.85)", stroke: "#7B5BB5" },
+  low: { fill: "rgba(125, 200, 245, 0.85)", stroke: "#4A90C8" },
+  high: { fill: "rgba(255, 200, 160, 0.85)", stroke: "#D4845A" },
+  inner: { fill: "rgba(125, 200, 245, 0.55)", stroke: "#7BB8D8" },
+  wrong: { fill: "rgba(255, 215, 100, 0.85)", stroke: "#C9A030" },
 };
 
-type VisualBuild = {
-  specs: SquareSpec[];
-  showInequalities: boolean;
-};
-
-function inequalityLabel(spec: SquareSpec, area: number): string {
-  if (spec.role === "target") return String(area);
-  return squareSide(spec.side);
-}
-
-function makeSideSpec(
-  id: string,
-  side: DecimalValue,
-  role: SquareRole,
-  colors: { fill: string; stroke: string },
-): SquareSpec {
-  return {
-    id,
-    side,
-    label: side.raw,
-    sublabel: squareSide(side),
-    colors,
-    role,
-  };
-}
-
-function makeTargetSpec(area: number): SquareSpec {
-  const targetSide = Math.sqrt(area);
-  return {
-    id: "target",
-    side: {
-      raw: `√${area}`,
-      scaled: BigInt(Math.round(targetSide * 1e6)),
-      scale: 6,
-    },
-    label: `넓이 ${area}`,
-    colors: COLOR_TARGET,
-    role: "target",
-  };
-}
-
-function specSideForLayout(spec: SquareSpec, area: number): number {
-  if (spec.role === "target") return Math.sqrt(area);
-  return sideToNumber(spec.side);
-}
-
-function sortSpecsBySide(specs: SquareSpec[], area: number): SquareSpec[] {
-  return [...specs].sort(
-    (a, b) => specSideForLayout(a, area) - specSideForLayout(b, area),
-  );
-}
-
-function buildSquareSpecs(
-  area: number,
-  exploreBracket: Bracket,
-  prevBracket: Bracket | null,
-  wrong: WrongProbe | null,
-  probeCount: number,
-  lastProbe: DecimalValue | null,
-): VisualBuild {
-  const targetSpec = makeTargetSpec(area);
-
-  const baseSpecsForWrong = (): SquareSpec[] => {
-    const items: SquareSpec[] = [targetSpec];
-    if (
-      probeCount >= 2 &&
-      bracketBoundsArea(exploreBracket, area) &&
-      prevBracket &&
-      bracketBoundsArea(prevBracket, area) &&
-      bracketChanged(prevBracket, exploreBracket) &&
-      probeCount >= 3
-    ) {
-      if (compareDecimal(prevBracket.low, exploreBracket.low) !== 0) {
-        items.push(
-          makeSideSpec("prevLow", prevBracket.low, "prevLow", COLOR_LOW_OUTER),
-        );
-      }
-      items.push(makeSideSpec("low", exploreBracket.low, "low", COLOR_LOW));
-      items.push(makeSideSpec("high", exploreBracket.high, "high", COLOR_HIGH));
-      if (compareDecimal(prevBracket.high, exploreBracket.high) !== 0) {
-        items.push(
-          makeSideSpec(
-            "prevHigh",
-            prevBracket.high,
-            "prevHigh",
-            COLOR_HIGH_OUTER,
-          ),
-        );
-      }
-    } else if (probeCount >= 2 && bracketBoundsArea(exploreBracket, area)) {
-      items.push(makeSideSpec("low", exploreBracket.low, "low", COLOR_LOW));
-      items.push(makeSideSpec("high", exploreBracket.high, "high", COLOR_HIGH));
-    } else if (lastProbe) {
-      items.push({
-        id: "lastProbe",
-        side: lastProbe,
-        label: lastProbe.raw,
-        sublabel: squareSide(lastProbe),
-        colors: COLOR_PROBE,
-        role: "probe",
-      });
-    }
-    return items;
-  };
-
-  if (wrong) {
-    const probeSpec: SquareSpec = {
-      id: "probe",
-      side: wrong.guess,
-      label: wrong.guess.raw,
-      sublabel: wrong.square,
-      colors: COLOR_PROBE,
-      role: "probe",
-    };
-    const sorted = sortSpecsBySide(
-      [...baseSpecsForWrong(), probeSpec],
-      area,
-    );
-    return { specs: sorted, showInequalities: false };
-  }
-
-  if (probeCount === 0) {
-    return { specs: [targetSpec], showInequalities: false };
-  }
-
-  if (probeCount === 1 && lastProbe) {
-    const probeSpec: SquareSpec = {
-      id: "lastProbe",
-      side: lastProbe,
-      label: lastProbe.raw,
-      sublabel: squareSide(lastProbe),
-      colors: COLOR_PROBE,
-      role: "probe",
-    };
-    const sorted = sortSpecsBySide([targetSpec, probeSpec], area);
-    return { specs: sorted, showInequalities: false };
-  }
-
-  const showFive =
-    probeCount >= 3 &&
-    prevBracket !== null &&
-    bracketBoundsArea(prevBracket, area) &&
-    bracketBoundsArea(exploreBracket, area) &&
-    bracketChanged(prevBracket, exploreBracket);
-
-  if (showFive) {
-    const specs: SquareSpec[] = [];
-
-    if (compareDecimal(prevBracket.low, exploreBracket.low) !== 0) {
-      specs.push(
-        makeSideSpec("prevLow", prevBracket.low, "prevLow", COLOR_LOW_OUTER),
-      );
-    }
-    specs.push(
-      makeSideSpec("low", exploreBracket.low, "low", COLOR_LOW),
-    );
-    specs.push(targetSpec);
-    specs.push(
-      makeSideSpec("high", exploreBracket.high, "high", COLOR_HIGH),
-    );
-    if (compareDecimal(prevBracket.high, exploreBracket.high) !== 0) {
-      specs.push(
-        makeSideSpec(
-          "prevHigh",
-          prevBracket.high,
-          "prevHigh",
-          COLOR_HIGH_OUTER,
-        ),
-      );
-    }
-    return { specs, showInequalities: true };
-  }
-
-  if (bracketBoundsArea(exploreBracket, area)) {
-    const lowSpec = makeSideSpec("low", exploreBracket.low, "low", COLOR_LOW);
-    const highSpec = makeSideSpec(
-      "high",
-      exploreBracket.high,
-      "high",
-      COLOR_HIGH,
-    );
-    return {
-      specs: [lowSpec, targetSpec, highSpec],
-      showInequalities: true,
-    };
-  }
-
-  if (lastProbe) {
-    const probeSpec: SquareSpec = {
-      id: "lastProbe",
-      side: lastProbe,
-      label: lastProbe.raw,
-      sublabel: squareSide(lastProbe),
-      colors: COLOR_PROBE,
-      role: "probe",
-    };
-    const sorted = sortSpecsBySide([targetSpec, probeSpec], area);
-    return { specs: sorted, showInequalities: false };
-  }
-
-  return { specs: [targetSpec], showInequalities: false };
-}
-
-function layoutSquares(specs: SquareSpec[], area: number) {
-  const sides = specs.map((s) => specSideForLayout(s, area));
-  const maxSide = Math.max(...sides, 1);
-  const maxPx = specs.length >= 5 ? 72 : specs.length >= 3 ? 96 : 120;
-  const scale = maxPx / maxSide;
-
-  const sizes = sides.map((s) => s * scale);
-  const totalW =
-    sizes.reduce((a, b) => a + b, 0) + (specs.length - 1) * (GAP + SYM_W);
-  let x = (VB_W - totalW) / 2;
-  const baseY = VB_H / 2;
-
-  return specs.map((spec, i) => {
-    const size = sizes[i];
-    const y = baseY - size / 2;
-    const rect = { x, y, size, spec };
-    x += size + GAP + SYM_W;
-    return rect;
-  });
+function roleTextClass(role: VisualSideRole): string {
+  if (role === "target") return "text-[#6B4FA0]";
+  if (role === "low" || role === "inner") return "text-sky-700";
+  if (role === "wrong") return "text-[#A08020]";
+  return "text-[#C07040]";
 }
 
 function squareCenterY(item: { y: number; size: number }) {
@@ -307,55 +80,45 @@ function squareCenterY(item: { y: number; size: number }) {
 function SquareDiagram({
   area,
   exploreBracket,
-  prevBracket,
+  probeHistory,
+  confirmed,
   wrong,
-  probeCount,
-  lastProbe,
 }: {
   area: number;
   exploreBracket: Bracket;
-  prevBracket: Bracket | null;
+  probeHistory: DecimalValue[];
+  confirmed: DecimalValue | null;
   wrong: WrongProbe | null;
-  probeCount: number;
-  lastProbe: DecimalValue | null;
 }) {
-  const visual = useMemo(
+  const items = useMemo(
     () =>
-      buildSquareSpecs(
+      selectVisibleSides({
         area,
         exploreBracket,
-        prevBracket,
-        wrong,
-        probeCount,
-        lastProbe,
-      ),
-    [area, exploreBracket, prevBracket, wrong, probeCount, lastProbe],
+        probeHistory,
+        confirmed,
+        wrongProbe: wrong?.guess ?? null,
+      }),
+    [area, exploreBracket, probeHistory, confirmed, wrong],
   );
   const layout = useMemo(
-    () => layoutSquares(visual.specs, area),
-    [visual.specs, area],
+    () => layoutAnchoredSquares(items, area),
+    [items, area],
   );
+  const inequalities = showInequalities(items);
 
   return (
     <div className="flex flex-col gap-3">
       <div className="overflow-x-auto text-center font-mono text-xs font-semibold text-foreground/80 sm:text-sm">
-        {visual.showInequalities ? (
+        {inequalities ? (
           <span className="inline-flex flex-wrap items-center justify-center gap-x-1 gap-y-1">
-            {visual.specs.map((spec, i) => (
-              <span key={spec.id} className="inline-flex items-center">
+            {items.map((item, i) => (
+              <span key={`${item.role}-${item.label}-${i}`} className="inline-flex items-center">
                 {i > 0 ? (
                   <span className="mx-1 text-wood/50">&lt;</span>
                 ) : null}
-                <span
-                  className={
-                    spec.role === "target"
-                      ? "text-[#6B4FA0]"
-                      : spec.role === "prevLow" || spec.role === "low"
-                        ? "text-sky-700"
-                        : "text-[#C07040]"
-                  }
-                >
-                  {inequalityLabel(spec, area)}
+                <span className={roleTextClass(item.role)}>
+                  {inequalityLabel(item, area)}
                 </span>
               </span>
             ))}
@@ -371,57 +134,64 @@ function SquareDiagram({
         role="img"
         aria-label="정사각형 넓이 비교"
       >
-        {layout.map((item, i) => (
-          <g key={item.spec.id}>
-            <rect
-              x={item.x}
-              y={item.y}
-              width={item.size}
-              height={item.size}
-              rx={4}
-              fill={item.spec.colors.fill}
-              stroke={item.spec.colors.stroke}
-              strokeWidth={2}
-            />
-            <text
-              x={item.x + item.size / 2}
-              y={item.y + item.size / 2 - (item.spec.sublabel ? 6 : 0)}
-              textAnchor="middle"
-              dominantBaseline="middle"
-              className="fill-wood font-bold"
-              style={{ fontSize: Math.max(9, item.size * 0.17) }}
-            >
-              {item.spec.label}
-            </text>
-            {item.spec.sublabel ? (
+        {layout.map((item, i) => {
+          const colors = ROLE_COLORS[item.spec.role];
+          const itemKey =
+            item.spec.role === "target"
+              ? "target"
+              : `${item.spec.side?.raw ?? item.spec.label}-${i}`;
+          return (
+            <g key={itemKey}>
+              <rect
+                x={item.x}
+                y={item.y}
+                width={item.size}
+                height={item.size}
+                rx={4}
+                fill={colors.fill}
+                stroke={colors.stroke}
+                strokeWidth={2}
+              />
               <text
                 x={item.x + item.size / 2}
-                y={item.y + item.size / 2 + item.size * 0.14}
+                y={item.y + item.size / 2 - (item.spec.sublabel ? 6 : 0)}
                 textAnchor="middle"
                 dominantBaseline="middle"
-                className="fill-wood/70"
-                style={{ fontSize: Math.max(7, item.size * 0.11) }}
+                className="fill-wood font-bold"
+                style={{ fontSize: Math.max(9, item.size * 0.17) }}
               >
-                = {item.spec.sublabel}
+                {item.spec.label}
               </text>
-            ) : null}
-            {i < layout.length - 1 ? (
-              <text
-                x={item.x + item.size + GAP / 2 + SYM_W / 2}
-                y={squareCenterY(item)}
-                textAnchor="middle"
-                dominantBaseline="middle"
-                className={
-                  visual.showInequalities
-                    ? "fill-wood/50 text-lg font-bold"
-                    : "fill-wood/20 text-lg"
-                }
-              >
-                {visual.showInequalities ? "<" : "·"}
-              </text>
-            ) : null}
-          </g>
-        ))}
+              {item.spec.sublabel ? (
+                <text
+                  x={item.x + item.size / 2}
+                  y={item.y + item.size / 2 + item.size * 0.14}
+                  textAnchor="middle"
+                  dominantBaseline="middle"
+                  className="fill-wood/70"
+                  style={{ fontSize: Math.max(7, item.size * 0.11) }}
+                >
+                  = {item.spec.sublabel}
+                </text>
+              ) : null}
+              {i < layout.length - 1 ? (
+                <text
+                  x={item.x + item.size + GAP / 2 + SYM_W / 2}
+                  y={squareCenterY(item)}
+                  textAnchor="middle"
+                  dominantBaseline="middle"
+                  className={
+                    inequalities
+                      ? "fill-wood/50 text-lg font-bold"
+                      : "fill-wood/20 text-lg"
+                  }
+                >
+                  {inequalities ? "<" : "·"}
+                </text>
+              ) : null}
+            </g>
+          );
+        })}
       </svg>
     </div>
   );
@@ -485,9 +255,7 @@ export default function IrrationalSquare() {
   const [confirmed, setConfirmed] = useState<DecimalValue | null>(null);
   const [decimalIndex, setDecimalIndex] = useState(0);
   const [exploreBracket, setExploreBracket] = useState<Bracket | null>(null);
-  const [prevBracket, setPrevBracket] = useState<Bracket | null>(null);
-  const [probeCount, setProbeCount] = useState(0);
-  const [lastProbe, setLastProbe] = useState<DecimalValue | null>(null);
+  const [probeHistory, setProbeHistory] = useState<DecimalValue[]>([]);
   const [confirmLocked, setConfirmLocked] = useState(false);
   const [history, setHistory] = useState<ConfirmRecord[]>([]);
 
@@ -510,11 +278,20 @@ export default function IrrationalSquare() {
     return getRequiredBracket(confirmed, area);
   }, [area, confirmed]);
 
-  const resetProbeVisual = useCallback(() => {
-    setPrevBracket(null);
-    setProbeCount(0);
-    setLastProbe(null);
+  const clearWrongProbe = useCallback(() => {
     setWrongProbe(null);
+  }, []);
+
+  const resetProbeHistory = useCallback(() => {
+    setProbeHistory([]);
+    clearWrongProbe();
+  }, [clearWrongProbe]);
+
+  const appendProbe = useCallback((guess: DecimalValue) => {
+    setProbeHistory((history) => {
+      if (history.some((item) => item.raw === guess.raw)) return history;
+      return [...history, guess];
+    });
   }, []);
 
   const selectArea = useCallback((n: TargetArea) => {
@@ -530,9 +307,9 @@ export default function IrrationalSquare() {
     setProbeError(null);
     setConfirmError(null);
     setLastProbeSquare(null);
-    resetProbeVisual();
+    resetProbeHistory();
     setPhase("explore");
-  }, [resetProbeVisual]);
+  }, [resetProbeHistory]);
 
   const reset = useCallback(() => {
     xpSubmittedRef.current = false;
@@ -550,8 +327,8 @@ export default function IrrationalSquare() {
     setProbeError(null);
     setConfirmError(null);
     setLastProbeSquare(null);
-    resetProbeVisual();
-  }, [resetProbeVisual]);
+    resetProbeHistory();
+  }, [resetProbeHistory]);
 
   const attemptUnlock = useCallback(
     (bracket: Bracket, stage: ConfirmStage) => {
@@ -591,11 +368,9 @@ export default function IrrationalSquare() {
     }
 
     setWrongProbe(null);
-    setPrevBracket(exploreBracket);
     const newBracket = refineBracket(exploreBracket, guess, area);
     setExploreBracket(newBracket);
-    setLastProbe(guess);
-    setProbeCount((c) => c + 1);
+    appendProbe(guess);
     if (confirmLocked) {
       attemptUnlock(newBracket, confirmStage);
     }
@@ -607,6 +382,7 @@ export default function IrrationalSquare() {
     attemptUnlock,
     confirmLocked,
     confirmStage,
+    appendProbe,
   ]);
 
   const submitConfirm = useCallback(() => {
@@ -626,7 +402,7 @@ export default function IrrationalSquare() {
         setConfirmError(null);
         setConfirmInput("");
         setExploreBracket(getWideProbeBracket(area));
-        resetProbeVisual();
+        resetProbeHistory();
         return;
       }
 
@@ -636,7 +412,7 @@ export default function IrrationalSquare() {
       setDecimalIndex(0);
       const nextBracket = getRequiredBracket(parsed.value, area);
       setExploreBracket(nextBracket);
-      resetProbeVisual();
+      clearWrongProbe();
       setHistory((h) => [
         ...h,
         {
@@ -685,7 +461,7 @@ export default function IrrationalSquare() {
       setDecimalIndex((i) => i + 1);
       const nextBracket = getRequiredBracket(next, area);
       setExploreBracket(nextBracket);
-      resetProbeVisual();
+      clearWrongProbe();
     }
   }, [
     area,
@@ -696,7 +472,8 @@ export default function IrrationalSquare() {
     confirmInput,
     confirmed,
     decimalIndex,
-    resetProbeVisual,
+    clearWrongProbe,
+    resetProbeHistory,
   ]);
 
   const confirmEnabled = !confirmLocked;
@@ -774,10 +551,9 @@ export default function IrrationalSquare() {
             <SquareDiagram
               area={area}
               exploreBracket={exploreBracket}
-              prevBracket={prevBracket}
+              probeHistory={probeHistory}
+              confirmed={confirmed}
               wrong={wrongProbe}
-              probeCount={probeCount}
-              lastProbe={lastProbe}
             />
 
             <div className="mx-auto mt-8 grid max-w-lg gap-6 sm:grid-cols-2">
