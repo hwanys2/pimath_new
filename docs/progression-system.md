@@ -78,7 +78,7 @@ await submitGameRun({ contentKey: "g1-u1-1-prime-hunt", score });
 6. XP·랭킹 기록은 **학생 세션 + 해당 콘텐츠가 학급에 배정·활성**일 때만 반영된다. 그 외(공개 링크·미배정·비활성)는 연습 모드.  
 7. 같은 판 반복 클리어 시에도 (배정·활성이면) XP·기록이 누적된다 (연습 장려).  
 8. `awardStudentXp`는 데모/연습용이다. **정식 게임 UI는 `submitGameRun`만** 호출한다.
-9. **1:1 대전**이 있는 게임의 매칭·직전 상대 20초 재매칭 방지는 [`content-system.md`](content-system.md) §5.4를 따른다.
+9. **1:1 대전** 게임은 [`pvp-matchmaking.md`](pvp-matchmaking.md)를 따른다 (매칭·종료 후 자동 재매칭·20초 재매칭 방지). 제품 규칙 요약은 [`content-system.md`](content-system.md) §5.4.
 
 | 성과 | 권장 점수대 |
 |------|-------------|
@@ -210,3 +210,4 @@ UI: `/adventure` (폼 도감 + 장비 + **누적 XP 랭킹**). 게임 결과 화
 | 2026-07-19 | 랭킹 스코프 월드·학교·학급 · `pm_list_game_ranking` |
 | 2026-07-19 | 점수 소프트 캡(1000 이후 +1) · 어드벤처 누적 XP 랭킹 |
 | 2026-07-21 | 대전 게임 매칭 규칙 → [`content-system.md`](content-system.md) §5.4 참조 |
+| 2026-07-22 | 1:1 대전 구현 가이드 → [`pvp-matchmaking.md`](pvp-matchmaking.md) 참조 |

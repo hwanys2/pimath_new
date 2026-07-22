@@ -148,7 +148,7 @@ type ContentMeta = {
 - 위 20초는 직전 상대 **재매칭 방지** 쿨다운과 맞춰져 있다. 다른 대기자가 있으면 그 사람과 먼저 매칭된다.
 - 「로비로」를 누르면 재매칭 타이머가 취소되고 대기열에서 완전히 나간다.
 
-적용 게임: 순서쌍 오목, 사각형 만들기, 정사각형 만들기 (동일 UI·RPC 패턴).
+**새 대전 게임 구현 시** RPC·클라이언트·UI 체크리스트는 [`pvp-matchmaking.md`](pvp-matchmaking.md)를 따른다.
 
 #### 대전 점수·랭킹
 
@@ -223,6 +223,7 @@ type ContentMeta = {
 4. 공개 `/play/...` 가 로그인 없이 동작하는지 확인
 5. 교사 담아두기 UI·콘텐츠 「배정」 버튼에 자동 노출되는지 확인 (카탈로그 기반)
 6. (게임만) `submitGameRun({ contentKey: content.key, score })` — 배정·활성일 때만 XP·랭킹. 결과 UI는 `GameRankingBoard` (월드/학교/학급)
+7. (1:1 대전 게임) [`pvp-matchmaking.md`](pvp-matchmaking.md) 체크리스트 전부 — 매칭 RPC, 종료 후 자동 재매칭, `leave_queue`/`poll` stale 정리
 
 ---
 
@@ -237,3 +238,4 @@ type ContentMeta = {
 | 2026-07-19 | 랭킹 스코프 월드·학교·학급 · `pm_list_game_ranking` |
 | 2026-07-19 | 점수 소프트 캡 · 어드벤처 누적 XP 랭킹 |
 | 2026-07-21 | §5.4 대전 게임 1:1 매칭 · 직전 상대 20초 재매칭 방지 |
+| 2026-07-22 | §5.4 PvP 종료 후 자동 재매칭 · [`pvp-matchmaking.md`](pvp-matchmaking.md) 가이드 추가 |

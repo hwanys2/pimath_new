@@ -17,3 +17,7 @@ Before any Supabase work (auth, tables, RLS, migrations, keys), READ and FOLLOW 
 - After signup/login, call the existing `ensure_supabase_django_user` RPC to sync the foreducator account (same email = same account). Never write `auth_user`/`common_profile`/mapping tables directly.
 - Frontend uses the publishable key only. Verify sessions server-side with `getClaims()`/`getUser()`, never `getSession()`.
 - Apply migrations to the shared DB only after explicit human confirmation.
+
+# 1:1 PvP games
+
+When adding or changing **1:1 matchmaking games** (class/global queue, auto-requeue after game end), READ and FOLLOW [`docs/pvp-matchmaking.md`](docs/pvp-matchmaking.md). Product rules summary: [`docs/content-system.md`](docs/content-system.md) §5.4.

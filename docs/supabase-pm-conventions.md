@@ -150,7 +150,8 @@ PM_STUDENT_SESSION_SECRET=...  # 서버 전용, 긴 랜덤 문자열
 | `pm_pvp_record_rematch_block` | 대국 종료 시 양방향 블록 기록 (내부 헬퍼) |
 | `pm_omok_*` / `pm_quad_*` / `pm_sq_*` | 1:1 대전 매칭·게임·랭킹 RPC (오목 / 사각형 / 정사각형) |
 
-대전 매칭 규칙(스코프, 재매칭 20초 등): [`docs/content-system.md`](content-system.md) §5.4.
+대전 매칭·자동 재매칭 구현 가이드: [`docs/pvp-matchmaking.md`](pvp-matchmaking.md).  
+제품 규칙(스코프, 재매칭 20초 등): [`docs/content-system.md`](content-system.md) §5.4.
 - 앱에서 학생 세션은 `lib/student-session.ts` (`jose` JWT 쿠키 + DB session token). 교사 식별은 계속 `getUser()`.
 - 레벨/XP 규칙: [`docs/progression-system.md`](progression-system.md)
 - 콘텐츠·배정·공개 링크: [`docs/content-system.md`](content-system.md)
