@@ -12,15 +12,14 @@ import {
   compareDecimal,
   getCorrectIntegerPart,
   getCorrectNextDigit,
-  getInitialBracket,
   getRequiredBracket,
+  getWideProbeBracket,
   isUnlockBracket,
   isValidGuess,
   parseSideInput,
   parseSideInputErrorMessage,
   refineBracket,
   sideToNumber,
-  squareInt,
   squareSide,
 } from "@/lib/sqrt-approx-math";
 
@@ -55,19 +54,9 @@ function buildSquareSpecs(
   area: number,
   bracket: Bracket,
   wrong: WrongProbe | null,
+  showBracket: boolean,
 ): { specs: SquareSpec[]; showInequalities: boolean } {
-  const lowSq = squareSide(bracket.low);
-  const highSq = squareSide(bracket.high);
   const targetSide = Math.sqrt(area);
-
-  const lowSpec: SquareSpec = {
-    id: "low",
-    side: bracket.low,
-    label: bracket.low.raw,
-    sublabel: lowSq,
-    colors: COLOR_LOW,
-    role: "low",
-  };
   const targetSpec: SquareSpec = {
     id: "target",
     side: {
@@ -78,6 +67,40 @@ function buildSquareSpecs(
     label: `넓이 ${area}`,
     colors: COLOR_TARGET,
     role: "target",
+  };
+
+  if (!showBracket) {
+    if (wrong) {
+      const probeSpec: SquareSpec = {
+        id: "probe",
+        side: wrong.guess,
+        label: wrong.guess.raw,
+        sublabel: wrong.square,
+        colors: COLOR_PROBE,
+        role: "probe",
+      };
+      const sorted = [targetSpec, probeSpec].sort(
+        (a, b) =>
+          (a.role === "target"
+            ? Math.sqrt(area)
+            : sideToNumber(a.side)) -
+          (b.role === "target" ? Math.sqrt(area) : sideToNumber(b.side)),
+      );
+      return { specs: sorted, showInequalities: false };
+    }
+    return { specs: [targetSpec], showInequalities: false };
+  }
+
+  const lowSq = squareSide(bracket.low);
+  const highSq = squareSide(bracket.high);
+
+  const lowSpec: SquareSpec = {
+    id: "low",
+    side: bracket.low,
+    label: bracket.low.raw,
+    sublabel: lowSq,
+    colors: COLOR_LOW,
+    role: "low",
   };
   const highSpec: SquareSpec = {
     id: "high",
@@ -139,14 +162,16 @@ function SquareDiagram({
   area,
   bracket,
   wrong,
+  showBracket,
 }: {
   area: number;
   bracket: Bracket;
   wrong: WrongProbe | null;
+  showBracket: boolean;
 }) {
   const { specs, showInequalities } = useMemo(
-    () => buildSquareSpecs(area, bracket, wrong),
-    [area, bracket, wrong],
+    () => buildSquareSpecs(area, bracket, wrong, showBracket),
+    [area, bracket, wrong, showBracket],
   );
   const layout = useMemo(() => layoutSquares(specs), [specs]);
 
@@ -156,7 +181,7 @@ function SquareDiagram({
   return (
     <div className="flex flex-col gap-3">
       <div className="text-center font-mono text-sm font-semibold text-foreground/80 sm:text-base">
-        {showInequalities ? (
+        {showInequalities && showBracket ? (
           <>
             <span className="text-sky-700">{lowSq}</span>
             <span className="mx-2 text-wood/60">&lt;</span>
@@ -297,7 +322,6 @@ export default function IrrationalSquare() {
   const [probeError, setProbeError] = useState<string | null>(null);
   const [confirmError, setConfirmError] = useState<string | null>(null);
   const [wrongProbe, setWrongProbe] = useState<WrongProbe | null>(null);
-  const [probedSinceLock, setProbedSinceLock] = useState(false);
   const [lastProbeSquare, setLastProbeSquare] = useState<{
     raw: string;
     square: string;
@@ -309,12 +333,11 @@ export default function IrrationalSquare() {
   }, [area, confirmed]);
 
   const selectArea = useCallback((n: TargetArea) => {
-    const initial = getInitialBracket(n);
     setArea(n);
     setConfirmStage("integer");
     setConfirmed(null);
     setDecimalIndex(0);
-    setExploreBracket(initial);
+    setExploreBracket(getWideProbeBracket(n));
     setConfirmLocked(false);
     setHistory([]);
     setProbeInput("");
@@ -322,7 +345,6 @@ export default function IrrationalSquare() {
     setProbeError(null);
     setConfirmError(null);
     setWrongProbe(null);
-    setProbedSinceLock(false);
     setLastProbeSquare(null);
     setPhase("explore");
   }, []);
@@ -341,14 +363,12 @@ export default function IrrationalSquare() {
     setProbeError(null);
     setConfirmError(null);
     setWrongProbe(null);
-    setProbedSinceLock(false);
     setLastProbeSquare(null);
   }, []);
 
-  const tryUnlock = useCallback(
+  const attemptUnlock = useCallback(
     (bracket: Bracket, stage: ConfirmStage) => {
-      if (!confirmLocked || !requiredBracket || !area) return;
-      if (!probedSinceLock) return;
+      if (!confirmLocked || !requiredBracket || !area) return false;
 
       const canUnlock =
         stage === "integer"
@@ -358,10 +378,10 @@ export default function IrrationalSquare() {
       if (canUnlock) {
         setConfirmLocked(false);
         setConfirmInput("");
-        setProbedSinceLock(false);
       }
+      return canUnlock;
     },
-    [confirmLocked, requiredBracket, area, probedSinceLock],
+    [confirmLocked, requiredBracket, area],
   );
 
   const submitProbe = useCallback(() => {
@@ -387,10 +407,17 @@ export default function IrrationalSquare() {
     const newBracket = refineBracket(exploreBracket, guess, area);
     setExploreBracket(newBracket);
     if (confirmLocked) {
-      setProbedSinceLock(true);
-      tryUnlock(newBracket, confirmStage);
+      attemptUnlock(newBracket, confirmStage);
     }
-  }, [area, exploreBracket, phase, probeInput, tryUnlock, confirmLocked, confirmStage]);
+  }, [
+    area,
+    exploreBracket,
+    phase,
+    probeInput,
+    attemptUnlock,
+    confirmLocked,
+    confirmStage,
+  ]);
 
   const submitConfirm = useCallback(() => {
     if (!area || !exploreBracket || phase !== "explore" || confirmLocked)
@@ -406,10 +433,9 @@ export default function IrrationalSquare() {
       const correct = getCorrectIntegerPart(area);
       if (compareDecimal(parsed.value, correct) !== 0) {
         setConfirmLocked(true);
-        setProbedSinceLock(false);
         setConfirmError(null);
         setConfirmInput("");
-        setExploreBracket(getInitialBracket(area));
+        setExploreBracket(getWideProbeBracket(area));
         setWrongProbe(null);
         return;
       }
@@ -443,7 +469,6 @@ export default function IrrationalSquare() {
     const correctDigit = getCorrectNextDigit(confirmed, area);
     if (digit !== correctDigit) {
       setConfirmLocked(true);
-      setProbedSinceLock(false);
       setConfirmError(null);
       setConfirmInput("");
       setWrongProbe(null);
@@ -481,7 +506,7 @@ export default function IrrationalSquare() {
     decimalIndex,
   ]);
 
-  const initialBracket = area ? getInitialBracket(area) : null;
+  const showBracket = confirmed !== null;
   const confirmEnabled = !confirmLocked;
 
   const stageLabel =
@@ -530,14 +555,8 @@ export default function IrrationalSquare() {
       {phase === "explore" && area && exploreBracket ? (
         <>
           <section className="quest-card p-5 sm:p-8">
-            <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
+            <div className="mb-4">
               <p className="text-sm font-bold text-wood">넓이 {area}</p>
-              {initialBracket ? (
-                <p className="font-mono text-xs text-foreground/55">
-                  {squareInt(Number(initialBracket.low.raw))} &lt; {area} &lt;{" "}
-                  {squareInt(Number(initialBracket.high.raw))}
-                </p>
-              ) : null}
             </div>
 
             <div className="mb-6">
@@ -552,13 +571,14 @@ export default function IrrationalSquare() {
               area={area}
               bracket={exploreBracket}
               wrong={wrongProbe}
+              showBracket={showBracket}
             />
 
             <div className="mx-auto mt-8 grid max-w-lg gap-6 sm:grid-cols-2">
               <div>
                 <label className="flex flex-col items-center gap-2">
-                  <span className="text-xs font-bold text-wood/70">
-                    탐색해 보기
+                  <span className="text-center text-xs font-bold text-wood/70">
+                    정사각형의 한 변의 길이를 입력하세요
                   </span>
                   <input
                     type="text"

@@ -152,6 +152,11 @@ export function compareSquareToArea(
   return "eq";
 }
 
+/** Wide internal bracket for probing before integer part is confirmed. */
+export function getWideProbeBracket(area: number): Bracket {
+  const high = Math.max(area, Math.ceil(Math.sqrt(area)) + 2);
+  return { low: intToDecimal(1), high: intToDecimal(high) };
+}
 /** Initial integer bracket: low² < area < high². */
 export function getInitialBracket(area: number): Bracket {
   let low = 0;
