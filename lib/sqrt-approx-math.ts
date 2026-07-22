@@ -205,6 +205,21 @@ export function bracketsMatch(a: Bracket, b: Bracket): boolean {
   );
 }
 
+/** True when low² < area < high². */
+export function bracketBoundsArea(bracket: Bracket, area: number): boolean {
+  return (
+    compareSquareToArea(squareSide(bracket.low), area) === "lt" &&
+    compareSquareToArea(squareSide(bracket.high), area) === "gt"
+  );
+}
+
+export function bracketChanged(prev: Bracket, current: Bracket): boolean {
+  return (
+    compareDecimal(prev.low, current.low) !== 0 ||
+    compareDecimal(prev.high, current.high) !== 0
+  );
+}
+
 /**
  * True when explore bracket is a valid consecutive sub-interval inside required:
  * low² < area < high² and high = low + 10^{-scale} (e.g. [1.73, 1.74] within [1.7, 1.8]).
