@@ -19,6 +19,7 @@ import {
   sqSubmitRpsAction,
   sqTimeoutMoveAction,
 } from "@/app/play/g3-u1-square-maker/actions";
+import { PVP_REMATCH_SECONDS } from "@/lib/pvp-constants";
 import type { SqPollState } from "@/lib/sq-types";
 import { SQ_TURN_SECONDS } from "@/lib/sq-types";
 import {
@@ -236,6 +237,9 @@ export default function SquareMaker() {
   const [rankingScope, setRankingScope] = useState<RankingScope>("class");
   const [rankingLoading, setRankingLoading] = useState(false);
   const [waitSeconds, setWaitSeconds] = useState(0);
+  const [requeueSecondsLeft, setRequeueSecondsLeft] = useState<number | null>(
+    null,
+  );
 
   const endingRef = useRef(false);
   const aiThinkingRef = useRef(false);
@@ -255,6 +259,8 @@ export default function SquareMaker() {
   const guestIdRef = useRef("");
   const myStoneRef = useRef<Stone>("black");
   const modeRef = useRef<Mode>("ai");
+  const queueScopeRef = useRef<"class" | "global">("class");
+  const requeueIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   useEffect(() => {
     gameIdRef.current = gameId;
@@ -271,6 +277,9 @@ export default function SquareMaker() {
   useEffect(() => {
     modeRef.current = mode;
   }, [mode]);
+  useEffect(() => {
+    queueScopeRef.current = queueScope;
+  }, [queueScope]);
 
   useEffect(() => {
     setGuestId(ensureGuestId());
@@ -862,9 +871,97 @@ export default function SquareMaker() {
     setRankingLoading(false);
   };
 
+  const clearRequeueTimer = useCallback(() => {
+    if (requeueIntervalRef.current) {
+      clearInterval(requeueIntervalRef.current);
+      requeueIntervalRef.current = null;
+    }
+    setRequeueSecondsLeft(null);
+  }, []);
+
+  const triggerPvpRequeue = useCallback(async () => {
+    clearRequeueTimer();
+    await sqLeaveQueueAction({ guestId: guestIdRef.current });
+    endingRef.current = false;
+    setOutcome(null);
+    setRunScore(0);
+    setWinArea(null);
+    setAxisAligned(null);
+    setWinVertices(null);
+    setDelta(0);
+    setXpMessage(null);
+    resetGameState();
+    snapshotRef.current = {
+      gameId: null,
+      moveCount: -1,
+      turn: null,
+      status: null,
+      phase: null,
+    };
+    const joined = await sqJoinQueueAction({
+      scope: queueScopeRef.current,
+      guestId: guestIdRef.current,
+    });
+    if ("error" in joined) {
+      setStatusMsg(joined.error ?? "대기열에 들어가지 못했어요.");
+      setScreen("lobby");
+      return;
+    }
+    setQueueScope(joined.scope === "class" ? "class" : "global");
+    setMode("pvp");
+    if (joined.gameId) {
+      setGameId(joined.gameId);
+      const state = await sqPollAction({
+        guestId: guestIdRef.current,
+        gameId: joined.gameId,
+      });
+      if (!("error" in state)) applyPollPlaying(state);
+      startPoll(joined.gameId);
+    } else {
+      setScreen("waiting");
+      setStatusMsg(
+        joined.scope === "class"
+          ? "같은 반 친구를 찾는 중이에요…"
+          : "전체에서 상대를 찾는 중이에요…",
+      );
+      startPoll(null);
+    }
+  }, [applyPollPlaying, clearRequeueTimer, startPoll]);
+
+  useEffect(() => {
+    if (screen !== "ended" || mode !== "pvp") {
+      return;
+    }
+
+    let seconds = PVP_REMATCH_SECONDS;
+    setRequeueSecondsLeft(seconds);
+    requeueIntervalRef.current = setInterval(() => {
+      seconds -= 1;
+      if (seconds <= 0) {
+        if (requeueIntervalRef.current) {
+          clearInterval(requeueIntervalRef.current);
+          requeueIntervalRef.current = null;
+        }
+        setRequeueSecondsLeft(null);
+        void triggerPvpRequeue();
+        return;
+      }
+      setRequeueSecondsLeft(seconds);
+    }, 1000);
+
+    return () => {
+      if (requeueIntervalRef.current) {
+        clearInterval(requeueIntervalRef.current);
+        requeueIntervalRef.current = null;
+      }
+    };
+  }, [screen, mode, triggerPvpRequeue]);
+
   const backToLobby = () => {
+    clearRequeueTimer();
     endingRef.current = false;
     stopPoll();
+    void sqLeaveQueueAction({ guestId: guestIdRef.current });
     setScreen("lobby");
     resetGameState();
     setStatusMsg("");
@@ -875,6 +972,7 @@ export default function SquareMaker() {
     setWinVertices(null);
     setDelta(0);
     setXpMessage(null);
+    setGameId(null);
   };
 
   const myTurn = screen === "playing" && turn === myStone;
@@ -962,6 +1060,9 @@ export default function SquareMaker() {
           <p className="text-sm text-wood/70">
             {queueScope === "class" ? "범위: 같은 반" : "범위: 전체"} ·{" "}
             {waitSeconds}초
+          </p>
+          <p className="text-xs text-wood/55">
+            직전 상대와는 {PVP_REMATCH_SECONDS}초간 다시 매칭되지 않아요.
           </p>
           <div className="flex flex-col gap-2 sm:mx-auto sm:max-w-md">
             {queueScope === "class" ? (
@@ -1155,7 +1256,25 @@ export default function SquareMaker() {
             ) : null}
           </div>
 
+          {mode === "pvp" && requeueSecondsLeft != null ? (
+            <p className="text-center text-sm font-semibold text-violet-700">
+              {requeueSecondsLeft}초 후 새 상대를 찾아요
+              <span className="mt-1 block text-xs font-normal text-wood/55">
+                직전 상대와는 {PVP_REMATCH_SECONDS}초간 다시 매칭되지 않아요.
+              </span>
+            </p>
+          ) : null}
+
           <div className="flex flex-wrap justify-center gap-2">
+            {mode === "pvp" ? (
+              <button
+                type="button"
+                onClick={() => void triggerPvpRequeue()}
+                className="rounded-xl bg-gold/80 px-5 py-2.5 font-bold text-wood"
+              >
+                새 상대 찾기
+              </button>
+            ) : null}
             <button
               type="button"
               onClick={backToLobby}
@@ -1165,7 +1284,10 @@ export default function SquareMaker() {
             </button>
             <button
               type="button"
-              onClick={() => startAiRps()}
+              onClick={() => {
+                clearRequeueTimer();
+                startAiRps();
+              }}
               className="rounded-xl bg-peach/80 px-5 py-2.5 font-bold text-wood"
             >
               컴퓨터와 다시
