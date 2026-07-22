@@ -9,7 +9,6 @@ import {
   type DecimalValue,
   type TargetArea,
   appendDigit,
-  bracketsMatch,
   compareDecimal,
   getCorrectIntegerPart,
   getCorrectNextDigit,
