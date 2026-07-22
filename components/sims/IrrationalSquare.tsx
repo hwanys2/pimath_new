@@ -149,7 +149,7 @@ function SquareDiagram({
               />
               <text
                 x={item.x + item.size / 2}
-                y={item.y + item.size / 2 - (item.spec.sublabel ? 6 : 0)}
+                y={item.y + item.size / 2}
                 textAnchor="middle"
                 dominantBaseline="middle"
                 className="fill-wood font-bold"
@@ -160,13 +160,13 @@ function SquareDiagram({
               {item.spec.sublabel ? (
                 <text
                   x={item.x + item.size / 2}
-                  y={item.y + item.size / 2 + item.size * 0.14}
+                  y={item.y + item.size + Math.max(10, item.size * 0.12)}
                   textAnchor="middle"
-                  dominantBaseline="middle"
-                  className="fill-wood/70"
-                  style={{ fontSize: Math.max(7, item.size * 0.11) }}
+                  dominantBaseline="hanging"
+                  className="fill-wood/75 font-semibold"
+                  style={{ fontSize: Math.max(8, item.size * 0.13) }}
                 >
-                  = {item.spec.sublabel}
+                  {item.spec.sublabel}
                 </text>
               ) : null}
               {i < layout.length - 1 ? (

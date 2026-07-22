@@ -44,7 +44,8 @@ function makeTargetItem(area: number): VisualSideItem {
   return {
     role: "target",
     side: null,
-    label: `넓이 ${area}`,
+    label: String(area),
+    sublabel: `√${area}`,
   };
 }
 
@@ -55,8 +56,8 @@ function makeProbeItem(
   return {
     role,
     side,
-    label: side.raw,
-    sublabel: squareSide(side),
+    label: squareSide(side),
+    sublabel: side.raw,
   };
 }
 
