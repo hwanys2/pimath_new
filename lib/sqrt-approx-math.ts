@@ -200,6 +200,31 @@ export function bracketsMatch(a: Bracket, b: Bracket): boolean {
   );
 }
 
+/**
+ * True when explore bracket is a valid consecutive sub-interval inside required:
+ * low² < area < high² and high = low + 10^{-scale} (e.g. [1.73, 1.74] within [1.7, 1.8]).
+ */
+export function isUnlockBracket(
+  explore: Bracket,
+  required: Bracket,
+  area: number,
+): boolean {
+  if (
+    !isValidGuess(explore.low, required.low, required.high) ||
+    !isValidGuess(explore.high, required.low, required.high)
+  ) {
+    return false;
+  }
+  if (compareDecimal(explore.low, explore.high) >= 0) return false;
+  if (explore.low.scale !== explore.high.scale) return false;
+
+  if (compareSquareToArea(squareSide(explore.low), area) !== "lt") return false;
+  if (compareSquareToArea(squareSide(explore.high), area) !== "gt") return false;
+
+  const nextStep = incrementDecimal(explore.low);
+  return compareDecimal(explore.high, nextStep) === 0;
+}
+
 /** Append one decimal digit to a confirmed prefix. */
 export function appendDigit(
   confirmed: DecimalValue,

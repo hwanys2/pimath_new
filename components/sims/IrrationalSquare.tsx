@@ -15,6 +15,7 @@ import {
   getCorrectNextDigit,
   getInitialBracket,
   getRequiredBracket,
+  isUnlockBracket,
   isValidGuess,
   parseSideInput,
   parseSideInputErrorMessage,
@@ -353,7 +354,7 @@ export default function IrrationalSquare() {
       const canUnlock =
         stage === "integer"
           ? true
-          : bracketsMatch(bracket, requiredBracket);
+          : isUnlockBracket(bracket, requiredBracket, area);
 
       if (canUnlock) {
         setConfirmLocked(false);
