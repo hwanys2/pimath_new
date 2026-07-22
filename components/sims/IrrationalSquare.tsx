@@ -1,6 +1,17 @@
 "use client";
 
-import { useCallback, useMemo, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  useTransition,
+} from "react";
+import {
+  submitGameRun,
+  type GameSubmitClientResult,
+} from "@/app/adventure/actions";
 import {
   MAX_DECIMAL_DIGITS,
   TARGET_AREAS,
@@ -24,6 +35,9 @@ import {
   sideToNumber,
   squareSide,
 } from "@/lib/sqrt-approx-math";
+
+const CONTENT_KEY = "g3-u1-irrational-square";
+const COMPLETION_SCORE = 100;
 
 type Phase = "select" | "explore" | "complete";
 type ConfirmStage = "integer" | "decimal";
@@ -486,6 +500,10 @@ export default function IrrationalSquare() {
     raw: string;
     square: string;
   } | null>(null);
+  const [submitResult, setSubmitResult] =
+    useState<GameSubmitClientResult | null>(null);
+  const [isPending, startTransition] = useTransition();
+  const xpSubmittedRef = useRef(false);
 
   const requiredBracket = useMemo(() => {
     if (!area) return null;
@@ -517,6 +535,8 @@ export default function IrrationalSquare() {
   }, [resetProbeVisual]);
 
   const reset = useCallback(() => {
+    xpSubmittedRef.current = false;
+    setSubmitResult(null);
     setPhase("select");
     setArea(null);
     setConfirmStage("integer");
@@ -680,6 +700,18 @@ export default function IrrationalSquare() {
   ]);
 
   const confirmEnabled = !confirmLocked;
+
+  useEffect(() => {
+    if (phase !== "complete" || !area || xpSubmittedRef.current) return;
+    xpSubmittedRef.current = true;
+    startTransition(async () => {
+      const result = await submitGameRun({
+        contentKey: CONTENT_KEY,
+        score: COMPLETION_SCORE,
+      });
+      setSubmitResult(result);
+    });
+  }, [phase, area]);
 
   const stageLabel =
     confirmStage === "integer"
@@ -865,13 +897,54 @@ export default function IrrationalSquare() {
       ) : null}
 
       {phase === "complete" && area && confirmed ? (
-        <section className="quest-card p-5 sm:p-8">
-          <p className="text-center font-display text-2xl font-bold text-foreground">
-            소수점 아래 10번째 자리까지 찾았어요
+        <section
+          className="quest-card border-mint/40 bg-gradient-to-br from-mint/45 via-lavender/25 to-gold/30 p-5 sm:p-8"
+          role="status"
+          aria-live="polite"
+        >
+          <p className="text-center font-display text-3xl font-bold text-wood sm:text-4xl">
+            축하해요!
+          </p>
+          <p className="mt-2 text-center text-sm font-semibold text-foreground/75">
+            소수점 아래 10번째 자리까지 모두 맞혔어요
           </p>
           <p className="mx-auto mt-4 max-w-lg text-center font-mono text-lg font-semibold text-wood">
             {confirmed.raw}
           </p>
+
+          {isPending && !submitResult ? (
+            <p className="mt-4 text-center text-sm font-bold text-wood/70">
+              경험치 반영 중…
+            </p>
+          ) : null}
+
+          {submitResult?.error ? (
+            <p className="mt-4 text-center text-sm font-bold text-[#a63a1a]">
+              {submitResult.error}
+            </p>
+          ) : null}
+
+          {submitResult && !submitResult.error ? (
+            submitResult.recorded ? (
+              <p className="mt-4 text-center text-base font-bold text-wood">
+                +{submitResult.xpAwarded ?? submitResult.score} XP 획득!
+                {submitResult.leveledUp && submitResult.level != null
+                  ? ` 레벨 업! Lv.${submitResult.level}`
+                  : submitResult.level != null
+                    ? ` (Lv.${submitResult.level})`
+                    : ""}
+              </p>
+            ) : (
+              <p className="mx-auto mt-4 max-w-md rounded-2xl bg-wood/5 px-4 py-3 text-center text-sm font-semibold text-foreground/65">
+                연습 모드 · 경험치는 반영되지 않아요
+                <span className="mt-1 block text-xs font-medium text-foreground/50">
+                  학급에 배정·활성화된 콘텐츠를 학생 로그인으로 완료하면 XP가
+                  쌓여요.
+                </span>
+              </p>
+            )
+          ) : null}
+
           <p className="mx-auto mt-4 max-w-lg text-center text-sm leading-relaxed text-foreground/75">
             넓이 {area}인 정사각형의 한 변 길이를 소수점 아래 10자리까지
             좁혀 왔습니다. 제곱값이 넓이 {area}과{" "}
