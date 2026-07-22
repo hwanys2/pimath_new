@@ -5,7 +5,7 @@ import {
   type DecimalValue,
 } from "@/lib/sqrt-approx-math";
 
-export const TARGET_PX = 96;
+export const TARGET_PX = 84;
 export const VB_W = 900;
 export const VB_H = 280;
 export const GAP = 16;
@@ -44,8 +44,7 @@ function makeTargetItem(area: number): VisualSideItem {
   return {
     role: "target",
     side: null,
-    label: String(area),
-    sublabel: `√${area}`,
+    label: `넓이 ${area}`,
   };
 }
 
@@ -76,17 +75,25 @@ function splitBelowAbove(
   return { below, above };
 }
 
-function trimIntegerWindow(sorted: DecimalValue[], area: number): DecimalValue[] {
+function trimToSymmetricWindow(
+  sorted: DecimalValue[],
+  area: number,
+  stage: VisualStage,
+): DecimalValue[] {
   const { below, above } = splitBelowAbove(sorted, area);
   const kept: DecimalValue[] = [];
 
-  if (below.length > 0) {
-    kept.push(below[0]!);
-    kept.push(below[below.length - 1]!);
-  }
-  if (above.length > 0) {
-    kept.push(above[0]!);
-    kept.push(above[above.length - 1]!);
+  if (stage === "integer") {
+    if (below.length > 0) {
+      kept.push(below[0]!);
+      kept.push(below[below.length - 1]!);
+    }
+    if (above.length > 0) {
+      kept.push(above[0]!);
+      kept.push(above[above.length - 1]!);
+    }
+  } else {
+    kept.push(...below.slice(-2), ...above.slice(0, 2));
   }
 
   const seen = new Set<string>();
@@ -97,13 +104,16 @@ function trimIntegerWindow(sorted: DecimalValue[], area: number): DecimalValue[]
     unique.push(probe);
   }
 
-  if (unique.length >= MAX_WINDOW_PROBES) return unique.slice(0, MAX_WINDOW_PROBES);
+  if (unique.length >= MAX_WINDOW_PROBES) {
+    return unique.slice(0, MAX_WINDOW_PROBES);
+  }
 
   const remaining = sorted.filter((probe) => !seen.has(probe.raw));
   const sqrtArea = targetSideNumber(area);
   remaining.sort(
     (a, b) =>
-      Math.abs(sideToNumber(a) - sqrtArea) - Math.abs(sideToNumber(b) - sqrtArea),
+      Math.abs(sideToNumber(a) - sqrtArea) -
+      Math.abs(sideToNumber(b) - sqrtArea),
   );
   for (const probe of remaining) {
     if (unique.length >= MAX_WINDOW_PROBES) break;
@@ -112,25 +122,6 @@ function trimIntegerWindow(sorted: DecimalValue[], area: number): DecimalValue[]
   }
 
   return sortBySide(unique);
-}
-
-function trimDecimalWindow(
-  sorted: DecimalValue[],
-  area: number,
-  inserted: DecimalValue,
-): DecimalValue[] {
-  const sqrtArea = targetSideNumber(area);
-  const { below, above } = splitBelowAbove(sorted, area);
-
-  if (sideToNumber(inserted) < sqrtArea) {
-    if (below.length === 0) return sorted.slice(0, MAX_WINDOW_PROBES);
-    const drop = below[0]!;
-    return sorted.filter((probe) => probe.raw !== drop.raw);
-  }
-
-  if (above.length === 0) return sorted.slice(0, MAX_WINDOW_PROBES);
-  const drop = above[above.length - 1]!;
-  return sorted.filter((probe) => probe.raw !== drop.raw);
 }
 
 /**
@@ -150,11 +141,7 @@ export function insertProbeIntoWindow(
   const sorted = sortBySide([...window, probe]);
   if (sorted.length <= MAX_WINDOW_PROBES) return sorted;
 
-  if (stage === "integer") {
-    return trimIntegerWindow(sorted, area);
-  }
-
-  return trimDecimalWindow(sorted, area, probe);
+  return trimToSymmetricWindow(sorted, area, stage);
 }
 
 function insertTargetIntoSorted(
@@ -330,6 +317,20 @@ export function layoutAnchoredSquares(
 
 export function showInequalities(items: VisualSideItem[]): boolean {
   return items.length >= 2;
+}
+
+/** Count probes on each side of target in display order. */
+export function countSidesAroundTarget(
+  window: DecimalValue[],
+  area: number,
+): { below: number; above: number } {
+  const labels = windowLabels(window, area);
+  const targetIdx = labels.findIndex((l) => l === `√${area}`);
+  if (targetIdx < 0) return { below: 0, above: 0 };
+  return {
+    below: targetIdx,
+    above: labels.length - targetIdx - 1,
+  };
 }
 
 /** Labels for tests: probe raws with √area marker for target. */

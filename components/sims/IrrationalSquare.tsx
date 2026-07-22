@@ -153,18 +153,23 @@ function SquareDiagram({
                 textAnchor="middle"
                 dominantBaseline="middle"
                 className="fill-wood font-bold"
-                style={{ fontSize: Math.max(9, item.size * 0.17) }}
+                style={{
+                  fontSize: Math.max(
+                    item.spec.role === "target" ? 13 : 11,
+                    item.size * 0.22,
+                  ),
+                }}
               >
                 {item.spec.label}
               </text>
-              {item.spec.sublabel ? (
+              {item.spec.sublabel && item.spec.role !== "target" ? (
                 <text
                   x={item.x + item.size / 2}
-                  y={item.y + item.size + Math.max(10, item.size * 0.12)}
+                  y={item.y + item.size + Math.max(12, item.size * 0.14)}
                   textAnchor="middle"
                   dominantBaseline="hanging"
-                  className="fill-wood/75 font-semibold"
-                  style={{ fontSize: Math.max(8, item.size * 0.13) }}
+                  className="fill-wood/80 font-semibold"
+                  style={{ fontSize: Math.max(10, item.size * 0.17) }}
                 >
                   {item.spec.sublabel}
                 </text>
