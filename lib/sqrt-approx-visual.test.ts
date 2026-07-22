@@ -1,12 +1,11 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
+import { parseSideInput, type DecimalValue } from "@/lib/sqrt-approx-math";
 import {
-  intToDecimal,
-  parseSideInput,
-  type Bracket,
-  type DecimalValue,
-} from "@/lib/sqrt-approx-math";
-import { selectVisibleSides } from "@/lib/sqrt-approx-visual";
+  insertProbeIntoWindow,
+  selectVisibleSides,
+  windowLabels,
+} from "@/lib/sqrt-approx-visual";
 
 function probe(raw: string): DecimalValue {
   const parsed = parseSideInput(raw);
@@ -14,100 +13,95 @@ function probe(raw: string): DecimalValue {
   return parsed.value;
 }
 
-function labels(
-  items: ReturnType<typeof selectVisibleSides>,
-  area: number,
-): string[] {
-  return items.map((item) =>
-    item.role === "target" ? `√${area}` : item.side!.raw,
-  );
+function labels(window: DecimalValue[], area: number): string[] {
+  return windowLabels(window, area);
 }
 
-describe("selectVisibleSides (area=2)", () => {
+describe("insertProbeIntoWindow (area=2)", () => {
   const area = 2;
-  const wideBracket: Bracket = { low: intToDecimal(1), high: intToDecimal(5) };
 
   it("shows only target before any probe", () => {
-    const items = selectVisibleSides({
-      area,
-      exploreBracket: wideBracket,
-      probeHistory: [],
-      confirmed: null,
-    });
+    const items = selectVisibleSides({ area, visibleWindow: [] });
     assert.equal(items.length, 1);
     assert.equal(items[0]!.role, "target");
   });
 
-  it("shows 1, √2, 2 after probing 1 and 2", () => {
-    const bracket: Bracket = { low: intToDecimal(1), high: intToDecimal(2) };
-    const items = selectVisibleSides({
-      area,
-      exploreBracket: bracket,
-      probeHistory: [probe("1"), probe("2")],
-      confirmed: null,
-    });
-    assert.deepEqual(labels(items, area), ["1", "√2", "2"]);
+  it("step 1: probe 1 → 1 · √2", () => {
+    const window = insertProbeIntoWindow([], probe("1"), "integer", area);
+    assert.deepEqual(labels(window, area), ["1", "√2"]);
   });
 
-  it("shows five squares with inner probes", () => {
-    const bracket: Bracket = { low: intToDecimal(1), high: intToDecimal(2) };
-    const items = selectVisibleSides({
-      area,
-      exploreBracket: bracket,
-      probeHistory: [
-        probe("1"),
-        probe("1.2"),
-        probe("1.4"),
-        probe("1.5"),
-        probe("2"),
-      ],
-      confirmed: null,
-    });
-    assert.equal(items.length, 5);
-    assert.deepEqual(labels(items, area), ["1", "1.4", "√2", "1.5", "2"]);
+  it("step 2: probe 2 → 1 · √2 · 2", () => {
+    let window = insertProbeIntoWindow([], probe("1"), "integer", area);
+    window = insertProbeIntoWindow(window, probe("2"), "integer", area);
+    assert.deepEqual(labels(window, area), ["1", "√2", "2"]);
   });
 
-  it("hides confirmed integer probe 1", () => {
-    const bracket: Bracket = { low: intToDecimal(1), high: intToDecimal(2) };
-    const confirmed = intToDecimal(1);
-    const items = selectVisibleSides({
-      area,
-      exploreBracket: bracket,
-      probeHistory: [probe("1"), probe("1.4"), probe("1.5"), probe("2")],
-      confirmed,
-    });
-    assert.ok(!labels(items, area).includes("1"));
-    assert.ok(labels(items, area).includes("2"));
-    assert.equal(items.length, 4);
-    assert.deepEqual(labels(items, area), ["1.4", "√2", "1.5", "2"]);
+  it("step 3: probe 1.2 → 1 · 1.2 · √2 · 2", () => {
+    let window = insertProbeIntoWindow([], probe("1"), "integer", area);
+    window = insertProbeIntoWindow(window, probe("2"), "integer", area);
+    window = insertProbeIntoWindow(window, probe("1.2"), "integer", area);
+    assert.deepEqual(labels(window, area), ["1", "1.2", "√2", "2"]);
   });
 
-  it("drops probe 2 when outside narrowed bracket", () => {
-    const bracket: Bracket = { low: probe("1.4"), high: probe("1.5") };
-    const items = selectVisibleSides({
-      area,
-      exploreBracket: bracket,
-      probeHistory: [
-        probe("1"),
-        probe("1.4"),
-        probe("1.44"),
-        probe("1.5"),
-        probe("2"),
-      ],
-      confirmed: intToDecimal(1),
-    });
-    assert.deepEqual(labels(items, area), ["1.4", "√2", "1.44", "1.5"]);
-    assert.ok(!labels(items, area).includes("2"));
+  it("step 4: probe 1.4 → five squares, 1.2 still visible", () => {
+    let window = insertProbeIntoWindow([], probe("1"), "integer", area);
+    window = insertProbeIntoWindow(window, probe("2"), "integer", area);
+    window = insertProbeIntoWindow(window, probe("1.2"), "integer", area);
+    window = insertProbeIntoWindow(window, probe("1.4"), "integer", area);
+    assert.equal(window.length, 4);
+    assert.deepEqual(labels(window, area), ["1", "1.2", "1.4", "√2", "2"]);
   });
 
-  it("keeps at least two items after probing", () => {
-    const bracket: Bracket = { low: intToDecimal(1), high: intToDecimal(2) };
-    const items = selectVisibleSides({
-      area,
-      exploreBracket: bracket,
-      probeHistory: [probe("1")],
-      confirmed: null,
-    });
-    assert.ok(items.length >= 2);
+  it("step 5: probe 1.5 → 1.2 drops", () => {
+    let window = insertProbeIntoWindow([], probe("1"), "integer", area);
+    window = insertProbeIntoWindow(window, probe("2"), "integer", area);
+    window = insertProbeIntoWindow(window, probe("1.2"), "integer", area);
+    window = insertProbeIntoWindow(window, probe("1.4"), "integer", area);
+    window = insertProbeIntoWindow(window, probe("1.5"), "integer", area);
+    assert.deepEqual(labels(window, area), ["1", "1.4", "√2", "1.5", "2"]);
+  });
+
+  it("step 6: integer confirm does not change window", () => {
+    let window = insertProbeIntoWindow([], probe("1"), "integer", area);
+    window = insertProbeIntoWindow(window, probe("2"), "integer", area);
+    window = insertProbeIntoWindow(window, probe("1.2"), "integer", area);
+    window = insertProbeIntoWindow(window, probe("1.4"), "integer", area);
+    window = insertProbeIntoWindow(window, probe("1.5"), "integer", area);
+    const afterConfirm = window;
+    assert.deepEqual(labels(afterConfirm, area), ["1", "1.4", "√2", "1.5", "2"]);
+    assert.ok(labels(afterConfirm, area).includes("1"));
+  });
+
+  it("step 7: probe 1.41 in decimal stage → 1 drops", () => {
+    let window = insertProbeIntoWindow([], probe("1"), "integer", area);
+    window = insertProbeIntoWindow(window, probe("2"), "integer", area);
+    window = insertProbeIntoWindow(window, probe("1.4"), "integer", area);
+    window = insertProbeIntoWindow(window, probe("1.5"), "integer", area);
+    window = insertProbeIntoWindow(window, probe("1.41"), "decimal", area);
+    assert.deepEqual(labels(window, area), ["1.4", "1.41", "√2", "1.5", "2"]);
+    assert.ok(!labels(window, area).includes("1"));
+  });
+
+  it("step 8: probe 1.44 in decimal stage → 2 drops", () => {
+    let window = insertProbeIntoWindow([], probe("1"), "integer", area);
+    window = insertProbeIntoWindow(window, probe("2"), "integer", area);
+    window = insertProbeIntoWindow(window, probe("1.4"), "integer", area);
+    window = insertProbeIntoWindow(window, probe("1.5"), "integer", area);
+    window = insertProbeIntoWindow(window, probe("1.41"), "decimal", area);
+    window = insertProbeIntoWindow(window, probe("1.44"), "decimal", area);
+    assert.deepEqual(labels(window, area), ["1.4", "1.41", "√2", "1.44", "1.5"]);
+    assert.ok(!labels(window, area).includes("2"));
+  });
+
+  it("keeps at least two items after first probe", () => {
+    const window = insertProbeIntoWindow([], probe("1"), "integer", area);
+    assert.ok(labels(window, area).length >= 2);
+  });
+
+  it("does not duplicate probes in window", () => {
+    let window = insertProbeIntoWindow([], probe("1"), "integer", area);
+    window = insertProbeIntoWindow(window, probe("1"), "integer", area);
+    assert.equal(window.length, 1);
   });
 });

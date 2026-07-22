@@ -1,9 +1,7 @@
 import {
   compareDecimal,
-  isValidGuess,
   sideToNumber,
   squareSide,
-  type Bracket,
   type DecimalValue,
 } from "@/lib/sqrt-approx-math";
 
@@ -12,6 +10,8 @@ export const VB_W = 900;
 export const VB_H = 280;
 export const GAP = 16;
 export const SYM_W = 24;
+
+export type VisualStage = "integer" | "decimal";
 
 export type VisualSideRole = "target" | "low" | "high" | "inner" | "wrong";
 
@@ -30,23 +30,10 @@ export type LayoutRect = {
   size: number;
 };
 
-function dedupeByRaw(values: DecimalValue[]): DecimalValue[] {
-  const seen = new Set<string>();
-  const out: DecimalValue[] = [];
-  for (const v of values) {
-    if (seen.has(v.raw)) continue;
-    seen.add(v.raw);
-    out.push(v);
-  }
-  return out;
-}
+const MAX_WINDOW_PROBES = 4;
 
 function sortBySide(values: DecimalValue[]): DecimalValue[] {
   return [...values].sort((a, b) => compareDecimal(a, b));
-}
-
-function equalsDecimal(a: DecimalValue, b: DecimalValue): boolean {
-  return compareDecimal(a, b) === 0;
 }
 
 function targetSideNumber(area: number): number {
@@ -73,6 +60,102 @@ function makeProbeItem(
   };
 }
 
+function splitBelowAbove(
+  sorted: DecimalValue[],
+  area: number,
+): { below: DecimalValue[]; above: DecimalValue[] } {
+  const sqrtArea = targetSideNumber(area);
+  const below: DecimalValue[] = [];
+  const above: DecimalValue[] = [];
+  for (const probe of sorted) {
+    const side = sideToNumber(probe);
+    if (side < sqrtArea) below.push(probe);
+    else if (side > sqrtArea) above.push(probe);
+  }
+  return { below, above };
+}
+
+function trimIntegerWindow(sorted: DecimalValue[], area: number): DecimalValue[] {
+  const { below, above } = splitBelowAbove(sorted, area);
+  const kept: DecimalValue[] = [];
+
+  if (below.length > 0) {
+    kept.push(below[0]!);
+    kept.push(below[below.length - 1]!);
+  }
+  if (above.length > 0) {
+    kept.push(above[0]!);
+    kept.push(above[above.length - 1]!);
+  }
+
+  const seen = new Set<string>();
+  const unique: DecimalValue[] = [];
+  for (const probe of sortBySide(kept)) {
+    if (seen.has(probe.raw)) continue;
+    seen.add(probe.raw);
+    unique.push(probe);
+  }
+
+  if (unique.length >= MAX_WINDOW_PROBES) return unique.slice(0, MAX_WINDOW_PROBES);
+
+  const remaining = sorted.filter((probe) => !seen.has(probe.raw));
+  const sqrtArea = targetSideNumber(area);
+  remaining.sort(
+    (a, b) =>
+      Math.abs(sideToNumber(a) - sqrtArea) - Math.abs(sideToNumber(b) - sqrtArea),
+  );
+  for (const probe of remaining) {
+    if (unique.length >= MAX_WINDOW_PROBES) break;
+    unique.push(probe);
+    seen.add(probe.raw);
+  }
+
+  return sortBySide(unique);
+}
+
+function trimDecimalWindow(
+  sorted: DecimalValue[],
+  area: number,
+  inserted: DecimalValue,
+): DecimalValue[] {
+  const sqrtArea = targetSideNumber(area);
+  const { below, above } = splitBelowAbove(sorted, area);
+
+  if (sideToNumber(inserted) < sqrtArea) {
+    if (below.length === 0) return sorted.slice(0, MAX_WINDOW_PROBES);
+    const drop = below[0]!;
+    return sorted.filter((probe) => probe.raw !== drop.raw);
+  }
+
+  if (above.length === 0) return sorted.slice(0, MAX_WINDOW_PROBES);
+  const drop = above[above.length - 1]!;
+  return sorted.filter((probe) => probe.raw !== drop.raw);
+}
+
+/**
+ * Insert a valid probe into the sliding window (target excluded, max 4 probes).
+ * Only called on successful probe — confirm steps do not touch the window.
+ */
+export function insertProbeIntoWindow(
+  window: DecimalValue[],
+  probe: DecimalValue,
+  stage: VisualStage,
+  area: number,
+): DecimalValue[] {
+  if (window.some((item) => item.raw === probe.raw)) {
+    return window;
+  }
+
+  const sorted = sortBySide([...window, probe]);
+  if (sorted.length <= MAX_WINDOW_PROBES) return sorted;
+
+  if (stage === "integer") {
+    return trimIntegerWindow(sorted, area);
+  }
+
+  return trimDecimalWindow(sorted, area, probe);
+}
+
 function insertTargetIntoSorted(
   probes: DecimalValue[],
   area: number,
@@ -96,173 +179,81 @@ function insertTargetIntoSorted(
   return items;
 }
 
-function trimToMaxCount(
-  items: VisualSideItem[],
-  area: number,
-  maxCount: number,
-  bracket: Bracket,
-): VisualSideItem[] {
-  if (items.length <= maxCount) return items;
+function assignPositionRoles(items: VisualSideItem[]): VisualSideItem[] {
+  const probeIndices = items
+    .map((item, index) =>
+      item.role !== "target" && item.role !== "wrong" ? index : -1,
+    )
+    .filter((index) => index >= 0);
 
-  const sqrtArea = targetSideNumber(area);
-  const lowBound = bracket.low;
-  const highBound = bracket.high;
+  if (probeIndices.length === 0) return items;
 
-  const isRemovable = (item: VisualSideItem, index: number): boolean => {
-    if (item.role === "target" || item.role === "wrong") return false;
-    if (!item.side) return false;
-    if (equalsDecimal(item.side, lowBound)) return false;
-    if (equalsDecimal(item.side, highBound)) return false;
-    return true;
-  };
+  const first = probeIndices[0]!;
+  const last = probeIndices[probeIndices.length - 1]!;
 
-  let current = [...items];
-  while (current.length > maxCount) {
-    const removableIndices = current
-      .map((item, index) => ({ item, index }))
-      .filter(({ item, index }) => isRemovable(item, index));
-
-    if (removableIndices.length === 0) break;
-
-    let removeIndex = removableIndices[0]!.index;
-    let maxDist = -1;
-    for (const { item, index } of removableIndices) {
-      const dist = Math.abs(sideToNumber(item.side!) - sqrtArea);
-      if (dist > maxDist) {
-        maxDist = dist;
-        removeIndex = index;
-      }
-    }
-    current = current.filter((_, i) => i !== removeIndex);
-  }
-
-  return current;
-}
-
-function assignBracketRoles(
-  items: VisualSideItem[],
-  bracket: Bracket,
-): VisualSideItem[] {
-  return items.map((item) => {
-    if (item.role === "target" || item.role === "wrong" || !item.side) {
-      return item;
-    }
-    if (equalsDecimal(item.side, bracket.low)) {
-      return { ...item, role: "low" };
-    }
-    if (equalsDecimal(item.side, bracket.high)) {
-      return { ...item, role: "high" };
-    }
+  return items.map((item, index) => {
+    if (item.role === "target" || item.role === "wrong") return item;
+    if (index === first) return { ...item, role: "low" };
+    if (index === last) return { ...item, role: "high" };
     return { ...item, role: "inner" };
   });
 }
 
+function insertWrongProbe(
+  items: VisualSideItem[],
+  wrongProbe: DecimalValue,
+  area: number,
+): VisualSideItem[] {
+  const wrongItem = makeProbeItem(wrongProbe, "wrong");
+  const sqrtArea = targetSideNumber(area);
+  const withWrong: VisualSideItem[] = [];
+  let inserted = false;
+
+  for (const item of items) {
+    if (
+      !inserted &&
+      item.role !== "target" &&
+      item.side &&
+      sideToNumber(item.side) > sideToNumber(wrongProbe)
+    ) {
+      withWrong.push(wrongItem);
+      inserted = true;
+    }
+    if (
+      !inserted &&
+      item.role === "target" &&
+      sqrtArea > sideToNumber(wrongProbe)
+    ) {
+      withWrong.push(wrongItem);
+      inserted = true;
+    }
+    withWrong.push(item);
+  }
+
+  if (!inserted) withWrong.push(wrongItem);
+  return withWrong;
+}
+
 /**
- * Pick up to `maxCount` sides for display: fixed √area target plus probes
- * inside the current explore bracket. Confirmed integer probe is hidden.
+ * Build display items from the persisted sliding window (no bracket/confirm filtering).
  */
 export function selectVisibleSides(input: {
   area: number;
-  exploreBracket: Bracket;
-  probeHistory: DecimalValue[];
-  confirmed: DecimalValue | null;
+  visibleWindow: DecimalValue[];
   wrongProbe?: DecimalValue | null;
-  maxCount?: number;
 }): VisualSideItem[] {
-  const {
-    area,
-    exploreBracket,
-    probeHistory,
-    confirmed,
-    wrongProbe = null,
-    maxCount = 5,
-  } = input;
+  const { area, visibleWindow, wrongProbe = null } = input;
+  const window = sortBySide(visibleWindow);
 
-  let candidates = probeHistory.filter((p) =>
-    isValidGuess(p, exploreBracket.low, exploreBracket.high),
-  );
-
-  if (confirmed && confirmed.scale === 0) {
-    candidates = candidates.filter(
-      (p) => !equalsDecimal(p, confirmed),
-    );
-  }
-
-  candidates = dedupeByRaw(candidates);
-  candidates = sortBySide(candidates);
-
-  if (candidates.length === 0 && !wrongProbe) {
+  if (window.length === 0 && !wrongProbe) {
     return [makeTargetItem(area)];
   }
 
-  let items = insertTargetIntoSorted(candidates, area);
-  items = assignBracketRoles(items, exploreBracket);
-  items = trimToMaxCount(items, area, maxCount, exploreBracket);
+  let items = insertTargetIntoSorted(window, area);
+  items = assignPositionRoles(items);
 
-  if (wrongProbe) {
-    const wrongInBracket = isValidGuess(
-      wrongProbe,
-      exploreBracket.low,
-      exploreBracket.high,
-    );
-    const alreadyShown = items.some(
-      (item) => item.side && equalsDecimal(item.side, wrongProbe),
-    );
-    if (!alreadyShown) {
-      const wrongItem = makeProbeItem(wrongProbe, "wrong");
-      const sqrtArea = targetSideNumber(area);
-      const withWrong: VisualSideItem[] = [];
-      let inserted = false;
-      for (const item of items) {
-        if (
-          !inserted &&
-          item.role !== "target" &&
-          item.side &&
-          sideToNumber(item.side) > sideToNumber(wrongProbe)
-        ) {
-          withWrong.push(wrongItem);
-          inserted = true;
-        }
-        if (
-          !inserted &&
-          item.role === "target" &&
-          sqrtArea > sideToNumber(wrongProbe)
-        ) {
-          withWrong.push(wrongItem);
-          inserted = true;
-        }
-        withWrong.push(item);
-      }
-      if (!inserted) withWrong.push(wrongItem);
-      items = wrongInBracket
-        ? trimToMaxCount(
-            assignBracketRoles(withWrong, exploreBracket),
-            area,
-            maxCount,
-            exploreBracket,
-          )
-        : withWrong;
-    }
-  }
-
-  if (probeHistory.length > 0 && items.length < 2) {
-    const nearest = sortBySide(
-      probeHistory.filter((p) =>
-        isValidGuess(p, exploreBracket.low, exploreBracket.high),
-      ),
-    ).find(
-      (p) =>
-        !confirmed ||
-        confirmed.scale !== 0 ||
-        !equalsDecimal(p, confirmed),
-    );
-    if (nearest) {
-      return selectVisibleSides({
-        ...input,
-        probeHistory: [nearest, ...probeHistory],
-        wrongProbe: null,
-      });
-    }
+  if (wrongProbe && !window.some((probe) => probe.raw === wrongProbe.raw)) {
+    items = insertWrongProbe(items, wrongProbe, area);
   }
 
   return items;
@@ -338,4 +329,12 @@ export function layoutAnchoredSquares(
 
 export function showInequalities(items: VisualSideItem[]): boolean {
   return items.length >= 2;
+}
+
+/** Labels for tests: probe raws with √area marker for target. */
+export function windowLabels(window: DecimalValue[], area: number): string[] {
+  const items = selectVisibleSides({ area, visibleWindow: window });
+  return items.map((item) =>
+    item.role === "target" ? `√${area}` : item.side!.raw,
+  );
 }

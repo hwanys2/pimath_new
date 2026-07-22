@@ -38,6 +38,7 @@ import {
   VB_H,
   VB_W,
   inequalityLabel,
+  insertProbeIntoWindow,
   layoutAnchoredSquares,
   selectVisibleSides,
   showInequalities,
@@ -79,27 +80,21 @@ function squareCenterY(item: { y: number; size: number }) {
 
 function SquareDiagram({
   area,
-  exploreBracket,
-  probeHistory,
-  confirmed,
+  visibleWindow,
   wrong,
 }: {
   area: number;
-  exploreBracket: Bracket;
-  probeHistory: DecimalValue[];
-  confirmed: DecimalValue | null;
+  visibleWindow: DecimalValue[];
   wrong: WrongProbe | null;
 }) {
   const items = useMemo(
     () =>
       selectVisibleSides({
         area,
-        exploreBracket,
-        probeHistory,
-        confirmed,
+        visibleWindow,
         wrongProbe: wrong?.guess ?? null,
       }),
-    [area, exploreBracket, probeHistory, confirmed, wrong],
+    [area, visibleWindow, wrong],
   );
   const layout = useMemo(
     () => layoutAnchoredSquares(items, area),
@@ -255,7 +250,7 @@ export default function IrrationalSquare() {
   const [confirmed, setConfirmed] = useState<DecimalValue | null>(null);
   const [decimalIndex, setDecimalIndex] = useState(0);
   const [exploreBracket, setExploreBracket] = useState<Bracket | null>(null);
-  const [probeHistory, setProbeHistory] = useState<DecimalValue[]>([]);
+  const [visibleWindow, setVisibleWindow] = useState<DecimalValue[]>([]);
   const [confirmLocked, setConfirmLocked] = useState(false);
   const [history, setHistory] = useState<ConfirmRecord[]>([]);
 
@@ -282,17 +277,10 @@ export default function IrrationalSquare() {
     setWrongProbe(null);
   }, []);
 
-  const resetProbeHistory = useCallback(() => {
-    setProbeHistory([]);
+  const resetVisibleWindow = useCallback(() => {
+    setVisibleWindow([]);
     clearWrongProbe();
   }, [clearWrongProbe]);
-
-  const appendProbe = useCallback((guess: DecimalValue) => {
-    setProbeHistory((history) => {
-      if (history.some((item) => item.raw === guess.raw)) return history;
-      return [...history, guess];
-    });
-  }, []);
 
   const selectArea = useCallback((n: TargetArea) => {
     setArea(n);
@@ -307,9 +295,9 @@ export default function IrrationalSquare() {
     setProbeError(null);
     setConfirmError(null);
     setLastProbeSquare(null);
-    resetProbeHistory();
+    resetVisibleWindow();
     setPhase("explore");
-  }, [resetProbeHistory]);
+  }, [resetVisibleWindow]);
 
   const reset = useCallback(() => {
     xpSubmittedRef.current = false;
@@ -327,8 +315,8 @@ export default function IrrationalSquare() {
     setProbeError(null);
     setConfirmError(null);
     setLastProbeSquare(null);
-    resetProbeHistory();
-  }, [resetProbeHistory]);
+    resetVisibleWindow();
+  }, [resetVisibleWindow]);
 
   const attemptUnlock = useCallback(
     (bracket: Bracket, stage: ConfirmStage) => {
@@ -370,7 +358,9 @@ export default function IrrationalSquare() {
     setWrongProbe(null);
     const newBracket = refineBracket(exploreBracket, guess, area);
     setExploreBracket(newBracket);
-    appendProbe(guess);
+    setVisibleWindow((window) =>
+      insertProbeIntoWindow(window, guess, confirmStage, area),
+    );
     if (confirmLocked) {
       attemptUnlock(newBracket, confirmStage);
     }
@@ -382,7 +372,6 @@ export default function IrrationalSquare() {
     attemptUnlock,
     confirmLocked,
     confirmStage,
-    appendProbe,
   ]);
 
   const submitConfirm = useCallback(() => {
@@ -402,7 +391,7 @@ export default function IrrationalSquare() {
         setConfirmError(null);
         setConfirmInput("");
         setExploreBracket(getWideProbeBracket(area));
-        resetProbeHistory();
+        resetVisibleWindow();
         return;
       }
 
@@ -473,7 +462,7 @@ export default function IrrationalSquare() {
     confirmed,
     decimalIndex,
     clearWrongProbe,
-    resetProbeHistory,
+    resetVisibleWindow,
   ]);
 
   const confirmEnabled = !confirmLocked;
@@ -550,9 +539,7 @@ export default function IrrationalSquare() {
 
             <SquareDiagram
               area={area}
-              exploreBracket={exploreBracket}
-              probeHistory={probeHistory}
-              confirmed={confirmed}
+              visibleWindow={visibleWindow}
               wrong={wrongProbe}
             />
 
