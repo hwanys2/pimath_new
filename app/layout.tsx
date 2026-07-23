@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { GoogleAnalytics } from "@next/third-parties/google";
 import { Jua, Noto_Sans_KR } from "next/font/google";
 import StudentTopBar from "@/components/StudentTopBar";
 import TopMenuBar from "@/components/TopMenuBar";
@@ -34,6 +35,7 @@ export default async function RootLayout({
   children: React.ReactNode;
 }>) {
   const actor = await getActor();
+  const gaId = process.env.NEXT_PUBLIC_GA_MEASUREMENT_ID;
 
   return (
     <html lang="ko" className={`${jua.variable} ${notoSansKr.variable} h-full`}>
@@ -51,6 +53,9 @@ export default async function RootLayout({
           <p className="mt-1">중학교 수학 모험 · 시뮬레이션 · 게임</p>
         </footer>
       </body>
+      {process.env.NODE_ENV === "production" && gaId ? (
+        <GoogleAnalytics gaId={gaId} />
+      ) : null}
     </html>
   );
 }
