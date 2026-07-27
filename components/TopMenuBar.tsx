@@ -58,6 +58,16 @@ export default function TopMenuBar({
               </Link>
             );
           })}
+          <Link
+            href="/board"
+            className={`font-display rounded-xl px-3 py-2 text-sm transition sm:px-5 sm:text-base ${
+              pathname === "/board"
+                ? "bg-cream text-wood-dark shadow-[0_3px_0_rgba(0,0,0,0.25)]"
+                : "bg-black/15 text-cream hover:bg-black/25"
+            }`}
+          >
+            전자칠판
+          </Link>
         </div>
 
         {actor ? (

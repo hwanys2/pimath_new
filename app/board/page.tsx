@@ -1,0 +1,55 @@
+import type { Metadata } from "next";
+import { getActor } from "@/lib/auth";
+import { createClient } from "@/lib/supabase/server";
+import BoardApp from "@/components/board/BoardApp";
+import type { ClassRoster } from "@/components/board/types";
+
+export const metadata: Metadata = {
+  title: "전자칠판 | 수학하는 즐거움",
+  description:
+    "수학 수업에 특화된 전자칠판 — 판서, 타이머, 학생 뽑기, 함수 그래프, 자·각도기까지 한 화면에서",
+};
+
+/** Teacher-only: class rosters for the random student picker. */
+async function fetchRosters(): Promise<ClassRoster[]> {
+  const actor = await getActor();
+  if (actor?.type !== "teacher") return [];
+
+  const supabase = await createClient();
+  const { data: classes, error: classError } = await supabase
+    .from("pm_classes")
+    .select("id, name")
+    .eq("teacher_id", actor.id)
+    .order("created_at", { ascending: false });
+
+  if (classError || !classes || classes.length === 0) {
+    if (classError) {
+      console.error("[pm] board fetch classes failed:", classError.message);
+    }
+    return [];
+  }
+
+  const classIds = classes.map((c) => c.id as string);
+  const { data: students, error: studentError } = await supabase
+    .from("pm_students")
+    .select("class_id, display_name")
+    .in("class_id", classIds)
+    .order("display_name", { ascending: true });
+
+  if (studentError) {
+    console.error("[pm] board fetch students failed:", studentError.message);
+  }
+
+  return classes.map((c) => ({
+    id: c.id as string,
+    name: c.name as string,
+    students: (students ?? [])
+      .filter((s) => s.class_id === c.id)
+      .map((s) => s.display_name as string),
+  }));
+}
+
+export default async function BoardPage() {
+  const rosters = await fetchRosters();
+  return <BoardApp rosters={rosters} />;
+}
