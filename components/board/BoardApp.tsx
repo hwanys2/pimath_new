@@ -10,8 +10,10 @@ import {
 import "katex/dist/katex.min.css";
 import type {
   BackgroundId,
+  BoardOverlays,
   BoardPersisted,
   ClassRoster,
+  CompassPose,
   OverlayId,
   OverlayPose,
   Stroke,
@@ -24,6 +26,7 @@ import BoardToolbar from "./BoardToolbar";
 import DrawingCanvas from "./DrawingCanvas";
 import WidgetWindow from "./WidgetWindow";
 import { RulerOverlay, ProtractorOverlay } from "./GeometryOverlays";
+import CompassOverlay from "./CompassOverlay";
 import { WIDGET_DEFS } from "./widget-config";
 import TimerWidget from "./widgets/TimerWidget";
 import ClockWidget from "./widgets/ClockWidget";
@@ -109,9 +112,11 @@ export default function BoardApp({ rosters }: { rosters: ClassRoster[] }) {
     future: [],
   });
   const [widgets, setWidgets] = useState<WidgetInstance[]>([]);
-  const [overlays, setOverlays] = useState<
-    Record<OverlayId, OverlayPose | null>
-  >({ ruler: null, protractor: null });
+  const [overlays, setOverlays] = useState<BoardOverlays>({
+    ruler: null,
+    protractor: null,
+    compass: null,
+  });
   const [isFullscreen, setIsFullscreen] = useState(false);
   const spawnCountRef = useRef(0);
 
@@ -130,9 +135,24 @@ export default function BoardApp({ rosters }: { rosters: ClassRoster[] }) {
           }
           if (Array.isArray(saved.widgets)) setWidgets(saved.widgets);
           if (saved.overlays) {
+            const compassRaw = saved.overlays.compass as CompassPose | null | undefined;
             setOverlays({
               ruler: saved.overlays.ruler ?? null,
               protractor: saved.overlays.protractor ?? null,
+              compass: compassRaw
+                ? {
+                    cx: compassRaw.cx,
+                    cy: compassRaw.cy,
+                    radius:
+                      typeof compassRaw.radius === "number"
+                        ? compassRaw.radius
+                        : 140,
+                    angle:
+                      typeof compassRaw.angle === "number"
+                        ? compassRaw.angle
+                        : -40,
+                  }
+                : null,
             });
           }
         }
@@ -272,16 +292,28 @@ export default function BoardApp({ rosters }: { rosters: ClassRoster[] }) {
   }, []);
 
   const toggleOverlay = useCallback((id: OverlayId) => {
-    setOverlays((prev) => ({
-      ...prev,
-      [id]: prev[id]
-        ? null
-        : {
-            x: window.innerWidth / 2,
-            y: window.innerHeight / 2 - (id === "ruler" ? 80 : -40),
-            angle: 0,
+    setOverlays((prev) => {
+      if (prev[id]) return { ...prev, [id]: null };
+      if (id === "compass") {
+        return {
+          ...prev,
+          compass: {
+            cx: window.innerWidth / 2,
+            cy: window.innerHeight / 2,
+            radius: 140,
+            angle: -40,
           },
-    }));
+        };
+      }
+      return {
+        ...prev,
+        [id]: {
+          x: window.innerWidth / 2,
+          y: window.innerHeight / 2 - (id === "ruler" ? 80 : -40),
+          angle: 0,
+        } satisfies OverlayPose,
+      };
+    });
   }, []);
 
   const renderWidget = (w: WidgetInstance) => {
@@ -378,6 +410,22 @@ export default function BoardApp({ rosters }: { rosters: ClassRoster[] }) {
                 }
               />
             ) : null}
+            {overlays.compass ? (
+              <CompassOverlay
+                pose={overlays.compass}
+                color={color}
+                size={size}
+                onChange={(pose) =>
+                  setOverlays((prev) => ({ ...prev, compass: pose }))
+                }
+                onCommit={(stroke) =>
+                  dispatchDraw({ type: "commit", stroke })
+                }
+                onClose={() =>
+                  setOverlays((prev) => ({ ...prev, compass: null }))
+                }
+              />
+            ) : null}
           </div>
 
           <BoardToolbar
@@ -398,6 +446,7 @@ export default function BoardApp({ rosters }: { rosters: ClassRoster[] }) {
             overlaysOn={{
               ruler: overlays.ruler !== null,
               protractor: overlays.protractor !== null,
+              compass: overlays.compass !== null,
             }}
             onToggleOverlay={toggleOverlay}
             isFullscreen={isFullscreen}

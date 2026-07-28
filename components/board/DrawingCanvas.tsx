@@ -24,7 +24,18 @@ function drawStrokeOn(ctx: CanvasRenderingContext2D, s: Stroke) {
 
   const p = s.points;
   ctx.beginPath();
-  if (s.tool === "pen" || s.tool === "highlighter" || s.tool === "eraser") {
+  if (s.tool === "arc") {
+    const [cx, cy, r, a0, a1] = p;
+    if (r > 0 && Number.isFinite(cx) && Number.isFinite(cy)) {
+      const delta = a1 - a0;
+      if (Math.abs(Math.abs(delta) - Math.PI * 2) < 0.02 || Math.abs(delta) >= Math.PI * 2 - 0.02) {
+        ctx.arc(cx, cy, r, 0, Math.PI * 2);
+      } else {
+        ctx.arc(cx, cy, r, a0, a1, a1 < a0);
+      }
+      ctx.stroke();
+    }
+  } else if (s.tool === "pen" || s.tool === "highlighter" || s.tool === "eraser") {
     if (p.length < 4) {
       // A dot
       ctx.beginPath();

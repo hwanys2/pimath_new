@@ -127,6 +127,16 @@ export const ProtractorIcon = (p: IconProps) => (
   </svg>
 );
 
+export const CompassIcon = (p: IconProps) => (
+  <svg {...base(p)}>
+    <circle cx="12" cy="5" r="2.2" />
+    <path d="M12 7L6 20M12 7l6 13" />
+    <path d="M8.5 14h7" />
+    <circle cx="6" cy="20" r="1.4" />
+    <path d="M16.2 18.5l2.3 3.2M19.5 18.2l-1.5 1.2" />
+  </svg>
+);
+
 export const FullscreenIcon = (p: IconProps) => (
   <svg {...base(p)}>
     <path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5" />

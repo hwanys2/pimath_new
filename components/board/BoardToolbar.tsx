@@ -8,6 +8,7 @@ import { WIDGET_DEFS, WIDGET_ORDER } from "./widget-config";
 import {
   ArrowIcon,
   BackgroundIcon,
+  CompassIcon,
   CursorIcon,
   EllipseIcon,
   EraserIcon,
@@ -181,6 +182,13 @@ export default function BoardToolbar({
             onClick={() => onToggleOverlay("protractor")}
           >
             <ProtractorIcon />
+          </DockBtn>
+          <DockBtn
+            label="컴퍼스"
+            active={overlaysOn.compass}
+            onClick={() => onToggleOverlay("compass")}
+          >
+            <CompassIcon />
           </DockBtn>
           <div className="mx-0.5 h-6 w-px bg-white/20" />
           <DockBtn

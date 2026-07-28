@@ -17,13 +17,18 @@ export type ToolId =
   | "rect"
   | "ellipse";
 
-export type DrawTool = Exclude<ToolId, "cursor">;
+/** Freehand/shape tools plus compass-committed arcs. */
+export type DrawTool = Exclude<ToolId, "cursor"> | "arc";
 
 export type Stroke = {
   tool: DrawTool;
   color: string;
   size: number;
-  /** flat [x0, y0, x1, y1, ...]; shapes use start/end pair */
+  /**
+   * Freehand: flat [x0, y0, x1, y1, ...].
+   * Shapes: start/end pair.
+   * Arc: [cx, cy, radius, startRad, endRad] (direction via end vs start).
+   */
   points: number[];
 };
 
@@ -57,12 +62,26 @@ export type OverlayPose = {
   angle: number;
 };
 
-export type OverlayId = "ruler" | "protractor";
+/** Needle tip = center (cx, cy); angle = pencil direction in degrees. */
+export type CompassPose = {
+  cx: number;
+  cy: number;
+  radius: number;
+  angle: number;
+};
+
+export type OverlayId = "ruler" | "protractor" | "compass";
 
 export type ClassRoster = {
   id: string;
   name: string;
   students: string[];
+};
+
+export type BoardOverlays = {
+  ruler: OverlayPose | null;
+  protractor: OverlayPose | null;
+  compass: CompassPose | null;
 };
 
 export type BoardPersisted = {
@@ -71,5 +90,5 @@ export type BoardPersisted = {
   size: number;
   strokes: Stroke[];
   widgets: WidgetInstance[];
-  overlays: Partial<Record<OverlayId, OverlayPose | null>>;
+  overlays: Partial<BoardOverlays>;
 };
