@@ -6,6 +6,7 @@ import type {
   GeometryRecognizeResult,
   PlaneFigure,
 } from "./geometry-types";
+import { sceneParamsFromApi } from "../lib/solid-nets/catalog";
 import Solid3DWidget from "./widgets/Solid3DWidget";
 
 type Tab = "plane" | "solid";
@@ -172,12 +173,11 @@ export default function GeometryPerfectPanel({
 
   const solidPreviewState = useMemo(() => {
     if (!result?.solid) return null;
-    const a = result.solid.params.a ?? 72;
     return {
       type: result.solid.type,
       unfoldT: 0.35,
-      params: { ...result.solid.params, a },
-      rotationDeg: result.solid.rotationDeg ?? 20,
+      params: sceneParamsFromApi(result.solid.params),
+      orbit: { azimuth: 0.5, polar: 1.1 },
     };
   }, [result?.solid]);
 

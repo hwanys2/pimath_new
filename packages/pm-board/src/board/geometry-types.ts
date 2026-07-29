@@ -71,7 +71,10 @@ export type SolidWidgetState = {
   type: SolidType;
   unfoldT: number;
   params: SolidParams;
-  rotationDeg: number;
+  /** Orbit angles (radians) for drag rotation */
+  orbit?: { azimuth: number; polar: number };
+  /** @deprecated migrated to orbit.azimuth */
+  rotationDeg?: number;
 };
 
 export type GeometryApplyPayload = {

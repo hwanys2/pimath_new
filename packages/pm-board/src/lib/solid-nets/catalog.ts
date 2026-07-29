@@ -1,123 +1,333 @@
 import type { SolidType } from "../../board/geometry-types";
-import type { SolidNetDef } from "./types";
+import type { FaceNode, SolidNetTree } from "./types";
 
-function cubeNet(s: number): SolidNetDef {
+const HALF_PI = Math.PI / 2;
+
+function rectFace(
+  id: string,
+  w: number,
+  d: number,
+  hinge: FaceNode["hinge"],
+  children: FaceNode[] = [],
+): FaceNode {
+  return { id, shape: "rect", size: [w, d], hinge, children };
+}
+
+function triFace(
+  id: string,
+  verts: [number, number, number][],
+  hinge: FaceNode["hinge"],
+  children: FaceNode[] = [],
+): FaceNode {
   return {
-    type: "cube",
-    label: "정육면체",
-    faces: [
-      { id: "top", ux: s, uy: 0, w: s, h: s, foldAxis: "x", foldAngle: -90 },
-      { id: "left", ux: 0, uy: s, w: s, h: s, foldAxis: "y", foldAngle: 90, parentId: "front" },
-      { id: "front", ux: s, uy: s, w: s, h: s, foldAxis: "x", foldAngle: 0 },
-      { id: "right", ux: s * 2, uy: s, w: s, h: s, foldAxis: "y", foldAngle: -90, parentId: "front" },
-      { id: "bottom", ux: s, uy: s * 2, w: s, h: s, foldAxis: "x", foldAngle: 90, parentId: "front" },
-      { id: "back", ux: s, uy: s * 3, w: s, h: s, foldAxis: "x", foldAngle: 180, parentId: "bottom" },
-    ],
+    id,
+    shape: "triangle",
+    size: [0, 0],
+    vertices: verts,
+    hinge,
+    children,
   };
 }
 
-function cuboidNet(a: number, b: number, c: number): SolidNetDef {
-  return {
-    type: "cuboid",
-    label: "직육면체",
-    faces: [
-      { id: "top", ux: a, uy: 0, w: a, h: c, foldAxis: "x", foldAngle: -90 },
-      { id: "left", ux: 0, uy: c, w: b, h: c, foldAxis: "y", foldAngle: 90, parentId: "front" },
-      { id: "front", ux: b, uy: c, w: a, h: c, foldAxis: "x", foldAngle: 0 },
-      { id: "right", ux: b + a, uy: c, w: b, h: c, foldAxis: "y", foldAngle: -90, parentId: "front" },
-      { id: "bottom", ux: b, uy: c * 2, w: a, h: c, foldAxis: "x", foldAngle: 90, parentId: "front" },
-      { id: "back", ux: b, uy: c * 3, w: a, h: c, foldAxis: "x", foldAngle: 180, parentId: "bottom" },
-    ],
-  };
+/** Cross net: top / left-front-right / bottom / back */
+function cubeTree(s: number): FaceNode {
+  const h = s / 2;
+  const back = rectFace("back", s, s, {
+    pivot: [0, 0, h],
+    axis: [1, 0, 0],
+    angleFolded: HALF_PI,
+    childOffset: [0, 0, h],
+  });
+
+  const bottom = rectFace(
+    "bottom",
+    s,
+    s,
+    {
+      pivot: [0, 0, h],
+      axis: [-1, 0, 0],
+      angleFolded: HALF_PI,
+      childOffset: [0, 0, h],
+    },
+    [back],
+  );
+
+  return rectFace("front", s, s, undefined, [
+    rectFace("left", s, s, {
+      pivot: [-h, 0, 0],
+      axis: [0, 0, 1],
+      angleFolded: HALF_PI,
+      childOffset: [-h, 0, 0],
+    }),
+    rectFace("right", s, s, {
+      pivot: [h, 0, 0],
+      axis: [0, 0, -1],
+      angleFolded: HALF_PI,
+      childOffset: [h, 0, 0],
+    }),
+    rectFace("top", s, s, {
+      pivot: [0, 0, -h],
+      axis: [1, 0, 0],
+      angleFolded: HALF_PI,
+      childOffset: [0, 0, -h],
+    }),
+    bottom,
+  ]);
 }
 
-function prismNet(a: number, h: number): SolidNetDef {
+/** a=front width, b=front depth, c=side height (Y when folded). */
+function cuboidTree(a: number, b: number, c: number): FaceNode {
+  const ha = a / 2;
+  const hb = b / 2;
+  const hc = c / 2;
+
+  const back = rectFace("back", a, b, {
+    pivot: [0, 0, hb],
+    axis: [1, 0, 0],
+    angleFolded: HALF_PI,
+    childOffset: [0, 0, hb],
+  });
+
+  const bottom = rectFace(
+    "bottom",
+    a,
+    b,
+    {
+      pivot: [0, 0, hb],
+      axis: [-1, 0, 0],
+      angleFolded: HALF_PI,
+      childOffset: [0, 0, hb],
+    },
+    [back],
+  );
+
+  return rectFace("front", a, b, undefined, [
+    rectFace("left", c, b, {
+      pivot: [-ha, 0, 0],
+      axis: [0, 0, 1],
+      angleFolded: HALF_PI,
+      childOffset: [-hc, 0, 0],
+    }),
+    rectFace("right", c, b, {
+      pivot: [ha, 0, 0],
+      axis: [0, 0, -1],
+      angleFolded: HALF_PI,
+      childOffset: [hc, 0, 0],
+    }),
+    rectFace("top", a, c, {
+      pivot: [0, 0, -hb],
+      axis: [1, 0, 0],
+      angleFolded: HALF_PI,
+      childOffset: [0, 0, -hc],
+    }),
+    bottom,
+  ]);
+}
+
+/** Equilateral triangle side a, prism height h. */
+function triangularPrismTree(a: number, height: number): FaceNode {
   const triH = (Math.sqrt(3) / 2) * a;
-  return {
-    type: "triangular_prism",
-    label: "삼각기둥",
-    faces: [
-      { id: "rect1", ux: 0, uy: triH, w: a, h: h, foldAxis: "y", foldAngle: 0 },
-      { id: "rect2", ux: a, uy: triH, w: a, h: h, foldAxis: "y", foldAngle: -120, parentId: "rect1" },
-      { id: "rect3", ux: a * 2, uy: triH, w: a, h: h, foldAxis: "y", foldAngle: -120, parentId: "rect2" },
-      { id: "tri1", ux: a * 0.5, uy: 0, w: a, h: triH, foldAxis: "x", foldAngle: -90 },
-      { id: "tri2", ux: a * 0.5, uy: triH + h, w: a, h: triH, foldAxis: "x", foldAngle: 90, parentId: "rect1" },
+  const ht = triH / 2;
+  const ha = a / 2;
+
+  const triVerts: [number, number, number][] = [
+    [0, 0, ht],
+    [-ha, 0, -ht],
+    [ha, 0, -ht],
+  ];
+
+  const rect3 = rectFace("rect3", a, height, {
+    pivot: [ha, 0, 0],
+    axis: [0, 0, -1],
+    angleFolded: (2 * Math.PI) / 3,
+    childOffset: [ha, 0, 0],
+  });
+
+  const rect2 = rectFace(
+    "rect2",
+    a,
+    height,
+    {
+      pivot: [ha, 0, 0],
+      axis: [0, 0, -1],
+      angleFolded: (2 * Math.PI) / 3,
+      childOffset: [ha, 0, 0],
+    },
+    [rect3],
+  );
+
+  const rect1 = rectFace(
+    "rect1",
+    a,
+    height,
+    undefined,
+    [
+      rect2,
+      triFace("triTop", triVerts, {
+        pivot: [0, 0, -height / 2],
+        axis: [1, 0, 0],
+        angleFolded: -HALF_PI,
+        childOffset: [0, 0, -triH / 2],
+      }),
+      triFace("triBottom", triVerts, {
+        pivot: [0, 0, height / 2],
+        axis: [-1, 0, 0],
+        angleFolded: HALF_PI,
+        childOffset: [0, 0, triH / 2],
+      }),
     ],
+  );
+
+  return rect1;
+}
+
+/** Square base a, apex height h (slant computed). */
+function squarePyramidTree(a: number, h: number): FaceNode {
+  const half = a / 2;
+  const slant = Math.hypot(half, h);
+
+  const triVerts = (flip: boolean): [number, number, number][] => {
+    const apexZ = flip ? slant / 2 : -slant / 2;
+    const baseZ = flip ? -slant / 2 : slant / 2;
+    return [
+      [0, 0, apexZ],
+      [-half, 0, baseZ],
+      [half, 0, baseZ],
+    ];
+  };
+
+  const foldTri = (id: string, hingeSpec: NonNullable<FaceNode["hinge"]>) =>
+    triFace(id, triVerts(false), hingeSpec);
+
+  const t4 = foldTri("t4", {
+    pivot: [-half, 0, 0],
+    axis: [0, 0, 1],
+    angleFolded: Math.atan2(h, half),
+    childOffset: [-half, 0, 0],
+  });
+
+  const t3 = foldTri("t3", {
+    pivot: [0, 0, half],
+    axis: [-1, 0, 0],
+    angleFolded: Math.atan2(h, half),
+    childOffset: [0, 0, half],
+  });
+
+  const t2 = foldTri("t2", {
+    pivot: [half, 0, 0],
+    axis: [0, 0, -1],
+    angleFolded: Math.atan2(h, half),
+    childOffset: [half, 0, 0],
+  });
+
+  const t1 = foldTri("t1", {
+    pivot: [0, 0, -half],
+    axis: [1, 0, 0],
+    angleFolded: Math.atan2(h, half),
+    childOffset: [0, 0, -half],
+  });
+
+  return rectFace("base", a, a, undefined, [t1, t2, t3, t4]);
+}
+
+export function sceneParamsFromApi(params: {
+  a?: number;
+  b?: number;
+  c?: number;
+  height?: number;
+  radius?: number;
+}): typeof params {
+  const norm = (v: number | undefined, fallback: number) => {
+    const x = v ?? fallback;
+    if (x > 15) return x / 40;
+    if (x > 0 && x <= 15) return x;
+    return 2;
+  };
+  const a = norm(params.a, 80);
+  return {
+    a,
+    b: params.b != null ? norm(params.b, params.b) : undefined,
+    c: params.c != null ? norm(params.c, params.c) : undefined,
+    height:
+      params.height != null ? norm(params.height, params.height) : undefined,
+    radius:
+      params.radius != null ? norm(params.radius, params.radius) : undefined,
   };
 }
 
-function pyramidNet(a: number, h: number): SolidNetDef {
-  const slant = Math.hypot(a / 2, h);
-  return {
-    type: "square_pyramid",
-    label: "정사각뿔",
-    faces: [
-      { id: "base", ux: slant, uy: slant, w: a, h: a, foldAxis: "x", foldAngle: 0 },
-      { id: "t1", ux: slant, uy: 0, w: a, h: slant, foldAxis: "x", foldAngle: -70, parentId: "base" },
-      { id: "t2", ux: slant + a, uy: slant, w: slant, h: a, foldAxis: "y", foldAngle: -70, parentId: "base" },
-      { id: "t3", ux: slant, uy: slant + a, w: a, h: slant, foldAxis: "x", foldAngle: 70, parentId: "base" },
-      { id: "t4", ux: 0, uy: slant, w: slant, h: a, foldAxis: "y", foldAngle: 70, parentId: "base" },
-    ],
-  };
-}
-
-function cylinderNet(r: number, h: number): SolidNetDef {
-  const wrap = Math.PI * 2 * r;
-  return {
-    type: "cylinder",
-    label: "원기둥",
-    faces: [
-      { id: "wrap", ux: 0, uy: r * 2, w: wrap, h: h, foldAxis: "x", foldAngle: 0 },
-      { id: "top", ux: wrap / 2 - r, uy: 0, w: r * 2, h: r * 2, foldAxis: "x", foldAngle: -90, parentId: "wrap" },
-      { id: "bottom", ux: wrap / 2 - r, uy: r * 2 + h, w: r * 2, h: r * 2, foldAxis: "x", foldAngle: 90, parentId: "wrap" },
-    ],
-  };
-}
-
-function coneNet(r: number, slant: number): SolidNetDef {
-  const sector = Math.PI * r * 2;
-  return {
-    type: "cone",
-    label: "원뿔",
-    faces: [
-      { id: "base", ux: sector / 2 - r, uy: slant + r, w: r * 2, h: r * 2, foldAxis: "x", foldAngle: 0 },
-      {
-        id: "sector",
-        ux: 0,
-        uy: 0,
-        w: sector,
-        h: slant,
-        foldAxis: "x",
-        foldAngle: -360,
-        parentId: "base",
-      },
-    ],
-  };
-}
-
-export function getSolidNet(
+export function getSolidNetTree(
   type: SolidType,
-  params: { a?: number; b?: number; c?: number; height?: number; radius?: number },
-): SolidNetDef {
-  const a = params.a ?? 72;
+  params: {
+    a?: number;
+    b?: number;
+    c?: number;
+    height?: number;
+    radius?: number;
+  },
+): SolidNetTree {
+  const a = params.a ?? 2;
   const b = params.b ?? a;
   const c = params.c ?? a;
   const h = params.height ?? a;
-  const r = params.radius ?? a / 2;
+
   switch (type) {
     case "cube":
-      return cubeNet(a);
+      return {
+        type,
+        label: "정육면체",
+        root: cubeTree(a),
+        hingeSupported: true,
+      };
     case "cuboid":
-      return cuboidNet(a, b, c);
+      return {
+        type,
+        label: "직육면체",
+        root: cuboidTree(a, b, c),
+        hingeSupported: true,
+      };
     case "triangular_prism":
-      return prismNet(a, h);
+      return {
+        type,
+        label: "삼각기둥",
+        root: triangularPrismTree(a, h),
+        hingeSupported: true,
+      };
     case "square_pyramid":
-      return pyramidNet(a, h);
+      return {
+        type,
+        label: "정사각뿔",
+        root: squarePyramidTree(a, h),
+        hingeSupported: true,
+      };
     case "cylinder":
-      return cylinderNet(r, h);
+      return {
+        type,
+        label: "원기둥",
+        root: rectFace("stub", a, h, undefined),
+        hingeSupported: false,
+      };
     case "cone":
-      return coneNet(r, h);
+      return {
+        type,
+        label: "원뿔",
+        root: rectFace("stub", a, h, undefined),
+        hingeSupported: false,
+      };
     default:
-      return cubeNet(a);
+      return {
+        type: "cube",
+        label: "정육면체",
+        root: cubeTree(a),
+        hingeSupported: true,
+      };
   }
+}
+
+/** @deprecated use getSolidNetTree */
+export function getSolidNet(
+  type: SolidType,
+  params: Parameters<typeof getSolidNetTree>[1],
+) {
+  const t = getSolidNetTree(type, params);
+  return { type: t.type, label: t.label, faces: [] };
 }

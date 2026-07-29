@@ -11,6 +11,7 @@ import {
   mathImageToClient,
 } from "./board-math-image";
 import type { BoardRect } from "./board-stroke-bounds";
+import { sceneParamsFromApi } from "./solid-nets/catalog";
 
 function defaultPenColor(background: BackgroundId): string {
   return background === "chalkboard" ? "#ffffff" : "#1f2937";
@@ -126,12 +127,11 @@ function figureToStrokes(
 }
 
 function solidToWidgetState(solid: SolidSpec): SolidWidgetState {
-  const a = solid.params.a ?? 80;
   return {
     type: solid.type,
     unfoldT: 1,
-    params: { ...solid.params, a },
-    rotationDeg: solid.rotationDeg ?? 0,
+    params: sceneParamsFromApi(solid.params),
+    orbit: { azimuth: 0.6, polar: 1.05 },
   };
 }
 
