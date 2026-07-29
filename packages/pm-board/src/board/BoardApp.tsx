@@ -54,10 +54,7 @@ import {
   pruneImages,
   putImage,
 } from "../lib/board-image-store";
-import { strokesToMathImageDataUrl, mathImageDimensions } from "../lib/board-math-image";
-import { geometryResultToBoard } from "../lib/geometry-recognize-to-board";
-import GeometryPerfectPanel from "./GeometryPerfectPanel";
-import type { GeometryApplyPayload } from "./geometry-types";
+import { strokesToMathImageDataUrl } from "../lib/board-math-image";
 import { WIDGET_DEFS } from "./widget-config";
 import TimerWidget from "./widgets/TimerWidget";
 import ClockWidget from "./widgets/ClockWidget";
@@ -70,7 +67,15 @@ import QrWidget from "./widgets/QrWidget";
 import TextNoteWidget from "./widgets/TextNoteWidget";
 import GraphWidget from "./widgets/GraphWidget";
 import CalculatorWidget from "./widgets/CalculatorWidget";
-import Solid3DWidget from "./widgets/Solid3DWidget";
+
+const LEGACY_WIDGET_CHROME = {
+  solid3d: {
+    label: "입체·전개도",
+    accent: "#7dd3fc",
+    minW: 240,
+    minH: 120,
+  },
+} as const;
 
 const DEFAULT_STORAGE_KEY = "pm-board-v1";
 const MAX_HISTORY = 60;
@@ -220,12 +225,6 @@ export default function BoardApp({
     rect: BoardRect;
     indices: number[];
     imageDataUrl: string;
-  } | null>(null);
-  const [geometrySession, setGeometrySession] = useState<{
-    rect: BoardRect;
-    indices: number[];
-    imageDataUrl: string;
-    imageContext: { width: number; height: number };
   } | null>(null);
   const spawnCountRef = useRef(0);
   const lastPointerRef = useRef({
@@ -405,9 +404,6 @@ export default function BoardApp({
       if (e.key === "Escape" && boardMode === "math-select") {
         setBoardMode("draw");
       }
-      if (e.key === "Escape" && boardMode === "geometry-select") {
-        setBoardMode("draw");
-      }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
@@ -488,13 +484,6 @@ export default function BoardApp({
   const toggleMathSelect = useCallback(() => {
     setBoardMode((m) => (m === "math-select" ? "draw" : "math-select"));
     setRecognizeSession(null);
-    setGeometrySession(null);
-  }, []);
-
-  const toggleGeometrySelect = useCallback(() => {
-    setBoardMode((m) => (m === "geometry-select" ? "draw" : "geometry-select"));
-    setRecognizeSession(null);
-    setGeometrySession(null);
   }, []);
 
   const onMathSelectComplete = useCallback(
@@ -511,57 +500,6 @@ export default function BoardApp({
       setRecognizeSession({ rect, indices, imageDataUrl });
     },
     [draw.strokes, background],
-  );
-
-  const onGeometrySelectComplete = useCallback(
-    (rect: BoardRect) => {
-      setBoardMode("draw");
-      const indices = strokeIndicesInRect(draw.strokes, rect);
-      const imageDataUrl = strokesToMathImageDataUrl(
-        draw.strokes,
-        indices.length > 0 ? indices : draw.strokes.map((_, i) => i),
-        rect,
-        background,
-      );
-      if (!imageDataUrl) return;
-      const dims = mathImageDimensions(rect);
-      setGeometrySession({
-        rect,
-        indices,
-        imageDataUrl,
-        imageContext: { width: dims.w, height: dims.h },
-      });
-    },
-    [draw.strokes, background],
-  );
-
-  const applyGeometryRecognize = useCallback(
-    (payload: GeometryApplyPayload) => {
-      const session = geometrySession;
-      if (!session) return;
-      const { rect, indices } = session;
-      if (indices.length > 0) {
-        dispatchDraw({ type: "deleteIndices", indices });
-      }
-      const { strokes, points, solidState } = geometryResultToBoard({
-        result: payload.result,
-        rect,
-        background,
-        color,
-        size: Math.max(3, size - 1),
-      });
-      for (const stroke of strokes) {
-        dispatchDraw({ type: "commit", stroke });
-      }
-      for (const pt of points) {
-        dispatchDraw({ type: "addPoint", point: pt });
-      }
-      if (solidState) {
-        addWidget("solid3d", solidState as unknown as Record<string, unknown>);
-      }
-      setGeometrySession(null);
-    },
-    [geometrySession, background, color, size, addWidget],
   );
 
   const applyMathRecognize = useCallback(
@@ -700,7 +638,7 @@ export default function BoardApp({
   useEffect(() => {
     const onPaste = (e: ClipboardEvent) => {
       if (isEditableTarget(e.target)) return;
-      if (recognizeSession || geometrySession) return;
+      if (recognizeSession) return;
       const raw = clipboardItemToBlob(e.clipboardData);
       if (!raw) return;
       e.preventDefault();
@@ -717,7 +655,7 @@ export default function BoardApp({
     };
     window.addEventListener("paste", onPaste);
     return () => window.removeEventListener("paste", onPaste);
-  }, [insertBoardImage, recognizeSession, geometrySession]);
+  }, [insertBoardImage, recognizeSession]);
 
   const toggleOverlay = useCallback((id: OverlayId) => {
     setOverlays((prev) => {
@@ -774,16 +712,16 @@ export default function BoardApp({
       case "calculator":
         return <CalculatorWidget state={w.state} setState={setState} />;
       case "solid3d":
-        return <Solid3DWidget state={w.state} setState={setState} />;
+        return (
+          <p className="p-3 text-xs text-wood/80">
+            입체 전개 기능은 종료되었어요. 위젯을 닫아 주세요.
+          </p>
+        );
     }
   };
 
-  // Drawing tools must reach the canvas through geometry overlays.
-  // Cursor mode keeps ruler/protractor/compass interactive.
-  const geometryPassThrough =
-    boardMode === "math-select" ||
-    boardMode === "geometry-select" ||
-    tool !== "cursor";
+  const overlayPassThrough =
+    boardMode === "math-select" || tool !== "cursor";
 
   const snapPointer = useCallback(
     (x: number, y: number, opts?: { skipCompassCenter?: boolean }) => {
@@ -835,7 +773,7 @@ export default function BoardApp({
               eraserSize={eraserSize}
               lineKind={lineKind}
               strokes={draw.strokes}
-              disabled={boardMode === "math-select" || boardMode === "geometry-select"}
+              disabled={boardMode === "math-select"}
               snap={(x, y) => snapPointer(x, y)}
               onCommit={(stroke) => dispatchDraw({ type: "commit", stroke })}
             />
@@ -855,14 +793,6 @@ export default function BoardApp({
             />
           ) : null}
 
-          {boardMode === "geometry-select" ? (
-            <MathSelectOverlay
-              hintText="도형이 있는 영역을 드래그하세요 · Esc로 취소"
-              onComplete={onGeometrySelectComplete}
-              onCancel={() => setBoardMode("draw")}
-            />
-          ) : null}
-
           {recognizeSession ? (
             <MathRecognizePanel
               imageDataUrl={recognizeSession.imageDataUrl}
@@ -875,21 +805,15 @@ export default function BoardApp({
             />
           ) : null}
 
-          {geometrySession ? (
-            <GeometryPerfectPanel
-              imageDataUrl={geometrySession.imageDataUrl}
-              imageContext={geometrySession.imageContext}
-              canUseApi={isTeacher}
-              apiBase={apiBase}
-              getApiAuthHeaders={getApiAuthHeaders}
-              onApply={applyGeometryRecognize}
-              onCancel={() => setGeometrySession(null)}
-            />
-          ) : null}
-
           <div className="pointer-events-none absolute inset-0 z-20">
             {widgets.map((w) => {
-              const def = WIDGET_DEFS[w.kind];
+              const legacy =
+                w.kind in LEGACY_WIDGET_CHROME
+                  ? LEGACY_WIDGET_CHROME[
+                      w.kind as keyof typeof LEGACY_WIDGET_CHROME
+                    ]
+                  : null;
+              const def = legacy ?? WIDGET_DEFS[w.kind as WidgetKind];
               return (
                 <WidgetWindow
                   key={w.id}
@@ -912,7 +836,7 @@ export default function BoardApp({
             {overlays.ruler ? (
               <RulerOverlay
                 pose={overlays.ruler}
-                nonInteractive={geometryPassThrough}
+                nonInteractive={overlayPassThrough}
                 onChange={(pose) =>
                   setOverlays((prev) => ({ ...prev, ruler: pose }))
                 }
@@ -924,7 +848,7 @@ export default function BoardApp({
             {overlays.protractor ? (
               <ProtractorOverlay
                 pose={overlays.protractor}
-                nonInteractive={geometryPassThrough}
+                nonInteractive={overlayPassThrough}
                 onChange={(pose) =>
                   setOverlays((prev) => ({ ...prev, protractor: pose }))
                 }
@@ -936,7 +860,7 @@ export default function BoardApp({
             {overlays.compass ? (
               <CompassOverlay
                 pose={overlays.compass}
-                nonInteractive={geometryPassThrough}
+                nonInteractive={overlayPassThrough}
                 color={color}
                 size={size}
                 snap={(x, y) =>
@@ -1017,8 +941,6 @@ export default function BoardApp({
             onToggleOverlay={toggleOverlay}
             mathSelectActive={boardMode === "math-select"}
             onToggleMathSelect={toggleMathSelect}
-            geometrySelectActive={boardMode === "geometry-select"}
-            onToggleGeometrySelect={toggleGeometrySelect}
             isFullscreen={isFullscreen}
             onToggleFullscreen={toggleFullscreen}
             onPickImageFile={handlePickImageFile}

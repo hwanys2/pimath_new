@@ -1,6 +1,6 @@
 {
   "name": "@hwanys2/pm-board",
-  "version": "0.1.10",
+  "version": "0.1.12",
   "description": "Shared interactive whiteboard for pimath and foreducator",
   "type": "module",
   "license": "UNLICENSED",
@@ -32,29 +32,21 @@
   },
   "scripts": {
     "build": "npx tsup",
-    "test": "npx tsx --test src/lib/solid-nets/box-fold-tree.test.ts",
     "prepack": "npm run build"
   },
   "sideEffects": [
     "**/*.css"
   ],
   "peerDependencies": {
-    "@react-three/drei": ">=10.0.0",
-    "@react-three/fiber": ">=9.0.0",
     "katex": ">=0.16.0",
     "mafs": ">=0.21.0",
     "qrcode": ">=1.5.0",
     "react": ">=19.0.0",
-    "react-dom": ">=19.0.0",
-    "three": ">=0.170.0"
+    "react-dom": ">=19.0.0"
   },
   "devDependencies": {
-    "@react-three/drei": "^10.7.7",
-    "@react-three/fiber": "^9.6.1",
     "@types/react": "^19",
     "@types/react-dom": "^19",
-    "@types/three": "^0.185.1",
-    "three": "^0.185.1",
     "tsup": "^8.5.0",
     "typescript": "^5"
   }

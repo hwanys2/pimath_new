@@ -5,7 +5,7 @@ export type BoardBrand = {
   homeHref: string;
 };
 
-export type BoardMode = "draw" | "math-select" | "geometry-select";
+export type BoardMode = "draw" | "math-select";
 
 export type MathKind = "function" | "equation" | "inequality" | "display";
 
@@ -87,12 +87,14 @@ export type WidgetKind =
   | "qr"
   | "note"
   | "graph"
-  | "calculator"
-  | "solid3d";
+  | "calculator";
+
+/** Saved boards may still reference removed widget kinds. */
+export type LegacyWidgetKind = "solid3d";
 
 export type WidgetInstance = {
   id: string;
-  kind: WidgetKind;
+  kind: WidgetKind | LegacyWidgetKind;
   x: number;
   y: number;
   w: number;

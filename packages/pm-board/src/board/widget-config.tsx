@@ -5,7 +5,6 @@ import {
   ClockIcon,
   DiceIcon,
   GraphIcon,
-  GeometryPerfectIcon,
   NoiseIcon,
   NoteIcon,
   PickerIcon,
@@ -125,15 +124,6 @@ export const WIDGET_DEFS: Record<WidgetKind, WidgetDef> = {
     minH: 350,
     accent: "#d4c4ff",
   },
-  solid3d: {
-    label: "입체·전개도",
-    icon: GeometryPerfectIcon,
-    w: 360,
-    h: 380,
-    minW: 280,
-    minH: 300,
-    accent: "#7dd3fc",
-  },
 };
 
 export const WIDGET_ORDER: WidgetKind[] = [
@@ -148,5 +138,4 @@ export const WIDGET_ORDER: WidgetKind[] = [
   "note",
   "graph",
   "calculator",
-  "solid3d",
 ];

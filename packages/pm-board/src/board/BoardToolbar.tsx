@@ -18,7 +18,6 @@ import {
   InfiniteLineIcon,
   LineIcon,
   MathFormulaIcon,
-  GeometryPerfectIcon,
   PenIcon,
   PointToolIcon,
   ProtractorIcon,
@@ -123,8 +122,6 @@ type Props = {
   onToggleOverlay: (id: OverlayId) => void;
   mathSelectActive: boolean;
   onToggleMathSelect: () => void;
-  geometrySelectActive: boolean;
-  onToggleGeometrySelect: () => void;
   isFullscreen: boolean;
   onToggleFullscreen: () => void;
   onPickImageFile: (file: File) => void;
@@ -156,8 +153,6 @@ export default function BoardToolbar({
   onToggleOverlay,
   mathSelectActive,
   onToggleMathSelect,
-  geometrySelectActive,
-  onToggleGeometrySelect,
   isFullscreen,
   onToggleFullscreen,
   onPickImageFile,
@@ -247,13 +242,6 @@ export default function BoardToolbar({
             onClick={onToggleMathSelect}
           >
             <MathFormulaIcon />
-          </DockBtn>
-          <DockBtn
-            label="도형 완성"
-            active={geometrySelectActive}
-            onClick={onToggleGeometrySelect}
-          >
-            <GeometryPerfectIcon />
           </DockBtn>
           <div className="mx-0.5 h-6 w-px bg-white/20" />
           <DockBtn
