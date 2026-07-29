@@ -12,24 +12,30 @@ import type { MathCard } from "./types";
 import { CloseIcon } from "./icons";
 import FunctionPlotSvg from "./FunctionPlotSvg";
 
+const MIN_W = 180;
+const MIN_H = 100;
+
 type Props = {
   card: MathCard;
   onChange: (card: MathCard) => void;
   onClose: () => void;
-  onOpenGraph?: (expr: string, paramValues: Record<string, number>) => void;
+  onFocus: () => void;
 };
 
 export default function MathCardOverlay({
   card,
   onChange,
   onClose,
-  onOpenGraph,
+  onFocus,
 }: Props) {
   const dragRef = useRef<{
-    x: number;
-    y: number;
-    cardX: number;
-    cardY: number;
+    startX: number;
+    startY: number;
+    baseX: number;
+    baseY: number;
+    baseW: number;
+    baseH: number;
+    mode: "move" | "resize";
   } | null>(null);
 
   const expr = normalizeGraphExpression(card.expr);
@@ -40,10 +46,11 @@ export default function MathCardOverlay({
   }, [params, card.paramValues]);
 
   const fn = useMemo(() => {
-    if (!expr) return null;
+    if (!card.showGraph || !expr) return null;
+    if (card.kind === "inequality") return null;
     if (params.length > 0) return compileExpression(expr, paramValues);
     return compileExpression(expr);
-  }, [expr, paramValues, params.length]);
+  }, [card.showGraph, card.kind, expr, paramValues, params.length]);
 
   const latexHtml = useMemo(() => {
     if (!card.latex) return "";
@@ -53,31 +60,49 @@ export default function MathCardOverlay({
     });
   }, [card.latex]);
 
-  const onHeaderPointerDown = (e: React.PointerEvent) => {
-    if (e.button !== 0) return;
-    e.stopPropagation();
-    (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
-    dragRef.current = {
-      x: e.clientX,
-      y: e.clientY,
-      cardX: card.x,
-      cardY: card.y,
-    };
-  };
+  const plotH = Math.max(60, card.h - (card.showSolution ? 120 : 72));
 
-  const onHeaderPointerMove = (e: React.PointerEvent) => {
-    const d = dragRef.current;
-    if (!d) return;
-    onChange({
-      ...card,
-      x: d.cardX + (e.clientX - d.x),
-      y: d.cardY + (e.clientY - d.y),
-    });
-  };
+  const onPointerDown = useCallback(
+    (mode: "move" | "resize") => (e: React.PointerEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+      onFocus();
+      (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+      dragRef.current = {
+        startX: e.clientX,
+        startY: e.clientY,
+        baseX: card.x,
+        baseY: card.y,
+        baseW: card.w,
+        baseH: card.h,
+        mode,
+      };
+    },
+    [card.x, card.y, card.w, card.h, onFocus],
+  );
 
-  const onHeaderPointerUp = () => {
+  const onPointerMove = useCallback(
+    (e: React.PointerEvent) => {
+      const d = dragRef.current;
+      if (!d) return;
+      const dx = e.clientX - d.startX;
+      const dy = e.clientY - d.startY;
+      if (d.mode === "move") {
+        onChange({ ...card, x: d.baseX + dx, y: d.baseY + dy });
+      } else {
+        onChange({
+          ...card,
+          w: Math.max(MIN_W, d.baseW + dx),
+          h: Math.max(MIN_H, d.baseH + dy),
+        });
+      }
+    },
+    [card, onChange],
+  );
+
+  const onPointerUp = useCallback(() => {
     dragRef.current = null;
-  };
+  }, []);
 
   const setParam = useCallback(
     (name: string, value: number) => {
@@ -92,42 +117,57 @@ export default function MathCardOverlay({
   return (
     <div
       className="pointer-events-auto absolute touch-none"
-      style={{ left: card.x, top: card.y, width: card.w }}
+      style={{ left: card.x, top: card.y, width: card.w, height: card.h, zIndex: card.zIndex }}
+      onPointerDown={onFocus}
     >
-      <div className="overflow-hidden rounded-2xl border-2 border-wood/25 bg-cream/95 shadow-xl backdrop-blur-sm">
+      <div className="relative flex h-full flex-col overflow-hidden rounded-xl border-2 border-wood/20 bg-cream/95 shadow-lg backdrop-blur-sm">
         <div
-          className="flex cursor-grab items-center gap-2 bg-wood/10 px-2 py-1.5 active:cursor-grabbing"
-          onPointerDown={onHeaderPointerDown}
-          onPointerMove={onHeaderPointerMove}
-          onPointerUp={onHeaderPointerUp}
-          onPointerCancel={onHeaderPointerUp}
+          className="h-2 shrink-0 cursor-grab bg-wood/15 active:cursor-grabbing"
+          onPointerDown={onPointerDown("move")}
+          onPointerMove={onPointerMove}
+          onPointerUp={onPointerUp}
+          onPointerCancel={onPointerUp}
+        />
+        <button
+          type="button"
+          aria-label="닫기"
+          className="absolute top-1 right-1 z-10 rounded-md p-1 text-wood/80 hover:bg-black/10"
+          onPointerDown={(e) => e.stopPropagation()}
+          onClick={(e) => {
+            e.stopPropagation();
+            onClose();
+          }}
         >
-          <span className="font-display flex-1 text-xs text-wood">수식</span>
-          {onOpenGraph && fn ? (
-            <button
-              type="button"
-              onClick={() => onOpenGraph(expr, paramValues)}
-              className="font-display rounded-md bg-sky/80 px-2 py-0.5 text-[10px] text-[#1a4a6e]"
-            >
-              큰 그래프
-            </button>
-          ) : null}
-          <button
-            type="button"
-            aria-label="닫기"
-            onClick={onClose}
-            className="rounded-lg p-1 text-wood hover:bg-black/10"
-          >
-            <CloseIcon width={14} height={14} />
-          </button>
-        </div>
-        <div className="space-y-2 p-3">
+          <CloseIcon width={14} height={14} />
+        </button>
+        <div className="min-h-0 flex-1 overflow-auto px-3 pt-1 pb-2">
           <div
-            className="min-h-[2rem] overflow-x-auto text-center"
+            className="pr-6 text-center"
             dangerouslySetInnerHTML={{ __html: latexHtml }}
           />
+          {card.showSolution && card.solutionSteps?.length ? (
+            <ol className="mt-2 list-decimal space-y-1 pl-4 text-xs text-wood">
+              {card.solutionSteps.map((step, i) => (
+                <li key={i} className="whitespace-pre-wrap">
+                  {step}
+                </li>
+              ))}
+              {card.answerLatex ? (
+                <li className="list-none font-semibold">
+                  답:{" "}
+                  <span
+                    dangerouslySetInnerHTML={{
+                      __html: katex.renderToString(card.answerLatex, {
+                        throwOnError: false,
+                      }),
+                    }}
+                  />
+                </li>
+              ) : null}
+            </ol>
+          ) : null}
           {params.length > 0 ? (
-            <div className="flex flex-col gap-1.5">
+            <div className="mt-2 flex flex-col gap-1">
               {params.map((p) => (
                 <label
                   key={p}
@@ -143,17 +183,33 @@ export default function MathCardOverlay({
                     onChange={(e) => setParam(p, Number(e.target.value))}
                     className="flex-1"
                   />
-                  <span className="w-8 font-mono">
-                    {(paramValues[p] ?? 0).toFixed(1)}
-                  </span>
                 </label>
               ))}
             </div>
           ) : null}
-          <div className="h-28 overflow-hidden rounded-lg border border-black/10 bg-white">
-            <FunctionPlotSvg fn={fn} width={card.w - 24} height={112} />
-          </div>
+          {card.showGraph ? (
+            <div
+              className="mt-2 overflow-hidden rounded-lg border border-black/10 bg-white"
+              style={{ height: plotH }}
+            >
+              <FunctionPlotSvg
+                fn={fn}
+                inequalityExpr={
+                  card.kind === "inequality" ? card.expr : undefined
+                }
+                width={card.w - 24}
+                height={plotH}
+              />
+            </div>
+          ) : null}
         </div>
+        <div
+          className="absolute right-0 bottom-0 h-4 w-4 cursor-nwse-resize"
+          onPointerDown={onPointerDown("resize")}
+          onPointerMove={onPointerMove}
+          onPointerUp={onPointerUp}
+          onPointerCancel={onPointerUp}
+        />
       </div>
     </div>
   );

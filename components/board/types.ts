@@ -1,5 +1,7 @@
 export type BoardMode = "draw" | "math-select";
 
+export type MathKind = "function" | "equation" | "inequality" | "display";
+
 export type MathCard = {
   id: string;
   x: number;
@@ -9,6 +11,12 @@ export type MathCard = {
   latex: string;
   expr: string;
   paramValues: Record<string, number>;
+  kind: MathKind;
+  showGraph: boolean;
+  showSolution: boolean;
+  solutionSteps?: string[];
+  answerLatex?: string;
+  zIndex: number;
 };
 
 export type BackgroundId =

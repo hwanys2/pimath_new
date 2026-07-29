@@ -13,6 +13,7 @@ type Props = {
   pose: CompassPose;
   color: string;
   size: number;
+  nonInteractive?: boolean;
   onChange: (pose: CompassPose) => void;
   onCommit: (stroke: Stroke) => void;
   onClose: () => void;
@@ -102,6 +103,7 @@ export default function CompassOverlay({
   pose,
   color,
   size,
+  nonInteractive,
   onChange,
   onCommit,
   onClose,
@@ -257,7 +259,7 @@ export default function CompassOverlay({
 
   return (
     <div
-      className="pointer-events-auto absolute touch-none select-none"
+      className={`absolute touch-none select-none ${nonInteractive ? "pointer-events-none" : "pointer-events-auto"}`}
       style={{
         left: boxLeft,
         top: boxTop,

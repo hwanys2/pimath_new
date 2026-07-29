@@ -165,7 +165,17 @@ export default function BoardApp({
             dispatchDraw({ type: "load", strokes: saved.strokes });
           }
           if (Array.isArray(saved.widgets)) setWidgets(saved.widgets);
-          if (Array.isArray(saved.mathCards)) setMathCards(saved.mathCards);
+          if (Array.isArray(saved.mathCards)) {
+            setMathCards(
+              saved.mathCards.map((c) => ({
+                ...c,
+                kind: c.kind ?? "display",
+                showGraph: c.showGraph ?? true,
+                showSolution: c.showSolution ?? false,
+                zIndex: c.zIndex ?? 1,
+              })),
+            );
+          }
           if (saved.overlays) {
             const compassRaw = saved.overlays.compass as CompassPose | null | undefined;
             setOverlays({
@@ -352,42 +362,52 @@ export default function BoardApp({
   );
 
   const applyMathRecognize = useCallback(
-    (payload: {
-      latex: string;
-      expr: string;
-      paramValues: Record<string, number>;
-    }) => {
+    (payload: import("./MathRecognizePanel").MathApplyPayload) => {
       const session = recognizeSession;
       if (!session) return;
       const { rect, indices } = session;
       if (indices.length > 0) {
         dispatchDraw({ type: "deleteIndices", indices });
       }
+      const maxZ = mathCards.reduce((m, c) => Math.max(m, c.zIndex), 0);
+      const h =
+        payload.showGraph && payload.showSolution
+          ? 300
+          : payload.showGraph
+            ? 220
+            : payload.showSolution
+              ? 200
+              : 120;
       const card: MathCard = {
         id: `math-${Date.now().toString(36)}`,
         x: rect.x0,
         y: rect.y0,
-        w: 320,
-        h: 280,
+        w: 260,
+        h,
         latex: payload.latex,
         expr: payload.expr,
         paramValues: payload.paramValues,
+        kind: payload.kind,
+        showGraph: payload.showGraph,
+        showSolution: payload.showSolution,
+        solutionSteps: payload.solutionSteps,
+        answerLatex: payload.answerLatex,
+        zIndex: maxZ + 1,
       };
       setMathCards((prev) => [...prev, card]);
       setRecognizeSession(null);
     },
-    [recognizeSession],
+    [recognizeSession, mathCards],
   );
 
-  const openGraphFromCard = useCallback(
-    (expr: string, paramValues: Record<string, number>) => {
-      addWidget("graph", {
-        exprs: [{ text: expr, color: "#3b82f6" }],
-        paramValues,
-      });
-    },
-    [addWidget],
-  );
+  const focusMathCard = useCallback((id: string) => {
+    setMathCards((prev) => {
+      const maxZ = prev.reduce((m, c) => Math.max(m, c.zIndex), 0);
+      return prev.map((c) =>
+        c.id === id ? { ...c, zIndex: maxZ + 1 } : c,
+      );
+    });
+  }, []);
 
   const toggleOverlay = useCallback((id: OverlayId) => {
     setOverlays((prev) => {
@@ -445,6 +465,8 @@ export default function BoardApp({
     }
   };
 
+  const geometryPassThrough = boardMode === "math-select";
+
   return (
     <div
       ref={rootRef}
@@ -476,6 +498,7 @@ export default function BoardApp({
             <MathRecognizePanel
               imageDataUrl={recognizeSession.imageDataUrl}
               canUseApi={isTeacher}
+              isTeacher={isTeacher}
               onApply={applyMathRecognize}
               onCancel={() => setRecognizeSession(null)}
             />
@@ -506,6 +529,7 @@ export default function BoardApp({
             {overlays.ruler ? (
               <RulerOverlay
                 pose={overlays.ruler}
+                nonInteractive={geometryPassThrough}
                 onChange={(pose) =>
                   setOverlays((prev) => ({ ...prev, ruler: pose }))
                 }
@@ -517,6 +541,7 @@ export default function BoardApp({
             {overlays.protractor ? (
               <ProtractorOverlay
                 pose={overlays.protractor}
+                nonInteractive={geometryPassThrough}
                 onChange={(pose) =>
                   setOverlays((prev) => ({ ...prev, protractor: pose }))
                 }
@@ -528,6 +553,7 @@ export default function BoardApp({
             {overlays.compass ? (
               <CompassOverlay
                 pose={overlays.compass}
+                nonInteractive={geometryPassThrough}
                 color={color}
                 size={size}
                 onChange={(pose) =>
@@ -553,7 +579,7 @@ export default function BoardApp({
                 onClose={() =>
                   setMathCards((prev) => prev.filter((c) => c.id !== card.id))
                 }
-                onOpenGraph={openGraphFromCard}
+                onFocus={() => focusMathCard(card.id)}
               />
             ))}
           </div>

@@ -8,23 +8,34 @@ import {
   listParameters,
   normalizeGraphExpression,
 } from "@/lib/board-math";
+import { classifyMathInput } from "@/lib/math-classify";
 import { latexToExpr } from "@/lib/math-latex-to-expr";
+import type { MathKind } from "./types";
 import FunctionPlotSvg from "./FunctionPlotSvg";
+
+export type MathApplyPayload = {
+  latex: string;
+  expr: string;
+  paramValues: Record<string, number>;
+  kind: MathKind;
+  showGraph: boolean;
+  showSolution: boolean;
+  solutionSteps?: string[];
+  answerLatex?: string;
+};
 
 type Props = {
   imageDataUrl: string;
   canUseApi: boolean;
-  onApply: (payload: {
-    latex: string;
-    expr: string;
-    paramValues: Record<string, number>;
-  }) => void;
+  isTeacher: boolean;
+  onApply: (payload: MathApplyPayload) => void;
   onCancel: () => void;
 };
 
 export default function MathRecognizePanel({
   imageDataUrl,
   canUseApi,
+  isTeacher,
   onApply,
   onCancel,
 }: Props) {
@@ -32,7 +43,10 @@ export default function MathRecognizePanel({
   const [exprDraft, setExprDraft] = useState("");
   const [paramValues, setParamValues] = useState<Record<string, number>>({});
   const [loading, setLoading] = useState(canUseApi);
+  const [applying, setApplying] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [includeGraph, setIncludeGraph] = useState(true);
+  const [includeSolution, setIncludeSolution] = useState(true);
 
   const recognize = useCallback(async () => {
     if (!canUseApi) {
@@ -73,6 +87,22 @@ export default function MathRecognizePanel({
   }, [recognize]);
 
   const expr = normalizeGraphExpression(exprDraft);
+  const classified = useMemo(
+    () => classifyMathInput(latex, expr),
+    [latex, expr],
+  );
+
+  useEffect(() => {
+    if (classified.kind === "display") {
+      setIncludeGraph(false);
+    } else if (classified.kind === "function" || classified.kind === "inequality") {
+      setIncludeGraph(true);
+    }
+    if (classified.solvable) {
+      setIncludeSolution(true);
+    }
+  }, [classified.kind, classified.solvable]);
+
   const params = useMemo(() => listParameters(expr), [expr]);
   const mergedParams = useMemo(() => {
     const base = defaultParamValues(params);
@@ -80,12 +110,12 @@ export default function MathRecognizePanel({
   }, [params, paramValues]);
 
   const fn = useMemo(() => {
-    if (!expr) return null;
+    if (!expr || classified.kind === "inequality") return null;
     if (params.length > 0) {
       return compileExpression(expr, mergedParams);
     }
     return compileExpression(expr);
-  }, [expr, mergedParams, params.length]);
+  }, [expr, mergedParams, params.length, classified.kind]);
 
   const latexHtml = useMemo(() => {
     const src = latex.trim() || expr;
@@ -103,6 +133,77 @@ export default function MathRecognizePanel({
     const p = listParameters(e);
     setParamValues((prev) => ({ ...defaultParamValues(p), ...prev }));
   };
+
+  const handleApply = async () => {
+    const payload: MathApplyPayload = {
+      latex: latex.trim() || expr,
+      expr,
+      paramValues: mergedParams,
+      kind: classified.kind,
+      showGraph:
+        includeGraph &&
+        classified.graphable &&
+        (classified.kind !== "equation" || includeGraph),
+      showSolution:
+        includeSolution &&
+        classified.solvable &&
+        (classified.kind === "equation" || classified.kind === "inequality"),
+    };
+
+    if (payload.showSolution && isTeacher) {
+      const solveKind =
+        classified.kind === "equation" || classified.kind === "inequality"
+          ? classified.kind
+          : null;
+      if (solveKind) {
+      setApplying(true);
+      try {
+        const res = await fetch("/api/board/solve-math", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            latex: payload.latex,
+            expr: payload.expr,
+            kind: solveKind,
+          }),
+        });
+        const data = (await res.json()) as {
+          steps?: string[];
+          answerLatex?: string;
+          error?: string;
+        };
+        if (res.ok && data.steps) {
+          payload.solutionSteps = data.steps;
+          payload.answerLatex = data.answerLatex;
+        }
+      } catch {
+        // apply without solution
+      } finally {
+        setApplying(false);
+      }
+      }
+    }
+
+    if (!payload.showGraph) {
+      payload.paramValues = mergedParams;
+    }
+
+    onApply(payload);
+  };
+
+  const graphPreview =
+    includeGraph && classified.graphable ? (
+      <div className="h-36 overflow-hidden rounded-xl border-2 border-black/10 bg-white">
+        <FunctionPlotSvg
+          fn={fn}
+          inequalityExpr={
+            classified.kind === "inequality" ? expr : undefined
+          }
+          width={440}
+          height={140}
+        />
+      </div>
+    ) : null;
 
   return (
     <div className="fixed inset-0 z-[55] flex items-center justify-center bg-black/40 p-4">
@@ -127,9 +228,18 @@ export default function MathRecognizePanel({
           </div>
         </div>
 
-        {error ? (
-          <p className="text-sm text-red-600">{error}</p>
-        ) : null}
+        {error ? <p className="text-sm text-red-600">{error}</p> : null}
+
+        <p className="text-xs text-wood/70">
+          유형:{" "}
+          {classified.kind === "function"
+            ? "함수"
+            : classified.kind === "equation"
+              ? "방정식"
+              : classified.kind === "inequality"
+                ? "부등식"
+                : "수식"}
+        </p>
 
         <label className="flex flex-col gap-1 text-xs font-semibold text-wood">
           LaTeX / 수식
@@ -141,19 +251,38 @@ export default function MathRecognizePanel({
             }}
             rows={2}
             className="resize-none rounded-lg border-2 border-black/10 bg-white p-2 font-mono text-sm"
-            placeholder="인식 결과 또는 직접 입력"
           />
         </label>
 
         <label className="flex flex-col gap-1 text-xs font-semibold text-wood">
-          그래프용 식 (x 또는 a,b 매개변수)
+          계산용 식
           <input
             value={exprDraft}
             onChange={(e) => onExprChange(e.target.value)}
             className="rounded-lg border-2 border-black/10 bg-white p-2 font-mono text-sm"
-            placeholder="예) ax+b, x^2-4"
           />
         </label>
+
+        <div className="flex flex-wrap gap-4 text-sm text-wood">
+          <label className="flex items-center gap-2">
+            <input
+              type="checkbox"
+              checked={includeGraph}
+              disabled={!classified.graphable}
+              onChange={(e) => setIncludeGraph(e.target.checked)}
+            />
+            그래프 포함
+          </label>
+          <label className="flex items-center gap-2">
+            <input
+              type="checkbox"
+              checked={includeSolution}
+              disabled={!classified.solvable || !isTeacher}
+              onChange={(e) => setIncludeSolution(e.target.checked)}
+            />
+            풀이 포함
+          </label>
+        </div>
 
         {params.length > 0 ? (
           <div className="flex flex-col gap-2">
@@ -177,17 +306,12 @@ export default function MathRecognizePanel({
                   }
                   className="flex-1"
                 />
-                <span className="w-10 text-right font-mono">
-                  {(mergedParams[p] ?? 0).toFixed(1)}
-                </span>
               </label>
             ))}
           </div>
         ) : null}
 
-        <div className="h-36 overflow-hidden rounded-xl border-2 border-black/10 bg-white">
-          <FunctionPlotSvg fn={fn} width={440} height={140} />
-        </div>
+        {graphPreview}
 
         <div className="flex justify-end gap-2">
           {canUseApi ? (
@@ -209,17 +333,11 @@ export default function MathRecognizePanel({
           </button>
           <button
             type="button"
-            disabled={!latex.trim() && !expr.trim()}
-            onClick={() =>
-              onApply({
-                latex: latex.trim() || expr,
-                expr,
-                paramValues: mergedParams,
-              })
-            }
+            disabled={(!latex.trim() && !expr.trim()) || applying}
+            onClick={() => void handleApply()}
             className="font-display rounded-lg bg-sky px-4 py-1.5 text-sm text-[#1a4a6e] disabled:opacity-40"
           >
-            적용
+            {applying ? "풀이 생성 중…" : "적용"}
           </button>
         </div>
       </div>

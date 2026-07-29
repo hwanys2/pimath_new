@@ -2,6 +2,11 @@
 
 import { useMemo } from "react";
 import type { CompiledExpr } from "@/lib/board-math";
+import { compileExpression } from "@/lib/board-math";
+import {
+  inequalityShadePath,
+  parseInequality,
+} from "@/lib/graph-inequality";
 import {
   buildFunctionPath,
   DEFAULT_PLOT_VIEW,
@@ -11,6 +16,7 @@ import {
 
 type Props = {
   fn: CompiledExpr | null;
+  inequalityExpr?: string;
   color?: string;
   width: number;
   height: number;
@@ -19,15 +25,37 @@ type Props = {
 
 export default function FunctionPlotSvg({
   fn,
+  inequalityExpr,
   color = "#3b82f6",
   width: w,
   height: h,
   view = DEFAULT_PLOT_VIEW,
 }: Props) {
+  const parsedIneq = useMemo(
+    () => (inequalityExpr ? parseInequality(inequalityExpr) : null),
+    [inequalityExpr],
+  );
+
+  const shadeD = useMemo(() => {
+    if (!parsedIneq || w < 8 || h < 8) return "";
+    return inequalityShadePath(parsedIneq, view, w, h);
+  }, [parsedIneq, view, w, h]);
+
   const pathD = useMemo(() => {
-    if (!fn || w < 8 || h < 8) return "";
+    if (w < 8 || h < 8) return "";
+    if (parsedIneq?.type === "y") {
+      const f = compileExpression(parsedIneq.expr);
+      if (!f) return "";
+      return buildFunctionPath(f, view, w, h);
+    }
+    if (parsedIneq?.type === "fx") {
+      const f = compileExpression(parsedIneq.expr);
+      if (!f) return "";
+      return buildFunctionPath(f, view, w, h);
+    }
+    if (!fn) return "";
     return buildFunctionPath(fn, view, w, h);
-  }, [fn, view, w, h]);
+  }, [fn, parsedIneq, view, w, h]);
 
   const toPx = useMemo(() => {
     const sx = w / (view.xMax - view.xMin);
@@ -43,7 +71,9 @@ export default function FunctionPlotSvg({
   const axisX = Math.min(Math.max(toPx.y(0), 10), h - 4);
   const axisY = Math.min(Math.max(toPx.x(0), 4), w - 10);
 
-  if (!fn) {
+  const hasPlot = pathD || shadeD;
+
+  if (!hasPlot) {
     return (
       <div className="flex h-full items-center justify-center text-xs text-wood/60">
         그래프를 그릴 수 없어요
@@ -75,6 +105,9 @@ export default function FunctionPlotSvg({
           strokeWidth={t === 0 ? 1.2 : 0.8}
         />
       ))}
+      {shadeD ? (
+        <path d={shadeD} fill="rgba(59,130,246,0.22)" stroke="none" />
+      ) : null}
       {pathD ? (
         <path
           d={pathD}

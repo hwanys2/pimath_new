@@ -2,6 +2,10 @@
 
 import { useEffect, useState } from "react";
 import type { BackgroundId } from "./types";
+import {
+  COORD_UNIT_PX,
+  visibleIntegerRange,
+} from "@/lib/board-coordinate-grid";
 
 export const BACKGROUND_DEFS: { id: BackgroundId; label: string; dark: boolean }[] = [
   { id: "chalkboard", label: "칠판", dark: true },
@@ -132,10 +136,119 @@ function NumberLine() {
   );
 }
 
+function CoordinatePlane() {
+  const [dims, setDims] = useState({ w: 0, h: 0 });
+
+  useEffect(() => {
+    const update = () => setDims({ w: window.innerWidth, h: window.innerHeight });
+    update();
+    window.addEventListener("resize", update);
+    return () => window.removeEventListener("resize", update);
+  }, []);
+
+  const { w, h } = dims;
+  if (w === 0) return null;
+
+  const unit = COORD_UNIT_PX;
+  const ox = w / 2;
+  const oy = h / 2;
+  const xRange = visibleIntegerRange(ox, w, unit);
+  const yRange = visibleIntegerRange(oy, h, unit);
+
+  const xVals: number[] = [];
+  for (let i = xRange.min; i <= xRange.max; i++) xVals.push(i);
+  const yVals: number[] = [];
+  for (let i = yRange.min; i <= yRange.max; i++) yVals.push(i);
+
+  const axisColor = "#3d2c1e";
+  const gridMinor = "rgba(70, 110, 160, 0.14)";
+  const gridMajor = "rgba(70, 110, 160, 0.28)";
+
+  return (
+    <svg width={w} height={h} className="absolute inset-0">
+      {xVals.map((v) => {
+        const x = ox + v * unit;
+        const major = v % 5 === 0;
+        return (
+          <line
+            key={`vx${v}`}
+            x1={x}
+            y1={0}
+            x2={x}
+            y2={h}
+            stroke={v === 0 ? axisColor : major ? gridMajor : gridMinor}
+            strokeWidth={v === 0 ? 2 : major ? 1.2 : 0.8}
+          />
+        );
+      })}
+      {yVals.map((v) => {
+        const y = oy - v * unit;
+        const major = v % 5 === 0;
+        return (
+          <line
+            key={`vy${v}`}
+            x1={0}
+            y1={y}
+            x2={w}
+            y2={y}
+            stroke={v === 0 ? axisColor : major ? gridMajor : gridMinor}
+            strokeWidth={v === 0 ? 2 : major ? 1.2 : 0.8}
+          />
+        );
+      })}
+      <line x1={16} y1={oy} x2={w - 20} y2={oy} stroke={axisColor} strokeWidth={2.5} />
+      <path d={`M ${w - 14} ${oy} l -12 -6 v 12 z`} fill={axisColor} />
+      <text x={w - 28} y={oy - 10} fontSize="14" fontWeight={700} fill={axisColor}>
+        x
+      </text>
+      <line x1={ox} y1={h - 16} x2={ox} y2={20} stroke={axisColor} strokeWidth={2.5} />
+      <path d={`M ${ox} 26 l -6 12 h 12 z`} fill={axisColor} />
+      <text x={ox + 10} y={36} fontSize="14" fontWeight={700} fill={axisColor}>
+        y
+      </text>
+      {xVals
+        .filter((v) => v !== 0)
+        .map((v) => (
+          <text
+            key={`lx${v}`}
+            x={ox + v * unit}
+            y={oy + 18}
+            textAnchor="middle"
+            fontSize="13"
+            fontWeight={600}
+            fill={axisColor}
+          >
+            {v}
+          </text>
+        ))}
+      {yVals
+        .filter((v) => v !== 0)
+        .map((v) => (
+          <text
+            key={`ly${v}`}
+            x={ox - 10}
+            y={oy - v * unit + 4}
+            textAnchor="end"
+            fontSize="13"
+            fontWeight={600}
+            fill={axisColor}
+          >
+            {v}
+          </text>
+        ))}
+      <circle cx={ox} cy={oy} r={3.5} fill={axisColor} />
+      <text x={ox + 8} y={oy - 8} fontSize="12" fontWeight={700} fill={axisColor}>
+        O
+      </text>
+    </svg>
+  );
+}
+
 export default function BoardBackground({ id }: { id: BackgroundId }) {
   return (
     <div className="pointer-events-none absolute inset-0" style={backgroundStyle(id)}>
       {id === "numberline" ? <NumberLine /> : null}
+      {id === "coordinate" ? <CoordinatePlane /> : null}
     </div>
   );
 }

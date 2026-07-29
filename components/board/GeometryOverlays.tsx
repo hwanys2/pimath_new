@@ -6,6 +6,7 @@ import { CloseIcon, RotateIcon } from "./icons";
 
 type OverlayProps = {
   pose: OverlayPose;
+  nonInteractive?: boolean;
   onChange: (pose: OverlayPose) => void;
   onClose: () => void;
 };
@@ -71,13 +72,18 @@ const RULER_W = 600;
 const RULER_H = 70;
 const RULER_UNIT = 40; // px per numbered unit
 
-export function RulerOverlay({ pose, onChange, onClose }: OverlayProps) {
+export function RulerOverlay({
+  pose,
+  nonInteractive,
+  onChange,
+  onClose,
+}: OverlayProps) {
   const { startDrag, onPointerMove, endDrag } = useDragRotate(pose, onChange);
   const units = Math.floor((RULER_W - 20) / RULER_UNIT);
 
   return (
     <div
-      className="pointer-events-auto absolute touch-none select-none"
+      className={`absolute touch-none select-none ${nonInteractive ? "pointer-events-none" : "pointer-events-auto"}`}
       style={{
         left: pose.x - RULER_W / 2,
         top: pose.y - RULER_H / 2,
@@ -152,7 +158,12 @@ export function RulerOverlay({ pose, onChange, onClose }: OverlayProps) {
 const PROT_W = 420;
 const PROT_H = 240;
 
-export function ProtractorOverlay({ pose, onChange, onClose }: OverlayProps) {
+export function ProtractorOverlay({
+  pose,
+  nonInteractive,
+  onChange,
+  onClose,
+}: OverlayProps) {
   const { startDrag, onPointerMove, endDrag } = useDragRotate(pose, onChange);
   const cx = PROT_W / 2;
   const cy = PROT_H - 20;
@@ -218,7 +229,7 @@ export function ProtractorOverlay({ pose, onChange, onClose }: OverlayProps) {
 
   return (
     <div
-      className="pointer-events-auto absolute touch-none select-none"
+      className={`absolute touch-none select-none ${nonInteractive ? "pointer-events-none" : "pointer-events-auto"}`}
       style={{
         left: pose.x - PROT_W / 2,
         top: pose.y - PROT_H / 2,

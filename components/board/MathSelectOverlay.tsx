@@ -65,7 +65,7 @@ export default function MathSelectOverlay({ onComplete, onCancel }: Props) {
 
   return (
     <div
-      className="absolute inset-0 z-[25] touch-none"
+      className="absolute inset-0 z-[38] touch-none"
       style={{ cursor: "crosshair" }}
       onPointerDown={onPointerDown}
       onPointerMove={onPointerMove}

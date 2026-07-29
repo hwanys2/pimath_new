@@ -2,6 +2,10 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { compileExpression, defaultParamValues, listParameters } from "@/lib/board-math";
+import {
+  inequalityShadePath,
+  parseInequality,
+} from "@/lib/graph-inequality";
 import { CloseIcon, MinusIcon, PlusIcon } from "../icons";
 
 type Props = {
@@ -78,6 +82,10 @@ export default function GraphWidget({ state, setState }: Props) {
   const compiled = useMemo(
     () =>
       exprs.map((e) => {
+        const ineq = parseInequality(e.text);
+        if (ineq) {
+          return { ...e, fn: null as ReturnType<typeof compileExpression>, ineq };
+        }
         const params = listParameters(e.text);
         const fn =
           params.length > 0
@@ -86,13 +94,55 @@ export default function GraphWidget({ state, setState }: Props) {
                 ...paramValues,
               })
             : compileExpression(e.text);
-        return { ...e, fn };
+        return { ...e, fn, ineq: null as ReturnType<typeof parseInequality> };
       }),
     [exprs, paramValues],
   );
 
+  const shades = useMemo(() => {
+    return compiled.map(({ ineq, color }) => {
+      if (!ineq) return { color, d: "" };
+      return {
+        color,
+        d: inequalityShadePath(ineq, view, w, h),
+      };
+    });
+  }, [compiled, view, w, h]);
+
   const paths = useMemo(() => {
-    return compiled.map(({ fn, color }) => {
+    return compiled.map(({ fn, ineq, color }) => {
+      if (ineq?.type === "y" || ineq?.type === "fx") {
+        const expr = ineq.type === "y" ? ineq.expr : ineq.expr;
+        const f = compileExpression(expr);
+        if (!f) return { color, d: "" };
+        let d = "";
+        let penDown = false;
+        const step = (view.xMax - view.xMin) / Math.max(w, 100);
+        let prevY: number | null = null;
+        for (let x = view.xMin; x <= view.xMax + step; x += step) {
+          const y = f(x);
+          if (!Number.isFinite(y)) {
+            penDown = false;
+            prevY = null;
+            continue;
+          }
+          if (prevY !== null && Math.abs(y - prevY) > (view.yMax - view.yMin) * 4) {
+            penDown = false;
+          }
+          prevY = y;
+          const px = toPx.x(x);
+          const py = toPx.y(y);
+          if (py < -h * 2 || py > h * 3) {
+            penDown = false;
+            continue;
+          }
+          d += penDown
+            ? `L${px.toFixed(1)},${py.toFixed(1)}`
+            : `M${px.toFixed(1)},${py.toFixed(1)}`;
+          penDown = true;
+        }
+        return { color, d };
+      }
       if (!fn) return { color, d: "" };
       let d = "";
       let penDown = false;
@@ -126,7 +176,8 @@ export default function GraphWidget({ state, setState }: Props) {
   const addExpr = () => {
     const text = input.trim();
     if (!text) return;
-    if (!compileExpression(text)) {
+    const ok = compileExpression(text) || parseInequality(text);
+    if (!ok) {
       setInputError(true);
       return;
     }
@@ -285,6 +336,17 @@ export default function GraphWidget({ state, setState }: Props) {
                 {t}
               </text>
             ))}
+          {shades.map((s, i) =>
+            s.d ? (
+              <path
+                key={`shade${i}`}
+                d={s.d}
+                fill={s.color}
+                fillOpacity={0.2}
+                stroke="none"
+              />
+            ) : null,
+          )}
           {paths.map((p, i) =>
             p.d ? (
               <path
