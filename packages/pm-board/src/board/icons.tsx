@@ -68,6 +68,23 @@ export const EllipseIcon = (p: IconProps) => (
   </svg>
 );
 
+/** Construction point — hollow ring + center (not stroke width). */
+export const PointToolIcon = (p: IconProps) => (
+  <svg {...base(p)}>
+    <circle cx="12" cy="12" r="6.5" />
+    <circle cx="12" cy="12" r="1.8" fill="currentColor" stroke="none" />
+  </svg>
+);
+
+/** Pen stroke thickness — three lines, not a dot. */
+export const StrokeWidthIcon = (p: IconProps) => (
+  <svg {...base(p)} strokeWidth={2.2}>
+    <path d="M4 7h16" strokeWidth={1.4} />
+    <path d="M4 12h16" strokeWidth={2.4} />
+    <path d="M4 17h16" strokeWidth={3.6} />
+  </svg>
+);
+
 export const UndoIcon = (p: IconProps) => (
   <svg {...base(p)}>
     <path d="M9 14L4 9l5-5" />

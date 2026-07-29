@@ -19,11 +19,13 @@ import {
   LineIcon,
   MathFormulaIcon,
   PenIcon,
+  PointToolIcon,
   ProtractorIcon,
   RectIcon,
   RedoIcon,
   RulerIcon,
   TrashIcon,
+  StrokeWidthIcon,
   UndoIcon,
   WidgetsIcon,
 } from "./icons";
@@ -145,6 +147,7 @@ export default function BoardToolbar({
   const toggleMenu = (m: Menu) => setMenu((cur) => (cur === m ? null : m));
   const isShapeTool = SHAPES.some((s) => s.id === tool);
   const ShapeIcon = SHAPES.find((s) => s.id === (isShapeTool ? tool : lastShape))!.icon;
+  const showStrokeWidth = tool !== "point" && tool !== "cursor";
 
   return (
     <>
@@ -367,10 +370,17 @@ export default function BoardToolbar({
                   size === s ? "bg-wood text-cream" : "text-wood-dark hover:bg-wood/10"
                 }`}
               >
-                <span
-                  className="rounded-full bg-current"
-                  style={{ width: s + 4, height: s + 4 }}
-                />
+                <svg
+                  width={22}
+                  height={22}
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeLinecap="round"
+                >
+                  <path d="M4 8h16" strokeWidth={s * 0.35 + 0.8} />
+                  <path d="M4 14h16" strokeWidth={s * 0.35 + 0.8} />
+                </svg>
               </button>
             ))}
           </div>
@@ -396,6 +406,16 @@ export default function BoardToolbar({
             onClick={() => setTool("eraser")}
           >
             <EraserIcon />
+          </DockBtn>
+          <DockBtn
+            label="점"
+            active={tool === "point"}
+            onClick={() => {
+              setMenu(null);
+              setTool("point");
+            }}
+          >
+            <PointToolIcon />
           </DockBtn>
           <DockBtn
             label="도형"
@@ -427,16 +447,14 @@ export default function BoardToolbar({
           <button
             type="button"
             title="굵기"
-            aria-label="굵기 고르기"
-            onClick={() => toggleMenu("size")}
+            aria-label="선 굵기"
+            disabled={!showStrokeWidth}
+            onClick={() => showStrokeWidth && toggleMenu("size")}
             className={`flex h-10 w-10 items-center justify-center rounded-xl text-cream transition hover:bg-black/20 ${
               menu === "size" ? "bg-black/25" : ""
-            }`}
+            } ${!showStrokeWidth ? "cursor-not-allowed opacity-35" : ""}`}
           >
-            <span
-              className="rounded-full bg-current"
-              style={{ width: size + 4, height: size + 4 }}
-            />
+            <StrokeWidthIcon />
           </button>
 
           <div className="mx-0.5 h-6 w-px bg-white/20" />

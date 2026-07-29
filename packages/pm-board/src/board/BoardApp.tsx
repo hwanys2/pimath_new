@@ -16,6 +16,7 @@ import type {
   BoardMode,
   BoardOverlays,
   BoardPersisted,
+  BoardPoint,
   ClassRoster,
   CompassPose,
   MathCard,
@@ -29,6 +30,8 @@ import type {
 import BoardBackground, { BACKGROUND_DEFS } from "./BoardBackground";
 import BoardToolbar from "./BoardToolbar";
 import DrawingCanvas from "./DrawingCanvas";
+import BoardPointsLayer from "./BoardPointsLayer";
+import { snapBoardPoint } from "../lib/board-geometry-snap";
 import WidgetWindow from "./WidgetWindow";
 import { RulerOverlay, ProtractorOverlay } from "./GeometryOverlays";
 import CompassOverlay from "./CompassOverlay";
@@ -68,22 +71,42 @@ const DEFAULT_STORAGE_KEY = "pm-board-v1";
 const MAX_HISTORY = 60;
 const MAX_SAVED_STROKES = 500;
 
-type DrawState = { strokes: Stroke[]; past: Stroke[][]; future: Stroke[][] };
+type SketchSnapshot = { strokes: Stroke[]; boardPoints: BoardPoint[] };
+
+type DrawState = {
+  strokes: Stroke[];
+  boardPoints: BoardPoint[];
+  past: SketchSnapshot[];
+  future: SketchSnapshot[];
+};
 
 type DrawAction =
   | { type: "commit"; stroke: Stroke }
+  | { type: "addPoint"; point: BoardPoint }
   | { type: "deleteIndices"; indices: number[] }
   | { type: "undo" }
   | { type: "redo" }
   | { type: "clear" }
-  | { type: "load"; strokes: Stroke[] };
+  | { type: "load"; strokes: Stroke[]; boardPoints?: BoardPoint[] };
+
+function snapshot(state: DrawState): SketchSnapshot {
+  return { strokes: state.strokes, boardPoints: state.boardPoints };
+}
 
 function drawReducer(state: DrawState, action: DrawAction): DrawState {
   switch (action.type) {
     case "commit":
       return {
         strokes: [...state.strokes, action.stroke],
-        past: [...state.past.slice(-(MAX_HISTORY - 1)), state.strokes],
+        boardPoints: state.boardPoints,
+        past: [...state.past.slice(-(MAX_HISTORY - 1)), snapshot(state)],
+        future: [],
+      };
+    case "addPoint":
+      return {
+        strokes: state.strokes,
+        boardPoints: [...state.boardPoints, action.point],
+        past: [...state.past.slice(-(MAX_HISTORY - 1)), snapshot(state)],
         future: [],
       };
     case "deleteIndices": {
@@ -92,30 +115,48 @@ function drawReducer(state: DrawState, action: DrawAction): DrawState {
       const strokes = state.strokes.filter((_, i) => !remove.has(i));
       return {
         strokes,
-        past: [...state.past.slice(-(MAX_HISTORY - 1)), state.strokes],
+        boardPoints: state.boardPoints,
+        past: [...state.past.slice(-(MAX_HISTORY - 1)), snapshot(state)],
         future: [],
       };
     }
     case "undo": {
       if (state.past.length === 0) return state;
       const past = [...state.past];
-      const strokes = past.pop()!;
-      return { strokes, past, future: [state.strokes, ...state.future] };
+      const prev = past.pop()!;
+      return {
+        strokes: prev.strokes,
+        boardPoints: prev.boardPoints,
+        past,
+        future: [snapshot(state), ...state.future],
+      };
     }
     case "redo": {
       if (state.future.length === 0) return state;
-      const [strokes, ...future] = state.future;
-      return { strokes, past: [...state.past, state.strokes], future };
+      const [next, ...future] = state.future;
+      return {
+        strokes: next.strokes,
+        boardPoints: next.boardPoints,
+        past: [...state.past, snapshot(state)],
+        future,
+      };
     }
     case "clear":
-      if (state.strokes.length === 0) return state;
+      if (state.strokes.length === 0 && state.boardPoints.length === 0)
+        return state;
       return {
         strokes: [],
-        past: [...state.past.slice(-(MAX_HISTORY - 1)), state.strokes],
+        boardPoints: [],
+        past: [...state.past.slice(-(MAX_HISTORY - 1)), snapshot(state)],
         future: [],
       };
     case "load":
-      return { strokes: action.strokes, past: [], future: [] };
+      return {
+        strokes: action.strokes,
+        boardPoints: action.boardPoints ?? [],
+        past: [],
+        future: [],
+      };
   }
 }
 
@@ -152,6 +193,7 @@ export default function BoardApp({
   const [size, setSize] = useState(6);
   const [draw, dispatchDraw] = useReducer(drawReducer, {
     strokes: [],
+    boardPoints: [],
     past: [],
     future: [],
   });
@@ -193,7 +235,13 @@ export default function BoardApp({
           if (saved.color) setColor(saved.color);
           if (saved.size) setSize(saved.size);
           if (Array.isArray(saved.strokes)) {
-            dispatchDraw({ type: "load", strokes: saved.strokes });
+            dispatchDraw({
+              type: "load",
+              strokes: saved.strokes,
+              boardPoints: Array.isArray(saved.boardPoints)
+                ? saved.boardPoints
+                : [],
+            });
           }
           if (Array.isArray(saved.widgets)) setWidgets(saved.widgets);
           if (Array.isArray(saved.mathCards)) {
@@ -268,6 +316,7 @@ export default function BoardApp({
         color,
         size,
         strokes: draw.strokes.slice(-MAX_SAVED_STROKES),
+        boardPoints: draw.boardPoints,
         widgets,
         overlays,
         mathCards,
@@ -281,7 +330,7 @@ export default function BoardApp({
       }
     }, 400);
     return () => clearTimeout(id);
-  }, [ready, background, color, size, draw.strokes, widgets, overlays, mathCards, boardImages, storageKey]);
+  }, [ready, background, color, size, draw.strokes, draw.boardPoints, widgets, overlays, mathCards, boardImages, storageKey]);
 
   useEffect(() => {
     return () => {
@@ -637,6 +686,34 @@ export default function BoardApp({
 
   const geometryPassThrough = boardMode === "math-select";
 
+  const snapPointer = useCallback(
+    (x: number, y: number, opts?: { skipCompassCenter?: boolean }) => {
+      const r = snapBoardPoint(x, y, {
+        strokes: draw.strokes,
+        points: draw.boardPoints,
+        compass: overlays.compass,
+        skipCompassCenter: opts?.skipCompassCenter,
+      });
+      return { x: r.x, y: r.y };
+    },
+    [draw.strokes, draw.boardPoints, overlays.compass],
+  );
+
+  const placeBoardPoint = useCallback(
+    (clientX: number, clientY: number) => {
+      const { x, y } = snapPointer(clientX, clientY);
+      dispatchDraw({
+        type: "addPoint",
+        point: {
+          id: `pt-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+          x,
+          y,
+        },
+      });
+    },
+    [snapPointer],
+  );
+
   return (
     <div
       ref={rootRef}
@@ -649,14 +726,21 @@ export default function BoardApp({
 
       {ready ? (
         <>
-          <div className="pointer-events-none absolute inset-0 z-10">
+          <div className="absolute inset-0 z-10">
             <DrawingCanvas
               tool={tool}
               color={color}
               size={size}
               strokes={draw.strokes}
               disabled={boardMode === "math-select"}
+              snap={(x, y) => snapPointer(x, y)}
               onCommit={(stroke) => dispatchDraw({ type: "commit", stroke })}
+            />
+            <BoardPointsLayer
+              points={draw.boardPoints}
+              color={color}
+              active={tool === "point" && boardMode === "draw"}
+              onPlace={placeBoardPoint}
             />
           </div>
 
@@ -731,6 +815,9 @@ export default function BoardApp({
                 nonInteractive={geometryPassThrough}
                 color={color}
                 size={size}
+                snap={(x, y) =>
+                  snapPointer(x, y, { skipCompassCenter: true })
+                }
                 onChange={(pose) =>
                   setOverlays((prev) => ({ ...prev, compass: pose }))
                 }

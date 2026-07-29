@@ -52,6 +52,7 @@ export type ToolId =
   | "pen"
   | "highlighter"
   | "eraser"
+  | "point"
   | "line"
   | "arrow"
   | "rect"
@@ -134,11 +135,18 @@ export type BoardOverlays = {
   compass: CompassPose | null;
 };
 
+export type BoardPoint = {
+  id: string;
+  x: number;
+  y: number;
+};
+
 export type BoardPersisted = {
   background: BackgroundId;
   color: string;
   size: number;
   strokes: Stroke[];
+  boardPoints?: BoardPoint[];
   widgets: WidgetInstance[];
   overlays: Partial<BoardOverlays>;
   mathCards?: MathCard[];

@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { CompassPose, Stroke } from "./types";
 import { CloseIcon } from "./icons";
+import type { SnapFn } from "./DrawingCanvas";
 
 const RULER_UNIT = 40;
 const MIN_RADIUS = 48;
@@ -14,6 +15,7 @@ type Props = {
   color: string;
   size: number;
   nonInteractive?: boolean;
+  snap?: SnapFn;
   onChange: (pose: CompassPose) => void;
   onCommit: (stroke: Stroke) => void;
   onClose: () => void;
@@ -104,6 +106,7 @@ export default function CompassOverlay({
   color,
   size,
   nonInteractive,
+  snap,
   onChange,
   onCommit,
   onClose,
@@ -114,6 +117,7 @@ export default function CompassOverlay({
   const onCommitRef = useRef(onCommit);
   const colorRef = useRef(color);
   const sizeRef = useRef(size);
+  const snapRef = useRef(snap);
   const [preview, setPreview] = useState<{ a0: number; a1: number } | null>(
     null,
   );
@@ -124,7 +128,8 @@ export default function CompassOverlay({
     onCommitRef.current = onCommit;
     colorRef.current = color;
     sizeRef.current = size;
-  }, [pose, onChange, onCommit, color, size]);
+    snapRef.current = snap;
+  }, [pose, onChange, onCommit, color, size, snap]);
 
   const tip = tipAt(pose);
   const hinge = hingeAt(pose);
@@ -161,16 +166,30 @@ export default function CompassOverlay({
         const d = dragRef.current;
         if (!d) return;
         if (d.mode === "move") {
+          let cx = d.base.cx + (ev.clientX - d.startX);
+          let cy = d.base.cy + (ev.clientY - d.startY);
+          const snapped = snapRef.current?.(cx, cy);
+          if (snapped) {
+            cx = snapped.x;
+            cy = snapped.y;
+          }
           onChangeRef.current({
             ...d.base,
-            cx: d.base.cx + (ev.clientX - d.startX),
-            cy: d.base.cy + (ev.clientY - d.startY),
+            cx,
+            cy,
           });
           return;
         }
         if (d.mode === "radius") {
-          const dx = ev.clientX - d.base.cx;
-          const dy = ev.clientY - d.base.cy;
+          let tx = ev.clientX;
+          let ty = ev.clientY;
+          const snapped = snapRef.current?.(tx, ty);
+          if (snapped) {
+            tx = snapped.x;
+            ty = snapped.y;
+          }
+          const dx = tx - d.base.cx;
+          const dy = ty - d.base.cy;
           onChangeRef.current({
             ...d.base,
             radius: clampRadius(Math.hypot(dx, dy)),

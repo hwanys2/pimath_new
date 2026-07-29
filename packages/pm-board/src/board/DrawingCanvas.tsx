@@ -3,12 +3,16 @@
 import { useCallback, useEffect, useRef } from "react";
 import type { DrawTool, Stroke, ToolId } from "./types";
 import { drawStrokeOn, strokeWidth } from "../lib/board-canvas-draw";
+
+export type SnapFn = (x: number, y: number) => { x: number; y: number };
+
 type Props = {
   tool: ToolId;
   color: string;
   size: number;
   strokes: Stroke[];
   disabled?: boolean;
+  snap?: SnapFn;
   onCommit: (s: Stroke) => void;
 };
 
@@ -18,12 +22,16 @@ export default function DrawingCanvas({
   size,
   strokes,
   disabled = false,
+  snap,
   onCommit,
 }: Props) {
   const committedRef = useRef<HTMLCanvasElement>(null);
   const liveRef = useRef<HTMLCanvasElement>(null);
   const currentRef = useRef<{ tool: DrawTool; points: number[] } | null>(null);
-  const active = tool !== "cursor" && !disabled;
+  const snapRef = useRef(snap);
+  snapRef.current = snap;
+  const active =
+    tool !== "cursor" && tool !== "point" && !disabled;
 
   const redrawCommitted = useCallback(() => {
     const canvas = committedRef.current;
@@ -76,21 +84,29 @@ export default function DrawingCanvas({
     ctx.clearRect(0, 0, canvas.width / dpr, canvas.height / dpr);
   }, []);
 
+  const applySnap = (x: number, y: number) => {
+    const fn = snapRef.current;
+    if (!fn) return { x, y };
+    return fn(x, y);
+  };
+
   const onPointerDown = (e: React.PointerEvent) => {
     if (!active || e.button !== 0) return;
     e.preventDefault();
     (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+    const { x, y } = applySnap(Math.round(e.clientX), Math.round(e.clientY));
     currentRef.current = {
       tool: tool as DrawTool,
-      points: [Math.round(e.clientX), Math.round(e.clientY)],
+      points: [x, y],
     };
   };
 
   const onPointerMove = (e: React.PointerEvent) => {
     const cur = currentRef.current;
     if (!cur) return;
-    const x = Math.round(e.clientX);
-    const y = Math.round(e.clientY);
+    const snapped = applySnap(Math.round(e.clientX), Math.round(e.clientY));
+    const x = snapped.x;
+    const y = snapped.y;
     const pts = cur.points;
     const lastX = pts[pts.length - 2];
     const lastY = pts[pts.length - 1];
@@ -136,7 +152,17 @@ export default function DrawingCanvas({
     if (!cur) return;
     currentRef.current = null;
     clearLive();
-    onCommit({ tool: cur.tool, color, size, points: cur.points });
+    let points = cur.points;
+    if (
+      cur.tool === "line" ||
+      cur.tool === "arrow" ||
+      cur.tool === "rect" ||
+      cur.tool === "ellipse"
+    ) {
+      const snapped = applySnap(points[points.length - 2], points[points.length - 1]);
+      points = [points[0], points[1], snapped.x, snapped.y];
+    }
+    onCommit({ tool: cur.tool, color, size, points });
   };
 
   return (
