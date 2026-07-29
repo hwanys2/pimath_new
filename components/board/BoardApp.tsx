@@ -173,6 +173,7 @@ export default function BoardApp({
                 showGraph: c.showGraph ?? true,
                 showSolution: c.showSolution ?? false,
                 zIndex: c.zIndex ?? 1,
+                graphSettings: c.graphSettings,
               })),
             );
           }

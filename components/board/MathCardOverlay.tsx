@@ -1,16 +1,18 @@
 "use client";
 
 import katex from "katex";
-import { useCallback, useMemo, useRef } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import {
-  compileExpression,
   defaultParamValues,
   listParameters,
   normalizeGraphExpression,
 } from "@/lib/board-math";
 import type { MathCard } from "./types";
 import { CloseIcon } from "./icons";
-import FunctionPlotSvg from "./FunctionPlotSvg";
+import BoardGraph from "./BoardGraph";
+import GraphSettingsPanel from "./GraphSettingsPanel";
+import MathRichText from "./MathRichText";
+import { DEFAULT_GRAPH_SETTINGS } from "./graph-types";
 
 const MIN_W = 180;
 const MIN_H = 100;
@@ -37,6 +39,7 @@ export default function MathCardOverlay({
     baseH: number;
     mode: "move" | "resize";
   } | null>(null);
+  const [settingsOpen, setSettingsOpen] = useState(false);
 
   const expr = normalizeGraphExpression(card.expr);
   const params = useMemo(() => listParameters(expr), [expr]);
@@ -45,12 +48,21 @@ export default function MathCardOverlay({
     return { ...base, ...card.paramValues };
   }, [params, card.paramValues]);
 
-  const fn = useMemo(() => {
-    if (!card.showGraph || !expr) return null;
-    if (card.kind === "inequality") return null;
-    if (params.length > 0) return compileExpression(expr, paramValues);
-    return compileExpression(expr);
-  }, [card.showGraph, card.kind, expr, paramValues, params.length]);
+  const graphSettings = card.graphSettings ?? DEFAULT_GRAPH_SETTINGS;
+
+  const series = useMemo(() => {
+    if (!card.showGraph || !card.expr.trim()) return [];
+    return [
+      {
+        expr: card.expr,
+        color: "#3b82f6",
+        kind:
+          card.kind === "inequality"
+            ? ("inequality" as const)
+            : ("function" as const),
+      },
+    ];
+  }, [card.showGraph, card.expr, card.kind]);
 
   const latexHtml = useMemo(() => {
     if (!card.latex) return "";
@@ -60,7 +72,7 @@ export default function MathCardOverlay({
     });
   }, [card.latex]);
 
-  const plotH = Math.max(60, card.h - (card.showSolution ? 120 : 72));
+  const plotH = Math.max(80, card.h - (card.showSolution ? 140 : 80));
 
   const onPointerDown = useCallback(
     (mode: "move" | "resize") => (e: React.PointerEvent) => {
@@ -117,7 +129,13 @@ export default function MathCardOverlay({
   return (
     <div
       className="pointer-events-auto absolute touch-none"
-      style={{ left: card.x, top: card.y, width: card.w, height: card.h, zIndex: card.zIndex }}
+      style={{
+        left: card.x,
+        top: card.y,
+        width: card.w,
+        height: card.h,
+        zIndex: card.zIndex,
+      }}
       onPointerDown={onFocus}
     >
       <div className="relative flex h-full flex-col overflow-hidden rounded-xl border-2 border-wood/20 bg-cream/95 shadow-lg backdrop-blur-sm">
@@ -146,22 +164,15 @@ export default function MathCardOverlay({
             dangerouslySetInnerHTML={{ __html: latexHtml }}
           />
           {card.showSolution && card.solutionSteps?.length ? (
-            <ol className="mt-2 list-decimal space-y-1 pl-4 text-xs text-wood">
+            <ol className="mt-2 list-decimal space-y-2 pl-4 text-xs text-wood">
               {card.solutionSteps.map((step, i) => (
-                <li key={i} className="whitespace-pre-wrap">
-                  {step}
+                <li key={i}>
+                  <MathRichText text={step} />
                 </li>
               ))}
               {card.answerLatex ? (
                 <li className="list-none font-semibold">
-                  답:{" "}
-                  <span
-                    dangerouslySetInnerHTML={{
-                      __html: katex.renderToString(card.answerLatex, {
-                        throwOnError: false,
-                      }),
-                    }}
-                  />
+                  답: <MathRichText text={`$${card.answerLatex}$`} />
                 </li>
               ) : null}
             </ol>
@@ -189,16 +200,29 @@ export default function MathCardOverlay({
           ) : null}
           {card.showGraph ? (
             <div
-              className="mt-2 overflow-hidden rounded-lg border border-black/10 bg-white"
+              className="relative mt-2 overflow-hidden rounded-lg border border-black/10 bg-white"
               style={{ height: plotH }}
             >
-              <FunctionPlotSvg
-                fn={fn}
-                inequalityExpr={
-                  card.kind === "inequality" ? card.expr : undefined
-                }
-                width={card.w - 24}
-                height={plotH}
+              <button
+                type="button"
+                className="absolute top-1 left-1 z-10 rounded bg-white/90 px-1.5 py-0.5 text-[10px] text-wood shadow"
+                onClick={() => setSettingsOpen((v) => !v)}
+              >
+                설정
+              </button>
+              {settingsOpen ? (
+                <GraphSettingsPanel
+                  compact
+                  settings={graphSettings}
+                  onChange={(g) => onChange({ ...card, graphSettings: g })}
+                  onClose={() => setSettingsOpen(false)}
+                />
+              ) : null}
+              <BoardGraph
+                series={series}
+                settings={graphSettings}
+                paramValues={paramValues}
+                className="h-full"
               />
             </div>
           ) : null}

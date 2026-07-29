@@ -3,7 +3,6 @@
 import katex from "katex";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
-  compileExpression,
   defaultParamValues,
   listParameters,
   normalizeGraphExpression,
@@ -11,7 +10,8 @@ import {
 import { classifyMathInput } from "@/lib/math-classify";
 import { latexToExpr } from "@/lib/math-latex-to-expr";
 import type { MathKind } from "./types";
-import FunctionPlotSvg from "./FunctionPlotSvg";
+import BoardGraph from "./BoardGraph";
+import { DEFAULT_GRAPH_SETTINGS } from "./graph-types";
 
 export type MathApplyPayload = {
   latex: string;
@@ -48,6 +48,21 @@ export default function MathRecognizePanel({
   const [includeGraph, setIncludeGraph] = useState(true);
   const [includeSolution, setIncludeSolution] = useState(true);
 
+  const syncIncludeFlags = useCallback((nextLatex: string, nextExpr: string) => {
+    const c = classifyMathInput(
+      nextLatex,
+      normalizeGraphExpression(nextExpr),
+    );
+    if (c.kind === "display") {
+      setIncludeGraph(false);
+    } else if (c.kind === "function" || c.kind === "inequality") {
+      setIncludeGraph(true);
+    }
+    if (c.solvable) {
+      setIncludeSolution(true);
+    }
+  }, []);
+
   const recognize = useCallback(async () => {
     if (!canUseApi) {
       setLoading(false);
@@ -72,12 +87,13 @@ export default function MathRecognizePanel({
       setExprDraft(expr);
       const params = listParameters(expr);
       setParamValues(defaultParamValues(params));
+      syncIncludeFlags(raw, expr);
     } catch {
       setError("네트워크 오류가 났어요.");
     } finally {
       setLoading(false);
     }
-  }, [canUseApi, imageDataUrl]);
+  }, [canUseApi, imageDataUrl, syncIncludeFlags]);
 
   useEffect(() => {
     const id = setTimeout(() => {
@@ -92,30 +108,11 @@ export default function MathRecognizePanel({
     [latex, expr],
   );
 
-  useEffect(() => {
-    if (classified.kind === "display") {
-      setIncludeGraph(false);
-    } else if (classified.kind === "function" || classified.kind === "inequality") {
-      setIncludeGraph(true);
-    }
-    if (classified.solvable) {
-      setIncludeSolution(true);
-    }
-  }, [classified.kind, classified.solvable]);
-
   const params = useMemo(() => listParameters(expr), [expr]);
   const mergedParams = useMemo(() => {
     const base = defaultParamValues(params);
     return { ...base, ...paramValues };
   }, [params, paramValues]);
-
-  const fn = useMemo(() => {
-    if (!expr || classified.kind === "inequality") return null;
-    if (params.length > 0) {
-      return compileExpression(expr, mergedParams);
-    }
-    return compileExpression(expr);
-  }, [expr, mergedParams, params.length, classified.kind]);
 
   const latexHtml = useMemo(() => {
     const src = latex.trim() || expr;
@@ -127,11 +124,12 @@ export default function MathRecognizePanel({
     }
   }, [latex, expr]);
 
-  const onExprChange = (next: string) => {
+  const onExprChange = (next: string, nextLatex?: string) => {
     setExprDraft(next);
     const e = normalizeGraphExpression(next);
     const p = listParameters(e);
     setParamValues((prev) => ({ ...defaultParamValues(p), ...prev }));
+    syncIncludeFlags(nextLatex ?? latex, next);
   };
 
   const handleApply = async () => {
@@ -193,14 +191,19 @@ export default function MathRecognizePanel({
 
   const graphPreview =
     includeGraph && classified.graphable ? (
-      <div className="h-36 overflow-hidden rounded-xl border-2 border-black/10 bg-white">
-        <FunctionPlotSvg
-          fn={fn}
-          inequalityExpr={
-            classified.kind === "inequality" ? expr : undefined
-          }
-          width={440}
-          height={140}
+      <div className="h-48 overflow-hidden rounded-xl border-2 border-black/10 bg-white">
+        <BoardGraph
+          series={[
+            {
+              expr: expr || exprDraft,
+              color: "#3b82f6",
+              kind:
+                classified.kind === "inequality" ? "inequality" : "function",
+            },
+          ]}
+          settings={DEFAULT_GRAPH_SETTINGS}
+          paramValues={mergedParams}
+          className="h-full"
         />
       </div>
     ) : null;
@@ -246,8 +249,9 @@ export default function MathRecognizePanel({
           <textarea
             value={latex}
             onChange={(e) => {
-              setLatex(e.target.value);
-              onExprChange(latexToExpr(e.target.value));
+              const v = e.target.value;
+              setLatex(v);
+              onExprChange(latexToExpr(v), v);
             }}
             rows={2}
             className="resize-none rounded-lg border-2 border-black/10 bg-white p-2 font-mono text-sm"

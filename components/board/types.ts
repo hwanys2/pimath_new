@@ -1,3 +1,5 @@
+import type { GraphSettings } from "./graph-types";
+
 export type BoardMode = "draw" | "math-select";
 
 export type MathKind = "function" | "equation" | "inequality" | "display";
@@ -16,6 +18,7 @@ export type MathCard = {
   showSolution: boolean;
   solutionSteps?: string[];
   answerLatex?: string;
+  graphSettings?: GraphSettings;
   zIndex: number;
 };
 
