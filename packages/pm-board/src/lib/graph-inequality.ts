@@ -1,9 +1,9 @@
 import {
   compileExpression,
   normalizeGraphExpression,
-} from "@/lib/board-math";
-import type { PlotView } from "@/lib/graph-plot";
-import { DEFAULT_PLOT_VIEW } from "@/lib/graph-plot";
+} from "./board-math";
+import type { PlotView } from "./graph-plot";
+import { DEFAULT_PLOT_VIEW } from "./graph-plot";
 
 export type InequalityOp = ">" | "<" | ">=" | "<=";
 

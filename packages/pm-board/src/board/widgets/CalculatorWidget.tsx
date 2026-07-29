@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { evaluateExpression, formatNumber } from "@/lib/board-math";
+import { evaluateExpression, formatNumber } from "../../lib/board-math";
 
 type Props = {
   state: Record<string, unknown>;

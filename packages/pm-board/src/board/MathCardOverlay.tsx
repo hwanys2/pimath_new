@@ -6,7 +6,7 @@ import {
   defaultParamValues,
   listParameters,
   normalizeGraphExpression,
-} from "@/lib/board-math";
+} from "../lib/board-math";
 import type { MathCard } from "./types";
 import { CloseIcon } from "./icons";
 import BoardGraph from "./BoardGraph";

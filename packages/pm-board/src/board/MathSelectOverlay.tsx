@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useRef, useState } from "react";
-import type { BoardRect } from "@/lib/board-stroke-bounds";
+import type { BoardRect } from "../lib/board-stroke-bounds";
 
 const MIN_SIZE = 40;
 

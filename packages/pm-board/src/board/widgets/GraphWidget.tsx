@@ -1,10 +1,10 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { parseInequality } from "@/lib/graph-inequality";
-import { classifyMathInput } from "@/lib/math-classify";
-import { normalizeGraphExpression } from "@/lib/board-math";
-import { compileExpression } from "@/lib/board-math";
+import { parseInequality } from "../../lib/graph-inequality";
+import { classifyMathInput } from "../../lib/math-classify";
+import { normalizeGraphExpression } from "../../lib/board-math";
+import { compileExpression } from "../../lib/board-math";
 import BoardGraph from "../BoardGraph";
 import GraphSettingsPanel from "../GraphSettingsPanel";
 import { mergeGraphSettings, type GraphSettings } from "../graph-types";

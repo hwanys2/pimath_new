@@ -1,8 +1,9 @@
 import type { Metadata } from "next";
+import "@hwanys2/pm-board/styles/pm-board.css";
 import { getActor } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
-import BoardApp from "@/components/board/BoardApp";
-import type { ClassRoster } from "@/components/board/types";
+import { BoardApp } from "@hwanys2/pm-board";
+import type { ClassRoster } from "@hwanys2/pm-board";
 
 export const metadata: Metadata = {
   title: "전자칠판 | 수학하는 즐거움",
@@ -53,5 +54,11 @@ export default async function BoardPage() {
   const rosters = await fetchRosters();
   const actor = await getActor();
   const isTeacher = actor?.type === "teacher";
-  return <BoardApp rosters={rosters} isTeacher={isTeacher} />;
+  return (
+    <BoardApp
+      brand={{ title: "수학하는 즐거움 · 전자칠판", homeHref: "/" }}
+      rosters={rosters}
+      isTeacher={isTeacher}
+    />
+  );
 }

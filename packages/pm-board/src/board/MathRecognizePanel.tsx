@@ -6,9 +6,9 @@ import {
   defaultParamValues,
   listParameters,
   normalizeGraphExpression,
-} from "@/lib/board-math";
-import { classifyMathInput } from "@/lib/math-classify";
-import { latexToExpr } from "@/lib/math-latex-to-expr";
+} from "../lib/board-math";
+import { classifyMathInput } from "../lib/math-classify";
+import { latexToExpr } from "../lib/math-latex-to-expr";
 import type { MathKind } from "./types";
 import BoardGraph from "./BoardGraph";
 import { DEFAULT_GRAPH_SETTINGS } from "./graph-types";
@@ -28,6 +28,7 @@ type Props = {
   imageDataUrl: string;
   canUseApi: boolean;
   isTeacher: boolean;
+  apiBase?: string;
   onApply: (payload: MathApplyPayload) => void;
   onCancel: () => void;
 };
@@ -36,6 +37,7 @@ export default function MathRecognizePanel({
   imageDataUrl,
   canUseApi,
   isTeacher,
+  apiBase = "",
   onApply,
   onCancel,
 }: Props) {
@@ -71,7 +73,7 @@ export default function MathRecognizePanel({
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch("/api/board/recognize-math", {
+      const res = await fetch(`${apiBase}/api/board/recognize-math`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ image: imageDataUrl }),
@@ -93,7 +95,7 @@ export default function MathRecognizePanel({
     } finally {
       setLoading(false);
     }
-  }, [canUseApi, imageDataUrl, syncIncludeFlags]);
+  }, [canUseApi, imageDataUrl, syncIncludeFlags, apiBase]);
 
   useEffect(() => {
     const id = setTimeout(() => {
@@ -156,7 +158,7 @@ export default function MathRecognizePanel({
       if (solveKind) {
       setApplying(true);
       try {
-        const res = await fetch("/api/board/solve-math", {
+        const res = await fetch(`${apiBase}/api/board/solve-math`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({

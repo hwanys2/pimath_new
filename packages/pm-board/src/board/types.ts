@@ -1,5 +1,10 @@
 import type { GraphSettings } from "./graph-types";
 
+export type BoardBrand = {
+  title: string;
+  homeHref: string;
+};
+
 export type BoardMode = "draw" | "math-select";
 
 export type MathKind = "function" | "equation" | "inequality" | "display";
@@ -111,6 +116,14 @@ export type ClassRoster = {
   id: string;
   name: string;
   students: string[];
+};
+
+export type BoardAppProps = {
+  brand: BoardBrand;
+  storageKey?: string;
+  apiBase?: string;
+  rosters: ClassRoster[];
+  isTeacher?: boolean;
 };
 
 export type BoardOverlays = {

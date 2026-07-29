@@ -1,8 +1,7 @@
 "use client";
 
-import Link from "next/link";
 import { useEffect, useRef, useState, type ComponentType, type SVGProps } from "react";
-import type { BackgroundId, OverlayId, ToolId, WidgetKind } from "./types";
+import type { BackgroundId, BoardBrand, OverlayId, ToolId, WidgetKind } from "./types";
 import { BACKGROUND_DEFS } from "./BoardBackground";
 import { WIDGET_DEFS, WIDGET_ORDER } from "./widget-config";
 import {
@@ -105,6 +104,7 @@ type Props = {
   isFullscreen: boolean;
   onToggleFullscreen: () => void;
   onPickImageFile: (file: File) => void;
+  brand: BoardBrand;
 };
 
 export default function BoardToolbar({
@@ -129,6 +129,7 @@ export default function BoardToolbar({
   isFullscreen,
   onToggleFullscreen,
   onPickImageFile,
+  brand,
 }: Props) {
   const [menu, setMenu] = useState<Menu>(null);
   const imageInputRef = useRef<HTMLInputElement>(null);
@@ -157,7 +158,7 @@ export default function BoardToolbar({
       {/* Top-left brand */}
       <div className="pointer-events-none absolute top-3 left-3 z-40 select-none">
         <span className="font-display rounded-xl bg-black/25 px-3 py-1.5 text-sm text-white/85 backdrop-blur-sm">
-          수학하는 즐거움 · 전자칠판
+          {brand.title}
         </span>
       </div>
 
@@ -219,14 +220,14 @@ export default function BoardToolbar({
           >
             {isFullscreen ? <ExitFullscreenIcon /> : <FullscreenIcon />}
           </DockBtn>
-          <Link
-            href="/"
+          <a
+            href={brand.homeHref}
             title="나가기"
             aria-label="나가기"
             className="flex h-10 w-10 items-center justify-center rounded-xl text-cream transition hover:bg-black/20"
           >
             <HomeIcon />
-          </Link>
+          </a>
         </div>
 
         <input

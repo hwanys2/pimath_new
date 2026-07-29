@@ -2,7 +2,7 @@
 
 import { useMemo } from "react";
 import { Line, Polygon, Text, usePaneContext } from "mafs";
-import { axisTicks, formatAxisLabel } from "@/lib/graph-plot";
+import { axisTicks, formatAxisLabel } from "../lib/graph-plot";
 
 const AXIS_COLOR = "#1e293b";
 const TICK_COLOR = "#475569";

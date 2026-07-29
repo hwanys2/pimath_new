@@ -1,5 +1,5 @@
-import type { Stroke } from "@/components/board/types";
-import { strokeWidth } from "@/lib/board-canvas-draw";
+import type { Stroke } from "../board/types";
+import { strokeWidth } from "./board-canvas-draw";
 
 export type BoardRect = { x0: number; y0: number; x1: number; y1: number };
 

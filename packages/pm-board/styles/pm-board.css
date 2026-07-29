@@ -1,0 +1,102 @@
+/* Board theme tokens + wooden toolbar (shared pimath / foreducator) */
+:root {
+  --pm-board-wood: #8b5e3c;
+  --pm-board-wood-dark: #6b4423;
+  --pm-board-cream: #fff8eb;
+}
+
+.font-display {
+  font-family: var(--pm-board-font-display, ui-sans-serif, system-ui, sans-serif);
+}
+
+.text-wood {
+  color: var(--pm-board-wood);
+}
+.text-wood-dark {
+  color: var(--pm-board-wood-dark);
+}
+.text-cream {
+  color: var(--pm-board-cream);
+}
+.bg-cream {
+  background-color: var(--pm-board-cream);
+}
+.bg-cream\/95 {
+  background-color: color-mix(in srgb, var(--pm-board-cream) 95%, transparent);
+}
+.bg-cream\/80 {
+  background-color: color-mix(in srgb, var(--pm-board-cream) 80%, transparent);
+}
+.bg-wood\/15 {
+  background-color: color-mix(in srgb, var(--pm-board-wood) 15%, transparent);
+}
+.bg-wood\/20 {
+  background-color: color-mix(in srgb, var(--pm-board-wood) 20%, transparent);
+}
+.border-wood\/20 {
+  border-color: color-mix(in srgb, var(--pm-board-wood) 20%, transparent);
+}
+.border-wood\/25 {
+  border-color: color-mix(in srgb, var(--pm-board-wood) 25%, transparent);
+}
+.text-wood\/50 {
+  color: color-mix(in srgb, var(--pm-board-wood) 50%, transparent);
+}
+.text-wood\/60 {
+  color: color-mix(in srgb, var(--pm-board-wood) 60%, transparent);
+}
+.text-wood\/70 {
+  color: color-mix(in srgb, var(--pm-board-wood) 70%, transparent);
+}
+.text-wood\/80 {
+  color: color-mix(in srgb, var(--pm-board-wood) 80%, transparent);
+}
+
+.wood-bar {
+  background:
+    linear-gradient(
+      180deg,
+      rgba(255, 255, 255, 0.12) 0%,
+      transparent 40%,
+      rgba(0, 0, 0, 0.15) 100%
+    ),
+    repeating-linear-gradient(
+      90deg,
+      #8b5e3c 0px,
+      #9a6b47 8px,
+      #8b5e3c 16px,
+      #7a5134 24px,
+      #8b5e3c 32px
+    );
+  box-shadow:
+    0 4px 0 #5a3a22,
+    0 8px 20px rgba(61, 44, 30, 0.25);
+  border-bottom: 3px solid #5a3a22;
+}
+
+/* Desmos-like light coordinate plane */
+.pm-board-graph .MafsView {
+  --mafs-bg: #ffffff;
+  --mafs-fg: #334155;
+  --mafs-origin-color: #1e293b;
+  --mafs-line-color: #cbd5e1;
+  --grid-line-subdivision-color: #e8edf3;
+  --mafs-line-stroke-dash-style: 2, 4;
+  --mafs-axis-stroke-width: 0px;
+  background: #ffffff;
+  border-radius: 0.5rem;
+}
+
+.pm-board-graph[data-major-grid="0"] .MafsView {
+  --mafs-line-color: transparent;
+}
+
+.pm-board-graph[data-minor-grid="0"] .MafsView {
+  --grid-line-subdivision-color: transparent;
+}
+
+.pm-board-graph .MafsView text {
+  font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto,
+    "Helvetica Neue", Arial, sans-serif;
+  font-weight: 500;
+}

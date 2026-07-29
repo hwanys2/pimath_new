@@ -1,4 +1,4 @@
-import type { DrawTool, Stroke } from "@/components/board/types";
+import type { DrawTool, Stroke } from "../board/types";
 
 export function strokeWidth(tool: DrawTool, size: number): number {
   if (tool === "highlighter") return size * 4;

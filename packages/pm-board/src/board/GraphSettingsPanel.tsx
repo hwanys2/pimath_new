@@ -82,11 +82,12 @@ export default function GraphSettingsPanel({
 
       {!compact ? (
         <label className="mt-2 flex items-center gap-2">
-          격자 세분화
+          소격자 밀도
           <input
             type="range"
-            min={1}
+            min={2}
             max={10}
+            disabled={!settings.showMinorGrid}
             value={settings.subdivisions}
             onChange={(e) =>
               patch({ subdivisions: Number(e.target.value) })
@@ -100,10 +101,18 @@ export default function GraphSettingsPanel({
         <label className="flex items-center gap-2">
           <input
             type="checkbox"
-            checked={settings.showGrid}
-            onChange={(e) => patch({ showGrid: e.target.checked })}
+            checked={settings.showMajorGrid}
+            onChange={(e) => patch({ showMajorGrid: e.target.checked })}
           />
-          격자
+          대격자
+        </label>
+        <label className="flex items-center gap-2">
+          <input
+            type="checkbox"
+            checked={settings.showMinorGrid}
+            onChange={(e) => patch({ showMinorGrid: e.target.checked })}
+          />
+          소격자
         </label>
         <label className="flex items-center gap-2">
           <input

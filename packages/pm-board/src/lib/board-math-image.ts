@@ -1,6 +1,6 @@
-import type { BackgroundId, Stroke } from "@/components/board/types";
-import { drawStrokeOn } from "@/lib/board-canvas-draw";
-import { normalizeRect, type BoardRect } from "@/lib/board-stroke-bounds";
+import type { BackgroundId, Stroke } from "../board/types";
+import { drawStrokeOn } from "./board-canvas-draw";
+import { normalizeRect, type BoardRect } from "./board-stroke-bounds";
 
 const PADDING = 24;
 const MIN_EXPORT = 120;

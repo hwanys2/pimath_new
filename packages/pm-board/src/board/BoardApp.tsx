@@ -10,6 +10,8 @@ import {
 import "katex/dist/katex.min.css";
 import type {
   BackgroundId,
+  BoardAppProps,
+  BoardBrand,
   BoardImage,
   BoardMode,
   BoardOverlays,
@@ -34,21 +36,21 @@ import MathSelectOverlay from "./MathSelectOverlay";
 import MathRecognizePanel from "./MathRecognizePanel";
 import MathCardOverlay from "./MathCardOverlay";
 import BoardImageOverlay from "./BoardImageOverlay";
-import { strokeIndicesInRect, type BoardRect } from "@/lib/board-stroke-bounds";
+import { strokeIndicesInRect, type BoardRect } from "../lib/board-stroke-bounds";
 import {
   blobToImageBlob,
   clampPlacement,
   clipboardItemToBlob,
   defaultPlacementSize,
   fileToImageBlob,
-} from "@/lib/board-image";
+} from "../lib/board-image";
 import {
   deleteImage,
   getImage,
   pruneImages,
   putImage,
-} from "@/lib/board-image-store";
-import { strokesToMathImageDataUrl } from "@/lib/board-math-image";
+} from "../lib/board-image-store";
+import { strokesToMathImageDataUrl } from "../lib/board-math-image";
 import { WIDGET_DEFS } from "./widget-config";
 import TimerWidget from "./widgets/TimerWidget";
 import ClockWidget from "./widgets/ClockWidget";
@@ -62,7 +64,7 @@ import TextNoteWidget from "./widgets/TextNoteWidget";
 import GraphWidget from "./widgets/GraphWidget";
 import CalculatorWidget from "./widgets/CalculatorWidget";
 
-const STORAGE_KEY = "pm-board-v1";
+const DEFAULT_STORAGE_KEY = "pm-board-v1";
 const MAX_HISTORY = 60;
 const MAX_SAVED_STROKES = 500;
 
@@ -132,13 +134,15 @@ function isEditableTarget(target: EventTarget | null): boolean {
   );
 }
 
+export type { BoardBrand, BoardAppProps } from "./types";
+
 export default function BoardApp({
+  brand,
+  storageKey = DEFAULT_STORAGE_KEY,
+  apiBase = "",
   rosters,
   isTeacher = false,
-}: {
-  rosters: ClassRoster[];
-  isTeacher?: boolean;
-}) {
+}: BoardAppProps) {
   const rootRef = useRef<HTMLDivElement>(null);
   const [ready, setReady] = useState(false);
   const [background, setBackground] = useState<BackgroundId>("chalkboard");
@@ -181,7 +185,7 @@ export default function BoardApp({
   useEffect(() => {
     const id = setTimeout(() => {
       try {
-        const raw = localStorage.getItem(STORAGE_KEY);
+        const raw = localStorage.getItem(storageKey);
         if (raw) {
           const saved = JSON.parse(raw) as Partial<BoardPersisted>;
           if (saved.background) setBackground(saved.background);
@@ -252,7 +256,7 @@ export default function BoardApp({
       setReady(true);
     }, 0);
     return () => clearTimeout(id);
-  }, []);
+  }, [storageKey]);
 
   // ── Save (debounced) ─────────────────────────────────────────────
   useEffect(() => {
@@ -269,14 +273,14 @@ export default function BoardApp({
         boardImages,
       };
       try {
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+        localStorage.setItem(storageKey, JSON.stringify(data));
         void pruneImages(boardImages.map((i) => i.id));
       } catch {
         // Storage full: silently skip.
       }
     }, 400);
     return () => clearTimeout(id);
-  }, [ready, background, color, size, draw.strokes, widgets, overlays, mathCards, boardImages]);
+  }, [ready, background, color, size, draw.strokes, widgets, overlays, mathCards, boardImages, storageKey]);
 
   useEffect(() => {
     return () => {
@@ -667,6 +671,7 @@ export default function BoardApp({
               imageDataUrl={recognizeSession.imageDataUrl}
               canUseApi={isTeacher}
               isTeacher={isTeacher}
+              apiBase={apiBase}
               onApply={applyMathRecognize}
               onCancel={() => setRecognizeSession(null)}
             />
@@ -796,6 +801,7 @@ export default function BoardApp({
             isFullscreen={isFullscreen}
             onToggleFullscreen={toggleFullscreen}
             onPickImageFile={handlePickImageFile}
+            brand={brand}
           />
         </>
       ) : null}

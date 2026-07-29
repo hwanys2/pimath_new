@@ -9,8 +9,8 @@ import {
   defaultParamValues,
   listParameters,
   normalizeGraphExpression,
-} from "@/lib/board-math";
-import { parseInequality, inequalityShadePath } from "@/lib/graph-inequality";
+} from "../lib/board-math";
+import { parseInequality, inequalityShadePath } from "../lib/graph-inequality";
 import type { BoardGraphSeriesInput, GraphSettings } from "./graph-types";
 import BoardGraphAxisDecor from "./BoardGraphAxisDecor";
 
@@ -22,10 +22,11 @@ type Props = {
   paramValues?: Record<string, number>;
 };
 
-function gridAxisOpts(
-  showGrid: boolean,
-): false | { axis: false; lines: number | false; labels: false } {
-  if (!showGrid) return false;
+function gridAxisOpts(): {
+  axis: false;
+  lines: number;
+  labels: false;
+} {
   return {
     axis: false,
     lines: 1,
@@ -100,7 +101,8 @@ export default function BoardGraphInner({
     [view],
   );
 
-  const gridAxis = gridAxisOpts(settings.showGrid);
+  const gridAxis = gridAxisOpts();
+  const showAnyGrid = settings.showMajorGrid || settings.showMinorGrid;
 
   const plots = useMemo(() => {
     const out: ReactNode[] = [];
@@ -149,7 +151,11 @@ export default function BoardGraphInner({
   }
 
   return (
-    <div className="pm-board-graph relative h-full w-full overflow-hidden rounded-lg bg-white ring-1 ring-slate-200/80">
+    <div
+      className="pm-board-graph relative h-full w-full overflow-hidden rounded-lg bg-white ring-1 ring-slate-200/80"
+      data-major-grid={settings.showMajorGrid ? "1" : "0"}
+      data-minor-grid={settings.showMinorGrid ? "1" : "0"}
+    >
       <Mafs
         width={width}
         height={height}
@@ -158,10 +164,12 @@ export default function BoardGraphInner({
         viewBox={viewBox}
         preserveAspectRatio="contain"
       >
-        {settings.showGrid ? (
+        {showAnyGrid ? (
           <Coordinates.Cartesian
             subdivisions={
-              settings.subdivisions > 1 ? settings.subdivisions : false
+              settings.showMinorGrid && settings.subdivisions > 1
+                ? settings.subdivisions
+                : false
             }
             xAxis={gridAxis}
             yAxis={gridAxis}

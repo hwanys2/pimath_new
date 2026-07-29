@@ -1,4 +1,4 @@
-import type { CompiledExpr } from "@/lib/board-math";
+import type { CompiledExpr } from "./board-math";
 
 export type PlotView = {
   xMin: number;

@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef } from "react";
 import type { DrawTool, Stroke, ToolId } from "./types";
-import { drawStrokeOn, strokeWidth } from "@/lib/board-canvas-draw";
+import { drawStrokeOn, strokeWidth } from "../lib/board-canvas-draw";
 type Props = {
   tool: ToolId;
   color: string;

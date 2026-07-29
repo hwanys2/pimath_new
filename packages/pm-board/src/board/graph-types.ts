@@ -1,12 +1,15 @@
-import type { PlotView } from "@/lib/graph-plot";
-import { DEFAULT_PLOT_VIEW } from "@/lib/graph-plot";
+import type { PlotView } from "../lib/graph-plot";
+import { DEFAULT_PLOT_VIEW } from "../lib/graph-plot";
 
 export type GraphSeries = { text: string; color: string };
 
 export type GraphSettings = {
   view: PlotView;
   subdivisions: number;
-  showGrid: boolean;
+  /** @deprecated use showMajorGrid */
+  showGrid?: boolean;
+  showMajorGrid: boolean;
+  showMinorGrid: boolean;
   showAxes: boolean;
   showNumbers: boolean;
   panZoom: boolean;
@@ -15,7 +18,8 @@ export type GraphSettings = {
 export const DEFAULT_GRAPH_SETTINGS: GraphSettings = {
   view: { ...DEFAULT_PLOT_VIEW },
   subdivisions: 4,
-  showGrid: true,
+  showMajorGrid: true,
+  showMinorGrid: true,
   showAxes: true,
   showNumbers: true,
   panZoom: true,
@@ -30,9 +34,19 @@ export function mergeGraphSettings(
     base.view = { ...legacyView };
   }
   if (!partial) return base;
+  const legacyGrid = partial.showGrid;
+  const showMajorGrid =
+    partial.showMajorGrid ??
+    legacyGrid ??
+    base.showMajorGrid;
+  const showMinorGrid =
+    partial.showMinorGrid ??
+    (legacyGrid !== undefined ? legacyGrid : base.showMinorGrid);
   return {
     ...base,
     ...partial,
+    showMajorGrid,
+    showMinorGrid,
     view: {
       ...base.view,
       ...partial.view,

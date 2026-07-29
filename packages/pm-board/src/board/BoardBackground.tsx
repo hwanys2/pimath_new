@@ -5,7 +5,7 @@ import type { BackgroundId } from "./types";
 import {
   COORD_UNIT_PX,
   visibleIntegerRange,
-} from "@/lib/board-coordinate-grid";
+} from "../lib/board-coordinate-grid";
 
 export const BACKGROUND_DEFS: { id: BackgroundId; label: string; dark: boolean }[] = [
   { id: "chalkboard", label: "칠판", dark: true },
