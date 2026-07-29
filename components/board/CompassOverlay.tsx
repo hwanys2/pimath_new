@@ -5,8 +5,8 @@ import type { CompassPose, Stroke } from "./types";
 import { CloseIcon } from "./icons";
 
 const RULER_UNIT = 40;
-const MIN_RADIUS = 40;
-const MAX_RADIUS = 420;
+const MIN_RADIUS = 48;
+const MAX_RADIUS = 504;
 const MIN_DRAW_DELTA = 0.08; // ~4.5°
 
 type Props = {
@@ -63,7 +63,7 @@ function hingeAt(pose: CompassPose) {
   const midY = (pose.cy + tip.y) / 2;
   const a = degToRad(pose.angle);
   const half = pose.radius / 2;
-  const leg = Math.max(half + 48, 170);
+  const leg = Math.max(half + 58, 204);
   const h = Math.sqrt(Math.max(leg * leg - half * half, 4));
   // Perpendicular "up" (CCW from needle→pencil)
   const px = -Math.sin(a);
@@ -232,7 +232,7 @@ export default function CompassOverlay({
   );
 
   // Bounding box padded so rotated legs stay inside hit container
-  const pad = pose.radius + 120;
+  const pad = pose.radius + 144;
   const boxLeft = pose.cx - pad;
   const boxTop = pose.cy - pad;
   const boxSize = pad * 2;

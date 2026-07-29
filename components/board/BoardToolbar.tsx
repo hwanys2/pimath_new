@@ -17,6 +17,7 @@ import {
   HighlighterIcon,
   HomeIcon,
   LineIcon,
+  MathFormulaIcon,
   PenIcon,
   ProtractorIcon,
   RectIcon,
@@ -98,6 +99,8 @@ type Props = {
   onAddWidget: (kind: WidgetKind) => void;
   overlaysOn: Record<OverlayId, boolean>;
   onToggleOverlay: (id: OverlayId) => void;
+  mathSelectActive: boolean;
+  onToggleMathSelect: () => void;
   isFullscreen: boolean;
   onToggleFullscreen: () => void;
 };
@@ -119,6 +122,8 @@ export default function BoardToolbar({
   onAddWidget,
   overlaysOn,
   onToggleOverlay,
+  mathSelectActive,
+  onToggleMathSelect,
   isFullscreen,
   onToggleFullscreen,
 }: Props) {
@@ -189,6 +194,13 @@ export default function BoardToolbar({
             onClick={() => onToggleOverlay("compass")}
           >
             <CompassIcon />
+          </DockBtn>
+          <DockBtn
+            label="수식 인식"
+            active={mathSelectActive}
+            onClick={onToggleMathSelect}
+          >
+            <MathFormulaIcon />
           </DockBtn>
           <div className="mx-0.5 h-6 w-px bg-white/20" />
           <DockBtn

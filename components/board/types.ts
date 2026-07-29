@@ -1,3 +1,16 @@
+export type BoardMode = "draw" | "math-select";
+
+export type MathCard = {
+  id: string;
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+  latex: string;
+  expr: string;
+  paramValues: Record<string, number>;
+};
+
 export type BackgroundId =
   | "chalkboard"
   | "whiteboard"
@@ -91,4 +104,5 @@ export type BoardPersisted = {
   strokes: Stroke[];
   widgets: WidgetInstance[];
   overlays: Partial<BoardOverlays>;
+  mathCards?: MathCard[];
 };

@@ -137,6 +137,14 @@ export const CompassIcon = (p: IconProps) => (
   </svg>
 );
 
+export const MathFormulaIcon = (p: IconProps) => (
+  <svg {...base(p)}>
+    <path d="M5 7h4l2 6 2-6h4" />
+    <path d="M5 17h14" />
+    <path d="M9 14h6" strokeWidth={1.5} />
+  </svg>
+);
+
 export const FullscreenIcon = (p: IconProps) => (
   <svg {...base(p)}>
     <path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5" />

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { compileExpression } from "@/lib/board-math";
+import { compileExpression, defaultParamValues, listParameters } from "@/lib/board-math";
 import { CloseIcon, MinusIcon, PlusIcon } from "../icons";
 
 type Props = {
@@ -41,6 +41,10 @@ export default function GraphWidget({ state, setState }: Props) {
     [state.exprs],
   );
   const view = (state.view as View) ?? DEFAULT_VIEW;
+  const paramValues = useMemo(
+    () => (state.paramValues as Record<string, number>) ?? {},
+    [state.paramValues],
+  );
 
   const [input, setInput] = useState("");
   const [inputError, setInputError] = useState(false);
@@ -72,8 +76,19 @@ export default function GraphWidget({ state, setState }: Props) {
   }, [w, h, view]);
 
   const compiled = useMemo(
-    () => exprs.map((e) => ({ ...e, fn: compileExpression(e.text) })),
-    [exprs],
+    () =>
+      exprs.map((e) => {
+        const params = listParameters(e.text);
+        const fn =
+          params.length > 0
+            ? compileExpression(e.text, {
+                ...defaultParamValues(params),
+                ...paramValues,
+              })
+            : compileExpression(e.text);
+        return { ...e, fn };
+      }),
+    [exprs, paramValues],
   );
 
   const paths = useMemo(() => {

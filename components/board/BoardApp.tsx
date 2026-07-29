@@ -10,10 +10,12 @@ import {
 import "katex/dist/katex.min.css";
 import type {
   BackgroundId,
+  BoardMode,
   BoardOverlays,
   BoardPersisted,
   ClassRoster,
   CompassPose,
+  MathCard,
   OverlayId,
   OverlayPose,
   Stroke,
@@ -27,6 +29,11 @@ import DrawingCanvas from "./DrawingCanvas";
 import WidgetWindow from "./WidgetWindow";
 import { RulerOverlay, ProtractorOverlay } from "./GeometryOverlays";
 import CompassOverlay from "./CompassOverlay";
+import MathSelectOverlay from "./MathSelectOverlay";
+import MathRecognizePanel from "./MathRecognizePanel";
+import MathCardOverlay from "./MathCardOverlay";
+import { strokeIndicesInRect, type BoardRect } from "@/lib/board-stroke-bounds";
+import { strokesToMathImageDataUrl } from "@/lib/board-math-image";
 import { WIDGET_DEFS } from "./widget-config";
 import TimerWidget from "./widgets/TimerWidget";
 import ClockWidget from "./widgets/ClockWidget";
@@ -48,6 +55,7 @@ type DrawState = { strokes: Stroke[]; past: Stroke[][]; future: Stroke[][] };
 
 type DrawAction =
   | { type: "commit"; stroke: Stroke }
+  | { type: "deleteIndices"; indices: number[] }
   | { type: "undo" }
   | { type: "redo" }
   | { type: "clear" }
@@ -61,6 +69,16 @@ function drawReducer(state: DrawState, action: DrawAction): DrawState {
         past: [...state.past.slice(-(MAX_HISTORY - 1)), state.strokes],
         future: [],
       };
+    case "deleteIndices": {
+      if (action.indices.length === 0) return state;
+      const remove = new Set(action.indices);
+      const strokes = state.strokes.filter((_, i) => !remove.has(i));
+      return {
+        strokes,
+        past: [...state.past.slice(-(MAX_HISTORY - 1)), state.strokes],
+        future: [],
+      };
+    }
     case "undo": {
       if (state.past.length === 0) return state;
       const past = [...state.past];
@@ -99,7 +117,13 @@ function isEditableTarget(target: EventTarget | null): boolean {
   );
 }
 
-export default function BoardApp({ rosters }: { rosters: ClassRoster[] }) {
+export default function BoardApp({
+  rosters,
+  isTeacher = false,
+}: {
+  rosters: ClassRoster[];
+  isTeacher?: boolean;
+}) {
   const rootRef = useRef<HTMLDivElement>(null);
   const [ready, setReady] = useState(false);
   const [background, setBackground] = useState<BackgroundId>("chalkboard");
@@ -118,6 +142,13 @@ export default function BoardApp({ rosters }: { rosters: ClassRoster[] }) {
     compass: null,
   });
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [boardMode, setBoardMode] = useState<BoardMode>("draw");
+  const [mathCards, setMathCards] = useState<MathCard[]>([]);
+  const [recognizeSession, setRecognizeSession] = useState<{
+    rect: BoardRect;
+    indices: number[];
+    imageDataUrl: string;
+  } | null>(null);
   const spawnCountRef = useRef(0);
 
   // ── Load persisted state (async to avoid a sync setState-in-effect) ──
@@ -134,6 +165,7 @@ export default function BoardApp({ rosters }: { rosters: ClassRoster[] }) {
             dispatchDraw({ type: "load", strokes: saved.strokes });
           }
           if (Array.isArray(saved.widgets)) setWidgets(saved.widgets);
+          if (Array.isArray(saved.mathCards)) setMathCards(saved.mathCards);
           if (saved.overlays) {
             const compassRaw = saved.overlays.compass as CompassPose | null | undefined;
             setOverlays({
@@ -146,7 +178,7 @@ export default function BoardApp({ rosters }: { rosters: ClassRoster[] }) {
                     radius:
                       typeof compassRaw.radius === "number"
                         ? compassRaw.radius
-                        : 140,
+                        : 168,
                     angle:
                       typeof compassRaw.angle === "number"
                         ? compassRaw.angle
@@ -175,6 +207,7 @@ export default function BoardApp({ rosters }: { rosters: ClassRoster[] }) {
         strokes: draw.strokes.slice(-MAX_SAVED_STROKES),
         widgets,
         overlays,
+        mathCards,
       };
       try {
         localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
@@ -183,7 +216,7 @@ export default function BoardApp({ rosters }: { rosters: ClassRoster[] }) {
       }
     }, 400);
     return () => clearTimeout(id);
-  }, [ready, background, color, size, draw.strokes, widgets, overlays]);
+  }, [ready, background, color, size, draw.strokes, widgets, overlays, mathCards]);
 
   // ── Body scroll lock while the board is open ─────────────────────
   useEffect(() => {
@@ -217,10 +250,13 @@ export default function BoardApp({ rosters }: { rosters: ClassRoster[] }) {
         e.preventDefault();
         dispatchDraw({ type: e.shiftKey ? "redo" : "undo" });
       }
+      if (e.key === "Escape" && boardMode === "math-select") {
+        setBoardMode("draw");
+      }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, []);
+  }, [boardMode]);
 
   // ── Background change keeps a sensible pen color ─────────────────
   const changeBackground = useCallback(
@@ -234,7 +270,8 @@ export default function BoardApp({ rosters }: { rosters: ClassRoster[] }) {
   );
 
   // ── Widget management ────────────────────────────────────────────
-  const addWidget = useCallback((kind: WidgetKind) => {
+  const addWidget = useCallback(
+    (kind: WidgetKind, initialState?: Record<string, unknown>) => {
     const def = WIDGET_DEFS[kind];
     const n = spawnCountRef.current++;
     const vw = window.innerWidth;
@@ -252,11 +289,13 @@ export default function BoardApp({ rosters }: { rosters: ClassRoster[] }) {
           w: def.w,
           h: def.h,
           z: maxZ + 1,
-          state: {},
+          state: initialState ?? {},
         },
       ];
     });
-  }, []);
+  },
+    [],
+  );
 
   const patchWidget = useCallback(
     (id: string, patch: Partial<WidgetInstance>) => {
@@ -291,6 +330,65 @@ export default function BoardApp({ rosters }: { rosters: ClassRoster[] }) {
     });
   }, []);
 
+  const toggleMathSelect = useCallback(() => {
+    setBoardMode((m) => (m === "math-select" ? "draw" : "math-select"));
+    setRecognizeSession(null);
+  }, []);
+
+  const onMathSelectComplete = useCallback(
+    (rect: BoardRect) => {
+      setBoardMode("draw");
+      const indices = strokeIndicesInRect(draw.strokes, rect);
+      const imageDataUrl = strokesToMathImageDataUrl(
+        draw.strokes,
+        indices.length > 0 ? indices : draw.strokes.map((_, i) => i),
+        rect,
+        background,
+      );
+      if (!imageDataUrl) return;
+      setRecognizeSession({ rect, indices, imageDataUrl });
+    },
+    [draw.strokes, background],
+  );
+
+  const applyMathRecognize = useCallback(
+    (payload: {
+      latex: string;
+      expr: string;
+      paramValues: Record<string, number>;
+    }) => {
+      const session = recognizeSession;
+      if (!session) return;
+      const { rect, indices } = session;
+      if (indices.length > 0) {
+        dispatchDraw({ type: "deleteIndices", indices });
+      }
+      const card: MathCard = {
+        id: `math-${Date.now().toString(36)}`,
+        x: rect.x0,
+        y: rect.y0,
+        w: 320,
+        h: 280,
+        latex: payload.latex,
+        expr: payload.expr,
+        paramValues: payload.paramValues,
+      };
+      setMathCards((prev) => [...prev, card]);
+      setRecognizeSession(null);
+    },
+    [recognizeSession],
+  );
+
+  const openGraphFromCard = useCallback(
+    (expr: string, paramValues: Record<string, number>) => {
+      addWidget("graph", {
+        exprs: [{ text: expr, color: "#3b82f6" }],
+        paramValues,
+      });
+    },
+    [addWidget],
+  );
+
   const toggleOverlay = useCallback((id: OverlayId) => {
     setOverlays((prev) => {
       if (prev[id]) return { ...prev, [id]: null };
@@ -300,7 +398,7 @@ export default function BoardApp({ rosters }: { rosters: ClassRoster[] }) {
           compass: {
             cx: window.innerWidth / 2,
             cy: window.innerHeight / 2,
-            radius: 140,
+            radius: 168,
             angle: -40,
           },
         };
@@ -362,9 +460,26 @@ export default function BoardApp({ rosters }: { rosters: ClassRoster[] }) {
               color={color}
               size={size}
               strokes={draw.strokes}
+              disabled={boardMode === "math-select"}
               onCommit={(stroke) => dispatchDraw({ type: "commit", stroke })}
             />
           </div>
+
+          {boardMode === "math-select" ? (
+            <MathSelectOverlay
+              onComplete={onMathSelectComplete}
+              onCancel={() => setBoardMode("draw")}
+            />
+          ) : null}
+
+          {recognizeSession ? (
+            <MathRecognizePanel
+              imageDataUrl={recognizeSession.imageDataUrl}
+              canUseApi={isTeacher}
+              onApply={applyMathRecognize}
+              onCancel={() => setRecognizeSession(null)}
+            />
+          ) : null}
 
           <div className="pointer-events-none absolute inset-0 z-20">
             {widgets.map((w) => {
@@ -426,6 +541,21 @@ export default function BoardApp({ rosters }: { rosters: ClassRoster[] }) {
                 }
               />
             ) : null}
+            {mathCards.map((card) => (
+              <MathCardOverlay
+                key={card.id}
+                card={card}
+                onChange={(next) =>
+                  setMathCards((prev) =>
+                    prev.map((c) => (c.id === card.id ? next : c)),
+                  )
+                }
+                onClose={() =>
+                  setMathCards((prev) => prev.filter((c) => c.id !== card.id))
+                }
+                onOpenGraph={openGraphFromCard}
+              />
+            ))}
           </div>
 
           <BoardToolbar
@@ -449,6 +579,8 @@ export default function BoardApp({ rosters }: { rosters: ClassRoster[] }) {
               compass: overlays.compass !== null,
             }}
             onToggleOverlay={toggleOverlay}
+            mathSelectActive={boardMode === "math-select"}
+            onToggleMathSelect={toggleMathSelect}
             isFullscreen={isFullscreen}
             onToggleFullscreen={toggleFullscreen}
           />

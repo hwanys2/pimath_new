@@ -33,7 +33,10 @@ const CONSTANTS: Record<string, number> = {
   e: Math.E,
 };
 
-function tokenize(input: string): Token[] | null {
+function tokenize(
+  input: string,
+  options?: { allowParameterNames?: boolean },
+): Token[] | null {
   const src = input
     .replace(/\s+/g, "")
     .replace(/×/g, "*")
@@ -61,6 +64,14 @@ function tokenize(input: string): Token[] | null {
           if (word.startsWith(fn) && fn.length > matched.length) matched = fn;
         }
         if (!matched && word.startsWith("pi")) matched = "pi";
+        if (
+          !matched &&
+          options?.allowParameterNames &&
+          word.length >= 1 &&
+          /^[a-zA-Z]$/.test(word[0])
+        ) {
+          matched = word[0];
+        }
         if (!matched && (word[0] === "x" || word[0] === "e" || word[0] === "π"))
           matched = word[0];
         if (!matched) return null;
@@ -106,8 +117,13 @@ function tokenize(input: string): Token[] | null {
 export type CompiledExpr = (x: number) => number;
 
 /** Returns a compiled evaluator, or null if the expression is invalid. */
-export function compileExpression(input: string): CompiledExpr | null {
-  const tokens = tokenize(input);
+export function compileExpression(
+  input: string,
+  params?: Record<string, number>,
+): CompiledExpr | null {
+  const tokens = tokenize(input, {
+    allowParameterNames: params !== undefined,
+  });
   if (!tokens || tokens.length === 0) return null;
 
   let pos = 0;
@@ -178,6 +194,10 @@ export function compileExpression(input: string): CompiledExpr | null {
     if (t.type === "name") {
       next();
       if (t.value === "x") return (x) => x;
+      if (params && t.value in params) {
+        const pv = params[t.value];
+        return () => pv;
+      }
       if (t.value in CONSTANTS) {
         const c = CONSTANTS[t.value];
         return () => c;
@@ -223,4 +243,42 @@ export function formatNumber(v: number): string {
   if (Number.isInteger(v) && Math.abs(v) < 1e15) return String(v);
   const rounded = parseFloat(v.toPrecision(12));
   return String(rounded);
+}
+
+const RESERVED_NAMES = new Set([
+  "x",
+  "e",
+  "pi",
+  "π",
+  ...Object.keys(FUNCTIONS),
+]);
+
+/** Parameter letters in an expression (for sliders), excluding x and constants. */
+export function listParameters(input: string): string[] {
+  const tokens = tokenize(input, { allowParameterNames: true });
+  if (!tokens) return [];
+  const found = new Set<string>();
+  for (const t of tokens) {
+    if (t.type !== "name") continue;
+    if (RESERVED_NAMES.has(t.value)) continue;
+    if (t.value.length !== 1) continue;
+    found.add(t.value);
+  }
+  return [...found].sort();
+}
+
+export function defaultParamValues(names: string[]): Record<string, number> {
+  const out: Record<string, number> = {};
+  for (const n of names) {
+    out[n] = n === "b" || n === "c" ? 0 : 1;
+  }
+  return out;
+}
+
+/** Strip y= / f(x)= prefix for graphing. */
+export function normalizeGraphExpression(raw: string): string {
+  let s = raw.trim();
+  s = s.replace(/^\s*y\s*=\s*/i, "");
+  s = s.replace(/^\s*f\s*\(\s*x\s*\)\s*=\s*/i, "");
+  return s.trim();
 }

@@ -51,5 +51,7 @@ async function fetchRosters(): Promise<ClassRoster[]> {
 
 export default async function BoardPage() {
   const rosters = await fetchRosters();
-  return <BoardApp rosters={rosters} />;
+  const actor = await getActor();
+  const isTeacher = actor?.type === "teacher";
+  return <BoardApp rosters={rosters} isTeacher={isTeacher} />;
 }
