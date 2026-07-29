@@ -75,6 +75,8 @@ export default function Solid3DWidget({ state, setState }: Props) {
           }
         >
           <SolidNetScene
+            solidType={s.type}
+            params={sceneParams}
             tree={tree}
             unfoldT={unfoldT}
             orbit={orbit}
