@@ -5,7 +5,7 @@ export type BoardBrand = {
   homeHref: string;
 };
 
-export type BoardMode = "draw" | "math-select";
+export type BoardMode = "draw" | "math-select" | "geometry-select";
 
 export type MathKind = "function" | "equation" | "inequality" | "display";
 
@@ -87,7 +87,8 @@ export type WidgetKind =
   | "qr"
   | "note"
   | "graph"
-  | "calculator";
+  | "calculator"
+  | "solid3d";
 
 export type WidgetInstance = {
   id: string;

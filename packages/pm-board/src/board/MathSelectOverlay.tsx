@@ -8,9 +8,14 @@ const MIN_SIZE = 40;
 type Props = {
   onComplete: (rect: BoardRect) => void;
   onCancel: () => void;
+  hintText?: string;
 };
 
-export default function MathSelectOverlay({ onComplete, onCancel }: Props) {
+export default function MathSelectOverlay({
+  onComplete,
+  onCancel,
+  hintText = "수식이 있는 영역을 드래그하세요 · Esc로 취소",
+}: Props) {
   const [rect, setRect] = useState<BoardRect | null>(null);
   const startRef = useRef<{ x: number; y: number } | null>(null);
 
@@ -74,7 +79,7 @@ export default function MathSelectOverlay({ onComplete, onCancel }: Props) {
     >
       <div className="pointer-events-none absolute inset-0 bg-black/25" />
       <p className="pointer-events-none absolute top-20 left-1/2 -translate-x-1/2 rounded-xl bg-black/50 px-4 py-2 text-sm text-white">
-        수식이 있는 영역을 드래그하세요 · Esc로 취소
+        {hintText}
       </p>
       {box ? (
         <div

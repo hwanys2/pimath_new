@@ -6,5 +6,9 @@ export type {
   MathKind,
 } from "./board/types";
 export type { MathApplyPayload } from "./board/MathRecognizePanel";
-export { handleRecognizeMath, handleSolveMath } from "./server";
-export type { RecognizeMathResult, SolveMathResult } from "./server";
+export { handleRecognizeMath, handleSolveMath, handleRecognizeGeometry } from "./server";
+export type {
+  RecognizeMathResult,
+  SolveMathResult,
+  RecognizeGeometryResult,
+} from "./server";

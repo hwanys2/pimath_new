@@ -1,4 +1,11 @@
+import {
+  handleRecognizeGeometry,
+  type RecognizeGeometryResult,
+} from "./lib/board-geometry-recognize";
 import { solveLocally, type SolveResult } from "./lib/board-equation-solve";
+
+export { handleRecognizeGeometry };
+export type { RecognizeGeometryResult };
 
 const MATHPIX_URL = "https://api.mathpix.com/v3/text";
 const OPENAI_MODEL = "gpt-4o-mini";

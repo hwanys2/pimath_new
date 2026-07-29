@@ -2,8 +2,27 @@ import type { BackgroundId, Stroke } from "../board/types";
 import { drawStrokeOn } from "./board-canvas-draw";
 import { normalizeRect, type BoardRect } from "./board-stroke-bounds";
 
-const PADDING = 24;
+export const MATH_IMAGE_PADDING = 24;
+const PADDING = MATH_IMAGE_PADDING;
 const MIN_EXPORT = 120;
+
+export function mathImageDimensions(rect: BoardRect): { w: number; h: number } {
+  const sel = normalizeRect(rect);
+  return {
+    w: Math.max(sel.x1 - sel.x0 + PADDING * 2, MIN_EXPORT),
+    h: Math.max(sel.y1 - sel.y0 + PADDING * 2, MIN_EXPORT),
+  };
+}
+
+/** Map raster export pixel coords to board client coords. */
+export function mathImageToClient(
+  ix: number,
+  iy: number,
+  rect: BoardRect,
+): [number, number] {
+  const sel = normalizeRect(rect);
+  return [ix - PADDING + sel.x0, iy - PADDING + sel.y0];
+}
 
 function rasterBackgroundColor(background: BackgroundId): string {
   return background === "chalkboard" ? "#2a5142" : "#fcfcf8";

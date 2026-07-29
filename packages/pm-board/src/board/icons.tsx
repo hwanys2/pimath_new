@@ -186,6 +186,13 @@ export const MathFormulaIcon = (p: IconProps) => (
   </svg>
 );
 
+export const GeometryPerfectIcon = (p: IconProps) => (
+  <svg {...base(p)}>
+    <path d="M4 20L12 4l8 16H4z" />
+    <path d="M8 14h8" strokeWidth={1.5} />
+  </svg>
+);
+
 export const FullscreenIcon = (p: IconProps) => (
   <svg {...base(p)}>
     <path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5" />
