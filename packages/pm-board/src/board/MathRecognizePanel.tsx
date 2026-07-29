@@ -29,6 +29,7 @@ type Props = {
   canUseApi: boolean;
   isTeacher: boolean;
   apiBase?: string;
+  getApiAuthHeaders?: () => Promise<Record<string, string>>;
   onApply: (payload: MathApplyPayload) => void;
   onCancel: () => void;
 };
@@ -38,6 +39,7 @@ export default function MathRecognizePanel({
   canUseApi,
   isTeacher,
   apiBase = "",
+  getApiAuthHeaders,
   onApply,
   onCancel,
 }: Props) {
@@ -73,9 +75,11 @@ export default function MathRecognizePanel({
     setLoading(true);
     setError(null);
     try {
+      const authHeaders = getApiAuthHeaders ? await getApiAuthHeaders() : {};
       const res = await fetch(`${apiBase}/api/board/recognize-math`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        headers: { "Content-Type": "application/json", ...authHeaders },
         body: JSON.stringify({ image: imageDataUrl }),
       });
       const data = (await res.json()) as { latex?: string; error?: string };
@@ -95,7 +99,7 @@ export default function MathRecognizePanel({
     } finally {
       setLoading(false);
     }
-  }, [canUseApi, imageDataUrl, syncIncludeFlags, apiBase]);
+  }, [canUseApi, imageDataUrl, syncIncludeFlags, apiBase, getApiAuthHeaders]);
 
   useEffect(() => {
     const id = setTimeout(() => {
@@ -158,9 +162,11 @@ export default function MathRecognizePanel({
       if (solveKind) {
       setApplying(true);
       try {
+        const authHeaders = getApiAuthHeaders ? await getApiAuthHeaders() : {};
         const res = await fetch(`${apiBase}/api/board/solve-math`, {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          credentials: "include",
+          headers: { "Content-Type": "application/json", ...authHeaders },
           body: JSON.stringify({
             latex: payload.latex,
             expr: payload.expr,

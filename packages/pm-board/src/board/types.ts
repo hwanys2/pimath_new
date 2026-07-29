@@ -122,6 +122,8 @@ export type BoardAppProps = {
   brand: BoardBrand;
   storageKey?: string;
   apiBase?: string;
+  /** foreducator 등 SPA: Supabase JWT를 API에 전달 */
+  getApiAuthHeaders?: () => Promise<Record<string, string>>;
   rosters: ClassRoster[];
   isTeacher?: boolean;
 };

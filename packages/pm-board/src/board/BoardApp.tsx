@@ -140,6 +140,7 @@ export default function BoardApp({
   brand,
   storageKey = DEFAULT_STORAGE_KEY,
   apiBase = "",
+  getApiAuthHeaders,
   rosters,
   isTeacher = false,
 }: BoardAppProps) {
@@ -672,6 +673,7 @@ export default function BoardApp({
               canUseApi={isTeacher}
               isTeacher={isTeacher}
               apiBase={apiBase}
+              getApiAuthHeaders={getApiAuthHeaders}
               onApply={applyMathRecognize}
               onCancel={() => setRecognizeSession(null)}
             />
