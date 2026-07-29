@@ -27,7 +27,7 @@
     "./styles/pm-board.css": "./styles/pm-board.css"
   },
   "scripts": {
-    "build": "tsup",
+    "build": "npx tsup",
     "prepack": "npm run build"
   },
   "sideEffects": [
