@@ -1,4 +1,7 @@
-import type { DrawTool, Stroke } from "../board/types";
+import type { DrawTool, LineKind, Stroke } from "../board/types";
+import { clipLineToViewport, effectiveLineKind } from "./board-line-clip";
+
+export type DrawView = { w: number; h: number };
 
 export function strokeWidth(tool: DrawTool, size: number): number {
   if (tool === "highlighter") return size * 4;
@@ -6,7 +9,32 @@ export function strokeWidth(tool: DrawTool, size: number): number {
   return size;
 }
 
-export function drawStrokeOn(ctx: CanvasRenderingContext2D, s: Stroke) {
+function drawArrowHead(
+  ctx: CanvasRenderingContext2D,
+  x1: number,
+  y1: number,
+  angle: number,
+  head: number,
+) {
+  ctx.beginPath();
+  ctx.moveTo(x1, y1);
+  ctx.lineTo(
+    x1 - head * Math.cos(angle - Math.PI / 6),
+    y1 - head * Math.sin(angle - Math.PI / 6),
+  );
+  ctx.moveTo(x1, y1);
+  ctx.lineTo(
+    x1 - head * Math.cos(angle + Math.PI / 6),
+    y1 - head * Math.sin(angle + Math.PI / 6),
+  );
+  ctx.stroke();
+}
+
+export function drawStrokeOn(
+  ctx: CanvasRenderingContext2D,
+  s: Stroke,
+  view?: DrawView,
+) {
   ctx.save();
   ctx.lineCap = "round";
   ctx.lineJoin = "round";
@@ -55,24 +83,17 @@ export function drawStrokeOn(ctx: CanvasRenderingContext2D, s: Stroke) {
   } else {
     const [x0, y0, x1, y1] = [p[0], p[1], p[p.length - 2], p[p.length - 1]];
     if (s.tool === "line" || s.tool === "arrow") {
-      ctx.moveTo(x0, y0);
-      ctx.lineTo(x1, y1);
+      const vw = view?.w ?? window.innerWidth;
+      const vh = view?.h ?? window.innerHeight;
+      const kind: LineKind = effectiveLineKind(s.tool, s.lineKind);
+      const clipped = clipLineToViewport(x0, y0, x1, y1, vw, vh, kind);
+      ctx.moveTo(clipped.x0, clipped.y0);
+      ctx.lineTo(clipped.x1, clipped.y1);
       ctx.stroke();
-      if (s.tool === "arrow") {
+      if (kind === "ray") {
         const angle = Math.atan2(y1 - y0, x1 - x0);
         const head = Math.max(14, s.size * 4);
-        ctx.beginPath();
-        ctx.moveTo(x1, y1);
-        ctx.lineTo(
-          x1 - head * Math.cos(angle - Math.PI / 6),
-          y1 - head * Math.sin(angle - Math.PI / 6),
-        );
-        ctx.moveTo(x1, y1);
-        ctx.lineTo(
-          x1 - head * Math.cos(angle + Math.PI / 6),
-          y1 - head * Math.sin(angle + Math.PI / 6),
-        );
-        ctx.stroke();
+        drawArrowHead(ctx, clipped.x1, clipped.y1, angle, head);
       }
     } else if (s.tool === "rect") {
       ctx.strokeRect(

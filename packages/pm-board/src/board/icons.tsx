@@ -49,6 +49,30 @@ export const LineIcon = (p: IconProps) => (
   </svg>
 );
 
+export const SegmentLineIcon = (p: IconProps) => (
+  <svg {...base(p)}>
+    <circle cx="5" cy="19" r="1.5" fill="currentColor" stroke="none" />
+    <circle cx="19" cy="5" r="1.5" fill="currentColor" stroke="none" />
+    <path d="M6 18L18 6" />
+  </svg>
+);
+
+export const RayLineIcon = (p: IconProps) => (
+  <svg {...base(p)}>
+    <circle cx="5" cy="19" r="1.5" fill="currentColor" stroke="none" />
+    <path d="M6 18L20 4" />
+    <path d="M14 4h6v6" />
+  </svg>
+);
+
+export const InfiniteLineIcon = (p: IconProps) => (
+  <svg {...base(p)}>
+    <path d="M3 12h18" />
+    <path d="M3 8l-2 4 2 4" />
+    <path d="M21 8l2 4-2 4" />
+  </svg>
+);
+
 export const ArrowIcon = (p: IconProps) => (
   <svg {...base(p)}>
     <path d="M4 20L20 4" />

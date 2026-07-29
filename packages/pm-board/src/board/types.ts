@@ -47,6 +47,8 @@ export type BackgroundId =
   | "lined"
   | "numberline";
 
+export type LineKind = "segment" | "ray" | "infinite";
+
 export type ToolId =
   | "cursor"
   | "pen"
@@ -54,12 +56,11 @@ export type ToolId =
   | "eraser"
   | "point"
   | "line"
-  | "arrow"
   | "rect"
   | "ellipse";
 
-/** Freehand/shape tools plus compass-committed arcs. */
-export type DrawTool = Exclude<ToolId, "cursor"> | "arc";
+/** Freehand/shape tools plus compass-committed arcs. Legacy `arrow` strokes still render. */
+export type DrawTool = Exclude<ToolId, "cursor" | "point"> | "arc" | "arrow";
 
 export type Stroke = {
   tool: DrawTool;
@@ -71,6 +72,8 @@ export type Stroke = {
    * Arc: [cx, cy, radius, startRad, endRad] (direction via end vs start).
    */
   points: number[];
+  /** For tool `line` only */
+  lineKind?: LineKind;
 };
 
 export type WidgetKind =
@@ -139,12 +142,17 @@ export type BoardPoint = {
   id: string;
   x: number;
   y: number;
+  /** Visual radius (default 4) */
+  r?: number;
 };
 
 export type BoardPersisted = {
   background: BackgroundId;
   color: string;
   size: number;
+  eraserSize?: number;
+  pointSize?: number;
+  lineKind?: LineKind;
   strokes: Stroke[];
   boardPoints?: BoardPoint[];
   widgets: WidgetInstance[];

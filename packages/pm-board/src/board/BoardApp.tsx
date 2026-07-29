@@ -19,6 +19,7 @@ import type {
   BoardPoint,
   ClassRoster,
   CompassPose,
+  LineKind,
   MathCard,
   OverlayId,
   OverlayPose,
@@ -191,6 +192,9 @@ export default function BoardApp({
   const [tool, setTool] = useState<ToolId>("pen");
   const [color, setColor] = useState("#ffffff");
   const [size, setSize] = useState(6);
+  const [eraserSize, setEraserSize] = useState(6);
+  const [pointSize, setPointSize] = useState(4);
+  const [lineKind, setLineKind] = useState<LineKind>("segment");
   const [draw, dispatchDraw] = useReducer(drawReducer, {
     strokes: [],
     boardPoints: [],
@@ -234,6 +238,9 @@ export default function BoardApp({
           if (saved.background) setBackground(saved.background);
           if (saved.color) setColor(saved.color);
           if (saved.size) setSize(saved.size);
+          if (typeof saved.eraserSize === "number") setEraserSize(saved.eraserSize);
+          if (typeof saved.pointSize === "number") setPointSize(saved.pointSize);
+          if (saved.lineKind) setLineKind(saved.lineKind);
           if (Array.isArray(saved.strokes)) {
             dispatchDraw({
               type: "load",
@@ -315,6 +322,9 @@ export default function BoardApp({
         background,
         color,
         size,
+        eraserSize,
+        pointSize,
+        lineKind,
         strokes: draw.strokes.slice(-MAX_SAVED_STROKES),
         boardPoints: draw.boardPoints,
         widgets,
@@ -330,7 +340,7 @@ export default function BoardApp({
       }
     }, 400);
     return () => clearTimeout(id);
-  }, [ready, background, color, size, draw.strokes, draw.boardPoints, widgets, overlays, mathCards, boardImages, storageKey]);
+  }, [ready, background, color, size, eraserSize, pointSize, lineKind, draw.strokes, draw.boardPoints, widgets, overlays, mathCards, boardImages, storageKey]);
 
   useEffect(() => {
     return () => {
@@ -708,10 +718,11 @@ export default function BoardApp({
           id: `pt-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
           x,
           y,
+          r: pointSize,
         },
       });
     },
-    [snapPointer],
+    [snapPointer, pointSize],
   );
 
   return (
@@ -731,6 +742,8 @@ export default function BoardApp({
               tool={tool}
               color={color}
               size={size}
+              eraserSize={eraserSize}
+              lineKind={lineKind}
               strokes={draw.strokes}
               disabled={boardMode === "math-select"}
               snap={(x, y) => snapPointer(x, y)}
@@ -739,6 +752,7 @@ export default function BoardApp({
             <BoardPointsLayer
               points={draw.boardPoints}
               color={color}
+              defaultRadius={pointSize}
               active={tool === "point" && boardMode === "draw"}
               onPlace={placeBoardPoint}
             />
@@ -871,6 +885,12 @@ export default function BoardApp({
             setColor={setColor}
             size={size}
             setSize={setSize}
+            pointSize={pointSize}
+            setPointSize={setPointSize}
+            eraserSize={eraserSize}
+            setEraserSize={setEraserSize}
+            lineKind={lineKind}
+            setLineKind={setLineKind}
             canUndo={draw.past.length > 0}
             canRedo={draw.future.length > 0}
             onUndo={() => dispatchDraw({ type: "undo" })}

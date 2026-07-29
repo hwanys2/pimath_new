@@ -1,11 +1,10 @@
 "use client";
 
 import { useEffect, useRef, useState, type ComponentType, type SVGProps } from "react";
-import type { BackgroundId, BoardBrand, OverlayId, ToolId, WidgetKind } from "./types";
+import type { BackgroundId, BoardBrand, LineKind, OverlayId, ToolId, WidgetKind } from "./types";
 import { BACKGROUND_DEFS } from "./BoardBackground";
 import { WIDGET_DEFS, WIDGET_ORDER } from "./widget-config";
 import {
-  ArrowIcon,
   BackgroundIcon,
   CompassIcon,
   CursorIcon,
@@ -16,12 +15,15 @@ import {
   HighlighterIcon,
   HomeIcon,
   ImageIcon,
+  InfiniteLineIcon,
   LineIcon,
   MathFormulaIcon,
   PenIcon,
   PointToolIcon,
   ProtractorIcon,
+  RayLineIcon,
   RectIcon,
+  SegmentLineIcon,
   RedoIcon,
   RulerIcon,
   TrashIcon,
@@ -43,15 +45,26 @@ export const PALETTE = [
 ];
 
 const SIZES = [3, 6, 10];
+export const POINT_SIZES = [3, 4, 6];
+export const ERASER_SIZES = [3, 6, 10, 14];
+
+const LINE_KINDS: {
+  id: LineKind;
+  label: string;
+  icon: ComponentType<SVGProps<SVGSVGElement>>;
+}[] = [
+  { id: "segment", label: "선분", icon: SegmentLineIcon },
+  { id: "ray", label: "반직선", icon: RayLineIcon },
+  { id: "infinite", label: "직선", icon: InfiniteLineIcon },
+];
 
 const SHAPES: { id: ToolId; label: string; icon: ComponentType<SVGProps<SVGSVGElement>> }[] = [
-  { id: "line", label: "직선", icon: LineIcon },
-  { id: "arrow", label: "화살표", icon: ArrowIcon },
+  { id: "line", label: "선", icon: SegmentLineIcon },
   { id: "rect", label: "사각형", icon: RectIcon },
   { id: "ellipse", label: "원", icon: EllipseIcon },
 ];
 
-type Menu = "shapes" | "color" | "size" | "widgets" | "background" | null;
+type Menu = "shapes" | "color" | "size" | "pointSize" | "eraserSize" | "widgets" | "background" | null;
 
 function DockBtn({
   active,
@@ -91,6 +104,12 @@ type Props = {
   setColor: (c: string) => void;
   size: number;
   setSize: (s: number) => void;
+  pointSize: number;
+  setPointSize: (s: number) => void;
+  eraserSize: number;
+  setEraserSize: (s: number) => void;
+  lineKind: LineKind;
+  setLineKind: (k: LineKind) => void;
   canUndo: boolean;
   canRedo: boolean;
   onUndo: () => void;
@@ -116,6 +135,12 @@ export default function BoardToolbar({
   setColor,
   size,
   setSize,
+  pointSize,
+  setPointSize,
+  eraserSize,
+  setEraserSize,
+  lineKind,
+  setLineKind,
   canUndo,
   canRedo,
   onUndo,
@@ -146,7 +171,9 @@ export default function BoardToolbar({
 
   const toggleMenu = (m: Menu) => setMenu((cur) => (cur === m ? null : m));
   const isShapeTool = SHAPES.some((s) => s.id === tool);
-  const ShapeIcon = SHAPES.find((s) => s.id === (isShapeTool ? tool : lastShape))!.icon;
+  const lineKindIcon =
+    LINE_KINDS.find((k) => k.id === lineKind)?.icon ?? SegmentLineIcon;
+  const ShapeIcon = SHAPES.find((s) => s.id === (isShapeTool ? tool : lastShape))?.icon ?? lineKindIcon;
   const showStrokeWidth = tool !== "point" && tool !== "cursor";
 
   return (
@@ -308,29 +335,55 @@ export default function BoardToolbar({
       {/* Bottom-center drawing dock */}
       <div className="absolute bottom-3 left-1/2 z-50 -translate-x-1/2">
         {menu === "shapes" ? (
-          <div className="absolute bottom-full left-1/2 mb-2 flex -translate-x-1/2 gap-1 rounded-2xl border-2 border-wood/20 bg-cream p-1.5 shadow-xl">
-            {SHAPES.map((shape) => {
-              const Icon = shape.icon;
-              return (
-                <button
-                  key={shape.id}
-                  type="button"
-                  title={shape.label}
-                  onClick={() => {
-                    setTool(shape.id);
-                    setLastShape(shape.id);
-                    setMenu(null);
-                  }}
-                  className={`flex h-10 w-10 items-center justify-center rounded-xl transition ${
-                    tool === shape.id
-                      ? "bg-wood text-cream"
-                      : "text-wood-dark hover:bg-wood/10"
-                  }`}
-                >
-                  <Icon />
-                </button>
-              );
-            })}
+          <div className="absolute bottom-full left-1/2 mb-2 flex -translate-x-1/2 flex-col gap-1.5 rounded-2xl border-2 border-wood/20 bg-cream p-1.5 shadow-xl">
+            <div className="flex gap-1">
+              {LINE_KINDS.map((lk) => {
+                const Icon = lk.icon;
+                return (
+                  <button
+                    key={lk.id}
+                    type="button"
+                    title={lk.label}
+                    onClick={() => {
+                      setLineKind(lk.id);
+                      setTool("line");
+                      setLastShape("line");
+                    }}
+                    className={`flex h-10 w-10 items-center justify-center rounded-xl transition ${
+                      tool === "line" && lineKind === lk.id
+                        ? "bg-wood text-cream"
+                        : "text-wood-dark hover:bg-wood/10"
+                    }`}
+                  >
+                    <Icon />
+                  </button>
+                );
+              })}
+            </div>
+            <div className="flex gap-1 border-t border-wood/15 pt-1">
+              {SHAPES.filter((s) => s.id !== "line").map((shape) => {
+                const Icon = shape.icon;
+                return (
+                  <button
+                    key={shape.id}
+                    type="button"
+                    title={shape.label}
+                    onClick={() => {
+                      setTool(shape.id);
+                      setLastShape(shape.id);
+                      setMenu(null);
+                    }}
+                    className={`flex h-10 w-10 items-center justify-center rounded-xl transition ${
+                      tool === shape.id
+                        ? "bg-wood text-cream"
+                        : "text-wood-dark hover:bg-wood/10"
+                    }`}
+                  >
+                    <Icon />
+                  </button>
+                );
+              })}
+            </div>
           </div>
         ) : null}
 
@@ -351,6 +404,54 @@ export default function BoardToolbar({
                 }`}
                 style={{ background: c }}
               />
+            ))}
+          </div>
+        ) : null}
+
+        {menu === "pointSize" ? (
+          <div className="absolute bottom-full left-1/2 mb-2 flex -translate-x-1/2 items-center gap-2 rounded-2xl border-2 border-wood/20 bg-cream p-2 shadow-xl">
+            {POINT_SIZES.map((s) => (
+              <button
+                key={s}
+                type="button"
+                aria-label={`점 크기 ${s}`}
+                onClick={() => {
+                  setPointSize(s);
+                  setMenu(null);
+                }}
+                className={`flex h-10 w-10 items-center justify-center rounded-xl transition ${
+                  pointSize === s ? "bg-wood text-cream" : "text-wood-dark hover:bg-wood/10"
+                }`}
+              >
+                <span
+                  className="rounded-full border-2 border-current bg-current/30"
+                  style={{ width: s * 2 + 4, height: s * 2 + 4 }}
+                />
+              </button>
+            ))}
+          </div>
+        ) : null}
+
+        {menu === "eraserSize" ? (
+          <div className="absolute bottom-full left-1/2 mb-2 flex -translate-x-1/2 items-center gap-2 rounded-2xl border-2 border-wood/20 bg-cream p-2 shadow-xl">
+            {ERASER_SIZES.map((s) => (
+              <button
+                key={s}
+                type="button"
+                aria-label={`지우개 크기 ${s}`}
+                onClick={() => {
+                  setEraserSize(s);
+                  setMenu(null);
+                }}
+                className={`relative flex h-10 w-10 items-center justify-center rounded-xl transition ${
+                  eraserSize === s ? "bg-wood text-cream" : "text-wood-dark hover:bg-wood/10"
+                }`}
+              >
+                <span
+                  className="rounded-full bg-current opacity-50"
+                  style={{ width: s + 8, height: s + 8 }}
+                />
+              </button>
             ))}
           </div>
         ) : null}
@@ -403,7 +504,14 @@ export default function BoardToolbar({
           <DockBtn
             label="지우개"
             active={tool === "eraser"}
-            onClick={() => setTool("eraser")}
+            onClick={() => {
+              if (tool === "eraser") {
+                toggleMenu("eraserSize");
+              } else {
+                setTool("eraser");
+                setMenu(null);
+              }
+            }}
           >
             <EraserIcon />
           </DockBtn>
@@ -411,8 +519,12 @@ export default function BoardToolbar({
             label="점"
             active={tool === "point"}
             onClick={() => {
-              setMenu(null);
-              setTool("point");
+              if (tool === "point") {
+                toggleMenu("pointSize");
+              } else {
+                setMenu(null);
+                setTool("point");
+              }
             }}
           >
             <PointToolIcon />
@@ -421,11 +533,18 @@ export default function BoardToolbar({
             label="도형"
             active={isShapeTool || menu === "shapes"}
             onClick={() => {
-              if (!isShapeTool) setTool(lastShape);
+              if (!isShapeTool) setTool("line");
               toggleMenu("shapes");
             }}
           >
-            <ShapeIcon />
+            {tool === "line" ? (
+              (() => {
+                const Icon = lineKindIcon;
+                return <Icon />;
+              })()
+            ) : (
+              <ShapeIcon />
+            )}
           </DockBtn>
 
           <div className="mx-0.5 h-6 w-px bg-white/20" />

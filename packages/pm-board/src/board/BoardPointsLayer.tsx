@@ -2,12 +2,12 @@
 
 import type { BoardPoint } from "./types";
 
-const R = 5;
 const HIT = 16;
 
 type Props = {
   points: BoardPoint[];
   color: string;
+  defaultRadius: number;
   active: boolean;
   onPlace: (x: number, y: number) => void;
 };
@@ -15,6 +15,7 @@ type Props = {
 export default function BoardPointsLayer({
   points,
   color,
+  defaultRadius,
   active,
   onPlace,
 }: Props) {
@@ -32,25 +33,23 @@ export default function BoardPointsLayer({
       }}
     >
       <svg className="absolute inset-0 h-full w-full overflow-visible">
-        {points.map((pt) => (
-          <g key={pt.id} pointerEvents="none">
-            <circle
-              cx={pt.x}
-              cy={pt.y}
-              r={HIT}
-              fill="transparent"
-            />
-            <circle
-              cx={pt.x}
-              cy={pt.y}
-              r={R + 2}
-              fill="#fff8eb"
-              stroke={color}
-              strokeWidth={2}
-            />
-            <circle cx={pt.x} cy={pt.y} r={2.2} fill={color} />
-          </g>
-        ))}
+        {points.map((pt) => {
+          const R = pt.r ?? defaultRadius;
+          return (
+            <g key={pt.id} pointerEvents="none">
+              <circle cx={pt.x} cy={pt.y} r={HIT} fill="transparent" />
+              <circle
+                cx={pt.x}
+                cy={pt.y}
+                r={R + 1.5}
+                fill="#fff8eb"
+                stroke={color}
+                strokeWidth={2}
+              />
+              <circle cx={pt.x} cy={pt.y} r={Math.max(1.8, R * 0.45)} fill={color} />
+            </g>
+          );
+        })}
       </svg>
     </div>
   );
