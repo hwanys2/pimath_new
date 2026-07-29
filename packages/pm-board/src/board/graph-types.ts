@@ -19,7 +19,7 @@ export const DEFAULT_GRAPH_SETTINGS: GraphSettings = {
   view: { ...DEFAULT_PLOT_VIEW },
   subdivisions: 4,
   showMajorGrid: true,
-  showMinorGrid: true,
+  showMinorGrid: false,
   showAxes: true,
   showNumbers: true,
   panZoom: true,
