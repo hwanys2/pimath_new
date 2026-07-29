@@ -241,6 +241,14 @@ export const GraphIcon = (p: IconProps) => (
   </svg>
 );
 
+export const ImageIcon = (p: IconProps) => (
+  <svg {...base(p)}>
+    <rect x="3" y="5" width="18" height="14" rx="2" />
+    <circle cx="8.5" cy="10" r="1.5" fill="currentColor" stroke="none" />
+    <path d="M21 17l-5.5-5.5a1.5 1.5 0 00-2.1 0L5 19" />
+  </svg>
+);
+
 export const CalculatorIcon = (p: IconProps) => (
   <svg {...base(p)}>
     <rect x="5" y="3" width="14" height="18" rx="2" />

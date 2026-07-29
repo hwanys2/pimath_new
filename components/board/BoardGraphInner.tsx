@@ -3,6 +3,7 @@
 import { useMemo, type ReactNode } from "react";
 import { Mafs, Coordinates, Plot, type vec } from "mafs";
 import "mafs/core.css";
+import "./board-graph-theme.css";
 import {
   compileExpression,
   defaultParamValues,
@@ -11,6 +12,7 @@ import {
 } from "@/lib/board-math";
 import { parseInequality, inequalityShadePath } from "@/lib/graph-inequality";
 import type { BoardGraphSeriesInput, GraphSettings } from "./graph-types";
+import BoardGraphAxisDecor from "./BoardGraphAxisDecor";
 
 type Props = {
   width: number;
@@ -20,17 +22,14 @@ type Props = {
   paramValues?: Record<string, number>;
 };
 
-function axisOpts(
-  showAxes: boolean,
+function gridAxisOpts(
   showGrid: boolean,
-  showNumbers: boolean,
-  subdivisions: number,
-): false | { axis: boolean; lines: number | false; labels?: false } {
-  if (!showAxes && !showGrid) return false;
+): false | { axis: false; lines: number | false; labels: false } {
+  if (!showGrid) return false;
   return {
-    axis: showAxes,
-    lines: showGrid ? subdivisions : false,
-    labels: showNumbers ? undefined : false,
+    axis: false,
+    lines: 1,
+    labels: false,
   };
 }
 
@@ -55,8 +54,8 @@ function toMafsInequality(
         key={expr}
         y={yProp}
         color={color}
-        fillOpacity={0.25}
-        weight={2.5}
+        fillOpacity={0.22}
+        weight={2.75}
       />
     );
   }
@@ -75,8 +74,8 @@ function toMafsInequality(
         key={expr}
         x={xProp}
         color={color}
-        fillOpacity={0.25}
-        weight={2.5}
+        fillOpacity={0.22}
+        weight={2.75}
       />
     );
   }
@@ -96,17 +95,12 @@ export default function BoardGraphInner({
     () => ({
       x: [view.xMin, view.xMax] as vec.Vector2,
       y: [view.yMin, view.yMax] as vec.Vector2,
-      padding: 0.4,
+      padding: 0.35,
     }),
     [view],
   );
 
-  const axis = axisOpts(
-    settings.showAxes,
-    settings.showGrid,
-    settings.showNumbers,
-    settings.subdivisions,
-  );
+  const gridAxis = gridAxisOpts(settings.showGrid);
 
   const plots = useMemo(() => {
     const out: ReactNode[] = [];
@@ -141,7 +135,7 @@ export default function BoardGraphInner({
           key={raw + s.color}
           y={(x) => fn(x)}
           color={s.color}
-          weight={2.5}
+          weight={3}
           domain={[view.xMin, view.xMax]}
         />,
       );
@@ -155,7 +149,7 @@ export default function BoardGraphInner({
   }
 
   return (
-    <div className="relative h-full w-full overflow-hidden rounded-lg bg-white">
+    <div className="pm-board-graph relative h-full w-full overflow-hidden rounded-lg bg-white ring-1 ring-slate-200/80">
       <Mafs
         width={width}
         height={height}
@@ -164,10 +158,18 @@ export default function BoardGraphInner({
         viewBox={viewBox}
         preserveAspectRatio="contain"
       >
-        <Coordinates.Cartesian
-          subdivisions={settings.showGrid ? settings.subdivisions : false}
-          xAxis={axis}
-          yAxis={axis}
+        {settings.showGrid ? (
+          <Coordinates.Cartesian
+            subdivisions={
+              settings.subdivisions > 1 ? settings.subdivisions : false
+            }
+            xAxis={gridAxis}
+            yAxis={gridAxis}
+          />
+        ) : null}
+        <BoardGraphAxisDecor
+          showAxes={settings.showAxes}
+          showNumbers={settings.showNumbers}
         />
         {plots.plots}
       </Mafs>
@@ -177,12 +179,12 @@ export default function BoardGraphInner({
           width={width}
           height={height}
         >
-          {plots.fxShades.map((s, i) => (
+          {plots.fxShades.map((shade, i) => (
             <path
               key={i}
-              d={s.d}
-              fill={s.color}
-              fillOpacity={0.22}
+              d={shade.d}
+              fill={shade.color}
+              fillOpacity={0.2}
               stroke="none"
             />
           ))}

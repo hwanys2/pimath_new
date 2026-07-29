@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState, type ComponentType, type SVGProps } from "react";
+import { useEffect, useRef, useState, type ComponentType, type SVGProps } from "react";
 import type { BackgroundId, OverlayId, ToolId, WidgetKind } from "./types";
 import { BACKGROUND_DEFS } from "./BoardBackground";
 import { WIDGET_DEFS, WIDGET_ORDER } from "./widget-config";
@@ -16,6 +16,7 @@ import {
   FullscreenIcon,
   HighlighterIcon,
   HomeIcon,
+  ImageIcon,
   LineIcon,
   MathFormulaIcon,
   PenIcon,
@@ -103,6 +104,7 @@ type Props = {
   onToggleMathSelect: () => void;
   isFullscreen: boolean;
   onToggleFullscreen: () => void;
+  onPickImageFile: (file: File) => void;
 };
 
 export default function BoardToolbar({
@@ -126,8 +128,10 @@ export default function BoardToolbar({
   onToggleMathSelect,
   isFullscreen,
   onToggleFullscreen,
+  onPickImageFile,
 }: Props) {
   const [menu, setMenu] = useState<Menu>(null);
+  const imageInputRef = useRef<HTMLInputElement>(null);
   const [lastShape, setLastShape] = useState<ToolId>("line");
   const [armClear, setArmClear] = useState(false);
 
@@ -160,6 +164,12 @@ export default function BoardToolbar({
       {/* Top-right control dock */}
       <div className="absolute top-3 right-3 z-50">
         <div className="wood-bar flex items-center gap-1 rounded-2xl px-2 py-1.5">
+          <DockBtn
+            label="이미지 넣기"
+            onClick={() => imageInputRef.current?.click()}
+          >
+            <ImageIcon />
+          </DockBtn>
           <DockBtn
             label="위젯 추가"
             active={menu === "widgets"}
@@ -218,6 +228,18 @@ export default function BoardToolbar({
             <HomeIcon />
           </Link>
         </div>
+
+        <input
+          ref={imageInputRef}
+          type="file"
+          accept="image/*"
+          className="hidden"
+          onChange={(e) => {
+            const file = e.target.files?.[0];
+            if (file) onPickImageFile(file);
+            e.target.value = "";
+          }}
+        />
 
         {menu === "widgets" ? (
           <div className="absolute top-full right-0 z-50 mt-2 grid w-72 grid-cols-3 gap-1.5 rounded-2xl border-2 border-wood/20 bg-cream p-2 shadow-xl">

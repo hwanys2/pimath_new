@@ -8,10 +8,10 @@ export type PlotView = {
 };
 
 export const DEFAULT_PLOT_VIEW: PlotView = {
-  xMin: -10,
-  xMax: 10,
-  yMin: -7,
-  yMax: 7,
+  xMin: -8,
+  xMax: 8,
+  yMin: -6,
+  yMax: 6,
 };
 
 export function niceStep(range: number): number {
@@ -27,10 +27,33 @@ export function niceStep(range: number): number {
 export function plotTicks(min: number, max: number): number[] {
   const step = niceStep(max - min);
   const out: number[] = [];
-  for (let v = Math.ceil(min / step) * step; v <= max; v += step) {
+  for (let v = Math.ceil(min / step) * step; v <= max + step / 2; v += step) {
     out.push(Math.abs(v) < step / 1e6 ? 0 : parseFloat(v.toPrecision(10)));
   }
   return out;
+}
+
+/** Prefer unit steps when the visible span is modest (classroom default). */
+export function axisTicks(min: number, max: number): number[] {
+  const span = max - min;
+  const step = span <= 24 ? 1 : niceStep(span);
+  const out: number[] = [];
+  const start = Math.ceil(min / step) * step;
+  for (let v = start; v <= max + step * 0.001; v += step) {
+    const n = Math.abs(v) < step / 1e6 ? 0 : v;
+    out.push(
+      Math.abs(n - Math.round(n)) < 1e-6
+        ? Math.round(n)
+        : parseFloat(n.toFixed(2)),
+    );
+  }
+  return out;
+}
+
+export function formatAxisLabel(n: number): string {
+  if (Math.abs(n) < 1e-9) return "0";
+  if (Math.abs(n - Math.round(n)) < 1e-6) return String(Math.round(n));
+  return String(parseFloat(n.toFixed(2)));
 }
 
 export function buildFunctionPath(

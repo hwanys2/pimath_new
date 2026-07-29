@@ -22,6 +22,17 @@ export type MathCard = {
   zIndex: number;
 };
 
+export type BoardImage = {
+  id: string;
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+  zIndex: number;
+  naturalW: number;
+  naturalH: number;
+};
+
 export type BackgroundId =
   | "chalkboard"
   | "whiteboard"
@@ -116,4 +127,5 @@ export type BoardPersisted = {
   widgets: WidgetInstance[];
   overlays: Partial<BoardOverlays>;
   mathCards?: MathCard[];
+  boardImages?: BoardImage[];
 };

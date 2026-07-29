@@ -1,0 +1,18 @@
+/* Desmos-like light coordinate plane for board graphs */
+.pm-board-graph .MafsView {
+  --mafs-bg: #ffffff;
+  --mafs-fg: #334155;
+  --mafs-origin-color: #1e293b;
+  --mafs-line-color: #cbd5e1;
+  --grid-line-subdivision-color: #e8edf3;
+  --mafs-line-stroke-dash-style: 2, 4;
+  --mafs-axis-stroke-width: 0px;
+  background: #ffffff;
+  border-radius: 0.5rem;
+}
+
+.pm-board-graph .MafsView text {
+  font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto,
+    "Helvetica Neue", Arial, sans-serif;
+  font-weight: 500;
+}

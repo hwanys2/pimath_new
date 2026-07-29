@@ -10,6 +10,7 @@ import {
 import "katex/dist/katex.min.css";
 import type {
   BackgroundId,
+  BoardImage,
   BoardMode,
   BoardOverlays,
   BoardPersisted,
@@ -32,7 +33,21 @@ import CompassOverlay from "./CompassOverlay";
 import MathSelectOverlay from "./MathSelectOverlay";
 import MathRecognizePanel from "./MathRecognizePanel";
 import MathCardOverlay from "./MathCardOverlay";
+import BoardImageOverlay from "./BoardImageOverlay";
 import { strokeIndicesInRect, type BoardRect } from "@/lib/board-stroke-bounds";
+import {
+  blobToImageBlob,
+  clampPlacement,
+  clipboardItemToBlob,
+  defaultPlacementSize,
+  fileToImageBlob,
+} from "@/lib/board-image";
+import {
+  deleteImage,
+  getImage,
+  pruneImages,
+  putImage,
+} from "@/lib/board-image-store";
 import { strokesToMathImageDataUrl } from "@/lib/board-math-image";
 import { WIDGET_DEFS } from "./widget-config";
 import TimerWidget from "./widgets/TimerWidget";
@@ -144,12 +159,23 @@ export default function BoardApp({
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [boardMode, setBoardMode] = useState<BoardMode>("draw");
   const [mathCards, setMathCards] = useState<MathCard[]>([]);
+  const [boardImages, setBoardImages] = useState<BoardImage[]>([]);
+  const [imageUrls, setImageUrls] = useState<Record<string, string>>({});
   const [recognizeSession, setRecognizeSession] = useState<{
     rect: BoardRect;
     indices: number[];
     imageDataUrl: string;
   } | null>(null);
   const spawnCountRef = useRef(0);
+  const lastPointerRef = useRef({
+    x: typeof window !== "undefined" ? window.innerWidth / 2 : 400,
+    y: typeof window !== "undefined" ? window.innerHeight / 2 : 300,
+  });
+  const imageUrlsRef = useRef<Record<string, string>>({});
+
+  useEffect(() => {
+    imageUrlsRef.current = imageUrls;
+  }, [imageUrls]);
 
   // ── Load persisted state (async to avoid a sync setState-in-effect) ──
   useEffect(() => {
@@ -176,6 +202,27 @@ export default function BoardApp({
                 graphSettings: c.graphSettings,
               })),
             );
+          }
+          if (Array.isArray(saved.boardImages)) {
+            const imgs = saved.boardImages.map((i) => ({
+              ...i,
+              zIndex: i.zIndex ?? 1,
+              naturalW: i.naturalW ?? i.w,
+              naturalH: i.naturalH ?? i.h,
+            }));
+            setBoardImages(imgs);
+            void (async () => {
+              const urls: Record<string, string> = {};
+              for (const img of imgs) {
+                try {
+                  const blob = await getImage(img.id);
+                  if (blob) urls[img.id] = URL.createObjectURL(blob);
+                } catch {
+                  // skip missing blob
+                }
+              }
+              setImageUrls(urls);
+            })();
           }
           if (saved.overlays) {
             const compassRaw = saved.overlays.compass as CompassPose | null | undefined;
@@ -219,15 +266,25 @@ export default function BoardApp({
         widgets,
         overlays,
         mathCards,
+        boardImages,
       };
       try {
         localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+        void pruneImages(boardImages.map((i) => i.id));
       } catch {
         // Storage full: silently skip.
       }
     }, 400);
     return () => clearTimeout(id);
-  }, [ready, background, color, size, draw.strokes, widgets, overlays, mathCards]);
+  }, [ready, background, color, size, draw.strokes, widgets, overlays, mathCards, boardImages]);
+
+  useEffect(() => {
+    return () => {
+      for (const url of Object.values(imageUrlsRef.current)) {
+        URL.revokeObjectURL(url);
+      }
+    };
+  }, []);
 
   // ── Body scroll lock while the board is open ─────────────────────
   useEffect(() => {
@@ -370,7 +427,10 @@ export default function BoardApp({
       if (indices.length > 0) {
         dispatchDraw({ type: "deleteIndices", indices });
       }
-      const maxZ = mathCards.reduce((m, c) => Math.max(m, c.zIndex), 0);
+      const maxZ = Math.max(
+        mathCards.reduce((m, c) => Math.max(m, c.zIndex), 0),
+        boardImages.reduce((m, i) => Math.max(m, i.zIndex), 0),
+      );
       const h =
         payload.showGraph && payload.showSolution
           ? 300
@@ -398,17 +458,121 @@ export default function BoardApp({
       setMathCards((prev) => [...prev, card]);
       setRecognizeSession(null);
     },
-    [recognizeSession, mathCards],
+    [recognizeSession, mathCards, boardImages],
   );
 
   const focusMathCard = useCallback((id: string) => {
     setMathCards((prev) => {
-      const maxZ = prev.reduce((m, c) => Math.max(m, c.zIndex), 0);
+      const maxZ = Math.max(
+        prev.reduce((m, c) => Math.max(m, c.zIndex), 0),
+        boardImages.reduce((m, i) => Math.max(m, i.zIndex), 0),
+      );
       return prev.map((c) =>
         c.id === id ? { ...c, zIndex: maxZ + 1 } : c,
       );
     });
+  }, [boardImages]);
+
+  const focusBoardImage = useCallback((id: string) => {
+    setBoardImages((prev) => {
+      const maxZ = Math.max(
+        prev.reduce((m, i) => Math.max(m, i.zIndex), 0),
+        mathCards.reduce((m, c) => Math.max(m, c.zIndex), 0),
+      );
+      return prev.map((i) =>
+        i.id === id ? { ...i, zIndex: maxZ + 1 } : i,
+      );
+    });
+  }, [mathCards]);
+
+  const removeBoardImage = useCallback((id: string) => {
+    setBoardImages((prev) => prev.filter((i) => i.id !== id));
+    setImageUrls((prev) => {
+      const url = prev[id];
+      if (url) URL.revokeObjectURL(url);
+      const next = { ...prev };
+      delete next[id];
+      return next;
+    });
+    void deleteImage(id);
   }, []);
+
+  const insertBoardImage = useCallback(
+    async (
+      processed: { blob: Blob; naturalW: number; naturalH: number },
+      at?: { x: number; y: number },
+    ) => {
+      const id = `img-${Date.now().toString(36)}`;
+      await putImage(id, processed.blob);
+      const { w, h } = defaultPlacementSize(
+        processed.naturalW,
+        processed.naturalH,
+      );
+      const ptr = lastPointerRef.current;
+      const rawX = at?.x ?? ptr.x - w / 2;
+      const rawY = at?.y ?? ptr.y - h / 2;
+      const { x, y } = clampPlacement(rawX, rawY, w, h);
+      const url = URL.createObjectURL(processed.blob);
+
+      setBoardImages((prev) => {
+        const maxZ = Math.max(
+          prev.reduce((m, i) => Math.max(m, i.zIndex), 0),
+          mathCards.reduce((m, c) => Math.max(m, c.zIndex), 0),
+        );
+        return [
+          ...prev,
+          {
+            id,
+            x,
+            y,
+            w,
+            h,
+            zIndex: maxZ + 1,
+            naturalW: processed.naturalW,
+            naturalH: processed.naturalH,
+          },
+        ];
+      });
+      setImageUrls((prev) => ({ ...prev, [id]: url }));
+    },
+    [mathCards],
+  );
+
+  const handlePickImageFile = useCallback(
+    async (file: File) => {
+      try {
+        const processed = await fileToImageBlob(file);
+        await insertBoardImage(processed);
+      } catch (err) {
+        window.alert(
+          err instanceof Error ? err.message : "이미지를 넣을 수 없어요.",
+        );
+      }
+    },
+    [insertBoardImage],
+  );
+
+  useEffect(() => {
+    const onPaste = (e: ClipboardEvent) => {
+      if (isEditableTarget(e.target)) return;
+      if (recognizeSession) return;
+      const raw = clipboardItemToBlob(e.clipboardData);
+      if (!raw) return;
+      e.preventDefault();
+      void (async () => {
+        try {
+          const processed = await blobToImageBlob(raw);
+          await insertBoardImage(processed);
+        } catch (err) {
+          window.alert(
+            err instanceof Error ? err.message : "이미지를 붙여넣을 수 없어요.",
+          );
+        }
+      })();
+    };
+    window.addEventListener("paste", onPaste);
+    return () => window.removeEventListener("paste", onPaste);
+  }, [insertBoardImage, recognizeSession]);
 
   const toggleOverlay = useCallback((id: OverlayId) => {
     setOverlays((prev) => {
@@ -472,6 +636,9 @@ export default function BoardApp({
     <div
       ref={rootRef}
       className="fixed inset-0 z-[60] overflow-hidden overscroll-none bg-[#2a5142]"
+      onPointerMove={(e) => {
+        lastPointerRef.current = { x: e.clientX, y: e.clientY };
+      }}
     >
       <BoardBackground id={background} />
 
@@ -568,6 +735,24 @@ export default function BoardApp({
                 }
               />
             ) : null}
+            {boardImages.map((img) => {
+              const src = imageUrls[img.id];
+              if (!src) return null;
+              return (
+                <BoardImageOverlay
+                  key={img.id}
+                  image={img}
+                  src={src}
+                  onChange={(next) =>
+                    setBoardImages((prev) =>
+                      prev.map((i) => (i.id === img.id ? next : i)),
+                    )
+                  }
+                  onClose={() => removeBoardImage(img.id)}
+                  onFocus={() => focusBoardImage(img.id)}
+                />
+              );
+            })}
             {mathCards.map((card) => (
               <MathCardOverlay
                 key={card.id}
@@ -610,6 +795,7 @@ export default function BoardApp({
             onToggleMathSelect={toggleMathSelect}
             isFullscreen={isFullscreen}
             onToggleFullscreen={toggleFullscreen}
+            onPickImageFile={handlePickImageFile}
           />
         </>
       ) : null}
