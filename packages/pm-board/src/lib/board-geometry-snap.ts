@@ -1,4 +1,10 @@
-import type { BoardPoint, CompassPose, Stroke } from "../board/types";
+import type {
+  BoardPoint,
+  CompassPose,
+  OverlayPose,
+  Stroke,
+} from "../board/types";
+import { snapToRulerEdge } from "./board-ruler";
 
 export const SNAP_RADIUS_PX = 14;
 
@@ -158,13 +164,26 @@ export function collectSnapTargets(opts: {
   return targets;
 }
 
-/** Full snap: vertices + line/arc geometry. */
+/** Full snap: ruler edge (priority) + vertices + line/arc geometry. */
 export function snapBoardPoint(
   x: number,
   y: number,
-  opts: Parameters<typeof collectSnapTargets>[0],
+  opts: Parameters<typeof collectSnapTargets>[0] & {
+    ruler?: OverlayPose | null;
+  },
   radius = SNAP_RADIUS_PX,
 ): { x: number; y: number; snapped: boolean } {
+  if (opts.ruler) {
+    const edge = snapToRulerEdge(x, y, opts.ruler);
+    if (edge) {
+      return {
+        x: Math.round(edge.x),
+        y: Math.round(edge.y),
+        snapped: true,
+      };
+    }
+  }
+
   const targets = collectSnapTargets(opts);
   const vertex = snapClientPoint(x, y, targets, radius);
   const line = snapToLines(x, y, opts.strokes, radius);

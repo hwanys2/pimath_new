@@ -1,8 +1,14 @@
 "use client";
 
-import { useCallback, useRef } from "react";
+import { useCallback, useEffect, useRef } from "react";
 import type { OverlayPose } from "./types";
 import { CloseIcon, RotateIcon } from "./icons";
+import {
+  RULER_H,
+  RULER_UNIT,
+  clampRulerLength,
+  rulerLength,
+} from "../lib/board-ruler";
 
 type OverlayProps = {
   pose: OverlayPose;
@@ -52,7 +58,6 @@ function useDragRotate(
           (Math.atan2(e.clientY - d.base.y, e.clientX - d.base.x) * 180) /
           Math.PI;
         let angle = Math.round(raw);
-        // Snap near multiples of 45°
         const nearest = Math.round(angle / 45) * 45;
         if (Math.abs(angle - nearest) <= 3) angle = nearest;
         onChange({ ...d.base, angle });
@@ -68,10 +73,6 @@ function useDragRotate(
   return { startDrag, onPointerMove, endDrag };
 }
 
-const RULER_W = 600;
-const RULER_H = 70;
-const RULER_UNIT = 40; // px per numbered unit
-
 export function RulerOverlay({
   pose,
   nonInteractive,
@@ -79,15 +80,57 @@ export function RulerOverlay({
   onClose,
 }: OverlayProps) {
   const { startDrag, onPointerMove, endDrag } = useDragRotate(pose, onChange);
-  const units = Math.floor((RULER_W - 20) / RULER_UNIT);
+  const length = rulerLength(pose);
+  const units = Math.floor((length - 20) / RULER_UNIT);
+  const poseRef = useRef(pose);
+  const onChangeRef = useRef(onChange);
+
+  useEffect(() => {
+    poseRef.current = pose;
+    onChangeRef.current = onChange;
+  }, [pose, onChange]);
+
+  const startResize = useCallback((e: React.PointerEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const base = poseRef.current;
+    const L = rulerLength(base);
+    const a = (base.angle * Math.PI) / 180;
+    const cos = Math.cos(a);
+    const sin = Math.sin(a);
+    const leftX = base.x - (L / 2) * cos;
+    const leftY = base.y - (L / 2) * sin;
+
+    const onMove = (ev: PointerEvent) => {
+      const dx = ev.clientX - leftX;
+      const dy = ev.clientY - leftY;
+      const newL = clampRulerLength(dx * cos + dy * sin);
+      onChangeRef.current({
+        ...base,
+        length: newL,
+        x: leftX + (newL / 2) * cos,
+        y: leftY + (newL / 2) * sin,
+      });
+    };
+    const onUp = () => {
+      window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("pointerup", onUp);
+      window.removeEventListener("pointercancel", onUp);
+    };
+    window.addEventListener("pointermove", onMove);
+    window.addEventListener("pointerup", onUp);
+    window.addEventListener("pointercancel", onUp);
+  }, []);
+
+  const interactive = !nonInteractive;
 
   return (
     <div
       className={`absolute touch-none select-none ${nonInteractive ? "pointer-events-none" : "pointer-events-auto"}`}
       style={{
-        left: pose.x - RULER_W / 2,
+        left: pose.x - length / 2,
         top: pose.y - RULER_H / 2,
-        width: RULER_W,
+        width: length,
         height: RULER_H,
         transform: `rotate(${pose.angle}deg)`,
       }}
@@ -100,9 +143,10 @@ export function RulerOverlay({
         style={{ background: "rgba(255, 244, 214, 0.82)" }}
         onPointerDown={startDrag("move")}
       >
-        <svg width={RULER_W} height={RULER_H} className="pointer-events-none">
-          {Array.from({ length: units * 10 + 1 }).map((_, i) => {
+        <svg width={length} height={RULER_H} className="pointer-events-none">
+          {Array.from({ length: Math.max(0, units) * 10 + 1 }).map((_, i) => {
             const x = 10 + (i * RULER_UNIT) / 10;
+            if (x > length - 10) return null;
             const major = i % 10 === 0;
             const half = i % 5 === 0;
             return (
@@ -117,22 +161,44 @@ export function RulerOverlay({
               />
             );
           })}
-          {Array.from({ length: units + 1 }).map((_, i) => (
-            <text
-              key={i}
-              x={10 + i * RULER_UNIT}
-              y={36}
-              textAnchor="middle"
-              fontSize="12"
-              fontWeight="700"
-              fill="#6b4423"
-            >
-              {i}
-            </text>
-          ))}
+          {Array.from({ length: units + 1 }).map((_, i) => {
+            const x = 10 + i * RULER_UNIT;
+            if (x > length - 10) return null;
+            return (
+              <text
+                key={i}
+                x={x}
+                y={36}
+                textAnchor="middle"
+                fontSize="12"
+                fontWeight="700"
+                fill="#6b4423"
+              >
+                {i}
+              </text>
+            );
+          })}
         </svg>
       </div>
-      <div className="absolute right-2 bottom-1.5 flex gap-1.5">
+
+      {/* Length resize handle — right end */}
+      <button
+        type="button"
+        aria-label="자 길이 조절"
+        title="드래그해서 길이 조절"
+        className={`absolute top-1/2 right-0 z-10 flex h-12 w-5 -translate-y-1/2 translate-x-1/2 cursor-ew-resize items-center justify-center rounded-md border-2 border-white bg-sky shadow-md ${
+          interactive ? "pointer-events-auto" : "pointer-events-none"
+        }`}
+        onPointerDown={startResize}
+      >
+        <span className="flex flex-col gap-[3px]">
+          <span className="h-3 w-0.5 rounded bg-[#1a4a6e]" />
+          <span className="h-3 w-0.5 rounded bg-[#1a4a6e]" />
+          <span className="h-3 w-0.5 rounded bg-[#1a4a6e]" />
+        </span>
+      </button>
+
+      <div className="absolute bottom-1.5 left-2 flex gap-1.5">
         <button
           type="button"
           aria-label="자 회전"

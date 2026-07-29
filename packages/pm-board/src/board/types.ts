@@ -104,6 +104,8 @@ export type OverlayPose = {
   x: number;
   y: number;
   angle: number;
+  /** Ruler length in px (default 600). Ignored by protractor. */
+  length?: number;
 };
 
 /** Needle tip = center (cx, cy); angle = pencil direction in degrees. */

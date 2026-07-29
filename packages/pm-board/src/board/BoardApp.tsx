@@ -287,7 +287,17 @@ export default function BoardApp({
           if (saved.overlays) {
             const compassRaw = saved.overlays.compass as CompassPose | null | undefined;
             setOverlays({
-              ruler: saved.overlays.ruler ?? null,
+              ruler: saved.overlays.ruler
+                ? {
+                    x: saved.overlays.ruler.x,
+                    y: saved.overlays.ruler.y,
+                    angle: saved.overlays.ruler.angle ?? 0,
+                    length:
+                      typeof saved.overlays.ruler.length === "number"
+                        ? saved.overlays.ruler.length
+                        : undefined,
+                  }
+                : null,
               protractor: saved.overlays.protractor ?? null,
               compass: compassRaw
                 ? {
@@ -658,6 +668,7 @@ export default function BoardApp({
           x: window.innerWidth / 2,
           y: window.innerHeight / 2 - (id === "ruler" ? 80 : -40),
           angle: 0,
+          ...(id === "ruler" ? { length: 600 } : {}),
         } satisfies OverlayPose,
       };
     });
@@ -705,11 +716,12 @@ export default function BoardApp({
         strokes: draw.strokes,
         points: draw.boardPoints,
         compass: overlays.compass,
+        ruler: overlays.ruler,
         skipCompassCenter: opts?.skipCompassCenter,
       });
       return { x: r.x, y: r.y };
     },
-    [draw.strokes, draw.boardPoints, overlays.compass],
+    [draw.strokes, draw.boardPoints, overlays.compass, overlays.ruler],
   );
 
   const placeBoardPoint = useCallback(

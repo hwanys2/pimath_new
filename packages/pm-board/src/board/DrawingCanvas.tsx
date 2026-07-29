@@ -41,7 +41,9 @@ export default function DrawingCanvas({
   const liveRef = useRef<HTMLCanvasElement>(null);
   const currentRef = useRef<ActiveStroke | null>(null);
   const snapRef = useRef(snap);
-  snapRef.current = snap;
+  useEffect(() => {
+    snapRef.current = snap;
+  }, [snap]);
   const active =
     tool !== "cursor" && tool !== "point" && !disabled;
 
@@ -101,7 +103,8 @@ export default function DrawingCanvas({
     ctx.clearRect(0, 0, canvas.width / dpr, canvas.height / dpr);
   }, []);
 
-  const applySnap = (x: number, y: number) => {
+  const applySnap = (x: number, y: number, drawTool?: DrawTool) => {
+    if (drawTool === "eraser") return { x, y };
     const fn = snapRef.current;
     if (!fn) return { x, y };
     return fn(x, y);
@@ -121,8 +124,12 @@ export default function DrawingCanvas({
     if (!active || e.button !== 0) return;
     e.preventDefault();
     (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
-    const { x, y } = applySnap(Math.round(e.clientX), Math.round(e.clientY));
     const drawTool = resolveStrokeTool(e);
+    const { x, y } = applySnap(
+      Math.round(e.clientX),
+      Math.round(e.clientY),
+      drawTool,
+    );
     currentRef.current = {
       tool: drawTool,
       size: resolveStrokeSize(drawTool),
@@ -134,7 +141,11 @@ export default function DrawingCanvas({
   const onPointerMove = (e: React.PointerEvent) => {
     const cur = currentRef.current;
     if (!cur) return;
-    const snapped = applySnap(Math.round(e.clientX), Math.round(e.clientY));
+    const snapped = applySnap(
+      Math.round(e.clientX),
+      Math.round(e.clientY),
+      cur.tool,
+    );
     const x = snapped.x;
     const y = snapped.y;
     const pts = cur.points;
@@ -204,6 +215,7 @@ export default function DrawingCanvas({
       const snapped = applySnap(
         points[points.length - 2],
         points[points.length - 1],
+        cur.tool,
       );
       points = [points[0], points[1], snapped.x, snapped.y];
     }
