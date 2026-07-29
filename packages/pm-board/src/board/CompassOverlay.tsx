@@ -423,6 +423,58 @@ export default function CompassOverlay({
           />
         </g>
 
+        {/* Radius (open/close) affordance — mid pencil leg */}
+        <g pointerEvents="none">
+          <circle
+            cx={pm.x}
+            cy={pm.y}
+            r="18"
+            fill="rgba(168,216,255,0.92)"
+            stroke="#fff"
+            strokeWidth="3"
+          />
+          <circle
+            cx={pm.x}
+            cy={pm.y}
+            r="18"
+            fill="none"
+            stroke="#1a4a6e"
+            strokeWidth="1.5"
+          />
+          {/* ↔ arrows along the leg direction (open/close) */}
+          {(() => {
+            const ang = Math.atan2(tip.y - hinge.y, tip.x - hinge.x);
+            const ux = Math.cos(ang);
+            const uy = Math.sin(ang);
+            const px = -uy;
+            const py = ux;
+            const tipIn = 7;
+            const tipOut = 14;
+            const arrow = (dir: 1 | -1) => {
+              const bx = pm.x + dir * ux * tipIn;
+              const by = pm.y + dir * uy * tipIn;
+              const tx = pm.x + dir * ux * tipOut;
+              const ty = pm.y + dir * uy * tipOut;
+              return `${tx},${ty} ${bx + px * 4},${by + py * 4} ${bx - px * 4},${by - py * 4}`;
+            };
+            return (
+              <>
+                <polygon points={arrow(-1)} fill="#1a4a6e" />
+                <polygon points={arrow(1)} fill="#1a4a6e" />
+                <line
+                  x1={pm.x - ux * 5}
+                  y1={pm.y - uy * 5}
+                  x2={pm.x + ux * 5}
+                  y2={pm.y + uy * 5}
+                  stroke="#1a4a6e"
+                  strokeWidth="2.5"
+                  strokeLinecap="round"
+                />
+              </>
+            );
+          })()}
+        </g>
+
         {/* Hinge + handle */}
         <g filter="url(#pm-compass-soft)">
           <circle
@@ -521,15 +573,16 @@ export default function CompassOverlay({
           style={{ pointerEvents: hitEvents }}
           onPointerDown={startDrag("move")}
         />
-        {/* Radius: mid pencil leg */}
+        {/* Radius: mid pencil leg (larger hit than visible knob) */}
         <circle
           cx={pm.x}
           cy={pm.y}
-          r="24"
+          r="36"
           fill="transparent"
           className="cursor-ew-resize"
           style={{ pointerEvents: hitEvents }}
           onPointerDown={startDrag("radius")}
+          aria-label="컴퍼스 벌리기"
         />
         {/* Draw: pencil tip */}
         <circle
