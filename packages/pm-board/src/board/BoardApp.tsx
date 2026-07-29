@@ -694,7 +694,10 @@ export default function BoardApp({
     }
   };
 
-  const geometryPassThrough = boardMode === "math-select";
+  // Drawing tools must reach the canvas through geometry overlays.
+  // Cursor mode keeps ruler/protractor/compass interactive.
+  const geometryPassThrough =
+    boardMode === "math-select" || tool !== "cursor";
 
   const snapPointer = useCallback(
     (x: number, y: number, opts?: { skipCompassCenter?: boolean }) => {

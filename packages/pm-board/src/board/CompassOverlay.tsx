@@ -276,21 +276,22 @@ export default function CompassOverlay({
   // Pencil orientation along the pencil leg
   const pencilAngle = radToDeg(Math.atan2(tip.y - hinge.y, tip.x - hinge.x));
 
+  const hitEvents = nonInteractive ? "none" : "auto";
+
   return (
     <div
-      className={`absolute touch-none select-none ${nonInteractive ? "pointer-events-none" : "pointer-events-auto"}`}
+      className="pointer-events-none absolute touch-none select-none"
       style={{
         left: boxLeft,
         top: boxTop,
         width: boxSize,
         height: boxSize,
       }}
-      onPointerDown={(e) => e.stopPropagation()}
     >
       <svg
         width={boxSize}
         height={boxSize}
-        className="absolute inset-0 overflow-visible drop-shadow-lg"
+        className="pointer-events-none absolute inset-0 overflow-visible drop-shadow-lg"
       >
         <defs>
           <linearGradient id="pm-compass-metal" x1="0" y1="0" x2="1" y2="1">
@@ -499,6 +500,7 @@ export default function CompassOverlay({
           r="28"
           fill="transparent"
           className="cursor-grab"
+          style={{ pointerEvents: hitEvents }}
           onPointerDown={startDrag("move")}
         />
         <circle
@@ -507,6 +509,7 @@ export default function CompassOverlay({
           r="22"
           fill="transparent"
           className="cursor-grab"
+          style={{ pointerEvents: hitEvents }}
           onPointerDown={startDrag("move")}
         />
         <circle
@@ -515,6 +518,7 @@ export default function CompassOverlay({
           r="18"
           fill="transparent"
           className="cursor-grab"
+          style={{ pointerEvents: hitEvents }}
           onPointerDown={startDrag("move")}
         />
         {/* Radius: mid pencil leg */}
@@ -524,6 +528,7 @@ export default function CompassOverlay({
           r="24"
           fill="transparent"
           className="cursor-ew-resize"
+          style={{ pointerEvents: hitEvents }}
           onPointerDown={startDrag("radius")}
         />
         {/* Draw: pencil tip */}
@@ -533,6 +538,7 @@ export default function CompassOverlay({
           r="26"
           fill="transparent"
           className="cursor-crosshair"
+          style={{ pointerEvents: hitEvents }}
           onPointerDown={startDrag("draw")}
         />
       </svg>
@@ -541,7 +547,9 @@ export default function CompassOverlay({
       <button
         type="button"
         aria-label="컴퍼스 닫기"
-        className="absolute z-10 rounded-full border-2 border-wood/40 bg-white/95 p-1.5 text-wood shadow transition hover:bg-red-50 hover:text-red-600"
+        className={`absolute z-10 rounded-full border-2 border-wood/40 bg-white/95 p-1.5 text-wood shadow transition hover:bg-red-50 hover:text-red-600 ${
+          nonInteractive ? "pointer-events-none" : "pointer-events-auto"
+        }`}
         style={{
           left: h.x + 18,
           top: h.y - 44,
