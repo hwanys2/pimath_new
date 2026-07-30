@@ -43,7 +43,8 @@ export function useTileDrag(svgRef: React.RefObject<SVGSVGElement | null>) {
       tileH = 28,
     ) => {
       e.preventDefault();
-      (e.currentTarget as Element).setPointerCapture(e.pointerId);
+      e.stopPropagation();
+      svgRef.current?.setPointerCapture(e.pointerId);
       const { x, y } = clientToSvg(e.clientX, e.clientY);
       setDrag({
         source,
@@ -53,23 +54,15 @@ export function useTileDrag(svgRef: React.RefObject<SVGSVGElement | null>) {
         offsetY: tileH / 2,
       });
     },
-    [clientToSvg],
+    [clientToSvg, svgRef],
   );
 
   const moveDrag = useCallback(
-    (
-      e: React.PointerEvent,
-      hitTest: (
-        x: number,
-        y: number,
-        clientX: number,
-        clientY: number,
-      ) => DropTarget,
-    ) => {
+    (e: React.PointerEvent, hitTest: (x: number, y: number) => DropTarget) => {
       if (!drag) return;
       const { x, y } = clientToSvg(e.clientX, e.clientY);
       setDrag((d) => (d ? { ...d, x, y } : null));
-      setHoverTarget(hitTest(x, y, e.clientX, e.clientY));
+      setHoverTarget(hitTest(x, y));
     },
     [drag, clientToSvg],
   );
@@ -80,13 +73,13 @@ export function useTileDrag(svgRef: React.RefObject<SVGSVGElement | null>) {
       setDrag(null);
       setHoverTarget(null);
       try {
-        (e.currentTarget as Element).releasePointerCapture(e.pointerId);
+        svgRef.current?.releasePointerCapture(e.pointerId);
       } catch {
         /* noop */
       }
       return target;
     },
-    [hoverTarget],
+    [hoverTarget, svgRef],
   );
 
   const cancelDrag = useCallback(() => {

@@ -9,9 +9,11 @@ import BalanceScale, {
   RIGHT_HOOK_X,
   SCALE_VB_H,
   SCALE_VB_W,
+  TRASH_X,
+  TRASH_Y,
 } from "./BalanceScale";
 import TilePalette from "./TilePalette";
-import TrashZone from "./TrashZone";
+import TrashZone, { TRASH_HIT_R } from "./TrashZone";
 import {
   type DropTarget,
   useTileDrag,
@@ -60,7 +62,7 @@ function stackOnPan(tiles: PlacedTile[]): Map<string, { x: number; y: number }> 
   const positions = new Map<string, { x: number; y: number }>();
   const gap = 6;
   const rowH = 36;
-  const maxW = PAN_W - 20;
+  const maxW = PAN_W - 16;
 
   const rows: PlacedTile[][] = [];
   let row: PlacedTile[] = [];
@@ -101,7 +103,6 @@ export default function BalanceWorkspace({
 }: Props) {
   const uid = useId().replace(/:/g, "");
   const svgRef = useRef<SVGSVGElement>(null);
-  const trashRef = useRef<HTMLDivElement>(null);
   const locked = readOnly || disabled;
   const xValue = problem.xValue;
 
@@ -118,41 +119,22 @@ export default function BalanceWorkspace({
     cancelDrag,
   } = useTileDrag(svgRef);
 
-  const hitTest = useCallback(
-    (
-      x: number,
-      y: number,
-      clientX: number,
-      clientY: number,
-    ): DropTarget => {
-      const trashEl = trashRef.current;
-      if (trashEl) {
-        const r = trashEl.getBoundingClientRect();
-        if (
-          clientX >= r.left &&
-          clientX <= r.right &&
-          clientY >= r.top &&
-          clientY <= r.bottom
-        ) {
-          return "trash";
-        }
-      }
-      const inLeft =
-        x >= LEFT_HOOK_X - PAN_W / 2 - 10 &&
-        x <= LEFT_HOOK_X + PAN_W / 2 + 10 &&
-        y >= PAN_SURFACE_Y - 80 &&
-        y <= PAN_SURFACE_Y + 50;
-      const inRight =
-        x >= RIGHT_HOOK_X - PAN_W / 2 - 10 &&
-        x <= RIGHT_HOOK_X + PAN_W / 2 + 10 &&
-        y >= PAN_SURFACE_Y - 80 &&
-        y <= PAN_SURFACE_Y + 50;
-      if (inLeft) return "left";
-      if (inRight) return "right";
-      return null;
-    },
-    [],
-  );
+  const hitTest = useCallback((x: number, y: number): DropTarget => {
+    if (Math.hypot(x - TRASH_X, y - TRASH_Y) < TRASH_HIT_R) return "trash";
+    const inLeft =
+      x >= LEFT_HOOK_X - PAN_W / 2 - 12 &&
+      x <= LEFT_HOOK_X + PAN_W / 2 + 12 &&
+      y >= PAN_SURFACE_Y - 110 &&
+      y <= PAN_SURFACE_Y + 30;
+    const inRight =
+      x >= RIGHT_HOOK_X - PAN_W / 2 - 12 &&
+      x <= RIGHT_HOOK_X + PAN_W / 2 + 12 &&
+      y >= PAN_SURFACE_Y - 110 &&
+      y <= PAN_SURFACE_Y + 30;
+    if (inLeft) return "left";
+    if (inRight) return "right";
+    return null;
+  }, []);
 
   const applyWithZeroPairs = useCallback(
     (ws: TileWorkspace) => {
@@ -279,61 +261,76 @@ export default function BalanceWorkspace({
 
   return (
     <div className="space-y-3">
-      <div className="overflow-visible rounded-2xl border-2 border-wood/12 bg-gradient-to-b from-[#f0f4f8] to-[#FEF9F0] p-3 pb-4">
-        <div className="flex flex-col items-center gap-3 sm:flex-row sm:items-end">
-          <svg
-            ref={svgRef}
-            viewBox={`0 0 ${SCALE_VB_W} ${SCALE_VB_H}`}
-            className="min-h-[260px] w-full flex-1 touch-none select-none sm:min-h-[300px]"
-            style={{ aspectRatio: `${SCALE_VB_W} / ${SCALE_VB_H}` }}
-            role="application"
-            aria-label="양팔저울"
-            onPointerMove={onPointerMove}
-            onPointerUp={onPointerUp}
-            onPointerCancel={onPointerUp}
-          >
-            <BalanceScale
-              uid={uid}
-              tilt={tilt}
-              leftHighlight={hoverTarget === "left"}
-              rightHighlight={hoverTarget === "right"}
-              leftTiles={renderPanTiles("left")}
-              rightTiles={renderPanTiles("right")}
-            />
-
-            {drag ? (
-              <AlgebraTile
-                kind={
-                  drag.source.type === "palette"
-                    ? drag.source.kind
-                    : drag.source.kind
-                }
-                x={drag.x - drag.offsetX}
-                y={drag.y - drag.offsetY}
-                scale={0.92}
-                dragging
-              />
-            ) : null}
-
-            {zeroFlash ? (
-              <text
-                x={SCALE_VB_W / 2}
-                y={PAN_SURFACE_Y - 30}
-                textAnchor="middle"
-                fontSize={28}
-                fontWeight="bold"
-                fill="#2A9D8F"
-                opacity={0.85}
-              >
-                0
-              </text>
-            ) : null}
-          </svg>
+      <div className="overflow-visible rounded-2xl border-2 border-wood/12 bg-gradient-to-b from-[#f0f4f8] to-[#FEF9F0] p-2 sm:p-3">
+        <svg
+          ref={svgRef}
+          viewBox={`0 0 ${SCALE_VB_W} ${SCALE_VB_H}`}
+          preserveAspectRatio="xMidYMid meet"
+          className="mx-auto w-full max-w-full touch-none select-none"
+          style={{ minHeight: 340, display: "block" }}
+          role="application"
+          aria-label="양팔저울 작업 공간"
+          onPointerMove={onPointerMove}
+          onPointerUp={onPointerUp}
+          onPointerCancel={onPointerUp}
+        >
+          <BalanceScale
+            uid={uid}
+            tilt={tilt}
+            leftHighlight={hoverTarget === "left"}
+            rightHighlight={hoverTarget === "right"}
+            leftTiles={renderPanTiles("left")}
+            rightTiles={renderPanTiles("right")}
+          />
 
           {!locked ? (
-            <TrashZone ref={trashRef} active={hoverTarget === "trash"} />
+            <TrashZone
+              uid={uid}
+              x={TRASH_X}
+              y={TRASH_Y}
+              active={hoverTarget === "trash"}
+            />
           ) : null}
-        </div>
+
+          {!readOnly ? (
+            <TilePalette
+              allowNegatives={problem.allowNegatives}
+              disabled={locked}
+              onPalettePointerDown={(e, kind) => {
+                const w = tileWidth(kind, 0.82);
+                startDrag(e, { type: "palette", kind }, w, 28);
+              }}
+            />
+          ) : null}
+
+          {drag ? (
+            <AlgebraTile
+              kind={
+                drag.source.type === "palette"
+                  ? drag.source.kind
+                  : drag.source.kind
+              }
+              x={drag.x - drag.offsetX}
+              y={drag.y - drag.offsetY}
+              scale={0.92}
+              dragging
+            />
+          ) : null}
+
+          {zeroFlash ? (
+            <text
+              x={SCALE_VB_W / 2}
+              y={PAN_SURFACE_Y - 40}
+              textAnchor="middle"
+              fontSize={28}
+              fontWeight="bold"
+              fill="#2A9D8F"
+              opacity={0.85}
+            >
+              0
+            </text>
+          ) : null}
+        </svg>
       </div>
 
       <div className="flex flex-wrap items-center justify-center gap-4 text-center text-xs font-bold text-wood">
@@ -378,17 +375,6 @@ export default function BalanceWorkspace({
             </button>
           ))}
         </div>
-      ) : null}
-
-      {!readOnly ? (
-        <TilePalette
-          allowNegatives={problem.allowNegatives}
-          disabled={locked}
-          onPalettePointerDown={(e, kind) => {
-            const w = tileWidth(kind, 0.82);
-            startDrag(e, { type: "palette", kind }, w, 28);
-          }}
-        />
       ) : null}
     </div>
   );
