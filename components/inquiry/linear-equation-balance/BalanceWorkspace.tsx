@@ -57,9 +57,11 @@ type Props = {
 function sortTilesForDisplay(tiles: PlacedTile[]): PlacedTile[] {
   const order: Record<TileKind, number> = {
     x: 0,
-    neg_x: 1,
-    one: 2,
-    neg_one: 3,
+    half_x: 1,
+    neg_x: 2,
+    neg_half_x: 3,
+    one: 4,
+    neg_one: 5,
   };
   return [...tiles].sort((a, b) => order[a.kind] - order[b.kind]);
 }

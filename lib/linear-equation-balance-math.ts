@@ -9,7 +9,13 @@
 export const CONTENT_KEY = "g1-u2-2-linear-equation-balance";
 export const PROBLEM_COUNT = 15;
 
-export type TileKind = "x" | "neg_x" | "one" | "neg_one";
+export type TileKind =
+  | "x"
+  | "neg_x"
+  | "half_x"
+  | "neg_half_x"
+  | "one"
+  | "neg_one";
 
 export type PanExpr = { x: number; unit: number };
 
@@ -92,6 +98,10 @@ export function tileValue(kind: TileKind, xValue: number): number {
       return xValue;
     case "neg_x":
       return -xValue;
+    case "half_x":
+      return xValue / 2;
+    case "neg_half_x":
+      return -xValue / 2;
     case "one":
       return 1;
     case "neg_one":
@@ -110,6 +120,12 @@ export function exprFromTiles(tiles: TileKind[]): PanExpr {
       case "neg_x":
         x -= 1;
         break;
+      case "half_x":
+        x += 0.5;
+        break;
+      case "neg_half_x":
+        x -= 0.5;
+        break;
       case "one":
         unit += 1;
         break;
@@ -121,11 +137,26 @@ export function exprFromTiles(tiles: TileKind[]): PanExpr {
   return { x, unit };
 }
 
+function formatXCoeff(abs: number): string {
+  if (abs === 1) return "x";
+  if (abs === 0.5) return "½x";
+  const whole = Math.trunc(abs);
+  const frac = abs - whole;
+  if (frac === 0.5) return `${whole}½x`;
+  return `${abs}x`;
+}
+
 export function tilesFromExpr(expr: PanExpr): TileKind[] {
   const tiles: TileKind[] = [];
-  for (let i = 0; i < Math.abs(expr.x); i++) {
-    tiles.push(expr.x >= 0 ? "x" : "neg_x");
+  const wholeX = Math.trunc(expr.x);
+  const fracX = Math.round((expr.x - wholeX) * 2) / 2;
+
+  for (let i = 0; i < Math.abs(wholeX); i++) {
+    tiles.push(wholeX >= 0 ? "x" : "neg_x");
   }
+  if (fracX === 0.5) tiles.push("half_x");
+  if (fracX === -0.5) tiles.push("neg_half_x");
+
   for (let i = 0; i < Math.abs(expr.unit); i++) {
     tiles.push(expr.unit >= 0 ? "one" : "neg_one");
   }
@@ -188,9 +219,8 @@ export function checkAnswer(
 export function formatExpr(expr: PanExpr): string {
   const parts: string[] = [];
   if (expr.x !== 0) {
-    if (expr.x === 1) parts.push("x");
-    else if (expr.x === -1) parts.push("−x");
-    else parts.push(`${expr.x}x`);
+    const sign = expr.x < 0 ? "−" : "";
+    parts.push(`${sign}${formatXCoeff(Math.abs(expr.x))}`);
   }
   if (expr.unit !== 0) {
     if (expr.unit > 0) {
@@ -216,6 +246,10 @@ function tileKindShort(kind: TileKind): string {
       return "x";
     case "neg_x":
       return "−x";
+    case "half_x":
+      return "½x";
+    case "neg_half_x":
+      return "−½x";
     case "one":
       return "+1";
     case "neg_one":
@@ -329,6 +363,8 @@ export function relocateTile(
 type TileCounts = {
   x: number;
   neg_x: number;
+  half_x: number;
+  neg_half_x: number;
   one: number;
   neg_one: number;
 };
@@ -337,13 +373,22 @@ function countTiles(tiles: PlacedTile[]): TileCounts {
   return {
     x: tiles.filter((t) => t.kind === "x").length,
     neg_x: tiles.filter((t) => t.kind === "neg_x").length,
+    half_x: tiles.filter((t) => t.kind === "half_x").length,
+    neg_half_x: tiles.filter((t) => t.kind === "neg_half_x").length,
     one: tiles.filter((t) => t.kind === "one").length,
     neg_one: tiles.filter((t) => t.kind === "neg_one").length,
   };
 }
 
 function totalTiles(c: TileCounts): number {
-  return c.x + c.neg_x + c.one + c.neg_one;
+  return (
+    c.x +
+    c.neg_x +
+    c.half_x +
+    c.neg_half_x +
+    c.one +
+    c.neg_one
+  );
 }
 
 export function findZeroPairs(ws: TileWorkspace): ZeroPair[] {
@@ -355,6 +400,8 @@ export function findZeroPairs(ws: TileWorkspace): ZeroPair[] {
     const negOnes = tiles.filter((t) => t.kind === "neg_one");
     const xs = tiles.filter((t) => t.kind === "x");
     const negXs = tiles.filter((t) => t.kind === "neg_x");
+    const halfXs = tiles.filter((t) => t.kind === "half_x");
+    const negHalfXs = tiles.filter((t) => t.kind === "neg_half_x");
 
     const unitPairs = Math.min(ones.length, negOnes.length);
     for (let i = 0; i < unitPairs; i++) {
@@ -373,6 +420,16 @@ export function findZeroPairs(ws: TileWorkspace): ZeroPair[] {
         kind: "x",
         tileA: xs[i]!.id,
         tileB: negXs[i]!.id,
+      });
+    }
+
+    const halfPairs = Math.min(halfXs.length, negHalfXs.length);
+    for (let i = 0; i < halfPairs; i++) {
+      pairs.push({
+        pan,
+        kind: "x",
+        tileA: halfXs[i]!.id,
+        tileB: negHalfXs[i]!.id,
       });
     }
   }
@@ -403,10 +460,14 @@ export function getAvailableDivisors(ws: TileWorkspace): number[] {
     const ok =
       lc.x % n === 0 &&
       lc.neg_x % n === 0 &&
+      lc.half_x % n === 0 &&
+      lc.neg_half_x % n === 0 &&
       lc.one % n === 0 &&
       lc.neg_one % n === 0 &&
       rc.x % n === 0 &&
       rc.neg_x % n === 0 &&
+      rc.half_x % n === 0 &&
+      rc.neg_half_x % n === 0 &&
       rc.one % n === 0 &&
       rc.neg_one % n === 0;
     if (ok) divisors.push(n);
@@ -423,6 +484,10 @@ export function flipTileKind(kind: TileKind): TileKind {
       return "neg_x";
     case "neg_x":
       return "x";
+    case "half_x":
+      return "neg_half_x";
+    case "neg_half_x":
+      return "half_x";
     case "one":
       return "neg_one";
     case "neg_one":
@@ -447,7 +512,10 @@ export function multiplyBothSides(ws: TileWorkspace, n: number): TileWorkspace {
     }
     return result;
   };
-  return { left: scalePan(ws.left), right: scalePan(ws.right) };
+  return consolidateHalfXBothSides({
+    left: scalePan(ws.left),
+    right: scalePan(ws.right),
+  });
 }
 
 export function getAvailableMultipliers(ws: TileWorkspace): number[] {
@@ -469,14 +537,57 @@ export function canFlipBothSides(ws: TileWorkspace): boolean {
 }
 
 function hasNegativeXTiles(ws: TileWorkspace): boolean {
-  return [...ws.left, ...ws.right].some((t) => t.kind === "neg_x");
+  return [...ws.left, ...ws.right].some(
+    (t) => t.kind === "neg_x" || t.kind === "neg_half_x",
+  );
 }
 
-/** x(또는 −x) 막대가 2개 이상일 때만 나누기가 의미 있음 */
+function hasHalfXTiles(ws: TileWorkspace): boolean {
+  return [...ws.left, ...ws.right].some(
+    (t) => t.kind === "half_x" || t.kind === "neg_half_x",
+  );
+}
+
+function consolidateHalfXTiles(tiles: PlacedTile[]): PlacedTile[] {
+  const rest = tiles.filter(
+    (t) => t.kind !== "half_x" && t.kind !== "neg_half_x",
+  );
+  const halfCount = tiles.filter((t) => t.kind === "half_x").length;
+  const negHalfCount = tiles.filter((t) => t.kind === "neg_half_x").length;
+  const merged: PlacedTile[] = [...rest];
+
+  for (let i = 0; i < Math.floor(halfCount / 2); i++) {
+    merged.push(createTile("x", "merge"));
+  }
+  if (halfCount % 2 === 1) {
+    merged.push(createTile("half_x", "merge"));
+  }
+  for (let i = 0; i < Math.floor(negHalfCount / 2); i++) {
+    merged.push(createTile("neg_x", "merge"));
+  }
+  if (negHalfCount % 2 === 1) {
+    merged.push(createTile("neg_half_x", "merge"));
+  }
+
+  return merged;
+}
+
+function consolidateHalfXBothSides(ws: TileWorkspace): TileWorkspace {
+  return {
+    left: consolidateHalfXTiles(ws.left),
+    right: consolidateHalfXTiles(ws.right),
+  };
+}
+
+/** x 막대가 한쪽 접시에만 2개 이상일 때만 나누기가 의미 있음 (양변에 x가 있으면 숨김) */
 function divideWouldHelp(ws: TileWorkspace): boolean {
   const lc = countTiles(ws.left);
   const rc = countTiles(ws.right);
-  return lc.x >= 2 || rc.x >= 2 || lc.neg_x >= 2 || rc.neg_x >= 2;
+  const xOnlyOnLeft =
+    (lc.x >= 2 || lc.neg_x >= 2) && rc.x === 0 && rc.neg_x === 0;
+  const xOnlyOnRight =
+    (rc.x >= 2 || rc.neg_x >= 2) && lc.x === 0 && lc.neg_x === 0;
+  return xOnlyOnLeft || xOnlyOnRight;
 }
 
 /** 문항 설정 + 현재 접시 상태에 따라 필요한 스케일 조작만 반환 */
@@ -495,7 +606,11 @@ export function getPedagogicalScaleOperations(
       Boolean(allowed.flip) &&
       hasNegativeXTiles(ws) &&
       canFlipBothSides(ws),
-    multiply: allowed.multiply ? getAvailableMultipliers(ws) : [],
+    multiply: allowed.multiply
+      ? getAvailableMultipliers(ws).filter((n) =>
+          hasHalfXTiles(ws) ? n === 2 : true,
+        )
+      : [],
     divide: allowed.divide
       ? getAvailableDivisors(ws).filter(() => divideWouldHelp(ws))
       : [],
@@ -534,12 +649,16 @@ export function divideBothSides(ws: TileWorkspace, n: number): TileWorkspace {
   let leftResult = newLeft;
   leftResult = takeFraction(leftResult, "x", lc.x / n);
   leftResult = takeFraction(leftResult, "neg_x", lc.neg_x / n);
+  leftResult = takeFraction(leftResult, "half_x", lc.half_x / n);
+  leftResult = takeFraction(leftResult, "neg_half_x", lc.neg_half_x / n);
   leftResult = takeFraction(leftResult, "one", lc.one / n);
   leftResult = takeFraction(leftResult, "neg_one", lc.neg_one / n);
 
   let rightResult = ws.right;
   rightResult = takeFraction(rightResult, "x", rc.x / n);
   rightResult = takeFraction(rightResult, "neg_x", rc.neg_x / n);
+  rightResult = takeFraction(rightResult, "half_x", rc.half_x / n);
+  rightResult = takeFraction(rightResult, "neg_half_x", rc.neg_half_x / n);
   rightResult = takeFraction(rightResult, "one", rc.one / n);
   rightResult = takeFraction(rightResult, "neg_one", rc.neg_one / n);
 
@@ -648,19 +767,6 @@ export const PROBLEMS: BalanceProblem[] = [
   },
   {
     id: "step-7",
-    title: "x와 상수 함께",
-    instruction: "2x − 1 = x + 2 를 풀어 보세요.",
-    targetLatex: "2x - 1 = x + 2",
-    xValue: 3,
-    initial: { left: { x: 2, unit: -1 }, right: { x: 1, unit: 2 } },
-    hints: [
-      "먼저 양변에 x 막대를 1개씩 빼 보세요.",
-      "x − 1 = 2 가 되면 양변에 +1을 더해 x = 3!",
-    ],
-    allowNegatives: true,
-  },
-  {
-    id: "step-8",
     title: "양변 나누기",
     instruction:
       "2x = 6 을 풀어 보세요. 양변을 똑같이 나눠도 등식은 성립해요.",
@@ -675,7 +781,7 @@ export const PROBLEMS: BalanceProblem[] = [
     scaleOps: { divide: true },
   },
   {
-    id: "step-9",
+    id: "step-8",
     title: "나누기 종합",
     instruction: "3x − 2 = 7 을 풀어 보세요.",
     targetLatex: "3x - 2 = 7",
@@ -684,6 +790,20 @@ export const PROBLEMS: BalanceProblem[] = [
     hints: [
       "양변에 +1을 2개씩 더한 뒤, 양변을 3으로 나누어 보세요.",
       "x = 3 이 정답이에요.",
+    ],
+    allowNegatives: true,
+    scaleOps: { divide: true },
+  },
+  {
+    id: "step-9",
+    title: "x와 상수 함께",
+    instruction: "3x − 1 = x + 3 을 풀어 보세요. x를 한쪽으로 모은 뒤 나눌 수도 있어요.",
+    targetLatex: "3x - 1 = x + 3",
+    xValue: 2,
+    initial: { left: { x: 3, unit: -1 }, right: { x: 1, unit: 3 } },
+    hints: [
+      "먼저 양변에서 x 막대를 1개씩 빼 보세요.",
+      "2x − 1 = 3 이 되면 +1을 더해 2x = 4, 그다음 2로 나누면 x = 2!",
     ],
     allowNegatives: true,
     scaleOps: { divide: true },
@@ -705,18 +825,18 @@ export const PROBLEMS: BalanceProblem[] = [
   },
   {
     id: "step-11",
-    title: "부호 바꾸기",
+    title: "½x 막대",
     instruction:
-      "−x = 5 를 풀어 보세요. 양변의 모든 막대 부호를 바꿔도 등식은 성립해요.",
-    targetLatex: "-x = 5",
-    xValue: -5,
-    initial: { left: { x: -1, unit: 0 }, right: { x: 0, unit: 5 } },
+      "½x = 3 을 풀어 보세요. 「양변을 2로 곱하기」를 누르면 x 막대로 바뀌어요.",
+    targetLatex: "\\frac{1}{2}x = 3",
+    xValue: 6,
+    initial: { left: { x: 0.5, unit: 0 }, right: { x: 0, unit: 3 } },
     hints: [
-      "「양변 부호 바꾸기 (−1×)」 버튼을 눌러 보세요.",
-      "x = −5 가 되면 맞아요.",
+      "½x 막대는 x 막대의 절반이에요.",
+      "「양변을 2로 곱하기」를 누르면 x = 6!",
     ],
     allowNegatives: true,
-    scaleOps: { flip: true },
+    scaleOps: { multiply: true },
   },
   {
     id: "step-12",

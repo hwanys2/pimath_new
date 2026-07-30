@@ -37,23 +37,47 @@ describe("linear-equation-balance-math", () => {
     assert.equal(ops.divide.length, 0);
   });
 
-  it("shows divide only when x coefficient is 2+", () => {
-    const p = problemAt(8);
+  it("shows divide only when x coefficient is 2+ on one side", () => {
+    const p = problemAt(7);
     const ws = emptyTileWorkspace(p);
     const ops = getPedagogicalScaleOperations(ws, p);
     assert.deepEqual(ops.divide, [2]);
     assert.equal(ops.flip, false);
   });
 
-  it("flipBothSides preserves balance", () => {
-    const p = problemAt(11);
-    const ws = emptyTileWorkspace(p);
+  it("hides divide on step 9 until x is on one side only", () => {
+    const p = problemAt(8);
+    const start = emptyTileWorkspace(p);
+    assert.deepEqual(
+      getPedagogicalScaleOperations(start, p).divide,
+      [],
+    );
+
+    const afterMoveX = workspaceFromBalance({
+      left: { x: 2, unit: -1 },
+      right: { x: 0, unit: 3 },
+    });
+    assert.deepEqual(
+      getPedagogicalScaleOperations(afterMoveX, p).divide,
+      [],
+    );
+
+    const readyToDivide = workspaceFromBalance({
+      left: { x: 2, unit: 0 },
+      right: { x: 0, unit: 4 },
+    });
+    assert.deepEqual(
+      getPedagogicalScaleOperations(readyToDivide, p).divide,
+      [2],
+    );
+  });
+
+  it("flipBothSides preserves balance on -2x = 6", () => {
+    const p = problemAt(12);
+    let ws = emptyTileWorkspace(p);
+    ws = divideBothSides(ws, 2);
     const flipped = flipBothSides(ws);
     assert.ok(isBalancedWs(flipped, p.xValue));
-    assert.equal(
-      panValue(flipped.left, p.xValue),
-      panValue(flipped.right, p.xValue),
-    );
   });
 
   it("multiplyBothSides doubles pan values while balanced", () => {
@@ -71,9 +95,23 @@ describe("linear-equation-balance-math", () => {
     assert.ok(isBalancedWs(doubled, p.xValue));
   });
 
-  it("solves -x = 5 via flip", () => {
+  it("solves 1/2 x = 3 via multiply by 2", () => {
     const p = problemAt(11);
     let ws = emptyTileWorkspace(p);
+    const ops = getPedagogicalScaleOperations(ws, p);
+    assert.deepEqual(ops.multiply, [2]);
+
+    ws = multiplyBothSides(ws, 2);
+    assert.ok(isSolved(ws, p.xValue));
+    assert.equal(checkAnswer(p, ws).ok, true);
+    assert.equal(workspaceToBalance(ws).left.x, 1);
+    assert.equal(workspaceToBalance(ws).right.unit, 6);
+  });
+
+  it("solves -2x = 6 via divide then flip", () => {
+    const p = problemAt(12);
+    let ws = emptyTileWorkspace(p);
+    ws = divideBothSides(ws, 2);
     ws = flipBothSides(ws);
     assert.ok(isSolved(ws, p.xValue));
     assert.equal(checkAnswer(p, ws).ok, true);
@@ -87,15 +125,6 @@ describe("linear-equation-balance-math", () => {
     const ops = getPedagogicalScaleOperations(ws, p);
     assert.equal(ops.flip, false);
     assert.equal(ops.divide.length, 0);
-  });
-
-  it("solves -2x = 6 via divide then flip", () => {
-    const p = problemAt(12);
-    let ws = emptyTileWorkspace(p);
-    ws = divideBothSides(ws, 2);
-    ws = flipBothSides(ws);
-    assert.ok(isSolved(ws, p.xValue));
-    assert.equal(checkAnswer(p, ws).ok, true);
   });
 
   it("solves -2x + 4 = -2 via subtract, divide, flip", () => {

@@ -12,6 +12,13 @@ export const TILE_COLORS: Record<
 > = {
   x: { fill: "#7DD3B0", stroke: "#2A9D8F", shadow: "#1a7a6c" },
   neg_x: { fill: "#FFB4A8", stroke: "#C45C4A", shadow: "#a04030", hatch: true },
+  half_x: { fill: "#9DE4C8", stroke: "#2A9D8F", shadow: "#1a7a6c" },
+  neg_half_x: {
+    fill: "#FFC9BE",
+    stroke: "#C45C4A",
+    shadow: "#a04030",
+    hatch: true,
+  },
   one: { fill: "#8EC8F5", stroke: "#4A90C8", shadow: "#3578a8" },
   neg_one: { fill: "#FFB4A8", stroke: "#C45C4A", shadow: "#a04030", hatch: true },
 };
@@ -22,6 +29,10 @@ export function tileLabel(kind: TileKind): string {
       return "x";
     case "neg_x":
       return "−x";
+    case "half_x":
+      return "½x";
+    case "neg_half_x":
+      return "−½x";
     case "one":
       return "1";
     case "neg_one":
@@ -30,8 +41,11 @@ export function tileLabel(kind: TileKind): string {
 }
 
 export function tileWidth(kind: TileKind, scale = 1): number {
-  const isX = kind === "x" || kind === "neg_x";
-  return (isX ? TILE_X_LEN : TILE_UNIT) * scale;
+  const isFullX = kind === "x" || kind === "neg_x";
+  const isHalfX = kind === "half_x" || kind === "neg_half_x";
+  if (isFullX) return TILE_X_LEN * scale;
+  if (isHalfX) return (TILE_X_LEN / 2) * scale;
+  return TILE_UNIT * scale;
 }
 
 type Props = {
@@ -55,7 +69,11 @@ export default function AlgebraTile({
   flipping = false,
   onPointerDown,
 }: Props) {
-  const isX = kind === "x" || kind === "neg_x";
+  const isX =
+    kind === "x" ||
+    kind === "neg_x" ||
+    kind === "half_x" ||
+    kind === "neg_half_x";
   const w = tileWidth(kind, scale);
   const h = TILE_H * scale;
   const colors = TILE_COLORS[kind];
