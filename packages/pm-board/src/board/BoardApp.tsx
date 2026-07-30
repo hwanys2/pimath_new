@@ -408,13 +408,24 @@ export default function BoardApp({
         e.preventDefault();
         dispatchDraw({ type: e.shiftKey ? "redo" : "undo" });
       }
-      if (e.key === "Escape" && boardMode === "math-select") {
-        setBoardMode("draw");
+      if (e.key === "Escape") {
+        if (boardMode === "math-select") {
+          setBoardMode("draw");
+          return;
+        }
+        if (recognizeSession) {
+          setRecognizeSession(null);
+          return;
+        }
+        if (tool !== "cursor") {
+          e.preventDefault();
+          setTool("cursor");
+        }
       }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [boardMode]);
+  }, [boardMode, recognizeSession, tool]);
 
   // ── Background change keeps a sensible pen color ─────────────────
   const changeBackground = useCallback(
@@ -690,6 +701,22 @@ export default function BoardApp({
     });
   }, []);
 
+  const activateCompassTool = useCallback(() => {
+    setTool("cursor");
+    setOverlays((prev) => {
+      if (prev.compass) return prev;
+      return {
+        ...prev,
+        compass: {
+          cx: window.innerWidth / 2,
+          cy: window.innerHeight / 2,
+          radius: 168,
+          angle: -40,
+        },
+      };
+    });
+  }, []);
+
   const renderWidget = (w: WidgetInstance) => {
     const setState = (patch: Record<string, unknown>) =>
       patchWidgetState(w.id, patch);
@@ -952,6 +979,7 @@ export default function BoardApp({
               compass: overlays.compass !== null,
             }}
             onToggleOverlay={toggleOverlay}
+            onCompassTool={activateCompassTool}
             mathSelectActive={boardMode === "math-select"}
             onToggleMathSelect={toggleMathSelect}
             isFullscreen={isFullscreen}

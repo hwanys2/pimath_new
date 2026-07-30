@@ -204,6 +204,7 @@ type Props = {
   onAddWidget: (kind: WidgetKind) => void;
   overlaysOn: Record<OverlayId, boolean>;
   onToggleOverlay: (id: OverlayId) => void;
+  onCompassTool: () => void;
   mathSelectActive: boolean;
   onToggleMathSelect: () => void;
   isFullscreen: boolean;
@@ -235,6 +236,7 @@ export default function BoardToolbar({
   onAddWidget,
   overlaysOn,
   onToggleOverlay,
+  onCompassTool,
   mathSelectActive,
   onToggleMathSelect,
   isFullscreen,
@@ -318,7 +320,7 @@ export default function BoardToolbar({
           <DockBtn
             label="컴퍼스"
             active={overlaysOn.compass}
-            onClick={() => onToggleOverlay("compass")}
+            onClick={onCompassTool}
           >
             <CompassIcon />
           </DockBtn>
