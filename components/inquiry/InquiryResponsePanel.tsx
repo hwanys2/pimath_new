@@ -1,6 +1,10 @@
 import type { InquiryResponseRow } from "@/lib/inquiry-types";
+import {
+  getInquiryContent,
+  isInquiryContentKey,
+} from "@/lib/inquiry-content-registry";
 import type { RadicalFillResponsePayload } from "@/lib/inquiry-radical-fill";
-import InquiryRadicalFillResponseDetail from "@/components/inquiry/radical-fill/InquiryRadicalFillResponseDetail";
+import type { BalanceFillResponsePayload } from "@/lib/inquiry-linear-equation-balance";
 
 type Props = {
   responses: InquiryResponseRow[];
@@ -17,6 +21,11 @@ export default function InquiryResponsePanel({
   onStepChange,
   contentKey,
 }: Props) {
+  const config = isInquiryContentKey(contentKey)
+    ? getInquiryContent(contentKey)
+    : undefined;
+  const ResponseDetail = config?.ResponseDetail;
+
   const stepResponses = responses.filter((r) => r.stepIndex === selectedStep);
 
   return (
@@ -69,9 +78,13 @@ export default function InquiryResponsePanel({
                           : "—"}
                   </td>
                   <td className="px-3 py-3">
-                    {contentKey === "g3-u1-radical-fill" ? (
-                      <InquiryRadicalFillResponseDetail
-                        response={r.response as RadicalFillResponsePayload}
+                    {ResponseDetail ? (
+                      <ResponseDetail
+                        response={
+                          r.response as
+                            | RadicalFillResponsePayload
+                            | BalanceFillResponsePayload
+                        }
                         result={r.result}
                       />
                     ) : (

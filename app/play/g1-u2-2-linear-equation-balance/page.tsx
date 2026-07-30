@@ -9,15 +9,15 @@ import { fetchMyClassContents } from "@/lib/class-contents";
 import { getContent } from "@/lib/contents";
 import { fetchTeacherAssignContext } from "@/lib/teacher-classes";
 
-const CONTENT_KEY = "g3-u1-radical-fill";
+const CONTENT_KEY = "g1-u2-2-linear-equation-balance";
 
 export const metadata: Metadata = {
-  title: "근호 빈칸 채우기 | 수학하는 즐거움",
+  title: "대수막대와 저울로 일차방정식 | 수학하는 즐거움",
   description:
-    "서로 다른 수로 근호 식을 완성하는 중3 제곱근 탐구 활동. 학생은 선생님이 수업을 시작할 때만 참여하고, 비로그인·교사는 문제를 미리볼 수 있어요.",
+    "양팔저울과 대수막대로 등식의 성질을 탐구하고 일차방정식을 풀어 보는 중1 탐구 활동. 학생은 선생님이 수업을 시작할 때만 참여하고, 비로그인·교사는 미리볼 수 있어요.",
 };
 
-export default async function RadicalFillPage({
+export default async function LinearEquationBalancePage({
   searchParams,
 }: {
   searchParams: Promise<{ classId?: string }>;
@@ -41,10 +41,10 @@ export default async function RadicalFillPage({
     <div className="space-y-4">
       <PlayBreadcrumb
         contentTitle={content?.title}
-        gradeHref="/grade/3"
-        gradeLabel="중3"
-        unitHref="/grade/3/g3-1"
-        unitLabel="1. 제곱근과 실수"
+        gradeHref="/grade/1"
+        gradeLabel="중1"
+        unitHref="/grade/1/g1-2-2"
+        unitLabel="2.2. 일차방정식"
         assignSlot={
           assignCtx ? (
             <AssignContentButton
@@ -71,12 +71,12 @@ export default async function RadicalFillPage({
           studentClassName={actor.className}
           studentName={actor.name}
           canParticipate={studentCanParticipate}
-          contentTitle={content?.title ?? "근호 빈칸 채우기"}
+          contentTitle={content?.title ?? "대수막대와 저울로 일차방정식"}
         />
       ) : (
         <InquirySpectatorView
           contentKey={CONTENT_KEY}
-          title={content?.title ?? "근호 빈칸 채우기"}
+          title={content?.title ?? "대수막대와 저울로 일차방정식"}
         />
       )}
     </div>

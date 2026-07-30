@@ -4,27 +4,25 @@ import { useCallback, useEffect, useState, useTransition } from "react";
 import type { TeacherClassOption } from "@/components/content/AssignContentButton";
 import InquiryResponsePanel from "@/components/inquiry/InquiryResponsePanel";
 import InquiryStatusGrid from "@/components/inquiry/InquiryStatusGrid";
-import InquiryRadicalFillStep, {
-  emptyTexts,
-} from "@/components/inquiry/radical-fill/InquiryRadicalFillStep";
-import { radicalFillProblemAt } from "@/lib/inquiry-radical-fill";
+import {
+  InquiryLinearEquationBalanceStep,
+  InquiryRadicalFillStep,
+  balanceInitialState,
+  balanceProblem,
+  getInquiryContent,
+  isInquiryContentKey,
+  radicalFillInitialState,
+  radicalFillProblem,
+  type InquiryContentKey,
+} from "@/lib/inquiry-content-registry";
 import {
   INQUIRY_POLL_MS,
   type InquiryHostTab,
   type InquiryPollState,
   type InquiryResponseRow,
 } from "@/lib/inquiry-types";
-import {
-  inquiryAdvanceStepAction,
-  inquiryCloseAndScoreAction,
-  inquiryCreateSessionAction,
-  inquiryFindActiveTeacherAction,
-  inquiryListResponsesAction,
-  inquiryStartAction,
-  inquiryTeacherPollAction,
-} from "@/app/play/g3-u1-radical-fill/actions";
-
-const CONTENT_KEY = "g3-u1-radical-fill";
+import * as radicalFillActions from "@/app/play/g3-u1-radical-fill/actions";
+import * as balanceActions from "@/app/play/g1-u2-2-linear-equation-balance/actions";
 
 const IDLE: InquiryPollState = {
   sessionId: null,
@@ -39,6 +37,7 @@ const IDLE: InquiryPollState = {
 };
 
 type Props = {
+  contentKey: string;
   teacherClasses: TeacherClassOption[];
   initialClassId?: string | null;
 };
@@ -56,10 +55,23 @@ function phaseLabel(phase: InquiryPollState["phase"]): string {
   }
 }
 
+function getActions(contentKey: InquiryContentKey) {
+  switch (contentKey) {
+    case "g3-u1-radical-fill":
+      return radicalFillActions;
+    case "g1-u2-2-linear-equation-balance":
+      return balanceActions;
+  }
+}
+
 export default function InquiryHostDashboard({
+  contentKey,
   teacherClasses,
   initialClassId,
 }: Props) {
+  const config = getInquiryContent(contentKey);
+  const validKey = isInquiryContentKey(contentKey) ? contentKey : null;
+
   const resolvedInitial =
     initialClassId &&
     teacherClasses.some((c) => c.id === initialClassId)
@@ -75,28 +87,47 @@ export default function InquiryHostDashboard({
   const [message, setMessage] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
 
-  const problem = radicalFillProblemAt(state.stepIndex);
-  const [previewTexts, setPreviewTexts] = useState(emptyTexts(problem));
+  const [previewTexts, setPreviewTexts] = useState(
+    validKey === "g3-u1-radical-fill"
+      ? radicalFillInitialState(0)
+      : [],
+  );
+  const [previewBalance, setPreviewBalance] = useState(
+    validKey === "g1-u2-2-linear-equation-balance"
+      ? balanceInitialState(0)
+      : { left: { x: 0, unit: 0 }, right: { x: 0, unit: 0 } },
+  );
 
   useEffect(() => {
-    setPreviewTexts(emptyTexts(radicalFillProblemAt(state.stepIndex)));
-  }, [state.stepIndex]);
+    if (!validKey) return;
+    if (validKey === "g3-u1-radical-fill") {
+      setPreviewTexts(radicalFillInitialState(state.stepIndex));
+    } else {
+      setPreviewBalance(balanceInitialState(state.stepIndex));
+    }
+  }, [state.stepIndex, validKey]);
 
-  const poll = useCallback(async (sid: string) => {
-    const next = await inquiryTeacherPollAction({ sessionId: sid });
-    setState(next);
-    const { responses: rows } = await inquiryListResponsesAction({
-      sessionId: sid,
-    });
-    setResponses(rows);
-  }, []);
+  const poll = useCallback(
+    async (sid: string) => {
+      if (!validKey) return;
+      const actions = getActions(validKey);
+      const next = await actions.inquiryTeacherPollAction({ sessionId: sid });
+      setState(next);
+      const { responses: rows } = await actions.inquiryListResponsesAction({
+        sessionId: sid,
+      });
+      setResponses(rows);
+    },
+    [validKey],
+  );
 
   useEffect(() => {
-    if (!selectedClassId) return;
+    if (!selectedClassId || !validKey) return;
     let cancelled = false;
 
     (async () => {
-      const found = await inquiryFindActiveTeacherAction({
+      const actions = getActions(validKey);
+      const found = await actions.inquiryFindActiveTeacherAction({
         classId: selectedClassId,
       });
       if (cancelled) return;
@@ -109,7 +140,7 @@ export default function InquiryHostDashboard({
     return () => {
       cancelled = true;
     };
-  }, [selectedClassId, poll]);
+  }, [selectedClassId, poll, validKey]);
 
   useEffect(() => {
     if (!sessionId) return;
@@ -120,10 +151,11 @@ export default function InquiryHostDashboard({
   }, [sessionId, poll]);
 
   const createSession = () => {
-    if (!selectedClassId) return;
+    if (!selectedClassId || !validKey) return;
     setMessage(null);
+    const actions = getActions(validKey);
     startTransition(async () => {
-      const result = await inquiryCreateSessionAction({
+      const result = await actions.inquiryCreateSessionAction({
         classId: selectedClassId,
       });
       if ("error" in result) {
@@ -136,10 +168,11 @@ export default function InquiryHostDashboard({
   };
 
   const startSession = () => {
-    if (!sessionId) return;
+    if (!sessionId || !validKey) return;
     setMessage(null);
+    const actions = getActions(validKey);
     startTransition(async () => {
-      const result = await inquiryStartAction({ sessionId });
+      const result = await actions.inquiryStartAction({ sessionId });
       if ("error" in result) {
         setMessage(result.error ?? "오류가 발생했어요.");
         return;
@@ -149,9 +182,13 @@ export default function InquiryHostDashboard({
   };
 
   const advance = (delta: number) => {
-    if (!sessionId) return;
+    if (!sessionId || !validKey) return;
+    const actions = getActions(validKey);
     startTransition(async () => {
-      const result = await inquiryAdvanceStepAction({ sessionId, delta });
+      const result = await actions.inquiryAdvanceStepAction({
+        sessionId,
+        delta,
+      });
       if ("error" in result) {
         setMessage(result.error ?? "오류가 발생했어요.");
         return;
@@ -161,10 +198,11 @@ export default function InquiryHostDashboard({
   };
 
   const closeSession = () => {
-    if (!sessionId) return;
+    if (!sessionId || !validKey) return;
     setMessage(null);
+    const actions = getActions(validKey);
     startTransition(async () => {
-      const result = await inquiryCloseAndScoreAction({ sessionId });
+      const result = await actions.inquiryCloseAndScoreAction({ sessionId });
       if ("error" in result) {
         setMessage(result.error ?? "오류가 발생했어요.");
         return;
@@ -187,17 +225,24 @@ export default function InquiryHostDashboard({
     { id: "responses", label: "학생 응답" },
   ];
 
+  if (!config || !validKey) {
+    return (
+      <section className="quest-card p-8 text-center">
+        <p className="font-display text-xl text-wood">알 수 없는 탐구 콘텐츠예요.</p>
+      </section>
+    );
+  }
+
   return (
     <div className="flex flex-col gap-5">
-      <section className="quest-card bg-gradient-to-br from-lavender/50 via-sky/25 to-mint/30 p-5 sm:p-7">
+      <section
+        className={`quest-card bg-gradient-to-br ${config.headerGradient} p-5 sm:p-7`}
+      >
         <p className="text-sm font-bold text-wood">교사 대시보드 · 탐구 수업</p>
         <h1 className="font-display mt-1 text-2xl text-foreground sm:text-3xl">
-          근호 빈칸 채우기
+          {config.title}
         </h1>
-        <p className="mt-2 text-sm text-foreground/70">
-          학생 화면과 같은 문제를 보며 페이지를 넘깁니다. 학생 응답은 접속
-          현황·학생 응답 탭에서 확인하세요.
-        </p>
+        <p className="mt-2 text-sm text-foreground/70">{config.hostSubtitle}</p>
       </section>
 
       <section className="quest-card flex flex-wrap items-end gap-4 p-4 sm:p-5">
@@ -305,14 +350,25 @@ export default function InquiryHostDashboard({
           </div>
 
           {tab === "problem" ? (
-            <InquiryRadicalFillStep
-              problem={problem}
-              stepIndex={state.stepIndex}
-              stepCount={state.stepCount}
-              texts={previewTexts}
-              onTextsChange={setPreviewTexts}
-              readOnly
-            />
+            validKey === "g3-u1-radical-fill" ? (
+              <InquiryRadicalFillStep
+                problem={radicalFillProblem(state.stepIndex)}
+                stepIndex={state.stepIndex}
+                stepCount={state.stepCount}
+                texts={previewTexts}
+                onTextsChange={setPreviewTexts}
+                readOnly
+              />
+            ) : (
+              <InquiryLinearEquationBalanceStep
+                problem={balanceProblem(state.stepIndex)}
+                stepIndex={state.stepIndex}
+                stepCount={state.stepCount}
+                state={previewBalance}
+                onStateChange={setPreviewBalance}
+                readOnly
+              />
+            )
           ) : null}
 
           {tab === "status" ? (
@@ -335,7 +391,7 @@ export default function InquiryHostDashboard({
                 stepCount={state.stepCount}
                 selectedStep={selectedStep}
                 onStepChange={setSelectedStep}
-                contentKey={CONTENT_KEY}
+                contentKey={contentKey}
               />
             </section>
           ) : null}

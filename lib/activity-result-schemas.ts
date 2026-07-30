@@ -30,6 +30,12 @@ export const SUMMARY_LABELS: Record<string, Record<string, string>> = {
     totalWrongs: "오답 시도",
     inquirySession: "탐구 수업",
   },
+  "g1-u2-2-linear-equation-balance": {
+    correctCount: "정답",
+    problemCount: "문제 수",
+    totalWrongs: "오답 시도",
+    inquirySession: "탐구 수업",
+  },
   "g1-u1-1-prime-hunt": {
     roundsPlayed: "라운드",
     correctCount: "정답",

@@ -76,6 +76,17 @@ export const CONTENTS: ContentMeta[] = [
       "슬라임의 수식을 맞춰 수정구슬로 공격! 6가지 연산 단계를 골라 정수·유리수 사칙연산을 연습하는 게임. 학급 배정·활성 시 XP와 랭킹이 쌓여요.",
   },
   {
+    key: "g1-u2-2-linear-equation-balance",
+    unitId: "g1-2-2",
+    type: "inquiry",
+    title: "대수막대와 저울로 일차방정식",
+    href: "/play/g1-u2-2-linear-equation-balance",
+    awardsXp: true,
+    inquiry: { stepCount: 10, grading: "auto", scoring: true },
+    description:
+      "양팔저울과 대수막대(x, −x, 1, −1)로 등식의 성질을 탐구하고 일차방정식을 풀어 보는 활동. 학생은 선생님이 수업을 시작할 때만 참여해요.",
+  },
+  {
     key: "g1-u2-3-ordered-pair-omok",
     unitId: "g1-2-3",
     type: "game",

@@ -2,19 +2,25 @@
 
 import { useCallback, useEffect, useRef, useState, useTransition } from "react";
 import InquiryWaitingScreen from "@/components/inquiry/InquiryWaitingScreen";
-import InquiryRadicalFillStep, {
-  emptyTexts,
-  validateRadicalFillSubmit,
-  type SoftNotice,
-  type TermTexts,
-} from "@/components/inquiry/radical-fill/InquiryRadicalFillStep";
 import {
-  inquiryFindActiveStudentAction,
-  inquiryJoinAction,
-  inquiryStudentPollAction,
-  inquirySubmitRadicalFillAction,
-} from "@/app/play/g3-u1-radical-fill/actions";
-import { radicalFillProblemAt } from "@/lib/inquiry-radical-fill";
+  InquiryLinearEquationBalanceStep,
+  InquiryRadicalFillStep,
+  balanceInitialState,
+  balanceProblem,
+  getInquiryContent,
+  isInquiryContentKey,
+  radicalFillInitialState,
+  radicalFillProblem,
+  validateRadicalFill,
+  type InquiryContentKey,
+} from "@/lib/inquiry-content-registry";
+import type { SoftNotice as BalanceSoftNotice } from "@/components/inquiry/linear-equation-balance/InquiryLinearEquationBalanceStep";
+import { validateBalanceSubmit } from "@/lib/inquiry-linear-equation-balance";
+import type { SoftNotice as RadicalSoftNotice } from "@/components/inquiry/radical-fill/InquiryRadicalFillStep";
+import type { TermTexts } from "@/components/inquiry/radical-fill/InquiryRadicalFillStep";
+import type { BalanceState } from "@/lib/linear-equation-balance-math";
+import * as radicalFillActions from "@/app/play/g3-u1-radical-fill/actions";
+import * as balanceActions from "@/app/play/g1-u2-2-linear-equation-balance/actions";
 import { INQUIRY_POLL_MS, type InquiryPollState } from "@/lib/inquiry-types";
 
 const IDLE: InquiryPollState = {
@@ -30,6 +36,7 @@ const IDLE: InquiryPollState = {
 };
 
 type Props = {
+  contentKey: string;
   studentClassId: string | null;
   studentClassName: string | null;
   studentName: string | null;
@@ -46,19 +53,41 @@ function InquiryUnavailable({ message }: { message: string }) {
   );
 }
 
+function getActions(contentKey: InquiryContentKey) {
+  switch (contentKey) {
+    case "g3-u1-radical-fill":
+      return radicalFillActions;
+    case "g1-u2-2-linear-equation-balance":
+      return balanceActions;
+  }
+}
+
 export default function InquiryStudentView({
+  contentKey,
   studentClassId,
   studentClassName,
   studentName,
   canParticipate,
   contentTitle,
 }: Props) {
+  const config = getInquiryContent(contentKey);
+  const validKey = isInquiryContentKey(contentKey) ? contentKey : null;
+
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [state, setState] = useState<InquiryPollState>(IDLE);
   const [waitingForSession, setWaitingForSession] = useState(true);
   const [texts, setTexts] = useState<TermTexts[]>([]);
+  const [balanceState, setBalanceState] = useState<BalanceState>({
+    left: { x: 0, unit: 0 },
+    right: { x: 0, unit: 0 },
+  });
   const [wrongAttempts, setWrongAttempts] = useState(0);
-  const [softNotice, setSoftNotice] = useState<SoftNotice | null>(null);
+  const [radicalNotice, setRadicalNotice] = useState<RadicalSoftNotice | null>(
+    null,
+  );
+  const [balanceNotice, setBalanceNotice] = useState<BalanceSoftNotice | null>(
+    null,
+  );
   const [submitted, setSubmitted] = useState(false);
   const [submitFeedback, setSubmitFeedback] = useState<
     "correct" | "wrong" | null
@@ -73,23 +102,33 @@ export default function InquiryStudentView({
     submittedRef.current = submitted;
   }, [submitted]);
 
-  const resetStep = useCallback((stepIndex: number) => {
-    const problem = radicalFillProblemAt(stepIndex);
-    setTexts(emptyTexts(problem));
-    setWrongAttempts(0);
-    wrongRef.current = 0;
-    setSoftNotice(null);
-    setSubmitted(false);
-    setSubmitFeedback(null);
-    submittedRef.current = false;
-    prevStepRef.current = stepIndex;
-  }, []);
+  const resetStep = useCallback(
+    (stepIndex: number) => {
+      if (!validKey) return;
+      if (validKey === "g3-u1-radical-fill") {
+        setTexts(radicalFillInitialState(stepIndex));
+      } else {
+        setBalanceState(balanceInitialState(stepIndex));
+      }
+      setWrongAttempts(0);
+      wrongRef.current = 0;
+      setRadicalNotice(null);
+      setBalanceNotice(null);
+      setSubmitted(false);
+      setSubmitFeedback(null);
+      submittedRef.current = false;
+      prevStepRef.current = stepIndex;
+    },
+    [validKey],
+  );
 
   useEffect(() => {
-    if (!studentClassId || !canParticipate) return;
+    if (!studentClassId || !canParticipate || !validKey) return;
+
+    const actions = getActions(validKey);
 
     const tick = async () => {
-      const active = await inquiryFindActiveStudentAction({
+      const active = await actions.inquiryFindActiveStudentAction({
         classId: studentClassId,
       });
       if (!active.sessionId) {
@@ -100,7 +139,7 @@ export default function InquiryStudentView({
       }
 
       setWaitingForSession(false);
-      const join = await inquiryJoinAction({ classId: studentClassId });
+      const join = await actions.inquiryJoinAction({ classId: studentClassId });
       if ("error" in join) {
         if (join.error === "no_session") {
           setSessionId(null);
@@ -111,7 +150,7 @@ export default function InquiryStudentView({
       }
 
       setSessionId(join.sessionId);
-      const poll = await inquiryStudentPollAction({
+      const poll = await actions.inquiryStudentPollAction({
         sessionId: join.sessionId,
       });
       setState(poll);
@@ -124,7 +163,9 @@ export default function InquiryStudentView({
         setSubmitted(true);
         submittedRef.current = true;
         setSubmitFeedback(
-          poll.myStepResult === "correct" ? "correct" : "wrong",
+          poll.myStepResult === "correct" || poll.myStepResult === "neutral"
+            ? "correct"
+            : "wrong",
         );
       }
     };
@@ -134,25 +175,24 @@ export default function InquiryStudentView({
       void tick();
     }, INQUIRY_POLL_MS);
     return () => window.clearInterval(id);
-  }, [studentClassId, canParticipate, resetStep]);
+  }, [studentClassId, canParticipate, validKey, resetStep]);
 
-  const problem = radicalFillProblemAt(state.stepIndex);
-
-  const onSubmit = () => {
-    if (!sessionId || submitted || state.phase !== "live") return;
-    const notice = validateRadicalFillSubmit(problem, texts);
+  const onSubmitRadical = () => {
+    if (!sessionId || submitted || state.phase !== "live" || !validKey) return;
+    const problem = radicalFillProblem(state.stepIndex);
+    const notice = validateRadicalFill(state.stepIndex, texts);
     if (notice) {
       if (notice.reason === "wrong") {
         const next = wrongRef.current + 1;
         wrongRef.current = next;
         setWrongAttempts(next);
       }
-      setSoftNotice(notice);
+      setRadicalNotice(notice);
       return;
     }
 
     startTransition(async () => {
-      const result = await inquirySubmitRadicalFillAction({
+      const result = await radicalFillActions.inquirySubmitRadicalFillAction({
         sessionId,
         stepIndex: state.stepIndex,
         texts,
@@ -160,15 +200,53 @@ export default function InquiryStudentView({
         gaveUp: false,
       });
       if ("error" in result) {
-        setSoftNotice({ reason: "wrong" });
+        setRadicalNotice({ reason: "wrong" });
         return;
       }
       setSubmitted(true);
       submittedRef.current = true;
       setSubmitFeedback("correct");
-      setSoftNotice(null);
+      setRadicalNotice(null);
     });
   };
+
+  const onSubmitBalance = () => {
+    if (!sessionId || submitted || state.phase !== "live" || !validKey) return;
+    const notice = validateBalanceSubmit(state.stepIndex, balanceState);
+    if (notice) {
+      if (notice.reason === "wrong") {
+        const next = wrongRef.current + 1;
+        wrongRef.current = next;
+        setWrongAttempts(next);
+      }
+      setBalanceNotice(notice);
+      return;
+    }
+
+    startTransition(async () => {
+      const result = await balanceActions.inquirySubmitBalanceAction({
+        sessionId,
+        stepIndex: state.stepIndex,
+        state: balanceState,
+        wrongs: wrongRef.current,
+        gaveUp: false,
+      });
+      if ("error" in result) {
+        setBalanceNotice({ reason: "wrong" });
+        return;
+      }
+      setSubmitted(true);
+      submittedRef.current = true;
+      setSubmitFeedback("correct");
+      setBalanceNotice(null);
+    });
+  };
+
+  if (!config || !validKey) {
+    return (
+      <InquiryUnavailable message="알 수 없는 탐구 콘텐츠예요." />
+    );
+  }
 
   if (!canParticipate) {
     return (
@@ -179,7 +257,9 @@ export default function InquiryStudentView({
   if (waitingForSession || state.phase === "setup" || state.phase === "idle") {
     return (
       <div className="space-y-4">
-        <section className="quest-card bg-gradient-to-br from-lavender/50 via-sky/25 to-mint/30 p-5 sm:p-7">
+        <section
+          className={`quest-card bg-gradient-to-br ${config.headerGradient} p-5 sm:p-7`}
+        >
           <p className="text-sm font-bold text-wood">
             {studentClassName ?? "우리 반"} · 탐구 수업
           </p>
@@ -211,7 +291,9 @@ export default function InquiryStudentView({
   if (state.phase === "live") {
     return (
       <div className="space-y-4">
-        <section className="quest-card bg-gradient-to-br from-lavender/50 via-sky/25 to-mint/30 p-5 sm:p-7">
+        <section
+          className={`quest-card bg-gradient-to-br ${config.headerGradient} p-5 sm:p-7`}
+        >
           <p className="text-sm font-bold text-wood">
             {studentClassName ?? "우리 반"} · 수업 중
           </p>
@@ -224,22 +306,41 @@ export default function InquiryStudentView({
           </p>
         </section>
 
-        <InquiryRadicalFillStep
-          problem={problem}
-          stepIndex={state.stepIndex}
-          stepCount={state.stepCount}
-          texts={texts}
-          onTextsChange={(next) => {
-            setTexts(next);
-            if (softNotice) setSoftNotice(null);
-          }}
-          disabled={isPending}
-          wrongAttempts={wrongAttempts}
-          softNotice={softNotice}
-          submitted={submitted}
-          submitFeedback={submitFeedback}
-          onSubmit={onSubmit}
-        />
+        {validKey === "g3-u1-radical-fill" ? (
+          <InquiryRadicalFillStep
+            problem={radicalFillProblem(state.stepIndex)}
+            stepIndex={state.stepIndex}
+            stepCount={state.stepCount}
+            texts={texts}
+            onTextsChange={(next) => {
+              setTexts(next);
+              if (radicalNotice) setRadicalNotice(null);
+            }}
+            disabled={isPending}
+            wrongAttempts={wrongAttempts}
+            softNotice={radicalNotice}
+            submitted={submitted}
+            submitFeedback={submitFeedback}
+            onSubmit={onSubmitRadical}
+          />
+        ) : (
+          <InquiryLinearEquationBalanceStep
+            problem={balanceProblem(state.stepIndex)}
+            stepIndex={state.stepIndex}
+            stepCount={state.stepCount}
+            state={balanceState}
+            onStateChange={(next) => {
+              setBalanceState(next);
+              if (balanceNotice) setBalanceNotice(null);
+            }}
+            disabled={isPending}
+            wrongAttempts={wrongAttempts}
+            softNotice={balanceNotice}
+            submitted={submitted}
+            submitFeedback={submitFeedback}
+            onSubmit={onSubmitBalance}
+          />
+        )}
       </div>
     );
   }
