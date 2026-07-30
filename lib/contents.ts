@@ -1,4 +1,10 @@
-export type ContentType = "simulation" | "game";
+export type ContentType = "simulation" | "game" | "inquiry";
+
+export type InquiryMeta = {
+  stepCount: number;
+  grading: "auto" | "none";
+  scoring?: boolean;
+};
 
 export type ContentMeta = {
   /** Stable id — stored in pm_class_contents.content_key. Do not rename. */
@@ -8,9 +14,10 @@ export type ContentMeta = {
   title: string;
   /** Public play path, e.g. /play/g1-u1-1-sieve-eratosthenes */
   href: string;
-  /** Always false for simulation, true for game */
+  /** false for simulation; game/inquiry depend on type and inquiry.scoring */
   awardsXp: boolean;
   description?: string;
+  inquiry?: InquiryMeta;
 };
 
 /**
@@ -181,12 +188,13 @@ export const CONTENTS: ContentMeta[] = [
   {
     key: "g3-u1-radical-fill",
     unitId: "g3-1",
-    type: "game",
+    type: "inquiry",
     title: "근호 빈칸 채우기",
     href: "/play/g3-u1-radical-fill",
-    awardsXp: true,
+    awardsXp: false,
+    inquiry: { stepCount: 10, grading: "auto", scoring: true },
     description:
-      "서로 다른 수로 근호 연산 식의 빈칸을 채워 등식을 완성하는 게임. 계수는 음수·분수 가능, 근호 안은 양수만. 10문제, 틀리면 재시도·오답 횟수 감점. 학급 배정·활성 시 XP와 랭킹이 쌓여요.",
+      "서로 다른 수로 근호 연산 식의 빈칸을 채워 등식을 완성하는 탐구 활동. 교사 수업 모드에서는 선생님 속도에 맞춰 진행하고, 수업이 없을 때는 혼자 연습할 수 있어요. 계수는 음수·분수 가능, 근호 안은 양수만.",
   },
   {
     key: "g3-u1-square-maker",
@@ -209,12 +217,24 @@ export function getContentsForUnit(unitId: string): ContentMeta[] {
 }
 
 export function contentTypeLabel(type: ContentType): string {
-  return type === "simulation" ? "시뮬레이션" : "게임";
+  switch (type) {
+    case "simulation":
+      return "시뮬레이션";
+    case "inquiry":
+      return "탐구";
+    default:
+      return "게임";
+  }
 }
 
 /** Distinct pill colors so sim vs game is obvious at a glance. */
 export function contentTypeBadgeClass(type: ContentType): string {
-  return type === "simulation"
-    ? "bg-sky/55 text-wood"
-    : "bg-gold/70 text-wood";
+  switch (type) {
+    case "simulation":
+      return "bg-sky/55 text-wood";
+    case "inquiry":
+      return "bg-lavender/60 text-wood";
+    default:
+      return "bg-gold/70 text-wood";
+  }
 }

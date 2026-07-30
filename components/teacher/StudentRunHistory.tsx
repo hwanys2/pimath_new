@@ -8,6 +8,7 @@ import {
   isPvpContent,
   isSessionGameContent,
 } from "@/lib/activity-result-schemas";
+import type { ContentType } from "@/lib/contents";
 import { ContentResultDetail } from "@/components/teacher/ContentResultDetail";
 
 function formatDate(iso: string): string {
@@ -32,7 +33,7 @@ export default async function StudentRunHistory({
 }: {
   classId: string;
   contentKey: string;
-  contentType: "game" | "simulation";
+  contentType: ContentType;
   studentId: string;
   displayName: string;
 }) {

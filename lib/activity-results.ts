@@ -2,6 +2,7 @@ import "server-only";
 import { createClient } from "@/lib/supabase/server";
 import { parseActivityDetails } from "@/lib/activity-result-schemas";
 import type { ActivityDetailsV1 } from "@/lib/activity-result-schemas";
+import type { ContentType } from "@/lib/contents";
 
 export type GameRunRow = {
   id: string;
@@ -238,7 +239,7 @@ export async function fetchClassContentResults(
 export type AssignedContentActivity = {
   contentKey: string;
   title: string;
-  type: "game" | "simulation";
+  type: ContentType;
   participantCount: number;
   studentCount: number;
   totalRuns: number;

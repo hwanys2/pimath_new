@@ -19,8 +19,9 @@
 |------|---------------|-------------|------|
 | **시뮬레이션** | `simulation` | **없음** | 개념 탐구·연습. 점수 없음. `awardStudentXp` 호출 금지 |
 | **게임** | `game` | **있음** | 목표 ≈1000, 이후 +1 소프트 캡 → XP 1:1. [`progression-system.md`](progression-system.md) |
+| **탐구** | `inquiry` | **선택** | 교사 주도 동기화 수업. [`inquiry-activities.md`](inquiry-activities.md) |
 
-카탈로그 필드 `awardsXp`는 타입과 항상 일치한다 (`simulation` → `false`, `game` → `true`).
+카탈로그 필드 `awardsXp`: `simulation` → `false`, `game` → `true`, `inquiry` → `inquiry.scoring`일 때만 `true` (세션 종료 집계).
 
 ---
 
@@ -53,7 +54,7 @@
 type ContentMeta = {
   key: string;
   unitId: string;
-  type: "simulation" | "game";
+  type: "simulation" | "game" | "inquiry";
   title: string;
   href: string;      // /play/{key}
   awardsXp: boolean;
@@ -225,6 +226,7 @@ type ContentMeta = {
 6. (게임만) `submitGameRun({ contentKey: content.key, score, details? })` — 배정·활성일 때만 XP·랭킹. 결과 UI는 `GameRankingBoard` (월드/학교/학급)
 7. (1:1 대전 게임) [`pvp-matchmaking.md`](pvp-matchmaking.md) 체크리스트 전부 — 매칭 RPC, 종료 후 자동 재매칭, `leave_queue`/`poll` stale 정리
 8. **학습 결과 기록** — [`activity-results.md`](activity-results.md) 체크리스트 (게임 `details`, 시뮬레이션 `submitActivity`, 교사 UI 확인)
+9. **탐구형** (`inquiry`) — [`inquiry-activities.md`](inquiry-activities.md) 체크리스트
 
 ---
 
@@ -241,3 +243,4 @@ type ContentMeta = {
 | 2026-07-21 | §5.4 대전 게임 1:1 매칭 · 직전 상대 20초 재매칭 방지 |
 | 2026-07-22 | §5.4 PvP 종료 후 자동 재매칭 · [`pvp-matchmaking.md`](pvp-matchmaking.md) 가이드 추가 |
 | 2026-07-30 | §8 학습 결과 기록 체크리스트 · [`activity-results.md`](activity-results.md) |
+| 2026-07-30 | `inquiry` 타입 · [`inquiry-activities.md`](inquiry-activities.md) |

@@ -1,0 +1,41 @@
+/** Shared inquiry session types (client + server safe). */
+
+export type InquiryPhase = "setup" | "live" | "closed";
+
+export type InquiryResult = "correct" | "wrong" | "neutral";
+
+export type InquiryParticipantRow = {
+  studentId: string;
+  displayName: string;
+  lastSeenAt: string | null;
+  stepResult: InquiryResult | null;
+  isMe: boolean;
+};
+
+export type InquiryPollState = {
+  sessionId: string | null;
+  classId: string | null;
+  className: string | null;
+  contentKey: string | null;
+  phase: InquiryPhase | "idle";
+  stepIndex: number;
+  stepCount: number;
+  participants: InquiryParticipantRow[];
+  myStepResult: InquiryResult | null;
+};
+
+export type InquiryResponseRow = {
+  studentId: string;
+  displayName: string;
+  stepIndex: number;
+  result: InquiryResult | null;
+  response: Record<string, unknown>;
+  submittedAt: string;
+};
+
+export type InquiryHostTab = "problem" | "status" | "responses";
+
+export const INQUIRY_POLL_MS = 1200;
+
+/** Online if last_seen within this many ms. */
+export const INQUIRY_ONLINE_MS = 5000;

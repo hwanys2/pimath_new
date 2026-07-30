@@ -77,6 +77,7 @@ await submitActivity({
 | 콘텐츠 타입 | 테이블 | 제출 |
 |-------------|--------|------|
 | 솔로 게임 | `pm_game_runs` (+ `details`) | `submitGameRun` |
+| 탐구 (`inquiry`) | `pm_inquiry_*` → 종료 시 `pm_game_runs` | `pm_inquiry_record_session_runs` (교사 종료 시) |
 | PvP 게임 | `pm_omok_games` / `pm_quad_games` / `pm_sq_games` | 매치 종료 시 기존 RPC (어댑터로 조회) |
 | 교사 세션 게임 | `pm_dice_race_*` / `pm_ball_box_*` | 기존 세션 RPC (어댑터로 조회) |
 | 시뮬레이션 | `pm_activity_sessions` | `submitActivity` |
@@ -115,3 +116,4 @@ await submitActivity({
 | 날짜 | 내용 |
 |------|------|
 | 2026-07-30 | 최초 도입 — `pm_game_runs.details`, `pm_activity_sessions`, 교사 학습 결과 UI |
+| 2026-07-30 | 탐구 세션 종료 집계 — `pm_inquiry_record_session_runs` |

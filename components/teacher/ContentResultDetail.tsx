@@ -4,6 +4,7 @@ import {
   summaryLabel,
   type ActivityDetailsV1,
 } from "@/lib/activity-result-schemas";
+import type { ContentType } from "@/lib/contents";
 import type { StudentActivitySummary } from "@/lib/activity-results";
 
 function formatDate(iso: string): string {
@@ -109,7 +110,7 @@ export function StudentResultRow({
   onToggle,
 }: {
   contentKey: string;
-  contentType: "game" | "simulation";
+  contentType: ContentType;
   student: StudentActivitySummary;
   expanded?: boolean;
   onToggle?: () => void;
@@ -195,7 +196,7 @@ export function ContentResultTable({
   students,
 }: {
   contentKey: string;
-  contentType: "game" | "simulation";
+  contentType: ContentType;
   students: StudentActivitySummary[];
 }) {
   const participated = students.filter((s) => s.participated).length;
