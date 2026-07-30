@@ -30,7 +30,7 @@ import {
   flipBothSides,
   formatBalanceAction,
   formatExpr,
-  getScaleOperations,
+  getPedagogicalScaleOperations,
   isBalancedWs,
   isSolved,
   multiplyBothSides,
@@ -252,7 +252,11 @@ export default function BalanceWorkspace({
   const solved = isSolved(workspace, xValue);
   const mass = workspaceMass(workspace, xValue);
   const expr = workspaceToBalance(workspace);
-  const scaleOps = getScaleOperations(workspace);
+  const scaleOps = getPedagogicalScaleOperations(workspace, problem);
+  const showScaleOps =
+    scaleOps.flip ||
+    scaleOps.multiply.length > 0 ||
+    scaleOps.divide.length > 0;
 
   const handleFlip = useCallback(() => {
     if (locked || !scaleOps.flip || flipping) return;
@@ -394,7 +398,7 @@ export default function BalanceWorkspace({
           ) : null}
         </svg>
 
-        {!readOnly ? (
+        {!readOnly && showScaleOps ? (
           <div className="mt-1 space-y-2 border-t border-wood/10 px-2 pt-3">
             {scaleOps.flip ? (
               <div className="flex flex-wrap justify-center gap-2">

@@ -55,6 +55,12 @@ export type BalanceProblem = {
   initial: BalanceState;
   hints: string[];
   allowNegatives: boolean;
+  /** 이 문항에서 허용되는 등식 변환(필요할 때만 버튼 표시) */
+  scaleOps?: {
+    flip?: boolean;
+    multiply?: boolean;
+    divide?: boolean;
+  };
 };
 
 export type CheckReason =
@@ -462,13 +468,48 @@ export function canFlipBothSides(ws: TileWorkspace): boolean {
   return ws.left.length > 0 && ws.right.length > 0;
 }
 
+function hasNegativeXTiles(ws: TileWorkspace): boolean {
+  return [...ws.left, ...ws.right].some((t) => t.kind === "neg_x");
+}
+
+/** x(또는 −x) 막대가 2개 이상일 때만 나누기가 의미 있음 */
+function divideWouldHelp(ws: TileWorkspace): boolean {
+  const lc = countTiles(ws.left);
+  const rc = countTiles(ws.right);
+  return lc.x >= 2 || rc.x >= 2 || lc.neg_x >= 2 || rc.neg_x >= 2;
+}
+
+/** 문항 설정 + 현재 접시 상태에 따라 필요한 스케일 조작만 반환 */
+export function getPedagogicalScaleOperations(
+  ws: TileWorkspace,
+  problem: BalanceProblem,
+): {
+  flip: boolean;
+  multiply: number[];
+  divide: number[];
+} {
+  const allowed = problem.scaleOps ?? {};
+
+  return {
+    flip:
+      Boolean(allowed.flip) &&
+      hasNegativeXTiles(ws) &&
+      canFlipBothSides(ws),
+    multiply: allowed.multiply ? getAvailableMultipliers(ws) : [],
+    divide: allowed.divide
+      ? getAvailableDivisors(ws).filter(() => divideWouldHelp(ws))
+      : [],
+  };
+}
+
+/** @deprecated use getPedagogicalScaleOperations */
 export function getScaleOperations(ws: TileWorkspace): {
   flip: boolean;
   multiply: number[];
   divide: number[];
 } {
   return {
-    flip: canFlipBothSides(ws),
+    flip: canFlipBothSides(ws) && hasNegativeXTiles(ws),
     multiply: getAvailableMultipliers(ws),
     divide: getAvailableDivisors(ws),
   };
@@ -580,19 +621,46 @@ export const PROBLEMS: BalanceProblem[] = [
   },
   {
     id: "step-5",
-    title: "음수 종합",
-    instruction: "x − 1 = −5 를 풀어 보세요.",
-    targetLatex: "x - 1 = -5",
-    xValue: -4,
-    initial: { left: { x: 1, unit: -1 }, right: { x: 0, unit: -5 } },
+    title: "양변에 x가",
+    instruction:
+      "2x + 1 = x + 4 를 풀어 보세요. 양변에 있는 x 막대도 똑같이 더하거나 빼도 돼요.",
+    targetLatex: "2x + 1 = x + 4",
+    xValue: 3,
+    initial: { left: { x: 2, unit: 1 }, right: { x: 1, unit: 4 } },
     hints: [
-      "양변에 +1을 1개씩 더해 보세요.",
-      "x = −4 가 되면 성공이에요.",
+      "양변에 −x 막대를 1개씩 더하거나, 오른쪽 x 막대를 휴지통에 넣어 보세요.",
+      "x + 1 = 4 가 되면 x = 3 이에요.",
     ],
     allowNegatives: true,
   },
   {
     id: "step-6",
+    title: "x 항 옮기기",
+    instruction: "3x = x + 8 을 풀어 보세요. x 막대를 양변에서 맞춰 빼 보세요.",
+    targetLatex: "3x = x + 8",
+    xValue: 4,
+    initial: { left: { x: 3, unit: 0 }, right: { x: 1, unit: 8 } },
+    hints: [
+      "양변에서 x 막대를 1개씩 빼 보세요.",
+      "2x = 8 이 되면 x = 4!",
+    ],
+    allowNegatives: true,
+  },
+  {
+    id: "step-7",
+    title: "x와 상수 함께",
+    instruction: "2x − 1 = x + 2 를 풀어 보세요.",
+    targetLatex: "2x - 1 = x + 2",
+    xValue: 3,
+    initial: { left: { x: 2, unit: -1 }, right: { x: 1, unit: 2 } },
+    hints: [
+      "먼저 양변에 x 막대를 1개씩 빼 보세요.",
+      "x − 1 = 2 가 되면 양변에 +1을 더해 x = 3!",
+    ],
+    allowNegatives: true,
+  },
+  {
+    id: "step-8",
     title: "양변 나누기",
     instruction:
       "2x = 6 을 풀어 보세요. 양변을 똑같이 나눠도 등식은 성립해요.",
@@ -600,41 +668,15 @@ export const PROBLEMS: BalanceProblem[] = [
     xValue: 3,
     initial: { left: { x: 2, unit: 0 }, right: { x: 0, unit: 6 } },
     hints: [
-      "아래 「양변을 2로 나누기」 버튼을 눌러 보세요.",
+      "「양변을 2로 나누기」 버튼을 눌러 보세요.",
       "x = 3 이 되면 맞아요.",
     ],
     allowNegatives: true,
-  },
-  {
-    id: "step-7",
-    title: "나누기와 음수",
-    instruction: "2x = −6 을 풀어 보세요.",
-    targetLatex: "2x = -6",
-    xValue: -3,
-    initial: { left: { x: 2, unit: 0 }, right: { x: 0, unit: -6 } },
-    hints: [
-      "양변을 2로 나누어 보세요.",
-      "x = −3 을 확인해 보세요.",
-    ],
-    allowNegatives: true,
-  },
-  {
-    id: "step-8",
-    title: "상수 먼저 제거",
-    instruction:
-      "2x + 1 = 7 을 풀어 보세요. 먼저 상수를 없앤 뒤 나누어야 해요.",
-    targetLatex: "2x + 1 = 7",
-    xValue: 3,
-    initial: { left: { x: 2, unit: 1 }, right: { x: 0, unit: 7 } },
-    hints: [
-      "양변에서 +1을 1개씩 빼 보세요. 그다음 양변을 2로 나누세요.",
-      "x = 3 이에요.",
-    ],
-    allowNegatives: true,
+    scaleOps: { divide: true },
   },
   {
     id: "step-9",
-    title: "종합 도전",
+    title: "나누기 종합",
     instruction: "3x − 2 = 7 을 풀어 보세요.",
     targetLatex: "3x - 2 = 7",
     xValue: 3,
@@ -644,6 +686,7 @@ export const PROBLEMS: BalanceProblem[] = [
       "x = 3 이 정답이에요.",
     ],
     allowNegatives: true,
+    scaleOps: { divide: true },
   },
   {
     id: "step-10",
@@ -654,15 +697,17 @@ export const PROBLEMS: BalanceProblem[] = [
     xValue: 3,
     initial: { left: { x: 1, unit: 0 }, right: { x: 0, unit: 3 } },
     hints: [
-      "아래 「양변을 2로 곱하기」 버튼을 눌러 보세요. 2x = 6 이 되어도 균형이 유지돼요.",
+      "「양변을 2로 곱하기」를 눌러 2x = 6 을 만들어 보세요.",
       "다시 「양변을 2로 나누기」로 되돌릴 수도 있어요.",
     ],
     allowNegatives: true,
+    scaleOps: { multiply: true, divide: true },
   },
   {
     id: "step-11",
     title: "부호 바꾸기",
-    instruction: "−x = 5 를 풀어 보세요. 양변의 모든 막대 부호를 바꿔도 등식은 성립해요.",
+    instruction:
+      "−x = 5 를 풀어 보세요. 양변의 모든 막대 부호를 바꿔도 등식은 성립해요.",
     targetLatex: "-x = 5",
     xValue: -5,
     initial: { left: { x: -1, unit: 0 }, right: { x: 0, unit: 5 } },
@@ -671,22 +716,10 @@ export const PROBLEMS: BalanceProblem[] = [
       "x = −5 가 되면 맞아요.",
     ],
     allowNegatives: true,
+    scaleOps: { flip: true },
   },
   {
     id: "step-12",
-    title: "부호 바꾸기 2",
-    instruction: "−x = −4 를 풀어 보세요.",
-    targetLatex: "-x = -4",
-    xValue: 4,
-    initial: { left: { x: -1, unit: 0 }, right: { x: 0, unit: -4 } },
-    hints: [
-      "양변 부호 바꾸기를 눌러 보세요.",
-      "x = 4 가 정답이에요.",
-    ],
-    allowNegatives: true,
-  },
-  {
-    id: "step-13",
     title: "음수 계수",
     instruction: "−2x = 6 을 풀어 보세요. 나눈 뒤 부호를 바꿔야 할 수 있어요.",
     targetLatex: "-2x = 6",
@@ -697,9 +730,10 @@ export const PROBLEMS: BalanceProblem[] = [
       "그다음 양변 부호 바꾸기로 x = −3 을 확인하세요.",
     ],
     allowNegatives: true,
+    scaleOps: { divide: true, flip: true },
   },
   {
-    id: "step-14",
+    id: "step-13",
     title: "음수 계수 종합",
     instruction: "−2x + 4 = −2 를 풀어 보세요.",
     targetLatex: "-2x + 4 = -2",
@@ -707,7 +741,22 @@ export const PROBLEMS: BalanceProblem[] = [
     initial: { left: { x: -2, unit: 4 }, right: { x: 0, unit: -2 } },
     hints: [
       "양변에서 +1을 4개씩 빼 보세요.",
-      "양변을 2로 나눈 뒤, 필요하면 부호 바꾸기로 x = 3 을 확인하세요.",
+      "양변을 2로 나눈 뒤, 부호 바꾸기로 x = 3 을 확인하세요.",
+    ],
+    allowNegatives: true,
+    scaleOps: { divide: true, flip: true },
+  },
+  {
+    id: "step-14",
+    title: "종합 도전",
+    instruction:
+      "2x + 5 = x + 12 를 풀어 보세요. x 막대와 상수를 모두 활용해 보세요.",
+    targetLatex: "2x + 5 = x + 12",
+    xValue: 7,
+    initial: { left: { x: 2, unit: 5 }, right: { x: 1, unit: 12 } },
+    hints: [
+      "양변에서 x 막대를 1개씩 빼 보세요.",
+      "x + 5 = 12 가 되면 x = 7!",
     ],
     allowNegatives: true,
   },
