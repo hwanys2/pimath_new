@@ -57,11 +57,19 @@ export function useTileDrag(svgRef: React.RefObject<SVGSVGElement | null>) {
   );
 
   const moveDrag = useCallback(
-    (e: React.PointerEvent, hitTest: (x: number, y: number) => DropTarget) => {
+    (
+      e: React.PointerEvent,
+      hitTest: (
+        x: number,
+        y: number,
+        clientX: number,
+        clientY: number,
+      ) => DropTarget,
+    ) => {
       if (!drag) return;
       const { x, y } = clientToSvg(e.clientX, e.clientY);
       setDrag((d) => (d ? { ...d, x, y } : null));
-      setHoverTarget(hitTest(x, y));
+      setHoverTarget(hitTest(x, y, e.clientX, e.clientY));
     },
     [drag, clientToSvg],
   );

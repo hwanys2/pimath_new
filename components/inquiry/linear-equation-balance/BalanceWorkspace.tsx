@@ -1,12 +1,9 @@
 "use client";
 
-import { useCallback, useEffect, useId, useRef, useState } from "react";
+import { useCallback, useId, useRef, useState } from "react";
 import AlgebraTile, { tileWidth } from "./AlgebraTile";
 import BalanceScale, {
-  BEAM_Y,
   LEFT_HOOK_X,
-  PAN_H,
-  PAN_RISE,
   PAN_SURFACE_Y,
   PAN_W,
   RIGHT_HOOK_X,
@@ -47,9 +44,6 @@ type Props = {
   readOnly?: boolean;
   disabled?: boolean;
 };
-
-const TRASH_X = SCALE_VB_W - 52;
-const TRASH_Y = SCALE_VB_H - 30;
 
 function sortTilesForDisplay(tiles: PlacedTile[]): PlacedTile[] {
   const order: Record<TileKind, number> = {
@@ -107,6 +101,7 @@ export default function BalanceWorkspace({
 }: Props) {
   const uid = useId().replace(/:/g, "");
   const svgRef = useRef<SVGSVGElement>(null);
+  const trashRef = useRef<HTMLDivElement>(null);
   const locked = readOnly || disabled;
   const xValue = problem.xValue;
 
@@ -123,22 +118,41 @@ export default function BalanceWorkspace({
     cancelDrag,
   } = useTileDrag(svgRef);
 
-  const hitTest = useCallback((x: number, y: number): DropTarget => {
-    if (Math.hypot(x - TRASH_X, y - TRASH_Y) < 42) return "trash";
-    const inLeft =
-      x >= LEFT_HOOK_X - PAN_W / 2 - 10 &&
-      x <= LEFT_HOOK_X + PAN_W / 2 + 10 &&
-      y >= PAN_SURFACE_Y - 50 &&
-      y <= PAN_SURFACE_Y + 40;
-    const inRight =
-      x >= RIGHT_HOOK_X - PAN_W / 2 - 10 &&
-      x <= RIGHT_HOOK_X + PAN_W / 2 + 10 &&
-      y >= PAN_SURFACE_Y - 50 &&
-      y <= PAN_SURFACE_Y + 40;
-    if (inLeft) return "left";
-    if (inRight) return "right";
-    return null;
-  }, []);
+  const hitTest = useCallback(
+    (
+      x: number,
+      y: number,
+      clientX: number,
+      clientY: number,
+    ): DropTarget => {
+      const trashEl = trashRef.current;
+      if (trashEl) {
+        const r = trashEl.getBoundingClientRect();
+        if (
+          clientX >= r.left &&
+          clientX <= r.right &&
+          clientY >= r.top &&
+          clientY <= r.bottom
+        ) {
+          return "trash";
+        }
+      }
+      const inLeft =
+        x >= LEFT_HOOK_X - PAN_W / 2 - 10 &&
+        x <= LEFT_HOOK_X + PAN_W / 2 + 10 &&
+        y >= PAN_SURFACE_Y - 80 &&
+        y <= PAN_SURFACE_Y + 50;
+      const inRight =
+        x >= RIGHT_HOOK_X - PAN_W / 2 - 10 &&
+        x <= RIGHT_HOOK_X + PAN_W / 2 + 10 &&
+        y >= PAN_SURFACE_Y - 80 &&
+        y <= PAN_SURFACE_Y + 50;
+      if (inLeft) return "left";
+      if (inRight) return "right";
+      return null;
+    },
+    [],
+  );
 
   const applyWithZeroPairs = useCallback(
     (ws: TileWorkspace) => {
@@ -265,63 +279,61 @@ export default function BalanceWorkspace({
 
   return (
     <div className="space-y-3">
-      <div className="overflow-x-auto rounded-2xl border-2 border-wood/12 bg-gradient-to-b from-[#f0f4f8] to-[#FEF9F0]">
-        <svg
-          ref={svgRef}
-          viewBox={`0 0 ${SCALE_VB_W} ${SCALE_VB_H}`}
-          className="mx-auto w-full max-w-4xl touch-none select-none"
-          role="application"
-          aria-label="양팔저울"
-          onPointerMove={onPointerMove}
-          onPointerUp={onPointerUp}
-          onPointerCancel={onPointerUp}
-        >
-          <BalanceScale
-            uid={uid}
-            tilt={tilt}
-            leftHighlight={hoverTarget === "left"}
-            rightHighlight={hoverTarget === "right"}
-            leftTiles={renderPanTiles("left")}
-            rightTiles={renderPanTiles("right")}
-          />
+      <div className="overflow-visible rounded-2xl border-2 border-wood/12 bg-gradient-to-b from-[#f0f4f8] to-[#FEF9F0] p-3 pb-4">
+        <div className="flex flex-col items-center gap-3 sm:flex-row sm:items-end">
+          <svg
+            ref={svgRef}
+            viewBox={`0 0 ${SCALE_VB_W} ${SCALE_VB_H}`}
+            className="min-h-[260px] w-full flex-1 touch-none select-none sm:min-h-[300px]"
+            style={{ aspectRatio: `${SCALE_VB_W} / ${SCALE_VB_H}` }}
+            role="application"
+            aria-label="양팔저울"
+            onPointerMove={onPointerMove}
+            onPointerUp={onPointerUp}
+            onPointerCancel={onPointerUp}
+          >
+            <BalanceScale
+              uid={uid}
+              tilt={tilt}
+              leftHighlight={hoverTarget === "left"}
+              rightHighlight={hoverTarget === "right"}
+              leftTiles={renderPanTiles("left")}
+              rightTiles={renderPanTiles("right")}
+            />
+
+            {drag ? (
+              <AlgebraTile
+                kind={
+                  drag.source.type === "palette"
+                    ? drag.source.kind
+                    : drag.source.kind
+                }
+                x={drag.x - drag.offsetX}
+                y={drag.y - drag.offsetY}
+                scale={0.92}
+                dragging
+              />
+            ) : null}
+
+            {zeroFlash ? (
+              <text
+                x={SCALE_VB_W / 2}
+                y={PAN_SURFACE_Y - 30}
+                textAnchor="middle"
+                fontSize={28}
+                fontWeight="bold"
+                fill="#2A9D8F"
+                opacity={0.85}
+              >
+                0
+              </text>
+            ) : null}
+          </svg>
 
           {!locked ? (
-            <TrashZone
-              uid={uid}
-              x={TRASH_X}
-              y={TRASH_Y}
-              active={hoverTarget === "trash"}
-            />
+            <TrashZone ref={trashRef} active={hoverTarget === "trash"} />
           ) : null}
-
-          {drag ? (
-            <AlgebraTile
-              kind={
-                drag.source.type === "palette"
-                  ? drag.source.kind
-                  : drag.source.kind
-              }
-              x={drag.x - drag.offsetX}
-              y={drag.y - drag.offsetY}
-              scale={0.92}
-              dragging
-            />
-          ) : null}
-
-          {zeroFlash ? (
-            <text
-              x={SCALE_VB_W / 2}
-              y={PAN_SURFACE_Y - 20}
-              textAnchor="middle"
-              fontSize={28}
-              fontWeight="bold"
-              fill="#2A9D8F"
-              opacity={0.85}
-            >
-              0
-            </text>
-          ) : null}
-        </svg>
+        </div>
       </div>
 
       <div className="flex flex-wrap items-center justify-center gap-4 text-center text-xs font-bold text-wood">

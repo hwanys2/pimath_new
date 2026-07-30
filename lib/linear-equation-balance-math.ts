@@ -190,7 +190,7 @@ export function formatExpr(expr: PanExpr): string {
 
 export function balanceTiltDeg(ws: TileWorkspace, xValue: number): number {
   const diff = panValue(ws.right, xValue) - panValue(ws.left, xValue);
-  return 14 * Math.tanh(diff / 6);
+  return 24 * Math.tanh(diff / 4);
 }
 
 export function workspaceMass(ws: TileWorkspace, xValue: number): {
