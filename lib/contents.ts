@@ -49,6 +49,16 @@ export const CONTENTS: ContentMeta[] = [
       "떨어지는 숫자를 소수로 나눠 1까지 소인수분해하는 게임입니다. 학급 배정·활성 시 XP와 랭킹이 쌓여요.",
   },
   {
+    key: "g1-u1-1-knight-prime",
+    unitId: "g1-1-1",
+    type: "game",
+    title: "나이트 프라임",
+    href: "/play/g1-u1-1-knight-prime",
+    awardsXp: true,
+    description:
+      "체스 나이트처럼 L자로 움직이며 소수를 밟아 점수를 모으는 게임입니다. 학급 배정·활성 시 XP와 랭킹이 쌓여요.",
+  },
+  {
     key: "g1-u1-2-sign-slime",
     unitId: "g1-1-2",
     type: "game",
