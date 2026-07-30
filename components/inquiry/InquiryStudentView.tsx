@@ -1,7 +1,6 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState, useTransition } from "react";
-import RadicalFillQuiz from "@/components/games/RadicalFillQuiz";
 import InquiryWaitingScreen from "@/components/inquiry/InquiryWaitingScreen";
 import InquiryRadicalFillStep, {
   emptyTexts,
@@ -34,16 +33,29 @@ type Props = {
   studentClassId: string | null;
   studentClassName: string | null;
   studentName: string | null;
+  canParticipate: boolean;
+  contentTitle: string;
 };
+
+function InquiryUnavailable({ message }: { message: string }) {
+  return (
+    <section className="quest-card p-8 text-center">
+      <p className="font-display text-xl text-wood">참여할 수 없어요</p>
+      <p className="mt-3 text-sm font-semibold text-foreground/70">{message}</p>
+    </section>
+  );
+}
 
 export default function InquiryStudentView({
   studentClassId,
   studentClassName,
   studentName,
+  canParticipate,
+  contentTitle,
 }: Props) {
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [state, setState] = useState<InquiryPollState>(IDLE);
-  const [noSession, setNoSession] = useState(false);
+  const [waitingForSession, setWaitingForSession] = useState(true);
   const [texts, setTexts] = useState<TermTexts[]>([]);
   const [wrongAttempts, setWrongAttempts] = useState(0);
   const [softNotice, setSoftNotice] = useState<SoftNotice | null>(null);
@@ -55,6 +67,11 @@ export default function InquiryStudentView({
 
   const prevStepRef = useRef(-1);
   const wrongRef = useRef(0);
+  const submittedRef = useRef(false);
+
+  useEffect(() => {
+    submittedRef.current = submitted;
+  }, [submitted]);
 
   const resetStep = useCallback((stepIndex: number) => {
     const problem = radicalFillProblemAt(stepIndex);
@@ -64,25 +81,31 @@ export default function InquiryStudentView({
     setSoftNotice(null);
     setSubmitted(false);
     setSubmitFeedback(null);
+    submittedRef.current = false;
     prevStepRef.current = stepIndex;
   }, []);
 
-  const joinAndPoll = useCallback(
-    async (classId: string) => {
-      const active = await inquiryFindActiveStudentAction({ classId });
+  useEffect(() => {
+    if (!studentClassId || !canParticipate) return;
+
+    const tick = async () => {
+      const active = await inquiryFindActiveStudentAction({
+        classId: studentClassId,
+      });
       if (!active.sessionId) {
-        setNoSession(true);
         setSessionId(null);
         setState(IDLE);
+        setWaitingForSession(true);
         return;
       }
 
-      setNoSession(false);
-      const join = await inquiryJoinAction({ classId });
+      setWaitingForSession(false);
+      const join = await inquiryJoinAction({ classId: studentClassId });
       if ("error" in join) {
         if (join.error === "no_session") {
-          setNoSession(true);
-          return;
+          setSessionId(null);
+          setState(IDLE);
+          setWaitingForSession(true);
         }
         return;
       }
@@ -92,40 +115,26 @@ export default function InquiryStudentView({
         sessionId: join.sessionId,
       });
       setState(poll);
-      if (poll.phase === "live" && prevStepRef.current !== poll.stepIndex) {
-        resetStep(poll.stepIndex);
-      }
-    },
-    [resetStep],
-  );
-
-  useEffect(() => {
-    if (!studentClassId) {
-      setNoSession(true);
-      return;
-    }
-    void joinAndPoll(studentClassId);
-  }, [studentClassId, joinAndPoll]);
-
-  useEffect(() => {
-    if (!sessionId) return;
-    const id = window.setInterval(async () => {
-      const poll = await inquiryStudentPollAction({ sessionId });
-      setState(poll);
 
       if (poll.phase === "live" && prevStepRef.current !== poll.stepIndex) {
         resetStep(poll.stepIndex);
       }
 
-      if (poll.myStepResult && !submitted) {
+      if (poll.myStepResult && !submittedRef.current) {
         setSubmitted(true);
+        submittedRef.current = true;
         setSubmitFeedback(
           poll.myStepResult === "correct" ? "correct" : "wrong",
         );
       }
+    };
+
+    void tick();
+    const id = window.setInterval(() => {
+      void tick();
     }, INQUIRY_POLL_MS);
     return () => window.clearInterval(id);
-  }, [sessionId, resetStep, submitted]);
+  }, [studentClassId, canParticipate, resetStep]);
 
   const problem = radicalFillProblemAt(state.stepIndex);
 
@@ -155,32 +164,19 @@ export default function InquiryStudentView({
         return;
       }
       setSubmitted(true);
+      submittedRef.current = true;
       setSubmitFeedback("correct");
       setSoftNotice(null);
     });
   };
 
-  const onGiveUp = () => {
-    if (!sessionId || submitted || state.phase !== "live") return;
-    startTransition(async () => {
-      await inquirySubmitRadicalFillAction({
-        sessionId,
-        stepIndex: state.stepIndex,
-        texts,
-        wrongs: wrongRef.current,
-        gaveUp: true,
-      });
-      setSubmitted(true);
-      setSubmitFeedback("wrong");
-      setSoftNotice(null);
-    });
-  };
-
-  if (!studentClassId || noSession) {
-    return <RadicalFillQuiz />;
+  if (!canParticipate) {
+    return (
+      <InquiryUnavailable message="선생님이 이 활동을 학급에 담아두고 활성화해야 참여할 수 있어요." />
+    );
   }
 
-  if (state.phase === "setup" || (sessionId && state.phase === "idle")) {
+  if (waitingForSession || state.phase === "setup" || state.phase === "idle") {
     return (
       <div className="space-y-4">
         <section className="quest-card bg-gradient-to-br from-lavender/50 via-sky/25 to-mint/30 p-5 sm:p-7">
@@ -188,12 +184,14 @@ export default function InquiryStudentView({
             {studentClassName ?? "우리 반"} · 탐구 수업
           </p>
           <h1 className="font-display mt-1 text-2xl text-foreground sm:text-3xl">
-            근호 빈칸 채우기
+            {contentTitle}
           </h1>
         </section>
         <InquiryWaitingScreen studentName={studentName} />
         <p className="text-center text-xs font-medium text-foreground/50">
-          접속 확인됨 · 선생님이 수업을 시작하면 문제가 열려요.
+          {sessionId
+            ? "접속 확인됨 · 선생님이 수업을 시작하면 문제가 열려요."
+            : "선생님이 수업을 준비할 때까지 기다려 주세요."}
         </p>
       </div>
     );
@@ -204,7 +202,7 @@ export default function InquiryStudentView({
       <section className="quest-card p-8 text-center">
         <p className="font-display text-2xl text-wood">수업이 끝났어요</p>
         <p className="mt-3 text-sm font-semibold text-foreground/70">
-          선생님이 수업을 종료했습니다. 혼자 연습하려면 페이지를 새로고침하세요.
+          선생님이 수업을 종료했습니다.
         </p>
       </section>
     );
@@ -218,7 +216,7 @@ export default function InquiryStudentView({
             {studentClassName ?? "우리 반"} · 수업 중
           </p>
           <h1 className="font-display mt-1 text-2xl text-foreground sm:text-3xl">
-            근호 빈칸 채우기
+            {contentTitle}
           </h1>
           <p className="mt-2 text-sm text-foreground/70">
             선생님 속도에 맞춰 진행돼요. 제출 후 다음 문제는 선생님이 넘길 때까지
@@ -241,11 +239,12 @@ export default function InquiryStudentView({
           submitted={submitted}
           submitFeedback={submitFeedback}
           onSubmit={onSubmit}
-          onGiveUp={onGiveUp}
         />
       </div>
     );
   }
 
-  return <RadicalFillQuiz />;
+  return (
+    <InquiryUnavailable message="수업 상태를 확인할 수 없어요. 잠시 후 다시 시도해 주세요." />
+  );
 }

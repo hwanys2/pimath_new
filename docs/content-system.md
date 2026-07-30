@@ -19,7 +19,7 @@
 |------|---------------|-------------|------|
 | **시뮬레이션** | `simulation` | **없음** | 개념 탐구·연습. 점수 없음. `awardStudentXp` 호출 금지 |
 | **게임** | `game` | **있음** | 목표 ≈1000, 이후 +1 소프트 캡 → XP 1:1. [`progression-system.md`](progression-system.md) |
-| **탐구** | `inquiry` | **선택** | 교사 주도 동기화 수업. [`inquiry-activities.md`](inquiry-activities.md) |
+| **탐구** | `inquiry` | **선택** | 교사 주도 동기화 수업 전용. 학생은 배정·활성 + 교사 세션 시작 시에만 참여. [`inquiry-activities.md`](inquiry-activities.md) |
 
 카탈로그 필드 `awardsXp`: `simulation` → `false`, `game` → `true`, `inquiry` → `inquiry.scoring`일 때만 `true` (세션 종료 집계).
 
@@ -244,3 +244,4 @@ type ContentMeta = {
 | 2026-07-22 | §5.4 PvP 종료 후 자동 재매칭 · [`pvp-matchmaking.md`](pvp-matchmaking.md) 가이드 추가 |
 | 2026-07-30 | §8 학습 결과 기록 체크리스트 · [`activity-results.md`](activity-results.md) |
 | 2026-07-30 | `inquiry` 타입 · [`inquiry-activities.md`](inquiry-activities.md) |
+| 2026-07-30 | 탐구: 학생 솔로 연습 제거, 세션 전용 + 미리보기 |

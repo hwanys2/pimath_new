@@ -194,7 +194,7 @@ export const CONTENTS: ContentMeta[] = [
     awardsXp: false,
     inquiry: { stepCount: 10, grading: "auto", scoring: true },
     description:
-      "서로 다른 수로 근호 연산 식의 빈칸을 채워 등식을 완성하는 탐구 활동. 교사 수업 모드에서는 선생님 속도에 맞춰 진행하고, 수업이 없을 때는 혼자 연습할 수 있어요. 계수는 음수·분수 가능, 근호 안은 양수만.",
+      "서로 다른 수로 근호 연산 식의 빈칸을 채워 등식을 완성하는 탐구 활동. 학생은 선생님이 수업을 시작할 때만 참여해요. 계수는 음수·분수 가능, 근호 안은 양수만.",
   },
   {
     key: "g3-u1-square-maker",

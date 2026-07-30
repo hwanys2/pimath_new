@@ -8,7 +8,7 @@
 
 ## 1. 한 줄 요약
 
-`inquiry`(탐구) 타입은 교사 주도 동기화 수업을 지원한다. 활성 세션이 없으면 기존처럼 **솔로 연습**, 세션이 있으면 학생은 **대기 → 동기화 플레이** (자율 넘김 불가).
+`inquiry`(탐구) 타입은 **교사 주도 동기화 수업 전용**이다. 학생은 학급에 **배정·활성**되어 있고 교사가 세션을 **시작한 뒤에만** 참여한다. 비로그인·교사는 **미리보기(구경)** 만 가능하다.
 
 ---
 
@@ -18,7 +18,7 @@
 |------|--------|------|------|
 | `simulation` | 없음 | 없음 | 개념 탐구 |
 | `game` | 없음 | 즉시 제출 | 솔로/PvP 게임 |
-| `inquiry` | **교사 주도** | 선택 (`inquiry.scoring`) | 수업 모드 + 연습 fallback |
+| `inquiry` | **교사 주도** | 선택 (`inquiry.scoring`) | 수업 세션 전용 · 솔로 연습 없음 |
 
 ```ts
 type InquiryMeta = {
@@ -38,16 +38,22 @@ setup → live → closed
 
 | 단계 | 교사 | 학생 |
 |------|------|------|
-| `setup` | 수업 준비 · 수업 시작 | 대기 화면 |
-| `live` | 이전/다음으로 step 이동 | 현재 step만 · 제출 후 대기 |
+| `setup` | 수업 준비 · 수업 시작 | 대기 화면 (세션 있을 때만 접속) |
+| `live` | 이전/다음으로 step 이동 | 현재 step만 · 제출 후 대기 · **포기 없음** |
 | `closed` | 수업 종료 · (선택) 점수 집계 | 종료 안내 |
 
 ---
 
-## 4. 하이브리드 모드
+## 4. 접근 규칙 (하이브리드 없음)
 
-- **활성 세션 없음** → `RadicalFillQuiz` 등 솔로 연습 (`submitGameRun`)
-- **활성 세션 있음** → `InquiryStudentView` 동기화 모드 (step별 `pm_inquiry_step_responses`)
+| 역할 | `/play/{contentKey}` 동작 |
+|------|---------------------------|
+| **교사** | 호스트 대시보드 (수업 준비·진행·종료) |
+| **학생** | 배정·활성 + 교사 세션 `live`일 때만 풀이. 그 외 대기 또는 참여 불가 |
+| **비로그인** | `InquirySpectatorView` — 문제 미리보기만 (제출·점수 없음) |
+
+- 학생 **솔로 연습·`submitGameRun` 직접 제출 없음**
+- 점수는 세션 종료 시 `pm_inquiry_record_session_runs`로만 반영 (배정·활성 시)
 
 ---
 
@@ -58,6 +64,8 @@ setup → live → closed
 | 문제 화면 | 학생과 동일 UI (읽기 전용) | 응답 숨김 |
 | 접속 현황 | 학생 × 문항 O/X/· 그리드 + 온라인 | 입력값 숨김 |
 | 학생 응답 | 문항별 상세 응답 | 탭 열 때만 노출 |
+
+학급 상세 → 수업 콘텐츠 카드의 **수업 대시보드** 버튼으로 진입 (`?classId=`로 학급 미리 선택).
 
 ---
 
@@ -98,7 +106,7 @@ setup → live → closed
 { "fills": [{ "coeff": "3", "radicand": "2" }], "gaveUp": false, "wrongs": 1 }
 ```
 
-채점은 서버 액션에서 [`lib/radical-fill-math.ts`](../lib/radical-fill-math.ts) `checkAnswer` 호출 후 RPC에 `result` 전달.
+채점은 서버 액션에서 [`lib/radical-fill-math.ts`](../lib/radical-fill-math.ts) `checkAnswer` 호출 후 RPC에 `result` 전달. 수업 중 학생 UI에는 **포기 버튼 없음**.
 
 ---
 
@@ -114,7 +122,7 @@ setup → live → closed
 2. step UI 컴포넌트 (`components/inquiry/...`)
 3. 서버 액션 채점 분기 + `pm_inquiry_submit_response`
 4. [`InquiryResponsePanel`](../components/inquiry/InquiryResponsePanel.tsx) 렌더러 등록
-5. 교사 대시보드에서 3탭 확인
+5. play page: 교사=대시보드, 학생=세션 대기/참여, 비로그인=미리보기
 6. [`activity-results.md`](activity-results.md) — 세션 종료 집계 경로 문서화
 
 ---
@@ -124,3 +132,4 @@ setup → live → closed
 | 날짜 | 내용 |
 |------|------|
 | 2026-07-30 | 최초 도입 — `g3-u1-radical-fill` 탐구 전환 |
+| 2026-07-30 | 하이브리드 제거 — 학생 세션 전용, 비로그인 미리보기, 포기 버튼 제거 |
