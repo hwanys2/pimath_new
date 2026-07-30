@@ -1,11 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import {
-  scoreForAttempts,
-  type BalanceProblem,
-  type TileWorkspace,
-} from "@/lib/linear-equation-balance-math";
+import { scoreForAttempts } from "@/lib/linear-equation-balance-math";
+import type { BalanceProblem, TileWorkspace } from "@/lib/linear-equation-balance-math";
 import type { SoftNotice } from "@/lib/inquiry-linear-equation-balance";
 import BalanceWorkspace from "./BalanceWorkspace";
 import EquationHintPanel from "./EquationHintPanel";
@@ -15,11 +12,11 @@ export type { SoftNotice };
 function softMessage(reason: SoftNotice["reason"]): string {
   switch (reason) {
     case "unbalanced":
-      return "저울이 균형을 이루지 않아요. 막대를 드래그해서 양변을 맞춰 보세요.";
+      return "저울이 기울었어요. 양변에 똑같이 해야 등식이 유지돼요.";
     case "wrong":
-      return "아직 x의 값이 맞지 않아요. 왼쪽에 x만, 오른쪽에 답만 남겨 보세요.";
-    case "incomplete":
-      return "문제를 더 풀어 보세요.";
+      return "한쪽에 x 막대만 혼자 남겨 보세요.";
+    case "x_on_both_sides":
+      return "반대쪽 접시에도 x 막대가 남아 있어요.";
   }
 }
 
@@ -85,9 +82,9 @@ export default function InquiryLinearEquationBalanceStep({
 
       <div className="mt-6">
         <BalanceWorkspace
+          problem={problem}
           workspace={workspace}
           onChange={onWorkspaceChange}
-          allowNegatives={problem.allowNegatives}
           readOnly={readOnly}
           disabled={locked}
         />

@@ -35,6 +35,7 @@ export const SUMMARY_LABELS: Record<string, Record<string, string>> = {
     problemCount: "문제 수",
     totalWrongs: "오답 시도",
     inquirySession: "탐구 수업",
+    moves: "조작 횟수",
   },
   "g1-u1-1-prime-hunt": {
     roundsPlayed: "라운드",

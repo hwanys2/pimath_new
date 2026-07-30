@@ -22,11 +22,16 @@ export default function InquiryLinearEquationBalanceResponseDetail({
       <p>
         오른쪽: <span className="font-mono">{right}</span>
       </p>
+      <p className="mt-1 text-wood/60">
+        {response.balanced ? "균형" : "불균형"}
+        {response.solved ? " · x 구함" : ""}
+        {response.moves > 0 ? ` · 조작 ${response.moves}회` : ""}
+      </p>
       {response.wrongs > 0 ? (
-        <p className="mt-1 text-wood/60">오답 시도 {response.wrongs}회</p>
+        <p className="text-wood/60">오답 시도 {response.wrongs}회</p>
       ) : null}
-      {result === "neutral" ? (
-        <p className="mt-1 text-wood/60">관찰 단계</p>
+      {result === "correct" ? (
+        <p className="mt-1 font-bold text-mint">정답</p>
       ) : null}
     </div>
   );

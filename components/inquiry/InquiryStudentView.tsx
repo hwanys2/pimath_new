@@ -81,6 +81,7 @@ export default function InquiryStudentView({
     left: [],
     right: [],
   });
+  const [balanceMoves, setBalanceMoves] = useState(0);
   const [wrongAttempts, setWrongAttempts] = useState(0);
   const [radicalNotice, setRadicalNotice] = useState<RadicalSoftNotice | null>(
     null,
@@ -109,6 +110,7 @@ export default function InquiryStudentView({
         setTexts(radicalFillInitialState(stepIndex));
       } else {
         setBalanceWorkspace(balanceInitialState(stepIndex));
+        setBalanceMoves(0);
       }
       setWrongAttempts(0);
       wrongRef.current = 0;
@@ -214,11 +216,9 @@ export default function InquiryStudentView({
     if (!sessionId || submitted || state.phase !== "live" || !validKey) return;
     const notice = validateBalanceSubmit(state.stepIndex, balanceWorkspace);
     if (notice) {
-      if (notice.reason === "wrong") {
-        const next = wrongRef.current + 1;
-        wrongRef.current = next;
-        setWrongAttempts(next);
-      }
+      const next = wrongRef.current + 1;
+      wrongRef.current = next;
+      setWrongAttempts(next);
       setBalanceNotice(notice);
       return;
     }
@@ -228,6 +228,7 @@ export default function InquiryStudentView({
         sessionId,
         stepIndex: state.stepIndex,
         workspace: balanceWorkspace,
+        moves: balanceMoves,
         wrongs: wrongRef.current,
         gaveUp: false,
       });
@@ -331,6 +332,7 @@ export default function InquiryStudentView({
             workspace={balanceWorkspace}
             onWorkspaceChange={(next) => {
               setBalanceWorkspace(next);
+              setBalanceMoves((m) => m + 1);
               if (balanceNotice) setBalanceNotice(null);
             }}
             disabled={isPending}

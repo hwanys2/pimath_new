@@ -84,12 +84,14 @@ export async function inquirySubmitBalanceAction(input: {
   workspace: TileWorkspace;
   wrongs: number;
   gaveUp: boolean;
+  moves?: number;
 }) {
   const graded = gradeBalanceStep(
     input.stepIndex,
     input.workspace,
     input.wrongs,
     input.gaveUp,
+    input.moves ?? 0,
   );
 
   return inquirySubmitResponse({

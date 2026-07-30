@@ -1,6 +1,9 @@
 /**
- * 일차방정식 대수막대·저울 탐구 — 문제 정의 · 채점 · 타일 변환
+ * 일차방정식 대수막대·저울 탐구 — 값 기반 균형 모델
  * contentKey: g1-u2-2-linear-equation-balance
+ *
+ * 핵심: x 막대의 무게 = 그 문제의 해(xValue).
+ * 균형 = panValue(left) === panValue(right)
  */
 
 export const CONTENT_KEY = "g1-u2-2-linear-equation-balance";
@@ -19,30 +22,38 @@ export type PlacedTile = {
   kind: TileKind;
 };
 
-/** 드래그 가능한 개별 막대 배치 */
 export type TileWorkspace = {
   left: PlacedTile[];
   right: PlacedTile[];
 };
 
-export type BalanceGoal = "balanced" | "isolate_x";
+export type ZeroPairKind = "unit" | "x";
+
+export type ZeroPair = {
+  pan: PanSide;
+  kind: ZeroPairKind;
+  tileA: string;
+  tileB: string;
+};
 
 export type BalanceProblem = {
   id: string;
   title: string;
   instruction: string;
   targetLatex: string;
+  /** 이 문제에서 x 막대 1개의 실제 값 (= 해) */
+  xValue: number;
   initial: BalanceState;
-  goal: BalanceGoal;
-  /** isolate_x 일 때 우변 상수 목표 */
-  targetX?: number;
   hints: string[];
   allowNegatives: boolean;
-  /** neutral = 제출만 정답 처리 (관찰 단계) */
-  gradingMode: "auto" | "neutral";
 };
 
-export type CheckReason = "ok" | "unbalanced" | "wrong" | "incomplete";
+export type CheckReason =
+  | "ok"
+  | "unbalanced"
+  | "wrong"
+  | "incomplete"
+  | "x_on_both_sides";
 
 export type CheckResult = {
   ok: boolean;
@@ -53,9 +64,24 @@ export const WRONG_PENALTY = 15;
 export const MIN_CORRECT_SCORE = 40;
 export const MAX_CORRECT_SCORE = 100;
 
+let tileIdSeq = 0;
+
 export function scoreForAttempts(wrongs: number): number {
   const w = Math.max(0, Math.floor(wrongs));
   return Math.max(MIN_CORRECT_SCORE, MAX_CORRECT_SCORE - w * WRONG_PENALTY);
+}
+
+export function tileValue(kind: TileKind, xValue: number): number {
+  switch (kind) {
+    case "x":
+      return xValue;
+    case "neg_x":
+      return -xValue;
+    case "one":
+      return 1;
+    case "neg_one":
+      return -1;
+  }
 }
 
 export function exprFromTiles(tiles: TileKind[]): PanExpr {
@@ -91,47 +117,53 @@ export function tilesFromExpr(expr: PanExpr): TileKind[] {
   return tiles;
 }
 
-export function panWeight(expr: PanExpr): number {
-  return Math.abs(expr.x) * 4 + Math.abs(expr.unit);
+export function panValue(tiles: PlacedTile[], xValue: number): number {
+  return tiles.reduce((sum, t) => sum + tileValue(t.kind, xValue), 0);
 }
 
-export function isBalanced(state: BalanceState): boolean {
-  return state.left.x === state.right.x && state.left.unit === state.right.unit;
+export function workspaceToBalance(ws: TileWorkspace): BalanceState {
+  return {
+    left: exprFromTiles(ws.left.map((t) => t.kind)),
+    right: exprFromTiles(ws.right.map((t) => t.kind)),
+  };
 }
 
-export function isIsolatedX(state: BalanceState, targetX: number): boolean {
-  return (
-    isBalanced(state) &&
-    state.left.x === 1 &&
-    state.left.unit === 0 &&
-    state.right.x === 0 &&
-    state.right.unit === targetX
-  );
+export function isBalancedWs(ws: TileWorkspace, xValue: number): boolean {
+  return panValue(ws.left, xValue) === panValue(ws.right, xValue);
+}
+
+export function isSolved(ws: TileWorkspace, xValue: number): boolean {
+  if (!isBalancedWs(ws, xValue)) return false;
+  const { left, right } = workspaceToBalance(ws);
+
+  const leftIsolated =
+    left.x === 1 &&
+    left.unit === 0 &&
+    right.x === 0 &&
+    right.unit === xValue;
+  const rightIsolated =
+    right.x === 1 &&
+    right.unit === 0 &&
+    left.x === 0 &&
+    left.unit === xValue;
+
+  return leftIsolated || rightIsolated;
 }
 
 export function checkAnswer(
   problem: BalanceProblem,
-  state: BalanceState,
+  ws: TileWorkspace,
 ): CheckResult {
-  if (problem.gradingMode === "neutral") {
-    if (isBalanced(state)) return { ok: true, reason: "ok" };
+  if (!isBalancedWs(ws, problem.xValue)) {
     return { ok: false, reason: "unbalanced" };
   }
 
-  if (!isBalanced(state)) {
-    return { ok: false, reason: "unbalanced" };
+  const { left, right } = workspaceToBalance(ws);
+  if (left.x > 0 && right.x > 0) {
+    return { ok: false, reason: "x_on_both_sides" };
   }
 
-  if (problem.goal === "balanced") {
-    return { ok: true, reason: "ok" };
-  }
-
-  const target = problem.targetX;
-  if (target == null) {
-    return { ok: false, reason: "incomplete" };
-  }
-
-  if (isIsolatedX(state, target)) {
+  if (isSolved(ws, problem.xValue)) {
     return { ok: true, reason: "ok" };
   }
 
@@ -142,25 +174,38 @@ export function formatExpr(expr: PanExpr): string {
   const parts: string[] = [];
   if (expr.x !== 0) {
     if (expr.x === 1) parts.push("x");
-    else if (expr.x === -1) parts.push("-x");
+    else if (expr.x === -1) parts.push("−x");
     else parts.push(`${expr.x}x`);
   }
   if (expr.unit !== 0) {
     if (expr.unit > 0) {
       parts.push(expr.unit === 1 ? "+1" : `+${expr.unit}`);
     } else {
-      parts.push(expr.unit === -1 ? "-1" : `${expr.unit}`);
+      parts.push(expr.unit === -1 ? "−1" : `${expr.unit}`);
     }
   }
   if (parts.length === 0) return "0";
   return parts.join("").replace(/^\+/, "");
 }
 
-export function emptyWorkspaceState(problem: BalanceProblem): BalanceState {
+export function balanceTiltDeg(ws: TileWorkspace, xValue: number): number {
+  const diff = panValue(ws.right, xValue) - panValue(ws.left, xValue);
+  return 14 * Math.tanh(diff / 6);
+}
+
+export function workspaceMass(ws: TileWorkspace, xValue: number): {
+  left: number;
+  right: number;
+} {
   return {
-    left: { ...problem.initial.left },
-    right: { ...problem.initial.right },
+    left: panValue(ws.left, xValue),
+    right: panValue(ws.right, xValue),
   };
+}
+
+export function createTile(kind: TileKind, prefix = "t"): PlacedTile {
+  tileIdSeq += 1;
+  return { id: `${prefix}-${tileIdSeq}-${kind}`, kind };
 }
 
 export function workspaceFromBalance(
@@ -179,47 +224,14 @@ export function workspaceFromBalance(
   };
 }
 
-export function workspaceToBalance(ws: TileWorkspace): BalanceState {
-  return {
-    left: exprFromTiles(ws.left.map((t) => t.kind)),
-    right: exprFromTiles(ws.right.map((t) => t.kind)),
-  };
-}
-
 export function emptyTileWorkspace(
   problem: BalanceProblem,
   seed = "",
 ): TileWorkspace {
-  return workspaceFromBalance(emptyWorkspaceState(problem), seed);
-}
-
-export function relocateTile(
-  ws: TileWorkspace,
-  tileId: string,
-  to: PanSide | "off",
-): TileWorkspace {
-  const from = findTilePan(ws, tileId);
-  if (!from) return ws;
-
-  const tile = ws[from].find((t) => t.id === tileId);
-  if (!tile) return ws;
-
-  const cleared: TileWorkspace = {
-    left: ws.left.filter((t) => t.id !== tileId),
-    right: ws.right.filter((t) => t.id !== tileId),
-  };
-
-  if (to === "off") return cleared;
-  if (to === "left") return { ...cleared, left: [...cleared.left, tile] };
-  return { ...cleared, right: [...cleared.right, tile] };
-}
-
-export function moveTile(
-  ws: TileWorkspace,
-  tileId: string,
-  to: PanSide | "off",
-): TileWorkspace {
-  return relocateTile(ws, tileId, to);
+  return workspaceFromBalance(
+    { left: { ...problem.initial.left }, right: { ...problem.initial.right } },
+    seed,
+  );
 }
 
 export function addTileToPan(
@@ -227,187 +239,301 @@ export function addTileToPan(
   kind: TileKind,
   pan: PanSide,
 ): TileWorkspace {
-  const tile: PlacedTile = {
-    id: `new-${pan}-${kind}-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
-    kind,
-  };
+  const tile = createTile(kind, "add");
   if (pan === "left") {
     return { ...ws, left: [...ws.left, tile] };
   }
   return { ...ws, right: [...ws.right, tile] };
 }
 
-function findTilePan(ws: TileWorkspace, tileId: string): PanSide | null {
-  if (ws.left.some((t) => t.id === tileId)) return "left";
-  if (ws.right.some((t) => t.id === tileId)) return "right";
-  return null;
+export function removeTile(ws: TileWorkspace, tileId: string): TileWorkspace {
+  return {
+    left: ws.left.filter((t) => t.id !== tileId),
+    right: ws.right.filter((t) => t.id !== tileId),
+  };
 }
 
-/** x 막대=4, 1 막대=1 질량 (음수 막대도 동일 질량) */
-export function panMass(expr: PanExpr): number {
-  return Math.abs(expr.x) * 4 + Math.abs(expr.unit);
+export function relocateTile(
+  ws: TileWorkspace,
+  tileId: string,
+  to: PanSide,
+): TileWorkspace {
+  const from =
+    ws.left.some((t) => t.id === tileId)
+      ? "left"
+      : ws.right.some((t) => t.id === tileId)
+        ? "right"
+        : null;
+  if (!from) return ws;
+
+  const tile = ws[from].find((t) => t.id === tileId);
+  if (!tile) return ws;
+
+  const cleared = removeTile(ws, tileId);
+  if (from === to) return { ...ws };
+  if (to === "left") return { ...cleared, left: [...cleared.left, tile] };
+  return { ...cleared, right: [...cleared.right, tile] };
 }
 
-export function workspaceMass(ws: TileWorkspace): { left: number; right: number } {
-  const bal = workspaceToBalance(ws);
-  return { left: panMass(bal.left), right: panMass(bal.right) };
+type TileCounts = {
+  x: number;
+  neg_x: number;
+  one: number;
+  neg_one: number;
+};
+
+function countTiles(tiles: PlacedTile[]): TileCounts {
+  return {
+    x: tiles.filter((t) => t.kind === "x").length,
+    neg_x: tiles.filter((t) => t.kind === "neg_x").length,
+    one: tiles.filter((t) => t.kind === "one").length,
+    neg_one: tiles.filter((t) => t.kind === "neg_one").length,
+  };
+}
+
+function totalTiles(c: TileCounts): number {
+  return c.x + c.neg_x + c.one + c.neg_one;
+}
+
+export function findZeroPairs(ws: TileWorkspace): ZeroPair[] {
+  const pairs: ZeroPair[] = [];
+
+  for (const pan of ["left", "right"] as PanSide[]) {
+    const tiles = ws[pan];
+    const ones = tiles.filter((t) => t.kind === "one");
+    const negOnes = tiles.filter((t) => t.kind === "neg_one");
+    const xs = tiles.filter((t) => t.kind === "x");
+    const negXs = tiles.filter((t) => t.kind === "neg_x");
+
+    const unitPairs = Math.min(ones.length, negOnes.length);
+    for (let i = 0; i < unitPairs; i++) {
+      pairs.push({
+        pan,
+        kind: "unit",
+        tileA: ones[i]!.id,
+        tileB: negOnes[i]!.id,
+      });
+    }
+
+    const xPairs = Math.min(xs.length, negXs.length);
+    for (let i = 0; i < xPairs; i++) {
+      pairs.push({
+        pan,
+        kind: "x",
+        tileA: xs[i]!.id,
+        tileB: negXs[i]!.id,
+      });
+    }
+  }
+
+  return pairs;
+}
+
+export function applyZeroPairs(ws: TileWorkspace): TileWorkspace {
+  let next = ws;
+  const pairs = findZeroPairs(next);
+  for (const pair of pairs) {
+    next = removeTile(removeTile(next, pair.tileA), pair.tileB);
+  }
+  return next;
+}
+
+export function getAvailableDivisors(ws: TileWorkspace): number[] {
+  const lc = countTiles(ws.left);
+  const rc = countTiles(ws.right);
+  const lt = totalTiles(lc);
+  const rt = totalTiles(rc);
+  if (lt === 0 || rt === 0) return [];
+
+  const max = Math.min(lt, rt);
+  const divisors: number[] = [];
+
+  for (let n = 2; n <= max; n++) {
+    const ok =
+      lc.x % n === 0 &&
+      lc.neg_x % n === 0 &&
+      lc.one % n === 0 &&
+      lc.neg_one % n === 0 &&
+      rc.x % n === 0 &&
+      rc.neg_x % n === 0 &&
+      rc.one % n === 0 &&
+      rc.neg_one % n === 0;
+    if (ok) divisors.push(n);
+  }
+
+  return divisors;
+}
+
+function takeFraction(
+  tiles: PlacedTile[],
+  kind: TileKind,
+  keep: number,
+): PlacedTile[] {
+  const ofKind = tiles.filter((t) => t.kind === kind);
+  const rest = tiles.filter((t) => t.kind !== kind);
+  return [...rest, ...ofKind.slice(0, keep)];
+}
+
+export function divideBothSides(ws: TileWorkspace, n: number): TileWorkspace {
+  if (n < 2) return ws;
+  const lc = countTiles(ws.left);
+  const rc = countTiles(ws.right);
+
+  const newLeft = ws.left;
+  let leftResult = newLeft;
+  leftResult = takeFraction(leftResult, "x", lc.x / n);
+  leftResult = takeFraction(leftResult, "neg_x", lc.neg_x / n);
+  leftResult = takeFraction(leftResult, "one", lc.one / n);
+  leftResult = takeFraction(leftResult, "neg_one", lc.neg_one / n);
+
+  let rightResult = ws.right;
+  rightResult = takeFraction(rightResult, "x", rc.x / n);
+  rightResult = takeFraction(rightResult, "neg_x", rc.neg_x / n);
+  rightResult = takeFraction(rightResult, "one", rc.one / n);
+  rightResult = takeFraction(rightResult, "neg_one", rc.neg_one / n);
+
+  return { left: leftResult, right: rightResult };
+}
+
+export function finalizeWorkspace(ws: TileWorkspace): TileWorkspace {
+  return applyZeroPairs(ws);
 }
 
 export const PROBLEMS: BalanceProblem[] = [
   {
     id: "step-0",
-    title: "저울과 등식",
+    title: "등식에서 출발",
     instruction:
-      "양팔저울이 균형을 이루면 등식이 성립해요. 지금 저울이 균형인지 확인하고 제출해 보세요.",
-    targetLatex: "2 + 2 = 4",
-    initial: { left: { x: 0, unit: 4 }, right: { x: 0, unit: 4 } },
-    goal: "balanced",
+      "저울이 균형을 이루고 있어요. +1 막대를 팔레트에서 끌어 양쪽 접시에 각각 2개씩 올려 보세요. 0이 되는 쌍이 사라지면서 x = 5를 만들 수 있어요.",
+    targetLatex: "x - 2 = 3",
+    xValue: 5,
+    initial: { left: { x: 1, unit: -2 }, right: { x: 0, unit: 3 } },
     hints: [
-      "양쪽 팬에 같은 무게가 있으면 저울이 수평이에요.",
-      "등식은 '=' 양변의 값이 같다는 뜻이에요.",
+      "아래 팔레트에서 +1 막대를 끌어 왼쪽·오른쪽 접시에 각각 2개씩 놓아 보세요.",
+      "+1과 −1이 만나면 0이 되어 사라져요. x 막대만 왼쪽에 남기면 x = 5!",
     ],
-    allowNegatives: false,
-    gradingMode: "neutral",
+    allowNegatives: true,
   },
   {
     id: "step-1",
-    title: "x가 뭘까?",
+    title: "같은 수 더하기",
     instruction:
-      "x 막대는 아직 모르는 수예요. 1 막대를 드래그해서 양쪽 팬에서 같은 개수만큼 치워 보세요.",
-    targetLatex: "x + 3 = 7",
-    initial: { left: { x: 1, unit: 3 }, right: { x: 0, unit: 7 } },
-    goal: "isolate_x",
-    targetX: 4,
+      "x − 4 = 2 를 풀어 보세요. 양변에 같은 막대를 더하면 저울은 계속 균형을 유지해요.",
+    targetLatex: "x - 4 = 2",
+    xValue: 6,
+    initial: { left: { x: 1, unit: -4 }, right: { x: 0, unit: 2 } },
     hints: [
-      "1 막대를 드래그해서 양쪽 팬에서 각각 3개씩 치워 보세요.",
-      "왼쪽에 x만, 오른쪽에 4만 남으면 x = 4예요.",
+      "양변에 +1 막대를 4개씩 더해 보세요.",
+      "0쌍이 사라지면 x = 6 이에요.",
     ],
-    allowNegatives: false,
-    gradingMode: "auto",
+    allowNegatives: true,
   },
   {
     id: "step-2",
-    title: "등식의 성질 — 더하기",
+    title: "같은 수 빼기",
     instruction:
-      "x − 2 = 5 를 풀어 보세요. 양변에 같은 수를 더해도 등식은 성립해요.",
-    targetLatex: "x - 2 = 5",
-    initial: { left: { x: 1, unit: -2 }, right: { x: 0, unit: 5 } },
-    goal: "isolate_x",
-    targetX: 7,
+      "x + 3 = 8 을 풀어 보세요. 양변에서 같은 막대를 빼도 등식은 성립해요.",
+    targetLatex: "x + 3 = 8",
+    xValue: 5,
+    initial: { left: { x: 1, unit: 3 }, right: { x: 0, unit: 8 } },
     hints: [
-      "양변에 +1을 2번 더하면 왼쪽의 −2가 사라져요.",
-      "x = 7이 되면 성공이에요.",
+      "휴지통에 +1 막대를 넣어 양쪽에서 3개씩 빼거나, −1 막대를 양변에 3개씩 더해 보세요.",
+      "x 막대만 남기면 x = 5!",
     ],
     allowNegatives: true,
-    gradingMode: "auto",
   },
   {
     id: "step-3",
-    title: "양변에 같은 막대",
-    instruction: "x + 1 = 4 를 풀어 x의 값을 구해 보세요.",
-    targetLatex: "x + 1 = 4",
-    initial: { left: { x: 1, unit: 1 }, right: { x: 0, unit: 4 } },
-    goal: "isolate_x",
-    targetX: 3,
+    title: "음수 해",
+    instruction: "x + 6 = 2 를 풀어 보세요. 해가 음수일 수도 있어요.",
+    targetLatex: "x + 6 = 2",
+    xValue: -4,
+    initial: { left: { x: 1, unit: 6 }, right: { x: 0, unit: 2 } },
     hints: [
-      "양변에서 1을 하나씩 빼 보세요.",
-      "등식의 성질: 양변에 같은 수를 더하거나 빼도 등식은 유지돼요.",
+      "양변에서 +1을 6개씩 빼 보세요.",
+      "x = −4 가 되면 맞아요.",
     ],
     allowNegatives: true,
-    gradingMode: "auto",
   },
   {
     id: "step-4",
-    title: "음수 막대",
-    instruction:
-      "빨간 막대는 음수를 나타내요. x − 4 = 1 을 풀어 보세요.",
-    targetLatex: "x - 4 = 1",
-    initial: { left: { x: 1, unit: -4 }, right: { x: 0, unit: 1 } },
-    goal: "isolate_x",
-    targetX: 5,
+    title: "우변도 음수",
+    instruction: "x + 2 = −2 를 풀어 보세요.",
+    targetLatex: "x + 2 = -2",
+    xValue: -4,
+    initial: { left: { x: 1, unit: 2 }, right: { x: 0, unit: -2 } },
     hints: [
-      "양변에 +1을 4번 더해 보세요.",
-      "왼쪽에 x만 남기면 x = 5예요.",
+      "양변에서 +1을 2개씩 빼 보세요.",
+      "x = −4 를 확인해 보세요.",
     ],
     allowNegatives: true,
-    gradingMode: "auto",
   },
   {
     id: "step-5",
-    title: "x 막대 합치기",
-    instruction:
-      "x + x = 2x 와 같아요. 2x = 6 에서 x의 값을 구해 보세요.",
-    targetLatex: "x + x = 6",
-    initial: { left: { x: 2, unit: 0 }, right: { x: 0, unit: 6 } },
-    goal: "isolate_x",
-    targetX: 3,
+    title: "음수 종합",
+    instruction: "x − 1 = −5 를 풀어 보세요.",
+    targetLatex: "x - 1 = -5",
+    xValue: -4,
+    initial: { left: { x: 1, unit: -1 }, right: { x: 0, unit: -5 } },
     hints: [
-      "x 막대 2개는 2x를 뜻해요.",
-      "양변을 똑같이 나누려면, 양변에서 x 막대를 하나씩 빼 보세요.",
+      "양변에 +1을 1개씩 더해 보세요.",
+      "x = −4 가 되면 성공이에요.",
     ],
     allowNegatives: true,
-    gradingMode: "auto",
   },
   {
     id: "step-6",
-    title: "계수와 상수",
-    instruction: "2x + 3 = 11 을 풀어 보세요.",
-    targetLatex: "2x + 3 = 11",
-    initial: { left: { x: 2, unit: 3 }, right: { x: 0, unit: 11 } },
-    goal: "isolate_x",
-    targetX: 4,
+    title: "양변 나누기",
+    instruction:
+      "2x = 6 을 풀어 보세요. 양변을 똑같이 나눠도 등식은 성립해요.",
+    targetLatex: "2x = 6",
+    xValue: 3,
+    initial: { left: { x: 2, unit: 0 }, right: { x: 0, unit: 6 } },
     hints: [
-      "먼저 양변에서 3을 빼 보세요.",
-      "그다음 양변에서 x 막대를 하나씩 빼면 x = 4예요.",
+      "아래 「양변을 2로 나누기」 버튼을 눌러 보세요.",
+      "x = 3 이 되면 맞아요.",
     ],
     allowNegatives: true,
-    gradingMode: "auto",
   },
   {
     id: "step-7",
-    title: "양변에 x",
-    instruction: "3x + 2 = x + 10 에서 x의 값을 구해 보세요.",
-    targetLatex: "3x + 2 = x + 10",
-    initial: { left: { x: 3, unit: 2 }, right: { x: 1, unit: 10 } },
-    goal: "isolate_x",
-    targetX: 4,
+    title: "나누기와 음수",
+    instruction: "2x = −6 을 풀어 보세요.",
+    targetLatex: "2x = -6",
+    xValue: -3,
+    initial: { left: { x: 2, unit: 0 }, right: { x: 0, unit: -6 } },
     hints: [
-      "양변에서 x 막대를 하나씩 빼 보세요.",
-      "그다음 양변에서 2를 빼면 2x = 8, x = 4예요.",
+      "양변을 2로 나누어 보세요.",
+      "x = −3 을 확인해 보세요.",
     ],
     allowNegatives: true,
-    gradingMode: "auto",
   },
   {
     id: "step-8",
-    title: "검산해 보기",
+    title: "상수 먼저 제거",
     instruction:
-      "2x + 1 = 7 의 해는 x = 3이에요. 막대를 옮겨 x = 3 형태로 만들어 검산해 보세요.",
+      "2x + 1 = 7 을 풀어 보세요. 먼저 상수를 없앤 뒤 나누어야 해요.",
     targetLatex: "2x + 1 = 7",
+    xValue: 3,
     initial: { left: { x: 2, unit: 1 }, right: { x: 0, unit: 7 } },
-    goal: "isolate_x",
-    targetX: 3,
     hints: [
-      "먼저 2x + 1 = 7 을 x = 3 으로 정리해 보세요.",
-      "x = 3이 맞는지, 2×3 + 1 = 7 인지 생각해 보세요.",
+      "양변에서 +1을 1개씩 빼 보세요. 그다음 양변을 2로 나누세요.",
+      "x = 3 이에요.",
     ],
     allowNegatives: true,
-    gradingMode: "auto",
   },
   {
     id: "step-9",
-    title: "도전",
-    instruction: "4x − 1 = 2x + 7 을 풀어 보세요.",
-    targetLatex: "4x - 1 = 2x + 7",
-    initial: { left: { x: 4, unit: -1 }, right: { x: 2, unit: 7 } },
-    goal: "isolate_x",
-    targetX: 4,
+    title: "종합 도전",
+    instruction: "3x − 2 = 7 을 풀어 보세요.",
+    targetLatex: "3x - 2 = 7",
+    xValue: 3,
+    initial: { left: { x: 3, unit: -2 }, right: { x: 0, unit: 7 } },
     hints: [
-      "양변에서 x 막대를 2개씩 빼 보세요.",
-      "양변에 +1을 더한 뒤, x 막대를 나누어 보세요.",
+      "양변에 +1을 2개씩 더한 뒤, 양변을 3으로 나누어 보세요.",
+      "x = 3 이 정답이에요.",
     ],
     allowNegatives: true,
-    gradingMode: "auto",
   },
 ];
 
@@ -415,47 +541,26 @@ export function problemAt(stepIndex: number): BalanceProblem {
   return PROBLEMS[stepIndex] ?? PROBLEMS[0]!;
 }
 
-/** 양변에 같은 타일 추가 */
-export function applyBothSides(
-  state: BalanceState,
-  tile: TileKind,
-): BalanceState {
-  const delta = tileDelta(tile);
-  return {
-    left: addExpr(state.left, delta),
-    right: addExpr(state.right, delta),
-  };
-}
-
-function tileDelta(tile: TileKind): PanExpr {
-  switch (tile) {
-    case "x":
-      return { x: 1, unit: 0 };
-    case "neg_x":
-      return { x: -1, unit: 0 };
-    case "one":
-      return { x: 0, unit: 1 };
-    case "neg_one":
-      return { x: 0, unit: -1 };
+/** 개발용: 모든 문제 초기 균형 검증 */
+export function assertAllProblemsBalanced(): void {
+  for (const p of PROBLEMS) {
+    const ws = emptyTileWorkspace(p);
+    if (!isBalancedWs(ws, p.xValue)) {
+      throw new Error(
+        `Problem ${p.id} not balanced: left=${panValue(ws.left, p.xValue)} right=${panValue(ws.right, p.xValue)}`,
+      );
+    }
   }
 }
 
-function addExpr(a: PanExpr, b: PanExpr): PanExpr {
-  return { x: a.x + b.x, unit: a.unit + b.unit };
+// Backward compat aliases
+export function isBalanced(ws: TileWorkspace, xValue: number): boolean {
+  return isBalancedWs(ws, xValue);
 }
 
-export function balanceTiltDeg(state: BalanceState): number {
-  const leftW = panMass(state.left);
-  const rightW = panMass(state.right);
-  const diff = rightW - leftW;
-  return Math.max(-16, Math.min(16, diff * 2.2));
-}
-
-export function balanceTiltFromWorkspace(ws: TileWorkspace): number {
-  return balanceTiltDeg(workspaceToBalance(ws));
-}
-
-/** 타일 하나의 시각적 질량 */
-export function tileMass(kind: TileKind): number {
-  return kind === "x" || kind === "neg_x" ? 4 : 1;
+export function balanceTiltFromWorkspace(
+  ws: TileWorkspace,
+  xValue: number,
+): number {
+  return balanceTiltDeg(ws, xValue);
 }

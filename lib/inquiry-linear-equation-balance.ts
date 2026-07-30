@@ -1,6 +1,8 @@
 import {
   checkAnswer,
   emptyTileWorkspace,
+  isBalancedWs,
+  isSolved,
   problemAt,
   PROBLEM_COUNT,
   scoreForAttempts,
@@ -16,6 +18,9 @@ export { PROBLEM_COUNT, problemAt as balanceProblemAt };
 export type BalanceFillResponsePayload = {
   left: { x: number; unit: number };
   right: { x: number; unit: number };
+  solved: boolean;
+  balanced: boolean;
+  moves: number;
   gaveUp: boolean;
   wrongs: number;
 };
@@ -26,7 +31,7 @@ export type BalanceStepResult = {
 };
 
 export type SoftNotice = {
-  reason: Extract<CheckReason, "unbalanced" | "wrong" | "incomplete">;
+  reason: Exclude<CheckReason, "ok" | "incomplete">;
 };
 
 export function emptyBalanceWorkspace(
@@ -36,20 +41,14 @@ export function emptyBalanceWorkspace(
   return emptyTileWorkspace(problemAt(stepIndex), seed);
 }
 
-/** @deprecated use emptyBalanceWorkspace */
-export function emptyBalanceState(stepIndex: number) {
-  return workspaceToBalance(emptyBalanceWorkspace(stepIndex));
-}
-
 export function validateBalanceSubmit(
   stepIndex: number,
   workspace: TileWorkspace,
 ): SoftNotice | null {
   const problem = problemAt(stepIndex);
-  const state = workspaceToBalance(workspace);
-  const result = checkAnswer(problem, state);
+  const result = checkAnswer(problem, workspace);
   if (result.ok) return null;
-  if (result.reason === "ok") return null;
+  if (result.reason === "ok" || result.reason === "incomplete") return null;
   return { reason: result.reason };
 }
 
@@ -58,12 +57,16 @@ export function gradeBalanceStep(
   workspace: TileWorkspace,
   wrongs: number,
   gaveUp: boolean,
+  moves = 0,
 ): BalanceStepResult {
   const problem = problemAt(stepIndex);
   const state = workspaceToBalance(workspace);
   const response: BalanceFillResponsePayload = {
     left: { ...state.left },
     right: { ...state.right },
+    solved: isSolved(workspace, problem.xValue),
+    balanced: isBalancedWs(workspace, problem.xValue),
+    moves,
     gaveUp,
     wrongs,
   };
@@ -72,11 +75,9 @@ export function gradeBalanceStep(
     return { result: "wrong", response };
   }
 
-  const check = checkAnswer(problem, state);
+  const check = checkAnswer(problem, workspace);
   if (check.ok) {
-    const result: InquiryResult =
-      problem.gradingMode === "neutral" ? "neutral" : "correct";
-    return { result, response };
+    return { result: "correct", response };
   }
 
   return { result: "wrong", response };
@@ -103,13 +104,9 @@ export function aggregateBalanceScore(
 
     if (row.response.gaveUp) continue;
 
-    if (row.result === "correct" || row.result === "neutral") {
+    if (row.result === "correct") {
       correctCount += 1;
-      if (row.result === "correct") {
-        score += scoreForAttempts(wrongs);
-      } else {
-        score += scoreForAttempts(0);
-      }
+      score += scoreForAttempts(wrongs);
     }
   }
 
