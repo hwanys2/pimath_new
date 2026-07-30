@@ -25,13 +25,18 @@ export type FixedTerm = {
 
 export type RadicalProblem = {
   id: string;
-  /** soft limit 초 — 이 이상이면 정답이어도 50점 */
-  timeLimitSec: number;
   terms: FillableTerm[];
   /** length = terms.length - 1 */
   ops: Op[];
   rhs: FixedTerm[];
 };
+
+/** 오답 1회당 감점 */
+export const WRONG_PENALTY = 15;
+/** 정답 시 최소 점수 (포기 제외) */
+export const MIN_CORRECT_SCORE = 40;
+/** 정답 시 최대 점수 (무오답) */
+export const MAX_CORRECT_SCORE = 100;
 
 export type TermFill = {
   coeff: number | null;
@@ -340,13 +345,15 @@ export function checkAnswer(
 }
 
 /**
- * 즉시 ≈100, t≥limit 이면 50. 그 사이 선형.
+ * 틀린 횟수에 따라 감점. 0회 → 100, 이후 회당 −15, 하한 40.
+ * (포기하면 UI에서 0점 처리 — 이 함수는 정답 제출 시에만 사용)
  */
-export function scoreForTime(elapsedSec: number, limitSec: number): number {
-  const limit = Math.max(1, limitSec);
-  const t = Math.max(0, elapsedSec);
-  const ratio = Math.max(0, Math.min(1, 1 - t / limit));
-  return Math.round(50 + 50 * ratio);
+export function scoreForAttempts(wrongCount: number): number {
+  const w = Math.max(0, Math.floor(wrongCount));
+  return Math.max(
+    MIN_CORRECT_SCORE,
+    MAX_CORRECT_SCORE - w * WRONG_PENALTY,
+  );
 }
 
 export function opLabel(op: Op): string {
@@ -388,21 +395,18 @@ export const PROBLEMS: RadicalProblem[] = [
   // 1–3: 단순 가감
   {
     id: "p1",
-    timeLimitSec: 45,
     terms: [{ hasCoeff: false }, { hasCoeff: false }, { hasCoeff: false }],
     ops: ["+", "-"],
     rhs: [{ coeff: 5, radicand: 2 }],
   },
   {
     id: "p2",
-    timeLimitSec: 45,
     terms: [{ hasCoeff: false }, { hasCoeff: false }, { hasCoeff: false }],
     ops: ["+", "-"],
     rhs: [{ coeff: 3, radicand: 3 }],
   },
   {
     id: "p3",
-    timeLimitSec: 45,
     terms: [{ hasCoeff: false }, { hasCoeff: false }, { hasCoeff: false }],
     ops: ["-", "+"],
     rhs: [{ coeff: 4, radicand: 5 }],
@@ -410,14 +414,12 @@ export const PROBLEMS: RadicalProblem[] = [
   // 4–6: 계수 포함 가감
   {
     id: "p4",
-    timeLimitSec: 60,
     terms: [{ hasCoeff: true }, { hasCoeff: false }, { hasCoeff: true }],
     ops: ["+", "-"],
     rhs: [{ coeff: 5, radicand: 2 }],
   },
   {
     id: "p5",
-    timeLimitSec: 60,
     terms: [
       { hasCoeff: true },
       { hasCoeff: false },
@@ -432,7 +434,6 @@ export const PROBLEMS: RadicalProblem[] = [
   },
   {
     id: "p6",
-    timeLimitSec: 60,
     terms: [
       { hasCoeff: true },
       { hasCoeff: false },
@@ -445,7 +446,6 @@ export const PROBLEMS: RadicalProblem[] = [
   // 7–8: 우변 두 항
   {
     id: "p7",
-    timeLimitSec: 60,
     terms: [
       { hasCoeff: true },
       { hasCoeff: false },
@@ -460,7 +460,6 @@ export const PROBLEMS: RadicalProblem[] = [
   },
   {
     id: "p8",
-    timeLimitSec: 90,
     terms: [
       { hasCoeff: true },
       { hasCoeff: false },
@@ -476,7 +475,6 @@ export const PROBLEMS: RadicalProblem[] = [
   // 9–10: 곱·나눗셈 혼합
   {
     id: "p9",
-    timeLimitSec: 90,
     terms: [
       { hasCoeff: true },
       { hasCoeff: false },
@@ -489,7 +487,6 @@ export const PROBLEMS: RadicalProblem[] = [
   },
   {
     id: "p10",
-    timeLimitSec: 90,
     terms: [
       { hasCoeff: true },
       { hasCoeff: false },

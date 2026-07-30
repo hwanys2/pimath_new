@@ -2,7 +2,6 @@
 
 import {
   useCallback,
-  useEffect,
   useMemo,
   useRef,
   useState,
@@ -19,6 +18,7 @@ import {
   CONTENT_KEY,
   PROBLEMS,
   PROBLEM_COUNT,
+  WRONG_PENALTY,
   applyScoreGain,
   checkAnswer,
   clampScore,
@@ -27,20 +27,23 @@ import {
   hasDuplicateAmongFills,
   opLabel,
   parsePositiveInt,
-  scoreForTime,
+  scoreForAttempts,
   type CheckReason,
   type RadicalProblem,
   type TermFill,
 } from "@/lib/radical-fill-math";
 
-type Phase = "ready" | "playing" | "feedback" | "ended";
+type Phase = "ready" | "playing" | "cleared" | "ended";
 
 type TermTexts = { coeff: string; radicand: string };
 
-type FeedbackState = {
-  correct: boolean;
-  reason: CheckReason | "gave_up";
+type SoftNotice = {
+  reason: Extract<CheckReason, "incomplete" | "invalid" | "duplicate" | "wrong">;
+};
+
+type ClearedState = {
   gained: number;
+  wrongs: number;
 };
 
 function textsToFills(
@@ -57,16 +60,14 @@ function textsToFills(
 }
 
 function emptyTexts(problem: RadicalProblem): TermTexts[] {
-  return problem.terms.map((t) => ({
-    coeff: t.hasCoeff ? "" : "",
+  return problem.terms.map(() => ({
+    coeff: "",
     radicand: "",
   }));
 }
 
-function reasonMessage(reason: CheckReason | "gave_up"): string {
+function softMessage(reason: SoftNotice["reason"]): string {
   switch (reason) {
-    case "ok":
-      return "정답이에요!";
     case "incomplete":
       return "빈칸을 모두 채워 주세요.";
     case "invalid":
@@ -74,9 +75,7 @@ function reasonMessage(reason: CheckReason | "gave_up"): string {
     case "duplicate":
       return "모든 숫자는 서로 달라야 해요.";
     case "wrong":
-      return "식이 성립하지 않아요. 0점";
-    case "gave_up":
-      return "포기 · 0점";
+      return "틀렸어요. 다시 풀어보세요!";
   }
 }
 
@@ -198,22 +197,15 @@ function RadicalTermView({
   );
 }
 
-function formatElapsed(sec: number): string {
-  const s = Math.max(0, Math.floor(sec));
-  const m = Math.floor(s / 60);
-  const r = s % 60;
-  return m > 0 ? `${m}:${String(r).padStart(2, "0")}` : `${r}초`;
-}
-
 export default function RadicalFillQuiz() {
   const [phase, setPhase] = useState<Phase>("ready");
   const [index, setIndex] = useState(0);
   const [texts, setTexts] = useState<TermTexts[]>([]);
   const [score, setScore] = useState(0);
   const [correctCount, setCorrectCount] = useState(0);
-  const [elapsed, setElapsed] = useState(0);
-  const [feedback, setFeedback] = useState<FeedbackState | null>(null);
-  const [flashOx, setFlashOx] = useState<"O" | "X" | null>(null);
+  const [wrongAttempts, setWrongAttempts] = useState(0);
+  const [softNotice, setSoftNotice] = useState<SoftNotice | null>(null);
+  const [cleared, setCleared] = useState<ClearedState | null>(null);
   const [submitResult, setSubmitResult] =
     useState<GameSubmitClientResult | null>(null);
   const [ranking, setRanking] = useState<RankingRow[]>([]);
@@ -223,8 +215,8 @@ export default function RadicalFillQuiz() {
 
   const phaseRef = useRef<Phase>(phase);
   phaseRef.current = phase;
-  const startedAtRef = useRef<number>(0);
   const inputElsRef = useRef<(HTMLInputElement | null)[]>([]);
+  const wrongRef = useRef(0);
 
   const problem = PROBLEMS[index] ?? PROBLEMS[0]!;
 
@@ -252,18 +244,6 @@ export default function RadicalFillQuiz() {
     );
   }, [fills, problem.terms]);
 
-  const tickTimer = useCallback(() => {
-    if (phaseRef.current !== "playing") return;
-    setElapsed((Date.now() - startedAtRef.current) / 1000);
-  }, []);
-
-  useEffect(() => {
-    if (phase !== "playing") return;
-    tickTimer();
-    const id = window.setInterval(tickTimer, 200);
-    return () => window.clearInterval(id);
-  }, [phase, index, tickTimer]);
-
   const focusFirst = useCallback(() => {
     window.requestAnimationFrame(() => {
       inputElsRef.current.find((el) => el)?.focus();
@@ -275,10 +255,10 @@ export default function RadicalFillQuiz() {
       const p = PROBLEMS[i]!;
       setIndex(i);
       setTexts(emptyTexts(p));
-      setFeedback(null);
-      setFlashOx(null);
-      setElapsed(0);
-      startedAtRef.current = Date.now();
+      setSoftNotice(null);
+      setCleared(null);
+      wrongRef.current = 0;
+      setWrongAttempts(0);
       setPhase("playing");
       phaseRef.current = "playing";
       inputElsRef.current = [];
@@ -310,7 +290,7 @@ export default function RadicalFillQuiz() {
     [startTransition],
   );
 
-  const advanceAfterFeedback = useCallback(
+  const goNext = useCallback(
     (nextScore: number, nextCorrect: number) => {
       const nextIndex = index + 1;
       if (nextIndex >= PROBLEM_COUNT) {
@@ -333,64 +313,56 @@ export default function RadicalFillQuiz() {
     setRanking([]);
     setRankingScope("class");
     setRankingMode("best");
-    setFeedback(null);
+    setSoftNotice(null);
+    setCleared(null);
     loadProblem(0);
   }, [loadProblem]);
-
-  const finishProblem = useCallback(
-    (gained: number, correct: boolean, reason: CheckReason | "gave_up") => {
-      if (phaseRef.current !== "playing") return;
-      phaseRef.current = "feedback";
-      setPhase("feedback");
-      setFlashOx(correct ? "O" : "X");
-      const nextScore = correct ? applyScoreGain(score, gained) : score;
-      const actualGain = nextScore - score;
-      const nextCorrect = correct ? correctCount + 1 : correctCount;
-      setFeedback({ correct, reason, gained: actualGain });
-      setScore(nextScore);
-      setCorrectCount(nextCorrect);
-
-      window.setTimeout(() => {
-        advanceAfterFeedback(nextScore, nextCorrect);
-      }, correct ? 1200 : 1400);
-    },
-    [advanceAfterFeedback, correctCount, score],
-  );
 
   const onSubmit = useCallback(() => {
     if (phaseRef.current !== "playing") return;
     const result = checkAnswer(problem, fills);
-    if (result.reason === "incomplete" || result.reason === "invalid") {
-      setFeedback({
-        correct: false,
-        reason: result.reason,
-        gained: 0,
-      });
+    if (
+      result.reason === "incomplete" ||
+      result.reason === "invalid" ||
+      result.reason === "duplicate"
+    ) {
+      setSoftNotice({ reason: result.reason });
       return;
     }
-    if (result.reason === "duplicate") {
-      setFeedback({
-        correct: false,
-        reason: "duplicate",
-        gained: 0,
-      });
+    if (!result.ok) {
+      const nextWrongs = wrongRef.current + 1;
+      wrongRef.current = nextWrongs;
+      setWrongAttempts(nextWrongs);
+      setSoftNotice({ reason: "wrong" });
       return;
     }
-    // wrong or ok — one shot
-    const t = (Date.now() - startedAtRef.current) / 1000;
-    setElapsed(t);
-    if (result.ok) {
-      const gained = scoreForTime(t, problem.timeLimitSec);
-      finishProblem(gained, true, "ok");
-    } else {
-      finishProblem(0, false, "wrong");
-    }
-  }, [fills, finishProblem, problem]);
+
+    const gained = scoreForAttempts(wrongRef.current);
+    const nextScore = applyScoreGain(score, gained);
+    const actualGain = nextScore - score;
+    const nextCorrect = correctCount + 1;
+    phaseRef.current = "cleared";
+    setPhase("cleared");
+    setSoftNotice(null);
+    setCleared({ gained: actualGain, wrongs: wrongRef.current });
+    setScore(nextScore);
+    setCorrectCount(nextCorrect);
+
+    window.setTimeout(() => {
+      goNext(nextScore, nextCorrect);
+    }, 1100);
+  }, [correctCount, fills, goNext, problem, score]);
 
   const onGiveUp = useCallback(() => {
     if (phaseRef.current !== "playing") return;
-    finishProblem(0, false, "gave_up");
-  }, [finishProblem]);
+    phaseRef.current = "cleared";
+    setPhase("cleared");
+    setSoftNotice(null);
+    setCleared({ gained: 0, wrongs: wrongRef.current });
+    window.setTimeout(() => {
+      goNext(score, correctCount);
+    }, 1100);
+  }, [correctCount, goNext, score]);
 
   const focusNextEmpty = useCallback(() => {
     const el = inputElsRef.current.find(
@@ -411,9 +383,7 @@ export default function RadicalFillQuiz() {
       next[termIndex] = { ...cur, [field]: value };
       return next;
     });
-    if (feedback && (feedback.reason === "incomplete" || feedback.reason === "duplicate" || feedback.reason === "invalid")) {
-      setFeedback(null);
-    }
+    if (softNotice) setSoftNotice(null);
   };
 
   const registerInput = (slot: number) => (el: HTMLInputElement | null) => {
@@ -438,7 +408,6 @@ export default function RadicalFillQuiz() {
     });
   };
 
-  // Build slot index for refs (coeff + radicand in order)
   let slotCounter = 0;
   const termSlotStarts = problem.terms.map((term) => {
     const start = slotCounter;
@@ -447,13 +416,7 @@ export default function RadicalFillQuiz() {
     return start;
   });
 
-  const softLimit = problem.timeLimitSec;
-  const projected =
-    phase === "playing"
-      ? scoreForTime(elapsed, softLimit)
-      : feedback?.correct
-        ? feedback.gained
-        : 0;
+  const projected = scoreForAttempts(wrongAttempts);
 
   return (
     <div className="flex flex-col gap-5">
@@ -463,8 +426,8 @@ export default function RadicalFillQuiz() {
           근호 빈칸 채우기
         </h1>
         <p className="mt-3 max-w-2xl text-sm leading-relaxed text-foreground/75 sm:text-base">
-          빈칸에 서로 다른 양의 정수를 넣어 등식이 성립하게 만드세요. 10문제,
-          맞히면 걸린 시간에 따라 50~100점, 틀리거나 포기하면 0점이에요.
+          빈칸에 서로 다른 양의 정수를 넣어 등식이 성립하게 만드세요. 틀리면
+          다시 풀 수 있고, 틀린 횟수만큼 점수가 깎여요. (문제당 최대 100점)
         </p>
       </section>
 
@@ -476,8 +439,8 @@ export default function RadicalFillQuiz() {
           <ul className="mx-auto mt-4 max-w-md space-y-2 text-left text-sm font-semibold text-wood/80">
             <li>· 한 문제에 쓰는 숫자는 모두 서로 달라야 해요</li>
             <li>· 정답은 여러 가지일 수 있어요 (등식만 맞으면 OK)</li>
-            <li>· 빨리 맞힐수록 높은 점수 (문제당 최대 100점)</li>
-            <li>· 제출은 문제당 한 번 · 막히면 포기할 수 있어요</li>
+            <li>· 틀리면 다시 도전 · 틀릴 때마다 −{WRONG_PENALTY}점 (하한 40점)</li>
+            <li>· 막히면 포기할 수 있어요 (그 문제는 0점)</li>
           </ul>
           <button
             type="button"
@@ -551,142 +514,152 @@ export default function RadicalFillQuiz() {
         </section>
       ) : null}
 
-      {phase === "playing" || phase === "feedback" ? (
-        <>
-          <section className="quest-card p-4 sm:p-6">
-            <div className="flex flex-wrap items-center justify-between gap-3 text-sm font-bold text-wood">
-              <span className="rounded-xl bg-lavender/40 px-3 py-1 tabular-nums">
-                문제 {index + 1}/{PROBLEM_COUNT}
+      {phase === "playing" || phase === "cleared" ? (
+        <section className="quest-card p-4 sm:p-6">
+          <div className="flex flex-wrap items-center justify-between gap-3 text-sm font-bold text-wood">
+            <span className="rounded-xl bg-lavender/40 px-3 py-1 tabular-nums">
+              문제 {index + 1}/{PROBLEM_COUNT}
+            </span>
+            <span className="rounded-xl bg-mint/35 px-3 py-1 tabular-nums">
+              점수 {clampScore(score)}
+            </span>
+            <span className="rounded-xl bg-sky/40 px-3 py-1 tabular-nums">
+              오답 {wrongAttempts}회
+              <span className="ml-1 font-semibold text-wood/55">
+                · 맞히면 {projected}점
               </span>
-              <span className="rounded-xl bg-mint/35 px-3 py-1 tabular-nums">
-                점수 {clampScore(score)}
-              </span>
-              <span className="rounded-xl bg-sky/40 px-3 py-1 tabular-nums">
-                {formatElapsed(elapsed)}
-                <span className="ml-1 font-semibold text-wood/55">
-                  · 예상 {projected}점
+            </span>
+          </div>
+
+          <p className="mt-4 text-center text-sm font-semibold text-foreground/70">
+            다음 식이 성립하도록 빈칸에{" "}
+            <span className="text-wood">서로 다른</span> 수를 넣으세요.
+          </p>
+
+          <div
+            className="mt-6 flex flex-wrap items-center justify-center gap-x-2 gap-y-4 text-xl text-wood sm:text-2xl"
+            aria-label="근호 식"
+          >
+            {problem.terms.map((term, ti) => {
+              const text = texts[ti] ?? { coeff: "", radicand: "" };
+              const fill = fills[ti] ?? emptyFills(problem)[ti]!;
+              const start = termSlotStarts[ti]!;
+              const coeffSlot = term.hasCoeff ? start : -1;
+              const radSlot = term.hasCoeff ? start + 1 : start;
+              return (
+                <span
+                  key={`${problem.id}-t${ti}`}
+                  className="inline-flex items-center gap-2"
+                >
+                  {ti > 0 ? (
+                    <span className="font-display font-bold text-wood/80">
+                      {opLabel(problem.ops[ti - 1]!)}
+                    </span>
+                  ) : null}
+                  <RadicalTermView
+                    hasCoeff={term.hasCoeff}
+                    coeff={text.coeff}
+                    radicand={text.radicand}
+                    onCoeffChange={(v) => setTermText(ti, "coeff", v)}
+                    onRadicandChange={(v) => setTermText(ti, "radicand", v)}
+                    onEnter={focusNextEmpty}
+                    coeffDup={
+                      fill.coeff != null && duplicateValues.has(fill.coeff)
+                    }
+                    radDup={
+                      fill.radicand != null &&
+                      duplicateValues.has(fill.radicand)
+                    }
+                    coeffRef={
+                      term.hasCoeff ? registerInput(coeffSlot) : undefined
+                    }
+                    radRef={registerInput(radSlot)}
+                    disabled={phase === "cleared"}
+                    termIndex={ti}
+                  />
                 </span>
-              </span>
-            </div>
+              );
+            })}
+            <span className="font-display font-bold text-wood/80">=</span>
+            <span className="font-display text-2xl font-bold text-foreground sm:text-3xl">
+              {formatFixedRhs(problem.rhs)}
+            </span>
+          </div>
 
-            <p className="mt-4 text-center text-sm font-semibold text-foreground/70">
-              다음 식이 성립하도록 빈칸에{" "}
-              <span className="text-wood">서로 다른</span> 수를 넣으세요.
-            </p>
-
-            <div
-              className="mt-6 flex flex-wrap items-center justify-center gap-x-2 gap-y-4 text-xl text-wood sm:text-2xl"
-              aria-label="근호 식"
+          {duplicate && phase === "playing" ? (
+            <p
+              className="mt-4 text-center text-sm font-bold text-[#a63a1a]"
+              role="status"
             >
-              {problem.terms.map((term, ti) => {
-                const text = texts[ti] ?? { coeff: "", radicand: "" };
-                const fill = fills[ti] ?? emptyFills(problem)[ti]!;
-                const start = termSlotStarts[ti]!;
-                const coeffSlot = term.hasCoeff ? start : -1;
-                const radSlot = term.hasCoeff ? start + 1 : start;
-                return (
-                  <span
-                    key={`${problem.id}-t${ti}`}
-                    className="inline-flex items-center gap-2"
-                  >
-                    {ti > 0 ? (
-                      <span className="font-display font-bold text-wood/80">
-                        {opLabel(problem.ops[ti - 1]!)}
-                      </span>
-                    ) : null}
-                    <RadicalTermView
-                      hasCoeff={term.hasCoeff}
-                      coeff={text.coeff}
-                      radicand={text.radicand}
-                      onCoeffChange={(v) => setTermText(ti, "coeff", v)}
-                      onRadicandChange={(v) => setTermText(ti, "radicand", v)}
-                      onEnter={focusNextEmpty}
-                      coeffDup={
-                        fill.coeff != null && duplicateValues.has(fill.coeff)
-                      }
-                      radDup={
-                        fill.radicand != null &&
-                        duplicateValues.has(fill.radicand)
-                      }
-                      coeffRef={
-                        term.hasCoeff ? registerInput(coeffSlot) : undefined
-                      }
-                      radRef={registerInput(radSlot)}
-                      disabled={phase === "feedback"}
-                      termIndex={ti}
-                    />
+              같은 숫자가 두 번 이상 있어요. 모두 다르게 바꿔 주세요.
+            </p>
+          ) : null}
+
+          {softNotice && phase === "playing" ? (
+            <p
+              className={[
+                "mt-4 text-center text-sm font-bold",
+                softNotice.reason === "wrong"
+                  ? "text-[#a63a1a]"
+                  : "text-[#a63a1a]",
+              ].join(" ")}
+              role="status"
+            >
+              {softMessage(softNotice.reason)}
+              {softNotice.reason === "wrong" ? (
+                <span className="mt-1 block text-xs font-semibold text-wood/60">
+                  지금 맞히면 {scoreForAttempts(wrongAttempts)}점이에요.
+                </span>
+              ) : null}
+            </p>
+          ) : null}
+
+          {phase === "cleared" && cleared ? (
+            <div
+              className={[
+                "mt-5 rounded-2xl px-4 py-3 text-center",
+                cleared.gained > 0
+                  ? "bg-mint/40 text-wood"
+                  : "bg-[#e85d4c]/15 text-[#a63a1a]",
+              ].join(" ")}
+              role="status"
+              aria-live="polite"
+            >
+              <p className="font-display text-2xl">
+                {cleared.gained > 0 ? "O" : "X"}
+              </p>
+              <p className="mt-1 text-sm font-bold">
+                {cleared.gained > 0
+                  ? `정답이에요! · +${cleared.gained}점`
+                  : "포기 · 0점"}
+                {cleared.gained > 0 && cleared.wrongs > 0 ? (
+                  <span className="mt-1 block text-xs font-semibold opacity-80">
+                    오답 {cleared.wrongs}회
                   </span>
-                );
-              })}
-              <span className="font-display font-bold text-wood/80">=</span>
-              <span className="font-display text-2xl font-bold text-foreground sm:text-3xl">
-                {formatFixedRhs(problem.rhs)}
-              </span>
+                ) : null}
+              </p>
             </div>
+          ) : null}
 
-            {duplicate ? (
-              <p
-                className="mt-4 text-center text-sm font-bold text-[#a63a1a]"
-                role="status"
+          {phase === "playing" ? (
+            <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
+              <button
+                type="button"
+                onClick={onSubmit}
+                className="rounded-xl bg-wood px-8 py-3 text-base font-bold text-cream"
               >
-                같은 숫자가 두 번 이상 있어요. 모두 다르게 바꿔 주세요.
-              </p>
-            ) : null}
-
-            {feedback &&
-            phase === "playing" &&
-            (feedback.reason === "incomplete" ||
-              feedback.reason === "duplicate" ||
-              feedback.reason === "invalid") ? (
-              <p
-                className="mt-3 text-center text-sm font-bold text-[#a63a1a]"
-                role="status"
+                확인
+              </button>
+              <button
+                type="button"
+                onClick={onGiveUp}
+                className="rounded-xl border-2 border-wood/20 bg-cream px-5 py-3 text-sm font-bold text-wood/70 hover:bg-wood/5"
               >
-                {reasonMessage(feedback.reason)}
-              </p>
-            ) : null}
-
-            {phase === "feedback" && feedback ? (
-              <div
-                className={[
-                  "mt-5 rounded-2xl px-4 py-3 text-center",
-                  feedback.correct
-                    ? "bg-mint/40 text-wood"
-                    : "bg-[#e85d4c]/15 text-[#a63a1a]",
-                ].join(" ")}
-                role="status"
-                aria-live="polite"
-              >
-                <p className="font-display text-2xl">
-                  {flashOx === "O" ? "O" : "X"}
-                </p>
-                <p className="mt-1 text-sm font-bold">
-                  {reasonMessage(feedback.reason)}
-                  {feedback.correct ? ` · +${feedback.gained}점` : null}
-                </p>
-              </div>
-            ) : null}
-
-            {phase === "playing" ? (
-              <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
-                <button
-                  type="button"
-                  onClick={onSubmit}
-                  className="rounded-xl bg-wood px-8 py-3 text-base font-bold text-cream"
-                >
-                  확인
-                </button>
-                <button
-                  type="button"
-                  onClick={onGiveUp}
-                  className="rounded-xl border-2 border-wood/20 bg-cream px-5 py-3 text-sm font-bold text-wood/70 hover:bg-wood/5"
-                >
-                  포기 · 0점
-                </button>
-              </div>
-            ) : null}
-          </section>
-        </>
+                포기 · 0점
+              </button>
+            </div>
+          ) : null}
+        </section>
       ) : null}
     </div>
   );

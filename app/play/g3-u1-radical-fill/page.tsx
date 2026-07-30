@@ -10,7 +10,7 @@ const CONTENT_KEY = "g3-u1-radical-fill";
 export const metadata: Metadata = {
   title: "근호 빈칸 채우기 | 수학하는 즐거움",
   description:
-    "서로 다른 수로 근호 식을 완성하는 중3 제곱근 게임. 10문제, 빨리 맞힐수록 높은 점수. 학급 배정 시 XP와 랭킹이 쌓입니다.",
+    "서로 다른 수로 근호 식을 완성하는 중3 제곱근 게임. 10문제, 틀리면 재시도·오답 횟수에 따라 감점. 학급 배정 시 XP와 랭킹이 쌓입니다.",
 };
 
 export default async function RadicalFillPage() {

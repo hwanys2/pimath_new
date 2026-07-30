@@ -5,7 +5,10 @@ import {
   SAMPLE_FILLS,
   checkAnswer,
   extractSquareFactors,
-  scoreForTime,
+  scoreForAttempts,
+  MIN_CORRECT_SCORE,
+  MAX_CORRECT_SCORE,
+  WRONG_PENALTY,
   mapsEqual,
   mapFromFixed,
   termToMap,
@@ -93,14 +96,14 @@ describe("checkAnswer", () => {
   });
 });
 
-describe("scoreForTime", () => {
-  it("returns 100 at t=0 and 50 at/after limit", () => {
-    assert.equal(scoreForTime(0, 45), 100);
-    assert.equal(scoreForTime(45, 45), 50);
-    assert.equal(scoreForTime(90, 45), 50);
+describe("scoreForAttempts", () => {
+  it("gives max score with zero wrongs", () => {
+    assert.equal(scoreForAttempts(0), MAX_CORRECT_SCORE);
   });
 
-  it("interpolates mid-range", () => {
-    assert.equal(scoreForTime(22.5, 45), 75);
+  it("deducts per wrong attempt down to the floor", () => {
+    assert.equal(scoreForAttempts(1), MAX_CORRECT_SCORE - WRONG_PENALTY);
+    assert.equal(scoreForAttempts(2), MAX_CORRECT_SCORE - 2 * WRONG_PENALTY);
+    assert.equal(scoreForAttempts(10), MIN_CORRECT_SCORE);
   });
 });
