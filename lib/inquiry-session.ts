@@ -1,6 +1,7 @@
 import "server-only";
 
 import { createClient } from "@/lib/supabase/server";
+import { canonicalInquiryStepCount } from "@/lib/inquiry-step-counts";
 import { getStudentSessionToken } from "@/lib/student-session";
 import type {
   InquiryParticipantRow,
@@ -242,6 +243,28 @@ export async function inquiryStudentPoll(input: { sessionId: string }) {
   return mapPollRows(firstRows(data as PollRow[]));
 }
 
+async function syncSessionStepCountIfNeeded(
+  sessionId: string,
+  contentKey: string | null,
+  currentStepCount: number,
+): Promise<void> {
+  const canonical = canonicalInquiryStepCount(contentKey);
+  if (canonical <= 0 || currentStepCount >= canonical) return;
+
+  const supabase = await createClient();
+  const { error } = await supabase.rpc("pm_inquiry_sync_step_count", {
+    p_session_id: sessionId,
+    p_step_count: canonical,
+  });
+
+  if (error) {
+    console.warn(
+      "[pm] pm_inquiry_sync_step_count failed:",
+      error.message,
+    );
+  }
+}
+
 export async function inquiryTeacherPoll(input: { sessionId: string }) {
   const supabase = await createClient();
   const { data, error } = await supabase.rpc("pm_inquiry_teacher_poll", {
@@ -253,7 +276,25 @@ export async function inquiryTeacherPoll(input: { sessionId: string }) {
     return IDLE;
   }
 
-  return mapPollRows(firstRows(data as PollRow[]));
+  const state = mapPollRows(firstRows(data as PollRow[]));
+  if (state.sessionId) {
+    await syncSessionStepCountIfNeeded(
+      state.sessionId,
+      state.contentKey,
+      state.stepCount,
+    );
+    if (state.stepCount < canonicalInquiryStepCount(state.contentKey)) {
+      const { data: refreshed, error: refreshError } = await supabase.rpc(
+        "pm_inquiry_teacher_poll",
+        { p_session_id: input.sessionId },
+      );
+      if (!refreshError) {
+        return mapPollRows(firstRows(refreshed as PollRow[]));
+      }
+    }
+  }
+
+  return state;
 }
 
 export async function inquiryListResponses(input: { sessionId: string }) {

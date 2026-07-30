@@ -23,6 +23,7 @@ import {
 } from "@/lib/inquiry-types";
 import * as radicalFillActions from "@/app/play/g3-u1-radical-fill/actions";
 import * as balanceActions from "@/app/play/g1-u2-2-linear-equation-balance/actions";
+import { effectiveInquiryStepCount } from "@/lib/inquiry-step-counts";
 
 const IDLE: InquiryPollState = {
   sessionId: null,
@@ -233,6 +234,8 @@ export default function InquiryHostDashboard({
     );
   }
 
+  const stepCount = effectiveInquiryStepCount(validKey, state.stepCount);
+
   return (
     <div className="flex flex-col gap-5">
       <section
@@ -303,7 +306,7 @@ export default function InquiryHostDashboard({
                   type="button"
                   onClick={() => advance(1)}
                   disabled={
-                    isPending || state.stepIndex >= state.stepCount - 1
+                    isPending || state.stepIndex >= stepCount - 1
                   }
                   className="rounded-xl border-2 border-wood/20 px-4 py-2 text-sm font-bold text-wood disabled:opacity-40"
                 >
@@ -354,7 +357,7 @@ export default function InquiryHostDashboard({
               <InquiryRadicalFillStep
                 problem={radicalFillProblem(state.stepIndex)}
                 stepIndex={state.stepIndex}
-                stepCount={state.stepCount}
+                stepCount={stepCount}
                 texts={previewTexts}
                 onTextsChange={setPreviewTexts}
                 readOnly
@@ -363,7 +366,7 @@ export default function InquiryHostDashboard({
               <InquiryLinearEquationBalanceStep
                 problem={balanceProblem(state.stepIndex)}
                 stepIndex={state.stepIndex}
-                stepCount={state.stepCount}
+                stepCount={stepCount}
                 workspace={previewBalance}
                 onWorkspaceChange={setPreviewBalance}
                 hostPreview
@@ -379,7 +382,7 @@ export default function InquiryHostDashboard({
               <InquiryStatusGrid
                 participants={state.participants}
                 responses={responses}
-                stepCount={state.stepCount}
+                stepCount={stepCount}
               />
             </section>
           ) : null}
@@ -388,7 +391,7 @@ export default function InquiryHostDashboard({
             <section className="quest-card p-4 sm:p-5">
               <InquiryResponsePanel
                 responses={responses}
-                stepCount={state.stepCount}
+                stepCount={stepCount}
                 selectedStep={selectedStep}
                 onStepChange={setSelectedStep}
                 contentKey={contentKey}

@@ -21,6 +21,7 @@ import type { TermTexts } from "@/components/inquiry/radical-fill/InquiryRadical
 import type { TileWorkspace } from "@/lib/linear-equation-balance-math";
 import * as radicalFillActions from "@/app/play/g3-u1-radical-fill/actions";
 import * as balanceActions from "@/app/play/g1-u2-2-linear-equation-balance/actions";
+import { effectiveInquiryStepCount } from "@/lib/inquiry-step-counts";
 import { INQUIRY_POLL_MS, type InquiryPollState } from "@/lib/inquiry-types";
 
 const IDLE: InquiryPollState = {
@@ -255,6 +256,8 @@ export default function InquiryStudentView({
     );
   }
 
+  const stepCount = effectiveInquiryStepCount(validKey, state.stepCount);
+
   if (waitingForSession || state.phase === "setup" || state.phase === "idle") {
     return (
       <div className="space-y-4">
@@ -311,7 +314,7 @@ export default function InquiryStudentView({
           <InquiryRadicalFillStep
             problem={radicalFillProblem(state.stepIndex)}
             stepIndex={state.stepIndex}
-            stepCount={state.stepCount}
+            stepCount={stepCount}
             texts={texts}
             onTextsChange={(next) => {
               setTexts(next);
@@ -328,7 +331,7 @@ export default function InquiryStudentView({
           <InquiryLinearEquationBalanceStep
             problem={balanceProblem(state.stepIndex)}
             stepIndex={state.stepIndex}
-            stepCount={state.stepCount}
+            stepCount={stepCount}
             workspace={balanceWorkspace}
             onWorkspaceChange={(next) => {
               setBalanceWorkspace(next);
