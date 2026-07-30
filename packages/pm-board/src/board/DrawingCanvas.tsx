@@ -1,8 +1,9 @@
 "use client";
 
 import { useCallback, useEffect, useRef } from "react";
-import type { DrawTool, LineKind, Stroke, ToolId } from "./types";
+import type { BoardPoint, DrawTool, LineKind, Stroke, ToolId } from "./types";
 import { drawStrokeOn, strokeWidth } from "../lib/board-canvas-draw";
+import { boardPointIdsHitByEraser } from "../lib/board-point-erase";
 import { isPalmPointer } from "../lib/board-palm-eraser";
 
 export type SnapFn = (x: number, y: number) => { x: number; y: number };
@@ -12,11 +13,14 @@ type Props = {
   color: string;
   size: number;
   eraserSize: number;
+  pointSize: number;
+  boardPoints: BoardPoint[];
   lineKind: LineKind;
   strokes: Stroke[];
   disabled?: boolean;
   snap?: SnapFn;
-  onCommit: (s: Stroke) => void;
+  onCommit: (s: Stroke, deletedPointIds?: string[]) => void;
+  onEraserPreview?: (ids: string[]) => void;
 };
 
 type ActiveStroke = {
@@ -31,15 +35,19 @@ export default function DrawingCanvas({
   color,
   size,
   eraserSize,
+  pointSize,
+  boardPoints,
   lineKind,
   strokes,
   disabled = false,
   snap,
   onCommit,
+  onEraserPreview,
 }: Props) {
   const committedRef = useRef<HTMLCanvasElement>(null);
   const liveRef = useRef<HTMLCanvasElement>(null);
   const currentRef = useRef<ActiveStroke | null>(null);
+  const eraserPointIdsRef = useRef<Set<string>>(new Set());
   const snapRef = useRef(snap);
   useEffect(() => {
     snapRef.current = snap;
@@ -120,6 +128,28 @@ export default function DrawingCanvas({
     return size;
   };
 
+  const collectEraserHits = (
+    x0: number,
+    y0: number,
+    x1: number,
+    y1: number,
+    erSize: number,
+  ) => {
+    const hits = boardPointIdsHitByEraser(
+      boardPoints,
+      pointSize,
+      erSize,
+      x0,
+      y0,
+      x1,
+      y1,
+      eraserPointIdsRef.current,
+    );
+    if (hits.length === 0) return;
+    for (const id of hits) eraserPointIdsRef.current.add(id);
+    onEraserPreview?.([...eraserPointIdsRef.current]);
+  };
+
   const onPointerDown = (e: React.PointerEvent) => {
     if (!active || e.button !== 0) return;
     e.preventDefault();
@@ -130,6 +160,10 @@ export default function DrawingCanvas({
       Math.round(e.clientY),
       drawTool,
     );
+    eraserPointIdsRef.current = new Set();
+    if (drawTool === "eraser") {
+      collectEraserHits(x, y, x, y, resolveStrokeSize(drawTool));
+    }
     currentRef.current = {
       tool: drawTool,
       size: resolveStrokeSize(drawTool),
@@ -159,6 +193,7 @@ export default function DrawingCanvas({
       if (Math.hypot(x - lastX, y - lastY) < 2) return;
       pts.push(x, y);
       if (cur.tool === "eraser") {
+        collectEraserHits(lastX, lastY, x, y, cur.size);
         const ctx = getCtx(committedRef.current);
         if (ctx) {
           ctx.save();
@@ -228,7 +263,13 @@ export default function DrawingCanvas({
     if (cur.tool === "line" && cur.lineKind) {
       stroke.lineKind = cur.lineKind;
     }
-    onCommit(stroke);
+    const deletedPointIds =
+      cur.tool === "eraser" && eraserPointIdsRef.current.size > 0
+        ? [...eraserPointIdsRef.current]
+        : undefined;
+    eraserPointIdsRef.current = new Set();
+    onEraserPreview?.([]);
+    onCommit(stroke, deletedPointIds);
   };
 
   return (

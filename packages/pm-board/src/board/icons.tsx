@@ -92,11 +92,10 @@ export const EllipseIcon = (p: IconProps) => (
   </svg>
 );
 
-/** Construction point — hollow ring + center (not stroke width). */
+/** Construction point — filled dot. */
 export const PointToolIcon = (p: IconProps) => (
   <svg {...base(p)}>
-    <circle cx="12" cy="12" r="6.5" />
-    <circle cx="12" cy="12" r="1.8" fill="currentColor" stroke="none" />
+    <circle cx="12" cy="12" r="5.5" fill="currentColor" stroke="none" />
   </svg>
 );
 

@@ -91,7 +91,7 @@ type DrawState = {
 };
 
 type DrawAction =
-  | { type: "commit"; stroke: Stroke }
+  | { type: "commit"; stroke: Stroke; deletedPointIds?: string[] }
   | { type: "addPoint"; point: BoardPoint }
   | { type: "deleteIndices"; indices: number[] }
   | { type: "undo" }
@@ -105,13 +105,19 @@ function snapshot(state: DrawState): SketchSnapshot {
 
 function drawReducer(state: DrawState, action: DrawAction): DrawState {
   switch (action.type) {
-    case "commit":
+    case "commit": {
+      const deleted = action.deletedPointIds;
+      const boardPoints =
+        deleted && deleted.length > 0
+          ? state.boardPoints.filter((p) => !deleted.includes(p.id))
+          : state.boardPoints;
       return {
         strokes: [...state.strokes, action.stroke],
-        boardPoints: state.boardPoints,
+        boardPoints,
         past: [...state.past.slice(-(MAX_HISTORY - 1)), snapshot(state)],
         future: [],
       };
+    }
     case "addPoint":
       return {
         strokes: state.strokes,
@@ -204,6 +210,7 @@ export default function BoardApp({
   const [eraserSize, setEraserSize] = useState(6);
   const [pointSize, setPointSize] = useState(4);
   const [lineKind, setLineKind] = useState<LineKind>("segment");
+  const [eraserPreviewIds, setEraserPreviewIds] = useState<string[]>([]);
   const [draw, dispatchDraw] = useReducer(drawReducer, {
     strokes: [],
     boardPoints: [],
@@ -771,16 +778,22 @@ export default function BoardApp({
               color={color}
               size={size}
               eraserSize={eraserSize}
+              pointSize={pointSize}
+              boardPoints={draw.boardPoints}
               lineKind={lineKind}
               strokes={draw.strokes}
               disabled={boardMode === "math-select"}
               snap={(x, y) => snapPointer(x, y)}
-              onCommit={(stroke) => dispatchDraw({ type: "commit", stroke })}
+              onEraserPreview={setEraserPreviewIds}
+              onCommit={(stroke, deletedPointIds) =>
+                dispatchDraw({ type: "commit", stroke, deletedPointIds })
+              }
             />
             <BoardPointsLayer
               points={draw.boardPoints}
               color={color}
               defaultRadius={pointSize}
+              hiddenIds={eraserPreviewIds}
               active={tool === "point" && boardMode === "draw"}
               onPlace={placeBoardPoint}
             />

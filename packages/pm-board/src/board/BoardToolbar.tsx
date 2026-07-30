@@ -44,9 +44,93 @@ export const PALETTE = [
   "#ec4899",
 ];
 
-const SIZES = [3, 6, 10];
-export const POINT_SIZES = [3, 4, 6];
-export const ERASER_SIZES = [3, 6, 10, 14];
+const STROKE_SIZE_MIN = 1;
+const STROKE_SIZE_MAX = 24;
+const ERASER_SIZE_MIN = 2;
+const ERASER_SIZE_MAX = 28;
+const POINT_SIZE_MIN = 2;
+const POINT_SIZE_MAX = 12;
+const SIZE_PRESETS = [3, 6, 10];
+
+function WidthSliderPopover({
+  value,
+  min,
+  max,
+  onChange,
+  variant,
+}: {
+  value: number;
+  min: number;
+  max: number;
+  onChange: (v: number) => void;
+  variant: "stroke" | "eraser" | "point";
+}) {
+  const trackRef = useRef<HTMLDivElement>(null);
+
+  const valueFromClientY = (clientY: number) => {
+    const track = trackRef.current;
+    if (!track) return value;
+    const rect = track.getBoundingClientRect();
+    const t = 1 - (clientY - rect.top) / rect.height;
+    return Math.round(min + Math.max(0, Math.min(1, t)) * (max - min));
+  };
+
+  const onTrackPointer = (e: React.PointerEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+    onChange(valueFromClientY(e.clientY));
+  };
+
+  const onMove = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (!(e.currentTarget as HTMLElement).hasPointerCapture(e.pointerId)) return;
+    onChange(valueFromClientY(e.clientY));
+  };
+
+  const pct = ((value - min) / (max - min)) * 100;
+  const preview =
+    variant === "eraser"
+      ? Math.min(40, value * 2.2 + 4)
+      : variant === "point"
+        ? value * 2 + 2
+        : Math.min(36, value * 1.6 + 2);
+
+  return (
+    <div
+      className="absolute bottom-full left-1/2 mb-3 flex -translate-x-1/2 flex-col items-center gap-2.5 rounded-2xl border-2 border-wood/20 bg-cream px-3 py-3 shadow-xl"
+      onPointerDown={(e) => e.stopPropagation()}
+    >
+      <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-white shadow-inner">
+        <span
+          className={`rounded-full ${variant === "eraser" ? "bg-wood/40" : "bg-wood-dark"}`}
+          style={{ width: preview, height: preview }}
+        />
+      </div>
+      <div
+        ref={trackRef}
+        className="relative h-40 w-10 touch-none rounded-full bg-gradient-to-b from-wood/10 via-wood/20 to-wood/10 shadow-inner"
+        onPointerDown={onTrackPointer}
+        onPointerMove={onMove}
+      >
+        {SIZE_PRESETS.filter((p) => p >= min && p <= max).map((preset) => {
+          const presetPct = ((preset - min) / (max - min)) * 100;
+          return (
+            <span
+              key={preset}
+              className="pointer-events-none absolute left-1/2 h-1 w-1 -translate-x-1/2 rounded-full bg-wood/35"
+              style={{ bottom: `calc(${presetPct}% - 2px)` }}
+            />
+          );
+        })}
+        <div
+          className="pointer-events-none absolute left-1/2 h-5 w-5 -translate-x-1/2 rounded-full border-2 border-white bg-wood shadow-[0_2px_6px_rgba(0,0,0,0.25)]"
+          style={{ bottom: `calc(${pct}% - 10px)` }}
+        />
+      </div>
+      <span className="font-display text-xs text-wood-dark tabular-nums">{value}px</span>
+    </div>
+  );
+}
 
 const LINE_KINDS: {
   id: LineKind;
@@ -174,7 +258,9 @@ export default function BoardToolbar({
   const lineKindIcon =
     LINE_KINDS.find((k) => k.id === lineKind)?.icon ?? SegmentLineIcon;
   const ShapeIcon = SHAPES.find((s) => s.id === (isShapeTool ? tool : lastShape))?.icon ?? lineKindIcon;
-  const showStrokeWidth = tool !== "point" && tool !== "cursor";
+  const showStrokeWidth = tool !== "cursor";
+  const strokeWidthLabel =
+    tool === "eraser" ? "지우개 크기" : tool === "point" ? "점 크기" : "선 굵기";
 
   return (
     <>
@@ -409,82 +495,33 @@ export default function BoardToolbar({
         ) : null}
 
         {menu === "pointSize" ? (
-          <div className="absolute bottom-full left-1/2 mb-2 flex -translate-x-1/2 items-center gap-2 rounded-2xl border-2 border-wood/20 bg-cream p-2 shadow-xl">
-            {POINT_SIZES.map((s) => (
-              <button
-                key={s}
-                type="button"
-                aria-label={`점 크기 ${s}`}
-                onClick={() => {
-                  setPointSize(s);
-                  setMenu(null);
-                }}
-                className={`flex h-10 w-10 items-center justify-center rounded-xl transition ${
-                  pointSize === s ? "bg-wood text-cream" : "text-wood-dark hover:bg-wood/10"
-                }`}
-              >
-                <span
-                  className="rounded-full border-2 border-current bg-current/30"
-                  style={{ width: s * 2 + 4, height: s * 2 + 4 }}
-                />
-              </button>
-            ))}
-          </div>
+          <WidthSliderPopover
+            value={pointSize}
+            min={POINT_SIZE_MIN}
+            max={POINT_SIZE_MAX}
+            onChange={setPointSize}
+            variant="point"
+          />
         ) : null}
 
         {menu === "eraserSize" ? (
-          <div className="absolute bottom-full left-1/2 mb-2 flex -translate-x-1/2 items-center gap-2 rounded-2xl border-2 border-wood/20 bg-cream p-2 shadow-xl">
-            {ERASER_SIZES.map((s) => (
-              <button
-                key={s}
-                type="button"
-                aria-label={`지우개 크기 ${s}`}
-                onClick={() => {
-                  setEraserSize(s);
-                  setMenu(null);
-                }}
-                className={`relative flex h-10 w-10 items-center justify-center rounded-xl transition ${
-                  eraserSize === s ? "bg-wood text-cream" : "text-wood-dark hover:bg-wood/10"
-                }`}
-              >
-                <span
-                  className="rounded-full bg-current opacity-50"
-                  style={{ width: s + 8, height: s + 8 }}
-                />
-              </button>
-            ))}
-          </div>
+          <WidthSliderPopover
+            value={eraserSize}
+            min={ERASER_SIZE_MIN}
+            max={ERASER_SIZE_MAX}
+            onChange={setEraserSize}
+            variant="eraser"
+          />
         ) : null}
 
         {menu === "size" ? (
-          <div className="absolute bottom-full left-1/2 mb-2 flex -translate-x-1/2 items-center gap-2 rounded-2xl border-2 border-wood/20 bg-cream p-2 shadow-xl">
-            {SIZES.map((s) => (
-              <button
-                key={s}
-                type="button"
-                aria-label={`굵기 ${s}`}
-                onClick={() => {
-                  setSize(s);
-                  setMenu(null);
-                }}
-                className={`flex h-10 w-10 items-center justify-center rounded-xl transition ${
-                  size === s ? "bg-wood text-cream" : "text-wood-dark hover:bg-wood/10"
-                }`}
-              >
-                <svg
-                  width={22}
-                  height={22}
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeLinecap="round"
-                >
-                  <path d="M4 8h16" strokeWidth={s * 0.35 + 0.8} />
-                  <path d="M4 14h16" strokeWidth={s * 0.35 + 0.8} />
-                </svg>
-              </button>
-            ))}
-          </div>
+          <WidthSliderPopover
+            value={size}
+            min={STROKE_SIZE_MIN}
+            max={STROKE_SIZE_MAX}
+            onChange={setSize}
+            variant="stroke"
+          />
         ) : null}
 
         <div className="wood-bar flex items-center gap-1 rounded-2xl px-2 py-1.5">
@@ -505,12 +542,8 @@ export default function BoardToolbar({
             label="지우개"
             active={tool === "eraser"}
             onClick={() => {
-              if (tool === "eraser") {
-                toggleMenu("eraserSize");
-              } else {
-                setTool("eraser");
-                setMenu(null);
-              }
+              setTool("eraser");
+              setMenu(null);
             }}
           >
             <EraserIcon />
@@ -519,12 +552,8 @@ export default function BoardToolbar({
             label="점"
             active={tool === "point"}
             onClick={() => {
-              if (tool === "point") {
-                toggleMenu("pointSize");
-              } else {
-                setMenu(null);
-                setTool("point");
-              }
+              setMenu(null);
+              setTool("point");
             }}
           >
             <PointToolIcon />
@@ -565,12 +594,19 @@ export default function BoardToolbar({
           </button>
           <button
             type="button"
-            title="굵기"
-            aria-label="선 굵기"
+            title={strokeWidthLabel}
+            aria-label={strokeWidthLabel}
             disabled={!showStrokeWidth}
-            onClick={() => showStrokeWidth && toggleMenu("size")}
+            onClick={() => {
+              if (!showStrokeWidth) return;
+              if (tool === "eraser") toggleMenu("eraserSize");
+              else if (tool === "point") toggleMenu("pointSize");
+              else toggleMenu("size");
+            }}
             className={`flex h-10 w-10 items-center justify-center rounded-xl text-cream transition hover:bg-black/20 ${
-              menu === "size" ? "bg-black/25" : ""
+              menu === "size" || menu === "eraserSize" || menu === "pointSize"
+                ? "bg-black/25"
+                : ""
             } ${!showStrokeWidth ? "cursor-not-allowed opacity-35" : ""}`}
           >
             <StrokeWidthIcon />

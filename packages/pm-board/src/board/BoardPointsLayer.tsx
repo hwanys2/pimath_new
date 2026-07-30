@@ -2,12 +2,11 @@
 
 import type { BoardPoint } from "./types";
 
-const HIT = 16;
-
 type Props = {
   points: BoardPoint[];
   color: string;
   defaultRadius: number;
+  hiddenIds?: string[];
   active: boolean;
   onPlace: (x: number, y: number) => void;
 };
@@ -16,10 +15,14 @@ export default function BoardPointsLayer({
   points,
   color,
   defaultRadius,
+  hiddenIds = [],
   active,
   onPlace,
 }: Props) {
-  if (!active && points.length === 0) return null;
+  const hidden = new Set(hiddenIds);
+  const visible = points.filter((pt) => !hidden.has(pt.id));
+
+  if (!active && visible.length === 0) return null;
 
   return (
     <div
@@ -33,21 +36,17 @@ export default function BoardPointsLayer({
       }}
     >
       <svg className="absolute inset-0 h-full w-full overflow-visible">
-        {points.map((pt) => {
+        {visible.map((pt) => {
           const R = pt.r ?? defaultRadius;
           return (
-            <g key={pt.id} pointerEvents="none">
-              <circle cx={pt.x} cy={pt.y} r={HIT} fill="transparent" />
-              <circle
-                cx={pt.x}
-                cy={pt.y}
-                r={R + 1.5}
-                fill="#fff8eb"
-                stroke={color}
-                strokeWidth={2}
-              />
-              <circle cx={pt.x} cy={pt.y} r={Math.max(1.8, R * 0.45)} fill={color} />
-            </g>
+            <circle
+              key={pt.id}
+              cx={pt.x}
+              cy={pt.y}
+              r={R}
+              fill={color}
+              pointerEvents="none"
+            />
           );
         })}
       </svg>
