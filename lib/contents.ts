@@ -186,7 +186,7 @@ export const CONTENTS: ContentMeta[] = [
     href: "/play/g3-u1-radical-fill",
     awardsXp: true,
     description:
-      "서로 다른 수로 근호 연산 식의 빈칸을 채워 등식을 완성하는 게임. 10문제, 틀리면 다시 풀 수 있고 틀린 횟수만큼 감점(문제당 최대 100). 학급 배정·활성 시 XP와 랭킹이 쌓여요.",
+      "서로 다른 수로 근호 연산 식의 빈칸을 채워 등식을 완성하는 게임. 계수는 음수·분수 가능, 근호 안은 양수만. 10문제, 틀리면 재시도·오답 횟수 감점. 학급 배정·활성 시 XP와 랭킹이 쌓여요.",
   },
   {
     key: "g3-u1-square-maker",

@@ -27,10 +27,14 @@ import {
   emptyFills,
   hasDuplicateAmongFills,
   opLabel,
-  parsePositiveInt,
+  parseRational,
+  ratKey,
+  sanitizeCoeffInput,
+  sanitizeRadicandInput,
   scoreForAttempts,
   type CheckReason,
   type RadicalProblem,
+  type Rational,
   type TermFill,
 } from "@/lib/radical-fill-math";
 
@@ -54,8 +58,10 @@ function textsToFills(
   return problem.terms.map((term, i) => {
     const t = texts[i] ?? { coeff: "", radicand: "" };
     return {
-      coeff: term.hasCoeff ? parsePositiveInt(t.coeff) : null,
-      radicand: parsePositiveInt(t.radicand),
+      coeff: term.hasCoeff
+        ? parseRational(t.coeff, { allowNegative: true })
+        : null,
+      radicand: parseRational(t.radicand, { allowNegative: false }),
     };
   });
 }
@@ -70,11 +76,11 @@ function emptyTexts(problem: RadicalProblem): TermTexts[] {
 function softMessage(reason: SoftNotice["reason"]): string {
   switch (reason) {
     case "incomplete":
-      return "빈칸을 모두 채워 주세요.";
+      return "빈칸을 모두 채워 주세요. (예: 3, −2, 1/2)";
     case "invalid":
-      return "양의 정수만 입력할 수 있어요.";
+      return "계수는 정수·분수(음수 가능), 근호 안은 양수만 넣을 수 있어요.";
     case "duplicate":
-      return "모든 숫자는 서로 달라야 해요.";
+      return "모든 숫자는 서로 달라야 해요. (2와 2/1은 같은 수로 봐요)";
     case "wrong":
       return "틀렸어요. 다시 풀어보세요!";
   }
@@ -104,14 +110,16 @@ function SlotInput({
     <input
       ref={inputRef}
       type="text"
-      inputMode="numeric"
-      pattern="[0-9]*"
+      inputMode="text"
       autoComplete="off"
+      spellCheck={false}
       disabled={disabled}
       aria-label={ariaLabel}
       value={value}
       onChange={(e) => {
-        const next = e.target.value.replace(/\D/g, "").slice(0, 4);
+        const next = isRad
+          ? sanitizeRadicandInput(e.target.value)
+          : sanitizeCoeffInput(e.target.value);
         onChange(next);
       }}
       onKeyDown={(e) => {
@@ -124,8 +132,8 @@ function SlotInput({
         "bg-cream text-center font-display font-bold tabular-nums text-wood outline-none transition",
         "focus:ring-2 focus:ring-wood/25",
         isRad
-          ? "h-10 w-[3.25rem] rounded-md rounded-t-none border-2 border-t-0 text-lg sm:h-11 sm:w-16 sm:text-xl"
-          : "h-10 w-10 rounded-lg border-2 text-base sm:h-11 sm:w-11 sm:text-lg",
+          ? "h-10 w-[3.6rem] rounded-md rounded-t-none border-2 border-t-0 text-base sm:h-11 sm:w-[4.25rem] sm:text-lg"
+          : "h-10 w-[3.25rem] rounded-lg border-2 text-sm sm:h-11 sm:w-14 sm:text-base",
         duplicate
           ? isRad
             ? "border-[#e85d4c] border-t-0 bg-[#e85d4c]/10 focus:border-[#e85d4c]"
@@ -342,16 +350,19 @@ export default function RadicalFillQuiz() {
   );
 
   const duplicateValues = useMemo(() => {
-    const nums = fills.flatMap((f, i) => {
-      const out: number[] = [];
-      if (problem.terms[i]?.hasCoeff && f.coeff != null) out.push(f.coeff);
-      if (f.radicand != null) out.push(f.radicand);
-      return out;
-    });
-    const counts = new Map<number, number>();
-    for (const n of nums) counts.set(n, (counts.get(n) ?? 0) + 1);
+    const nums: Rational[] = [];
+    for (let i = 0; i < fills.length; i++) {
+      const f = fills[i]!;
+      if (problem.terms[i]?.hasCoeff && f.coeff != null) nums.push(f.coeff);
+      if (f.radicand != null) nums.push(f.radicand);
+    }
+    const counts = new Map<string, number>();
+    for (const n of nums) {
+      const k = ratKey(n);
+      counts.set(k, (counts.get(k) ?? 0) + 1);
+    }
     return new Set(
-      [...counts.entries()].filter(([, c]) => c > 1).map(([n]) => n),
+      [...counts.entries()].filter(([, c]) => c > 1).map(([k]) => k),
     );
   }, [fills, problem.terms]);
 
@@ -540,8 +551,8 @@ export default function RadicalFillQuiz() {
           근호 빈칸 채우기
         </h1>
         <p className="mt-3 max-w-2xl text-sm leading-relaxed text-foreground/75 sm:text-base">
-          빈칸에 서로 다른 양의 정수를 넣어 등식이 성립하게 만드세요. 틀리면
-          다시 풀 수 있고, 틀린 횟수만큼 점수가 깎여요. (문제당 최대 100점)
+          빈칸에 서로 다른 수를 넣어 등식이 성립하게 만드세요. 계수는 음수·분수도
+          되고, 근호 안에는 양수만 넣을 수 있어요. 틀리면 다시 풀며 감점됩니다.
         </p>
       </section>
 
@@ -552,6 +563,7 @@ export default function RadicalFillQuiz() {
           </p>
           <ul className="mx-auto mt-4 max-w-md space-y-2 text-left text-sm font-semibold text-wood/80">
             <li>· 한 문제에 쓰는 숫자는 모두 서로 달라야 해요</li>
+            <li>· 계수는 음수·분수 가능 (예: −3, 1/2) · 근호 안은 양수만</li>
             <li>· 정답은 여러 가지일 수 있어요 (등식만 맞으면 OK)</li>
             <li>· 틀리면 다시 도전 · 틀릴 때마다 −{WRONG_PENALTY}점 (하한 40점)</li>
             <li>· 막히면 포기할 수 있어요 (그 문제는 0점)</li>
@@ -678,11 +690,12 @@ export default function RadicalFillQuiz() {
                     onRadicandChange={(v) => setTermText(ti, "radicand", v)}
                     onEnter={focusNextEmpty}
                     coeffDup={
-                      fill.coeff != null && duplicateValues.has(fill.coeff)
+                      fill.coeff != null &&
+                      duplicateValues.has(ratKey(fill.coeff))
                     }
                     radDup={
                       fill.radicand != null &&
-                      duplicateValues.has(fill.radicand)
+                      duplicateValues.has(ratKey(fill.radicand))
                     }
                     coeffRef={
                       term.hasCoeff ? registerInput(coeffSlot) : undefined

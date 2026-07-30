@@ -38,9 +38,14 @@ export const MIN_CORRECT_SCORE = 40;
 /** 정답 시 최대 점수 (무오답) */
 export const MAX_CORRECT_SCORE = 100;
 
+/** 기약분수 (부호는 num, den > 0) */
+export type Rational = { num: number; den: number };
+
 export type TermFill = {
-  coeff: number | null;
-  radicand: number | null;
+  /** 계수 빈칸 — 음수·분수 허용. 없으면 null */
+  coeff: Rational | null;
+  /** 근호 안 — 양수(분수 가능), 음수 불가 */
+  radicand: Rational | null;
 };
 
 export type CheckReason =
@@ -56,9 +61,9 @@ export type CheckResult = {
 };
 
 /** square-free radicand → rational coefficient (num/den) */
-export type RadicalMap = Map<number, { num: number; den: number }>;
+export type RadicalMap = Map<number, Rational>;
 
-function gcd(a: number, b: number): number {
+export function gcd(a: number, b: number): number {
   let x = Math.abs(a);
   let y = Math.abs(b);
   while (y !== 0) {
@@ -69,7 +74,7 @@ function gcd(a: number, b: number): number {
   return x || 1;
 }
 
-function simplifyRat(num: number, den: number): { num: number; den: number } {
+export function simplifyRat(num: number, den: number): Rational {
   if (den < 0) {
     num = -num;
     den = -den;
@@ -79,22 +84,33 @@ function simplifyRat(num: number, den: number): { num: number; den: number } {
   return { num: num / g, den: den / g };
 }
 
-function addRat(
-  a: { num: number; den: number },
-  b: { num: number; den: number },
-): { num: number; den: number } {
+/** 정수 → 유리수 */
+export function rat(num: number, den = 1): Rational {
+  return simplifyRat(num, den);
+}
+
+export function ratsEqual(a: Rational, b: Rational): boolean {
+  return a.num === b.num && a.den === b.den;
+}
+
+export function ratKey(r: Rational): string {
+  return `${r.num}/${r.den}`;
+}
+
+function addRat(a: Rational, b: Rational): Rational {
   return simplifyRat(a.num * b.den + b.num * a.den, a.den * b.den);
 }
 
-function mulRat(
-  a: { num: number; den: number },
-  b: { num: number; den: number },
-): { num: number; den: number } {
+function mulRat(a: Rational, b: Rational): Rational {
   return simplifyRat(a.num * b.num, a.den * b.den);
 }
 
-function negRat(a: { num: number; den: number }): { num: number; den: number } {
+function negRat(a: Rational): Rational {
   return { num: -a.num, den: a.den };
+}
+
+function asRat(value: Rational | number): Rational {
+  return typeof value === "number" ? simplifyRat(value, 1) : simplifyRat(value.num, value.den);
 }
 
 /** n = multiplier² × squareFree */
@@ -126,17 +142,20 @@ export function emptyMap(): RadicalMap {
 
 export function addTermToMap(
   map: RadicalMap,
-  coeff: number,
-  radicand: number,
+  coeff: Rational | number,
+  radicand: Rational | number,
 ): RadicalMap {
   const next = cloneMap(map);
-  if (coeff === 0 || radicand === 0) return next;
-  if (radicand < 0) {
-    // 중3 범위 밖 — 빈 맵으로 실패 유도하지 않고 무시하지 않음; 호출 전 검증
-    return next;
-  }
-  const { multiplier, squareFree } = extractSquareFactors(radicand);
-  const add = simplifyRat(coeff * multiplier, 1);
+  const c = asRat(coeff);
+  const r = asRat(radicand);
+  if (c.num === 0) return next;
+  // 근호 안은 양수만 (분모·분자 모두 양수인 기약분수)
+  if (r.num <= 0 || r.den <= 0) return next;
+
+  // coeff · √(p/q) = coeff · √(p·q) / q
+  const under = r.num * r.den;
+  const { multiplier, squareFree } = extractSquareFactors(under);
+  const add = mulRat(c, simplifyRat(multiplier, r.den));
   const prev = next.get(squareFree) ?? { num: 0, den: 1 };
   const sum = addRat(prev, add);
   if (sum.num === 0) next.delete(squareFree);
@@ -151,7 +170,7 @@ function cloneMap(map: RadicalMap): RadicalMap {
 }
 
 export function addMaps(a: RadicalMap, b: RadicalMap): RadicalMap {
-  let out = cloneMap(a);
+  const out = cloneMap(a);
   for (const [sf, rat] of b) {
     const prev = out.get(sf) ?? { num: 0, den: 1 };
     const sum = addRat(prev, rat);
@@ -169,7 +188,7 @@ export function subMaps(a: RadicalMap, b: RadicalMap): RadicalMap {
 
 /** (Σ a_i √n_i)(Σ b_j √m_j) */
 export function mulMaps(a: RadicalMap, b: RadicalMap): RadicalMap {
-  let out = emptyMap();
+  const out = emptyMap();
   for (const [n, ar] of a) {
     for (const [m, br] of b) {
       const coeff = mulRat(ar, br);
@@ -223,7 +242,10 @@ export function mapFromFixed(terms: FixedTerm[]): RadicalMap {
   return map;
 }
 
-export function termToMap(coeff: number, radicand: number): RadicalMap {
+export function termToMap(
+  coeff: Rational | number,
+  radicand: Rational | number,
+): RadicalMap {
   return addTermToMap(emptyMap(), coeff, radicand);
 }
 
@@ -267,20 +289,82 @@ export function evalExpression(
   return acc;
 }
 
-export function parsePositiveInt(raw: string): number | null {
-  const t = raw.trim();
-  if (!t || !/^\d+$/.test(t)) return null;
-  const n = Number(t);
-  if (!Number.isInteger(n) || n <= 0) return null;
-  return n;
+/**
+ * 유리수 파싱.
+ * - allowNegative: 계수용 (−3, −1/2, 3/4 …)
+ * - 근호 안: allowNegative=false → 양수만 (3, 1/2 …)
+ * 0 · 0/n · 미완성(3/) 은 null
+ */
+export function parseRational(
+  raw: string,
+  opts: { allowNegative: boolean },
+): Rational | null {
+  const t = raw.trim().replace(/\s+/g, "");
+  if (!t) return null;
+
+  if (opts.allowNegative) {
+    if (!/^-?\d+\/\d+$/.test(t) && !/^-?\d+$/.test(t)) return null;
+  } else if (!/^\d+\/\d+$/.test(t) && !/^\d+$/.test(t)) {
+    return null;
+  }
+
+  const neg = t.startsWith("-");
+  if (neg && !opts.allowNegative) return null;
+  const body = neg ? t.slice(1) : t;
+  const parts = body.split("/");
+  const numPart = parts[0]!;
+  const denPart = parts[1];
+  const num = Number(numPart);
+  const den = denPart === undefined ? 1 : Number(denPart);
+  if (!Number.isInteger(num) || !Number.isInteger(den) || den <= 0) return null;
+  const signed = neg ? -num : num;
+  if (signed === 0) return null;
+  if (!opts.allowNegative && signed < 0) return null;
+  return simplifyRat(signed, den);
 }
 
-/** 계수·근호에 채운 모든 양의 정수 (빈 칸 제외) */
-export function collectFilledNumbers(
+/** @deprecated 양의 정수만 — parseRational 권장 */
+export function parsePositiveInt(raw: string): number | null {
+  const r = parseRational(raw, { allowNegative: false });
+  if (!r || r.den !== 1 || r.num <= 0) return null;
+  return r.num;
+}
+
+/** 입력 중 허용 문자만 남김 (계수: −와 /) */
+export function sanitizeCoeffInput(raw: string): string {
+  let s = raw.replace(/[^\d\-/]/g, "").slice(0, 10);
+  // 맨 앞 −만 허용
+  const hasNeg = s.startsWith("-");
+  s = (hasNeg ? "-" : "") + s.replace(/-/g, "");
+  // / 는 하나
+  const slash = s.indexOf("/");
+  if (slash !== -1) {
+    s =
+      s.slice(0, slash + 1) +
+      s
+        .slice(slash + 1)
+        .replace(/\//g, "")
+        .replace(/-/g, "");
+  }
+  return s;
+}
+
+/** 근호 안: 숫자와 / 만 (음수 불가) */
+export function sanitizeRadicandInput(raw: string): string {
+  let s = raw.replace(/[^\d/]/g, "").slice(0, 10);
+  const slash = s.indexOf("/");
+  if (slash !== -1) {
+    s = s.slice(0, slash + 1) + s.slice(slash + 1).replace(/\//g, "");
+  }
+  return s;
+}
+
+/** 계수·근호에 채운 모든 유리수 (빈 칸 제외) */
+export function collectFilledRationals(
   problem: RadicalProblem,
   fills: TermFill[],
-): number[] {
-  const nums: number[] = [];
+): Rational[] {
+  const nums: Rational[] = [];
   for (let i = 0; i < problem.terms.length; i++) {
     const term = problem.terms[i]!;
     const fill = fills[i];
@@ -291,16 +375,16 @@ export function collectFilledNumbers(
   return nums;
 }
 
-export function allDistinct(nums: number[]): boolean {
-  return new Set(nums).size === nums.length;
+export function allDistinctRationals(nums: Rational[]): boolean {
+  const keys = nums.map(ratKey);
+  return new Set(keys).size === keys.length;
 }
 
 export function hasDuplicateAmongFills(
   problem: RadicalProblem,
   fills: TermFill[],
 ): boolean {
-  const nums = collectFilledNumbers(problem, fills);
-  return !allDistinct(nums);
+  return !allDistinctRationals(collectFilledRationals(problem, fills));
 }
 
 function fillsComplete(problem: RadicalProblem, fills: TermFill[]): boolean {
@@ -309,9 +393,9 @@ function fillsComplete(problem: RadicalProblem, fills: TermFill[]): boolean {
     const term = problem.terms[i]!;
     const fill = fills[i]!;
     if (term.hasCoeff) {
-      if (fill.coeff == null || fill.coeff <= 0) return false;
+      if (fill.coeff == null || fill.coeff.num === 0) return false;
     }
-    if (fill.radicand == null || fill.radicand <= 0) return false;
+    if (fill.radicand == null || fill.radicand.num <= 0) return false;
   }
   return true;
 }
@@ -323,17 +407,31 @@ export function checkAnswer(
   if (!fillsComplete(problem, fills)) {
     return { ok: false, reason: "incomplete" };
   }
-  const nums = collectFilledNumbers(problem, fills);
-  if (nums.some((n) => !Number.isInteger(n) || n <= 0)) {
+  const nums = collectFilledRationals(problem, fills);
+  if (
+    nums.some(
+      (n) =>
+        !Number.isInteger(n.num) ||
+        !Number.isInteger(n.den) ||
+        n.den <= 0,
+    )
+  ) {
     return { ok: false, reason: "invalid" };
   }
-  if (!allDistinct(nums)) {
+  // 근호 안 음수 재확인
+  for (let i = 0; i < problem.terms.length; i++) {
+    const fill = fills[i]!;
+    if (fill.radicand && fill.radicand.num < 0) {
+      return { ok: false, reason: "invalid" };
+    }
+  }
+  if (!allDistinctRationals(nums)) {
     return { ok: false, reason: "duplicate" };
   }
 
   const termMaps: RadicalMap[] = problem.terms.map((term, i) => {
     const fill = fills[i]!;
-    const coeff = term.hasCoeff ? fill.coeff! : 1;
+    const coeff = term.hasCoeff ? fill.coeff! : rat(1);
     return termToMap(coeff, fill.radicand!);
   });
 
@@ -503,71 +601,71 @@ export const PROBLEMS: RadicalProblem[] = [
 export const SAMPLE_FILLS: TermFill[][] = [
   // √32 + √18 − √8 = 5√2
   [
-    { coeff: null, radicand: 32 },
-    { coeff: null, radicand: 18 },
-    { coeff: null, radicand: 8 },
+    { coeff: null, radicand: rat(32) },
+    { coeff: null, radicand: rat(18) },
+    { coeff: null, radicand: rat(8) },
   ],
   // √48 + √3 − √12 = 3√3
   [
-    { coeff: null, radicand: 48 },
-    { coeff: null, radicand: 3 },
-    { coeff: null, radicand: 12 },
+    { coeff: null, radicand: rat(48) },
+    { coeff: null, radicand: rat(3) },
+    { coeff: null, radicand: rat(12) },
   ],
   // √45 − √5 + √20 = 4√5
   [
-    { coeff: null, radicand: 45 },
-    { coeff: null, radicand: 5 },
-    { coeff: null, radicand: 20 },
+    { coeff: null, radicand: rat(45) },
+    { coeff: null, radicand: rat(5) },
+    { coeff: null, radicand: rat(20) },
   ],
   // 3√8 + √50 − 2√18 = 5√2
   [
-    { coeff: 3, radicand: 8 },
-    { coeff: null, radicand: 50 },
-    { coeff: 2, radicand: 18 },
+    { coeff: rat(3), radicand: rat(8) },
+    { coeff: null, radicand: rat(50) },
+    { coeff: rat(2), radicand: rat(18) },
   ],
   // 2√12 + √27 − 1√75 − √5 = 2√3 − √5
   [
-    { coeff: 2, radicand: 12 },
-    { coeff: null, radicand: 27 },
-    { coeff: 1, radicand: 75 },
-    { coeff: null, radicand: 5 },
+    { coeff: rat(2), radicand: rat(12) },
+    { coeff: null, radicand: rat(27) },
+    { coeff: rat(1), radicand: rat(75) },
+    { coeff: null, radicand: rat(5) },
   ],
   // 3√8 + √18 − 2√32 + √50 = 6√2
   [
-    { coeff: 3, radicand: 8 },
-    { coeff: null, radicand: 18 },
-    { coeff: 2, radicand: 32 },
-    { coeff: null, radicand: 50 },
+    { coeff: rat(3), radicand: rat(8) },
+    { coeff: null, radicand: rat(18) },
+    { coeff: rat(2), radicand: rat(32) },
+    { coeff: null, radicand: rat(50) },
   ],
   // 1√32 + √8 − 2√3 − √18 = 3√2 − 2√3
   [
-    { coeff: 1, radicand: 32 },
-    { coeff: null, radicand: 8 },
-    { coeff: 2, radicand: 3 },
-    { coeff: null, radicand: 18 },
+    { coeff: rat(1), radicand: rat(32) },
+    { coeff: null, radicand: rat(8) },
+    { coeff: rat(2), radicand: rat(3) },
+    { coeff: null, radicand: rat(18) },
   ],
   // 1√108 − √48 + 2√3 − √7 = 4√3 − √7
   [
-    { coeff: 1, radicand: 108 },
-    { coeff: null, radicand: 48 },
-    { coeff: 2, radicand: 3 },
-    { coeff: null, radicand: 7 },
+    { coeff: rat(1), radicand: rat(108) },
+    { coeff: null, radicand: rat(48) },
+    { coeff: rat(2), radicand: rat(3) },
+    { coeff: null, radicand: rat(7) },
   ],
   // 3√2 × √12 ÷ 1√4 − √54 ÷ √9 = 2√6
   [
-    { coeff: 3, radicand: 2 },
-    { coeff: null, radicand: 12 },
-    { coeff: 1, radicand: 4 },
-    { coeff: null, radicand: 54 },
-    { coeff: null, radicand: 9 },
+    { coeff: rat(3), radicand: rat(2) },
+    { coeff: null, radicand: rat(12) },
+    { coeff: rat(1), radicand: rat(4) },
+    { coeff: null, radicand: rat(54) },
+    { coeff: null, radicand: rat(9) },
   ],
   // 4√8 × √18 ÷ 6√2 + √32 ÷ √16 = 5√2
   [
-    { coeff: 4, radicand: 8 },
-    { coeff: null, radicand: 18 },
-    { coeff: 6, radicand: 2 },
-    { coeff: null, radicand: 32 },
-    { coeff: null, radicand: 16 },
+    { coeff: rat(4), radicand: rat(8) },
+    { coeff: null, radicand: rat(18) },
+    { coeff: rat(6), radicand: rat(2) },
+    { coeff: null, radicand: rat(32) },
+    { coeff: null, radicand: rat(16) },
   ],
 ];
 

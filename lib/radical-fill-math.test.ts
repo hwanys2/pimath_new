@@ -13,6 +13,8 @@ import {
   mapFromFixed,
   termToMap,
   evalExpression,
+  parseRational,
+  rat,
   type TermFill,
 } from "@/lib/radical-fill-math";
 
@@ -48,6 +50,59 @@ describe("evalExpression sample √32+√18-√8", () => {
   });
 });
 
+describe("parseRational", () => {
+  it("parses integers and fractions with optional sign on coeff", () => {
+    assert.deepEqual(parseRational("3", { allowNegative: true }), rat(3));
+    assert.deepEqual(parseRational("-2", { allowNegative: true }), rat(-2));
+    assert.deepEqual(parseRational("1/2", { allowNegative: true }), rat(1, 2));
+    assert.deepEqual(
+      parseRational("-3/4", { allowNegative: true }),
+      rat(-3, 4),
+    );
+    assert.deepEqual(parseRational("2/4", { allowNegative: false }), rat(1, 2));
+  });
+
+  it("rejects negatives for radicand and zero", () => {
+    assert.equal(parseRational("-2", { allowNegative: false }), null);
+    assert.equal(parseRational("-1/2", { allowNegative: false }), null);
+    assert.equal(parseRational("0", { allowNegative: true }), null);
+    assert.equal(parseRational("3/", { allowNegative: true }), null);
+  });
+});
+
+describe("rational / negative terms", () => {
+  it("accepts negative coefficient", () => {
+    // −2√8 + √50 + √18 = −4√2 + 5√2 + 3√2 = 4√2 — wait need 5√2
+    // −1√8 + √50 + √18 = −2√2 + 5√2 + 3√2 = 6√2 — for p6 ops + - +
+    // p4: □√□ + √□ − □√□ = 5√2
+    // −1√32 + √8 − (−3)√2 → but second has no coeff, third has coeff
+    // −2√18 + √50 − (−3)√8 = −6√2 + 5√2 − (−6√2) = −6+5+6 = 5√2
+    // numbers: -2, 18, 50, -3, 8 — wait third coeff -3 and... -2 and -3 distinct, 18,50,8 distinct
+    // TermFill: coeff -2 rad 18; null rad 50; coeff -3 rad 8
+    // Expression: -2√18 + √50 - (-3)√8 = -6√2 + 5√2 - (-6√2) = -6+5+6 = 5√2 ✓
+    // But ops are + - so it's a + b - c where c = (-3)√8
+    // a + b - c = -2√18 + √50 - (-3√8) = -6√2 + 5√2 - (-3*2√2) = -6+5+6 = 5√2 ✓
+    const fills: TermFill[] = [
+      { coeff: rat(-2), radicand: rat(18) },
+      { coeff: null, radicand: rat(50) },
+      { coeff: rat(-3), radicand: rat(8) },
+    ];
+    const result = checkAnswer(PROBLEMS[3]!, fills);
+    assert.equal(result.ok, true, result.reason);
+  });
+
+  it("accepts positive fraction under radical", () => {
+    // √(1/2) = √2/2, so 10 * √(1/2) = 5√2 — need problem structure
+    // Use termToMap directly
+    const m = termToMap(rat(10), rat(1, 2));
+    assert.ok(mapsEqual(m, mapFromFixed([{ coeff: 5, radicand: 2 }])));
+  });
+
+  it("rejects negative radicand via parse", () => {
+    assert.equal(parseRational("-8", { allowNegative: false }), null);
+  });
+});
+
 describe("checkAnswer", () => {
   it("accepts all SAMPLE_FILLS", () => {
     assert.equal(PROBLEMS.length, 10);
@@ -62,11 +117,11 @@ describe("checkAnswer", () => {
     }
   });
 
-  it("rejects duplicate numbers", () => {
+  it("rejects duplicate numbers including equivalent fractions", () => {
     const fills: TermFill[] = [
-      { coeff: null, radicand: 32 },
-      { coeff: null, radicand: 32 },
-      { coeff: null, radicand: 8 },
+      { coeff: null, radicand: rat(32) },
+      { coeff: null, radicand: rat(64, 2) }, // = 32
+      { coeff: null, radicand: rat(8) },
     ];
     const result = checkAnswer(PROBLEMS[0]!, fills);
     assert.equal(result.ok, false);
@@ -75,9 +130,9 @@ describe("checkAnswer", () => {
 
   it("rejects incomplete fills", () => {
     const fills: TermFill[] = [
-      { coeff: null, radicand: 32 },
+      { coeff: null, radicand: rat(32) },
       { coeff: null, radicand: null },
-      { coeff: null, radicand: 8 },
+      { coeff: null, radicand: rat(8) },
     ];
     const result = checkAnswer(PROBLEMS[0]!, fills);
     assert.equal(result.ok, false);
@@ -86,9 +141,9 @@ describe("checkAnswer", () => {
 
   it("rejects wrong but distinct values", () => {
     const fills: TermFill[] = [
-      { coeff: null, radicand: 2 },
-      { coeff: null, radicand: 8 },
-      { coeff: null, radicand: 18 },
+      { coeff: null, radicand: rat(2) },
+      { coeff: null, radicand: rat(8) },
+      { coeff: null, radicand: rat(18) },
     ];
     const result = checkAnswer(PROBLEMS[0]!, fills);
     assert.equal(result.ok, false);
