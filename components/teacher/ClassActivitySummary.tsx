@@ -26,13 +26,14 @@ export default function ClassActivitySummary({
   if (activities.length === 0) {
     return (
       <p className="text-sm text-foreground/55">
-        활성화된 콘텐츠가 없어요. 위 「수업 콘텐츠」에서 담아두고 활성화해 주세요.
+        활성화된 콘텐츠가 없어요. 「수업 콘텐츠」 탭에서 담아두고 활성화해
+        주세요.
       </p>
     );
   }
 
   return (
-    <ul className="flex flex-col gap-2">
+    <ul className="grid grid-cols-1 gap-2 sm:grid-cols-2">
       {activities.map((activity) => {
         const rate =
           activity.studentCount > 0

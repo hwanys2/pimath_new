@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { Suspense } from "react";
 import { requireTeacher } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { fetchClassContentAssignments } from "@/lib/class-contents";
@@ -9,6 +10,7 @@ import StudentRoster from "@/components/teacher/StudentRoster";
 import BulkStudentImport from "@/components/teacher/BulkStudentImport";
 import ClassContentManager from "@/components/teacher/ClassContentManager";
 import ClassActivitySummary from "@/components/teacher/ClassActivitySummary";
+import ClassDetailTabs from "@/components/teacher/ClassDetailTabs";
 import { deleteClass } from "@/app/teacher/actions";
 import { fetchClassActivityOverview } from "@/lib/activity-results";
 
@@ -105,36 +107,49 @@ export default async function ClassDetailPage({ params }: Props) {
         </div>
       </section>
 
-      <section className="quest-card p-5 sm:p-6">
-        <ClassContentManager classId={classId} assignments={assignments} />
-      </section>
-
-      <section className="quest-card p-5 sm:p-6">
-        <h2 className="font-display text-xl text-wood">학습 결과</h2>
-        <p className="mt-1 text-sm text-foreground/65">
-          활성화된 콘텐츠에 대한 학생 참여 현황이에요. 각 항목에서 상세 결과를
-          볼 수 있어요.
-        </p>
-        <div className="mt-4">
-          <ClassActivitySummary
-            classId={classId}
-            activities={activityOverview}
-          />
-        </div>
-      </section>
-
-      <section className="quest-card p-5 sm:p-6">
-        <h2 className="font-display text-xl text-wood">학생 명단</h2>
-        <p className="mt-1 text-sm text-foreground/65">
-          이름·아이디는 바로 수정하고 저장하세요. 비밀번호는 바꿀 때만
-          입력하면 됩니다.
-        </p>
-        <div className="mt-4">
-          <StudentRoster classId={classId} students={students ?? []} />
-        </div>
-      </section>
-
-      <BulkStudentImport classId={classId} />
+      <Suspense fallback={<div className="quest-card p-5 sm:p-6">불러오는 중…</div>}>
+        <ClassDetailTabs
+          panels={{
+            content: (
+              <ClassContentManager
+                classId={classId}
+                assignments={assignments}
+              />
+            ),
+            results: (
+              <div>
+                <p className="text-sm text-foreground/65">
+                  활성화된 콘텐츠에 대한 학생 참여 현황이에요. 각 항목에서
+                  상세 결과를 볼 수 있어요.
+                </p>
+                <div className="mt-4">
+                  <ClassActivitySummary
+                    classId={classId}
+                    activities={activityOverview}
+                  />
+                </div>
+              </div>
+            ),
+            roster: (
+              <div className="flex flex-col gap-6">
+                <div>
+                  <p className="text-sm text-foreground/65">
+                    이름·아이디는 바로 수정하고 저장하세요. 비밀번호는 바꿀 때만
+                    입력하면 됩니다.
+                  </p>
+                  <div className="mt-4">
+                    <StudentRoster
+                      classId={classId}
+                      students={students ?? []}
+                    />
+                  </div>
+                </div>
+                <BulkStudentImport classId={classId} />
+              </div>
+            ),
+          }}
+        />
+      </Suspense>
     </div>
   );
 }

@@ -129,6 +129,14 @@ function ContentRow({
 
       <div className="flex flex-wrap items-center gap-2">
         <CopyLinkButton href={content.href} />
+        {assignment && content.type === "inquiry" ? (
+          <Link
+            href={`${content.href}?classId=${classId}`}
+            className="rounded-xl bg-lavender/55 px-3 py-1.5 text-xs font-bold text-wood transition hover:brightness-105"
+          >
+            수업 대시보드
+          </Link>
+        ) : null}
         {assignment ? (
           <Link
             href={`/teacher/classes/${classId}/results/${content.key}`}
@@ -208,13 +216,10 @@ export default function ClassContentManager({ classId, assignments }: Props) {
 
   return (
     <div className="flex flex-col gap-4">
-      <div>
-        <h2 className="font-display text-xl text-wood">수업 콘텐츠</h2>
-        <p className="mt-1 text-sm text-foreground/65">
-          담아두면 학생 목록에 보이고, 활성화해야 목록에서 플레이할 수 있어요.
-          공개 링크는 배정과 관계없이 항상 열립니다.
-        </p>
-      </div>
+      <p className="text-sm text-foreground/65">
+        담아두면 학생 목록에 보이고, 활성화해야 목록에서 플레이할 수 있어요.
+        공개 링크는 배정과 관계없이 항상 열립니다.
+      </p>
 
       {CONTENTS.length === 0 ? (
         <p className="text-sm text-foreground/50">등록된 콘텐츠가 아직 없어요.</p>

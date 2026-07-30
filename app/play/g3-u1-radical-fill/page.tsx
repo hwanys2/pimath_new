@@ -16,10 +16,18 @@ export const metadata: Metadata = {
     "서로 다른 수로 근호 식을 완성하는 중3 제곱근 탐구 활동. 교사 수업 모드에서는 선생님 속도에 맞춰 진행하고, 수업이 없을 때는 혼자 연습할 수 있어요.",
 };
 
-export default async function RadicalFillPage() {
+export default async function RadicalFillPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ classId?: string }>;
+}) {
   const content = getContent(CONTENT_KEY);
   const assignCtx = await fetchTeacherAssignContext([CONTENT_KEY]);
   const actor = await getActor();
+
+  const { classId: classIdParam } = await searchParams;
+  const initialClassId =
+    typeof classIdParam === "string" ? classIdParam.trim() : null;
 
   return (
     <div className="space-y-4">
@@ -43,7 +51,10 @@ export default async function RadicalFillPage() {
       />
 
       {actor?.type === "teacher" ? (
-        <InquiryHostDashboard teacherClasses={assignCtx?.classes ?? []} />
+        <InquiryHostDashboard
+          teacherClasses={assignCtx?.classes ?? []}
+          initialClassId={initialClassId}
+        />
       ) : actor?.type === "student" ? (
         <InquiryStudentView
           studentClassId={actor.classId}

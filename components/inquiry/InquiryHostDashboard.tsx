@@ -40,6 +40,7 @@ const IDLE: InquiryPollState = {
 
 type Props = {
   teacherClasses: TeacherClassOption[];
+  initialClassId?: string | null;
 };
 
 function phaseLabel(phase: InquiryPollState["phase"]): string {
@@ -55,10 +56,17 @@ function phaseLabel(phase: InquiryPollState["phase"]): string {
   }
 }
 
-export default function InquiryHostDashboard({ teacherClasses }: Props) {
-  const [selectedClassId, setSelectedClassId] = useState(
-    teacherClasses[0]?.id ?? "",
-  );
+export default function InquiryHostDashboard({
+  teacherClasses,
+  initialClassId,
+}: Props) {
+  const resolvedInitial =
+    initialClassId &&
+    teacherClasses.some((c) => c.id === initialClassId)
+      ? initialClassId
+      : (teacherClasses[0]?.id ?? "");
+
+  const [selectedClassId, setSelectedClassId] = useState(resolvedInitial);
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [state, setState] = useState<InquiryPollState>(IDLE);
   const [responses, setResponses] = useState<InquiryResponseRow[]>([]);
