@@ -220,8 +220,11 @@ export default function KnightPrime() {
           나이트 프라임
         </h1>
         <p className="mt-3 max-w-2xl text-sm leading-relaxed text-foreground/75 sm:text-base">
-          체스 나이트처럼 L자로만 움직이며 소수를 밟아 점수를 모아요. 합성수나
-          1을 밟으면 감점되고, 점수가 0 미만이면 바로 끝나요.
+          체스 나이트처럼 L자로만 움직이며 소수를 밟아 점수를 모아요.{" "}
+          <span className="font-bold text-wood">
+            소수면 그 숫자만큼 점수 획득, 합성수·1이면 그 숫자만큼 감점
+          </span>
+          돼요. 점수가 0 미만이면 바로 끝나요.
         </p>
         <button
           type="button"
@@ -242,9 +245,6 @@ export default function KnightPrime() {
             <li>지나간 자리는 다시 갈 수 없어요.</li>
             <li>
               종료: 점수 0 미만 · 모든 소수 획득(클리어) · 더 이상 이동 불가
-            </li>
-            <li>
-              점수가 1000에 가까워지면 이후 획득량은 매우 작아져요 (소프트 캡).
             </li>
           </ul>
         ) : null}
