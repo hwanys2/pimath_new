@@ -1,6 +1,9 @@
 "use client";
 
-import { useCallback, useMemo, useState, useTransition } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
+import { recordActivityComplete } from "@/lib/record-activity";
+
+const CONTENT_KEY = "g1-u1-1-sieve-eratosthenes";
 
 const MIN_N = 2;
 const MAX_N = 1000;
@@ -77,6 +80,16 @@ export default function SieveEratosthenes() {
     }
     return list;
   }, [states, n]);
+
+  const activityRecordedRef = useRef(false);
+  useEffect(() => {
+    if (!completed || activityRecordedRef.current) return;
+    activityRecordedRef.current = true;
+    void recordActivityComplete(CONTENT_KEY, {
+      primesFound: foundPrimes.length,
+      explored: true,
+    });
+  }, [completed, foundPrimes.length]);
 
   const applyLimit = useCallback(() => {
     const parsed = Number.parseInt(limitInput, 10);

@@ -37,6 +37,14 @@ import {
   type Rational,
   type TermFill,
 } from "@/lib/radical-fill-math";
+import { activityDetailsV1 } from "@/lib/activity-result-schemas";
+
+type ProblemResult = {
+  index: number;
+  score: number;
+  wrongs: number;
+  gaveUp: boolean;
+};
 
 type Phase = "ready" | "playing" | "cleared" | "ended";
 
@@ -332,6 +340,7 @@ export default function RadicalFillQuiz() {
   const phaseRef = useRef<Phase>(phase);
   const inputElsRef = useRef<(HTMLInputElement | null)[]>([]);
   const wrongRef = useRef(0);
+  const problemResultsRef = useRef<ProblemResult[]>([]);
 
   useEffect(() => {
     phaseRef.current = phase;
@@ -401,13 +410,23 @@ export default function RadicalFillQuiz() {
   );
 
   const endRun = useCallback(
-    (finalScore: number) => {
+    (finalScore: number, finalCorrect: number) => {
       setPhase("ended");
       phaseRef.current = "ended";
+      const items = problemResultsRef.current;
+      const totalWrongs = items.reduce((sum, item) => sum + item.wrongs, 0);
       startTransition(async () => {
         const result = await submitGameRun({
           contentKey: CONTENT_KEY,
           score: finalScore,
+          details: activityDetailsV1(
+            {
+              correctCount: finalCorrect,
+              problemCount: PROBLEM_COUNT,
+              totalWrongs,
+            },
+            items,
+          ),
         });
         setSubmitResult(result);
         if (result.recorded) {
@@ -429,7 +448,7 @@ export default function RadicalFillQuiz() {
       if (nextIndex >= PROBLEM_COUNT) {
         setCorrectCount(nextCorrect);
         setScore(nextScore);
-        endRun(nextScore);
+        endRun(nextScore, nextCorrect);
         return;
       }
       setCorrectCount(nextCorrect);
@@ -448,6 +467,7 @@ export default function RadicalFillQuiz() {
     setRankingMode("best");
     setSoftNotice(null);
     setCleared(null);
+    problemResultsRef.current = [];
     loadProblem(0);
   }, [loadProblem]);
 
@@ -474,6 +494,12 @@ export default function RadicalFillQuiz() {
     const nextScore = applyScoreGain(score, gained);
     const actualGain = nextScore - score;
     const nextCorrect = correctCount + 1;
+    problemResultsRef.current.push({
+      index,
+      score: actualGain,
+      wrongs: wrongRef.current,
+      gaveUp: false,
+    });
     phaseRef.current = "cleared";
     setPhase("cleared");
     setSoftNotice(null);
@@ -484,10 +510,16 @@ export default function RadicalFillQuiz() {
     window.setTimeout(() => {
       goNext(nextScore, nextCorrect);
     }, 1100);
-  }, [correctCount, fills, goNext, problem, score]);
+  }, [correctCount, fills, goNext, index, problem, score]);
 
   const onGiveUp = useCallback(() => {
     if (phaseRef.current !== "playing") return;
+    problemResultsRef.current.push({
+      index,
+      score: 0,
+      wrongs: wrongRef.current,
+      gaveUp: true,
+    });
     phaseRef.current = "cleared";
     setPhase("cleared");
     setSoftNotice(null);
@@ -495,7 +527,7 @@ export default function RadicalFillQuiz() {
     window.setTimeout(() => {
       goNext(score, correctCount);
     }, 1100);
-  }, [correctCount, goNext, score]);
+  }, [correctCount, goNext, index, score]);
 
   const focusNextEmpty = useCallback(() => {
     const el = inputElsRef.current.find(

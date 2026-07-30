@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useActionState, useMemo, useState } from "react";
 import {
   assignContentToClass,
@@ -128,6 +129,14 @@ function ContentRow({
 
       <div className="flex flex-wrap items-center gap-2">
         <CopyLinkButton href={content.href} />
+        {assignment ? (
+          <Link
+            href={`/teacher/classes/${classId}/results/${content.key}`}
+            className="rounded-xl bg-gold/50 px-3 py-1.5 text-xs font-bold text-wood transition hover:brightness-105"
+          >
+            결과 보기
+          </Link>
+        ) : null}
         {!assignment ? (
           <form action={assignAction}>
             <input type="hidden" name="classId" value={classId} />

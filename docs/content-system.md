@@ -222,8 +222,9 @@ type ContentMeta = {
 3. `type === "simulation"` 이면 XP 호출 없음 / `game` 이면 [`progression-system.md`](progression-system.md) 준수
 4. 공개 `/play/...` 가 로그인 없이 동작하는지 확인
 5. 교사 담아두기 UI·콘텐츠 「배정」 버튼에 자동 노출되는지 확인 (카탈로그 기반)
-6. (게임만) `submitGameRun({ contentKey: content.key, score })` — 배정·활성일 때만 XP·랭킹. 결과 UI는 `GameRankingBoard` (월드/학교/학급)
+6. (게임만) `submitGameRun({ contentKey: content.key, score, details? })` — 배정·활성일 때만 XP·랭킹. 결과 UI는 `GameRankingBoard` (월드/학교/학급)
 7. (1:1 대전 게임) [`pvp-matchmaking.md`](pvp-matchmaking.md) 체크리스트 전부 — 매칭 RPC, 종료 후 자동 재매칭, `leave_queue`/`poll` stale 정리
+8. **학습 결과 기록** — [`activity-results.md`](activity-results.md) 체크리스트 (게임 `details`, 시뮬레이션 `submitActivity`, 교사 UI 확인)
 
 ---
 
@@ -239,3 +240,4 @@ type ContentMeta = {
 | 2026-07-19 | 점수 소프트 캡 · 어드벤처 누적 XP 랭킹 |
 | 2026-07-21 | §5.4 대전 게임 1:1 매칭 · 직전 상대 20초 재매칭 방지 |
 | 2026-07-22 | §5.4 PvP 종료 후 자동 재매칭 · [`pvp-matchmaking.md`](pvp-matchmaking.md) 가이드 추가 |
+| 2026-07-30 | §8 학습 결과 기록 체크리스트 · [`activity-results.md`](activity-results.md) |

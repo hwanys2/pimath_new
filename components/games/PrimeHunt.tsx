@@ -14,6 +14,7 @@ import {
   fetchGameRanking,
   type GameSubmitClientResult,
 } from "@/app/adventure/actions";
+import { activityDetailsV1 } from "@/lib/activity-result-schemas";
 import {
   START_LIVES,
   MAX_LIVES,
@@ -92,6 +93,8 @@ export default function PrimeHunt() {
   const [isPending, startTransition] = useTransition();
 
   const phaseRef = useRef<Phase>(phase);
+  const correctCountRef = useRef(0);
+  const maxStreakRef = useRef(0);
   phaseRef.current = phase;
 
   const helperPrimes = primesUpToSqrt(n);
@@ -114,6 +117,8 @@ export default function PrimeHunt() {
     setLives(START_LIVES);
     setScore(0);
     setStreak(0);
+    correctCountRef.current = 0;
+    maxStreakRef.current = 0;
     setTrialsBudget(MAX_TRIALS);
     setLastBonusRound(0);
     setSubmitResult(null);
@@ -153,6 +158,10 @@ export default function PrimeHunt() {
         nextScore = applyScoreGain(score, raw);
         gained = nextScore - score;
         nextStreak = streak + 1;
+        correctCountRef.current += 1;
+        if (nextStreak > maxStreakRef.current) {
+          maxStreakRef.current = nextStreak;
+        }
         if (bonus && lives < MAX_LIVES) {
           nextLives = lives + 1;
           lifeDelta = 1;
@@ -183,6 +192,11 @@ export default function PrimeHunt() {
             const result = await submitGameRun({
               contentKey: CONTENT_KEY,
               score: nextScore,
+              details: activityDetailsV1({
+                roundsPlayed: round,
+                correctCount: correctCountRef.current,
+                maxStreak: maxStreakRef.current,
+              }),
             });
             setSubmitResult(result);
             if (result.recorded) {

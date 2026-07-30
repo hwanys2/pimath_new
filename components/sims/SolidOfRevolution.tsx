@@ -13,6 +13,9 @@ import {
   isProfileReady,
   toLatheProfile,
 } from "@/lib/solid-of-revolution-math";
+import { recordActivityComplete } from "@/lib/record-activity";
+
+const CONTENT_KEY = "g1-u3-4-solid-of-revolution";
 
 const RevolutionScene = dynamic(
   () => import("@/components/sims/solid-of-revolution/RevolutionScene"),
@@ -44,6 +47,7 @@ export default function SolidOfRevolution() {
   const rafRef = useRef<number | null>(null);
   const playStartRef = useRef<{ t: number; from: number } | null>(null);
   const presetIdRef = useRef(presetId);
+  const activityRecordedRef = useRef(false);
 
   useEffect(() => {
     presetIdRef.current = presetId;
@@ -98,6 +102,16 @@ export default function SolidOfRevolution() {
       if (rafRef.current != null) cancelAnimationFrame(rafRef.current);
     };
   }, [playing]);
+
+  useEffect(() => {
+    if (angle < 360 || activityRecordedRef.current) return;
+    activityRecordedRef.current = true;
+    void recordActivityComplete(CONTENT_KEY, {
+      explored: true,
+      angle: 360,
+      preset: presetId ?? "custom",
+    });
+  }, [angle, presetId]);
 
   const onProfileChange = (next: Pt[], nextClosed: boolean) => {
     stopPlay();

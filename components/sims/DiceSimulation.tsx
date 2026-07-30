@@ -18,6 +18,9 @@ import {
   type DieFace,
   type Tally,
 } from "@/lib/dice-simulation-math";
+import { recordActivityComplete } from "@/lib/record-activity";
+
+const CONTENT_KEY = "g2-u4-dice-simulation";
 
 const DICE_TYPES: DiceType[] = ["fair", "cuboid"];
 
@@ -295,6 +298,7 @@ export default function DiceSimulation() {
   const diceTypeRef = useRef<DiceType>(diceType);
   const targetFaceRef = useRef<DieFace>(targetFace);
   const rafRef = useRef<number | null>(null);
+  const activityRecordedRef = useRef(false);
 
   useEffect(() => {
     diceTypeRef.current = diceType;
@@ -307,6 +311,16 @@ export default function DiceSimulation() {
   const theoretical = theoreticalProbability(diceType, targetFace);
   const relFreq = relativeFrequency(tally, targetFace);
   const targetHits = tally[targetFace];
+
+  useEffect(() => {
+    if (total < MIN_ROLLS_TO_REVEAL || activityRecordedRef.current) return;
+    activityRecordedRef.current = true;
+    void recordActivityComplete(CONTENT_KEY, {
+      rolls: total,
+      explored: true,
+      diceType,
+    });
+  }, [total, diceType]);
 
   const isCuboid = diceType === "cuboid";
   // 직육면체는 확률이 숨겨진 '추측' 모드. 정답을 확인하면 공개됨.

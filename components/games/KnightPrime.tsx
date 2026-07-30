@@ -14,6 +14,7 @@ import {
   fetchGameRanking,
   type GameSubmitClientResult,
 } from "@/app/adventure/actions";
+import { activityDetailsV1 } from "@/lib/activity-result-schemas";
 import {
   GRID,
   type Cell,
@@ -111,10 +112,20 @@ export default function KnightPrime() {
         text: endReasonLabel(reason),
       });
       const submitScore = clampScore(finalScore);
+      const tilesVisited =
+        board?.filter((c) => c.visited).length ?? 0;
+      const primesFound =
+        board?.filter((c) => c.visited && cellKind(c.val) === "prime").length ??
+        0;
       startTransition(async () => {
         const result = await submitGameRun({
           contentKey: CONTENT_KEY,
           score: submitScore,
+          details: activityDetailsV1({
+            tilesVisited,
+            primesFound,
+            endReason: reason,
+          }),
         });
         setSubmitResult(result);
         if (result.recorded) {
@@ -127,7 +138,7 @@ export default function KnightPrime() {
         }
       });
     },
-    [startTransition],
+    [board, startTransition],
   );
 
   const onCellClick = (r: number, c: number) => {

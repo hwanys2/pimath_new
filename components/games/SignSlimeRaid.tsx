@@ -16,6 +16,7 @@ import {
   fetchGameRanking,
   type GameSubmitClientResult,
 } from "@/app/adventure/actions";
+import { activityDetailsV1 } from "@/lib/activity-result-schemas";
 import {
   ALL_STAGE_IDS,
   ROUND_LIMIT_START,
@@ -287,6 +288,7 @@ export default function SignSlimeRaid() {
   const scoreRef = useRef(score);
   const streakRef = useRef(streak);
   const clearedRef = useRef(cleared);
+  const maxStreakRef = useRef(maxStreak);
   const problemRef = useRef(problem);
   const roundTimeLeftRef = useRef(roundTimeLeft);
   const roundLimitRef = useRef(roundLimit);
@@ -302,6 +304,7 @@ export default function SignSlimeRaid() {
   scoreRef.current = score;
   streakRef.current = streak;
   clearedRef.current = cleared;
+  maxStreakRef.current = maxStreak;
   problemRef.current = problem;
   roundTimeLeftRef.current = roundTimeLeft;
   roundLimitRef.current = roundLimit;
@@ -353,6 +356,18 @@ export default function SignSlimeRaid() {
         const result = await submitGameRun({
           contentKey: CONTENT_KEY,
           score: finalScore,
+          details: activityDetailsV1({
+            stagesCleared: clearedRef.current,
+            accuracy:
+              clearedRef.current > 0
+                ? Math.round(
+                    (clearedRef.current /
+                      Math.max(clearedRef.current + (START_HP - hpRef.current), 1)) *
+                      100,
+                  )
+                : 0,
+            maxStreak: maxStreakRef.current,
+          }),
         });
         setSubmitResult(result);
         if (result.recorded) {
@@ -405,7 +420,11 @@ export default function SignSlimeRaid() {
         gained = nextScore - scoreRef.current;
         nextStreak = streakRef.current + 1;
         nextCleared = clearedRef.current + 1;
-        setMaxStreak((prev) => Math.max(prev, nextStreak));
+        setMaxStreak((prev) => {
+          const next = Math.max(prev, nextStreak);
+          maxStreakRef.current = next;
+          return next;
+        });
         setSlimeHit(true);
         setStatusMsg(`명중! +${gained}점`);
       } else {

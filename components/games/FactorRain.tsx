@@ -15,6 +15,7 @@ import {
   fetchGameRanking,
   type GameSubmitClientResult,
 } from "@/app/adventure/actions";
+import { activityDetailsV1 } from "@/lib/activity-result-schemas";
 import {
   FACTOR_PRIMES,
   START_LIVES,
@@ -110,6 +111,7 @@ export default function FactorRain() {
   const livesRef = useRef(lives);
   const scoreRef = useRef(score);
   const streakRef = useRef(streak);
+  const maxComboRef = useRef(0);
   const clearedRef = useRef(cleared);
   const phaseRef = useRef(phase);
 
@@ -145,6 +147,10 @@ export default function FactorRain() {
       const result = await submitGameRun({
         contentKey: CONTENT_KEY,
         score: finalScore,
+        details: activityDetailsV1({
+          cleared: clearedRef.current,
+          maxCombo: maxComboRef.current,
+        }),
       });
       setSubmitResult(result);
       if (result.recorded) {
@@ -266,6 +272,7 @@ export default function FactorRain() {
     scoreRef.current = 0;
     streakRef.current = 0;
     clearedRef.current = 0;
+    maxComboRef.current = 0;
     numbersRef.current = [];
     selectedIdRef.current = null;
     phaseRef.current = "playing";
@@ -332,6 +339,9 @@ export default function FactorRain() {
       const nextScore = applyScoreGain(scoreRef.current, gained);
       const nextStreak = streakRef.current + 1;
       const nextCleared = clearedRef.current + 1;
+      if (nextStreak > maxComboRef.current) {
+        maxComboRef.current = nextStreak;
+      }
 
       scoreRef.current = nextScore;
       streakRef.current = nextStreak;

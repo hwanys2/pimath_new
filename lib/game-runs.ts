@@ -2,6 +2,7 @@ import "server-only";
 import { createClient } from "@/lib/supabase/server";
 import { getStudentSessionToken } from "@/lib/student-session";
 import { scoreToXp } from "@/lib/xp";
+import type { ActivityDetailsV1 } from "@/lib/activity-result-schemas";
 import type { RankingMode, RankingRow, RankingScope } from "@/lib/game-types";
 
 export type { RankingMode, RankingRow, RankingScope } from "@/lib/game-types";
@@ -35,6 +36,7 @@ function firstRows<T>(data: T | T[] | null): T[] {
 export async function submitGameRunFromSession(input: {
   contentKey: string;
   score: number;
+  details?: ActivityDetailsV1;
   sessionToken?: string | null;
 }): Promise<SubmitGameRunResult | { error: string }> {
   const token = input.sessionToken ?? (await getStudentSessionToken());
@@ -61,6 +63,7 @@ export async function submitGameRunFromSession(input: {
     p_session_token: token,
     p_content_key: contentKey,
     p_score: score,
+    p_details: input.details ?? { v: 1, summary: {} },
   });
 
   if (error) {

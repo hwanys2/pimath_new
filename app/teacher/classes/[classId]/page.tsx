@@ -8,7 +8,9 @@ import EditClassForm from "@/components/teacher/EditClassForm";
 import StudentRoster from "@/components/teacher/StudentRoster";
 import BulkStudentImport from "@/components/teacher/BulkStudentImport";
 import ClassContentManager from "@/components/teacher/ClassContentManager";
+import ClassActivitySummary from "@/components/teacher/ClassActivitySummary";
 import { deleteClass } from "@/app/teacher/actions";
+import { fetchClassActivityOverview } from "@/lib/activity-results";
 
 type Props = {
   params: Promise<{ classId: string }>;
@@ -50,6 +52,14 @@ export default async function ClassDetailPage({ params }: Props) {
         .order("display_name", { ascending: true }),
       fetchClassContentAssignments(classId),
     ]);
+
+  const activityOverview = await fetchClassActivityOverview(
+    classId,
+    assignments.map((a) => ({
+      contentKey: a.contentKey,
+      isActive: a.isActive,
+    })),
+  );
 
   if (studentError) {
     console.error("[pm] load students failed:", studentError.message);
@@ -97,6 +107,20 @@ export default async function ClassDetailPage({ params }: Props) {
 
       <section className="quest-card p-5 sm:p-6">
         <ClassContentManager classId={classId} assignments={assignments} />
+      </section>
+
+      <section className="quest-card p-5 sm:p-6">
+        <h2 className="font-display text-xl text-wood">학습 결과</h2>
+        <p className="mt-1 text-sm text-foreground/65">
+          활성화된 콘텐츠에 대한 학생 참여 현황이에요. 각 항목에서 상세 결과를
+          볼 수 있어요.
+        </p>
+        <div className="mt-4">
+          <ClassActivitySummary
+            classId={classId}
+            activities={activityOverview}
+          />
+        </div>
       </section>
 
       <section className="quest-card p-5 sm:p-6">

@@ -4,6 +4,7 @@ import { requireTeacher } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import CreateClassForm from "@/components/teacher/CreateClassForm";
 import { deleteClass } from "@/app/teacher/actions";
+import { fetchClassTodayActivityCounts } from "@/lib/activity-results";
 
 export const metadata: Metadata = {
   title: "내 학급 | 수학하는 즐거움",
@@ -26,12 +27,15 @@ export default async function TeacherPage() {
 
   const classIds = (classes ?? []).map((c) => c.id);
   let counts: Record<string, number> = {};
+  let todayActivity: Record<string, number> = {};
 
   if (classIds.length > 0) {
-    const { data: studentRows, error: countError } = await supabase
-      .from("pm_students")
-      .select("class_id")
-      .in("class_id", classIds);
+    const [{ data: studentRows, error: countError }, activityCounts] =
+      await Promise.all([
+        supabase.from("pm_students").select("class_id").in("class_id", classIds),
+        fetchClassTodayActivityCounts(classIds),
+      ]);
+    todayActivity = activityCounts;
 
     if (countError) {
       console.error("[pm] count students failed:", countError.message);
@@ -85,6 +89,11 @@ export default async function TeacherPage() {
                     <p className="mt-1 text-sm text-foreground/60">
                       {c.grade ? `중${c.grade} · ` : ""}
                       학생 {counts[c.id] ?? 0}명
+                      {(todayActivity[c.id] ?? 0) > 0 ? (
+                        <span className="ml-2 rounded-full bg-mint/40 px-2 py-0.5 text-[11px] font-bold text-wood">
+                          오늘 {todayActivity[c.id]}건
+                        </span>
+                      ) : null}
                     </p>
                   </div>
                   <form action={deleteClass}>

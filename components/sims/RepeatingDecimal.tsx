@@ -1,6 +1,7 @@
 "use client";
 
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { recordActivityComplete } from "@/lib/record-activity";
 import {
   DEFAULT_VISIBLE_DIGITS,
   DIGITS_STEP,
@@ -11,10 +12,13 @@ import {
   parseFractionInputs,
 } from "@/lib/repeating-decimal-math";
 
+const CONTENT_KEY = "g2-u1-repeating-decimal";
+
 export default function RepeatingDecimal() {
   const [numeratorInput, setNumeratorInput] = useState("1");
   const [denominatorInput, setDenominatorInput] = useState("3");
   const [visibleDigits, setVisibleDigits] = useState(DEFAULT_VISIBLE_DIGITS);
+  const activityRecordedRef = useRef(false);
 
   const parsed = useMemo(
     () => parseFractionInputs(numeratorInput, denominatorInput),
@@ -61,6 +65,16 @@ export default function RepeatingDecimal() {
     result != null &&
     (result.kind === "repeating" ||
       decimalExpansion.length < result.prePeriod.length);
+
+  useEffect(() => {
+    if (!result || activityRecordedRef.current) return;
+    activityRecordedRef.current = true;
+    void recordActivityComplete(CONTENT_KEY, {
+      explored: true,
+      numerator: Number(result.numerator),
+      denominator: Number(result.denominator),
+    });
+  }, [result]);
 
   return (
     <div className="flex flex-col gap-6">

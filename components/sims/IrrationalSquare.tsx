@@ -9,9 +9,10 @@ import {
   useTransition,
 } from "react";
 import {
-  submitGameRun,
-  type GameSubmitClientResult,
+  submitActivity,
+  type ActivitySubmitClientResult,
 } from "@/app/adventure/actions";
+import { activityDetailsV1 } from "@/lib/activity-result-schemas";
 import {
   MAX_DECIMAL_DIGITS,
   TARGET_AREAS,
@@ -46,7 +47,6 @@ import {
 } from "@/lib/sqrt-approx-visual";
 
 const CONTENT_KEY = "g3-u1-irrational-square";
-const COMPLETION_SCORE = 100;
 
 type Phase = "select" | "explore" | "complete";
 type ConfirmStage = "integer" | "decimal";
@@ -308,7 +308,7 @@ export default function IrrationalSquare() {
     square: string;
   } | null>(null);
   const [submitResult, setSubmitResult] =
-    useState<GameSubmitClientResult | null>(null);
+    useState<ActivitySubmitClientResult | null>(null);
   const [isPending, startTransition] = useTransition();
   const xpSubmittedRef = useRef(false);
 
@@ -515,9 +515,14 @@ export default function IrrationalSquare() {
     if (phase !== "complete" || !area || xpSubmittedRef.current) return;
     xpSubmittedRef.current = true;
     startTransition(async () => {
-      const result = await submitGameRun({
+      const result = await submitActivity({
         contentKey: CONTENT_KEY,
-        score: COMPLETION_SCORE,
+        status: "completed",
+        details: activityDetailsV1({
+          completed: TARGET_AREAS.length,
+          total: TARGET_AREAS.length,
+          area,
+        }),
       });
       setSubmitResult(result);
     });
@@ -734,19 +739,14 @@ export default function IrrationalSquare() {
           {submitResult && !submitResult.error ? (
             submitResult.recorded ? (
               <p className="mt-4 text-center text-base font-bold text-wood">
-                +{submitResult.xpAwarded ?? submitResult.score} XP 획득!
-                {submitResult.leveledUp && submitResult.level != null
-                  ? ` 레벨 업! Lv.${submitResult.level}`
-                  : submitResult.level != null
-                    ? ` (Lv.${submitResult.level})`
-                    : ""}
+                탐구 완료! 선생님이 학습 결과에서 확인할 수 있어요.
               </p>
             ) : (
               <p className="mx-auto mt-4 max-w-md rounded-2xl bg-wood/5 px-4 py-3 text-center text-sm font-semibold text-foreground/65">
-                연습 모드 · 경험치는 반영되지 않아요
+                연습 모드 · 학습 기록은 반영되지 않아요
                 <span className="mt-1 block text-xs font-medium text-foreground/50">
-                  학급에 배정·활성화된 콘텐츠를 학생 로그인으로 완료하면 XP가
-                  쌓여요.
+                  학급에 배정·활성화된 콘텐츠를 학생 로그인으로 완료하면
+                  선생님께 기록이 남아요.
                 </span>
               </p>
             )

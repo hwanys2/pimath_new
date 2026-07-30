@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { recordActivityComplete } from "@/lib/record-activity";
 import {
   DEFAULT_DIVISIONS,
   DEFAULT_THETA,
@@ -24,6 +25,8 @@ import {
   sectorWedgePose,
   wedgePath,
 } from "@/lib/sector-area-math";
+
+const CONTENT_KEY = "g1-u3-3-sector-area-rect";
 
 type Phase = "sector" | "animating" | "rectangle";
 
@@ -53,6 +56,7 @@ export default function SectorAreaRect() {
   );
 
   const rafRef = useRef<number | null>(null);
+  const activityRecordedRef = useRef(false);
   const animating = phase === "animating";
 
   const r = DISPLAY_RADIUS;
@@ -153,6 +157,16 @@ export default function SectorAreaRect() {
     },
     [stopAnim],
   );
+
+  useEffect(() => {
+    if (phase !== "rectangle" || activityRecordedRef.current) return;
+    activityRecordedRef.current = true;
+    void recordActivityComplete(CONTENT_KEY, {
+      explored: true,
+      theta,
+      divisions,
+    });
+  }, [phase, theta, divisions]);
 
   const toRectangle = useCallback(() => {
     if (animating) return;

@@ -17,6 +17,9 @@ import {
   snapN,
   stackLayerMs,
 } from "@/lib/pyramid-volume-math";
+import { recordActivityComplete } from "@/lib/record-activity";
+
+const CONTENT_KEY = "g1-u3-4-pyramid-volume-blocks";
 
 const PyramidVolumeScene = dynamic(
   () => import("@/components/sims/pyramid-volume/PyramidVolumeScene"),
@@ -89,9 +92,19 @@ export default function PyramidVolumeBlocks() {
   );
 
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const activityRecordedRef = useRef(false);
   const stats = useMemo(() => computeStats(n), [n]);
   const viewModeRef = useRef(viewMode);
   viewModeRef.current = viewMode;
+
+  useEffect(() => {
+    if (!hasStacked || activityRecordedRef.current) return;
+    activityRecordedRef.current = true;
+    void recordActivityComplete(CONTENT_KEY, {
+      explored: true,
+      divisions: n,
+    });
+  }, [hasStacked, n]);
 
   const stopPlay = useCallback(() => {
     setPlaying(false);

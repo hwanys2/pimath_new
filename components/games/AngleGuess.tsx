@@ -15,6 +15,7 @@ import {
   fetchGameRanking,
   type GameSubmitClientResult,
 } from "@/app/adventure/actions";
+import { activityDetailsV1 } from "@/lib/activity-result-schemas";
 import {
   STEPS,
   CORRECTS_PER_STAGE,
@@ -143,12 +144,16 @@ export default function AngleGuess() {
   }, [dealNext]);
 
   const endRun = useCallback(
-    (finalScore: number) => {
+    (finalScore: number, finalStep: AngleStep, guesses: number) => {
       setPhase("ended");
       startTransition(async () => {
         const result = await submitGameRun({
           contentKey: CONTENT_KEY,
           score: finalScore,
+          details: activityDetailsV1({
+            finalTier: finalStep,
+            guesses,
+          }),
         });
         setSubmitResult(result);
         if (result.recorded) {
@@ -211,7 +216,10 @@ export default function AngleGuess() {
     setPhase("feedback");
 
     if (nextLives <= 0) {
-      window.setTimeout(() => endRun(nextScore), 1000);
+      window.setTimeout(
+        () => endRun(nextScore, step, nextTotalCorrect),
+        1000,
+      );
       return;
     }
 

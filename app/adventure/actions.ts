@@ -5,6 +5,8 @@ import {
   fetchClassGameRanking,
   submitGameRunFromSession,
 } from "@/lib/game-runs";
+import { submitActivityFromSession } from "@/lib/activity-submit";
+import type { ActivityDetailsV1 } from "@/lib/activity-result-schemas";
 import type { RankingMode, RankingRow, RankingScope, XpRankingRow } from "@/lib/game-types";
 import { fetchXpRanking } from "@/lib/xp-ranking";
 import {
@@ -39,6 +41,7 @@ export type GameSubmitClientResult = {
 export async function submitGameRun(input: {
   contentKey: string;
   score: number;
+  details?: ActivityDetailsV1;
 }): Promise<GameSubmitClientResult> {
   const result = await submitGameRunFromSession(input);
   if ("error" in result) {
@@ -54,6 +57,7 @@ export async function submitGameRun(input: {
     revalidatePath("/adventure");
     revalidatePath("/");
     revalidatePath("/teacher");
+    revalidatePath("/teacher", "layout");
   }
 
   return {
@@ -77,6 +81,43 @@ export async function fetchGameRanking(input: {
   mode: RankingMode;
 }): Promise<RankingRow[]> {
   return fetchClassGameRanking(input);
+}
+
+export type ActivitySubmitClientResult = {
+  error?: string;
+  recorded: boolean;
+  practiceOnly: boolean;
+  sessionId: string | null;
+};
+
+/** Simulation / non-scored activity completion. See docs/activity-results.md */
+export async function submitActivity(input: {
+  contentKey: string;
+  status: "started" | "completed";
+  details?: ActivityDetailsV1;
+  durationSec?: number | null;
+}): Promise<ActivitySubmitClientResult> {
+  const result = await submitActivityFromSession(input);
+  if ("error" in result) {
+    return {
+      error: result.error,
+      recorded: false,
+      practiceOnly: true,
+      sessionId: null,
+    };
+  }
+
+  if (result.recorded) {
+    revalidatePath("/adventure");
+    revalidatePath("/teacher");
+    revalidatePath("/teacher", "layout");
+  }
+
+  return {
+    recorded: result.recorded,
+    practiceOnly: result.practiceOnly,
+    sessionId: result.sessionId,
+  };
 }
 
 /** Adventure cumulative XP leaderboard (world / school / class). */
