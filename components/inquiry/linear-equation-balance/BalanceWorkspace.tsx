@@ -1,8 +1,10 @@
 "use client";
 
-import { useCallback, useId, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useRef, useState } from "react";
 import AlgebraTile, { tileWidth } from "./AlgebraTile";
 import BalanceScale, {
+  BEAM_Y,
+  FULCRUM_X,
   LEFT_HOOK_X,
   PAN_SURFACE_Y,
   PAN_W,
@@ -12,6 +14,7 @@ import BalanceScale, {
   TRASH_X,
   TRASH_Y,
 } from "./BalanceScale";
+import ImbalanceCallout from "./ImbalanceCallout";
 import TilePalette from "./TilePalette";
 import TrashZone, { TRASH_HIT_R } from "./TrashZone";
 import {
@@ -24,6 +27,7 @@ import {
   balanceTiltDeg,
   divideBothSides,
   findZeroPairs,
+  formatBalanceAction,
   formatExpr,
   getAvailableDivisors,
   isBalancedWs,
@@ -32,6 +36,7 @@ import {
   relocateTile,
   workspaceMass,
   workspaceToBalance,
+  type BalanceAction,
   type BalanceProblem,
   type PanSide,
   type PlacedTile,
@@ -55,6 +60,17 @@ function sortTilesForDisplay(tiles: PlacedTile[]): PlacedTile[] {
     neg_one: 3,
   };
   return [...tiles].sort((a, b) => order[a.kind] - order[b.kind]);
+}
+
+function findTile(
+  ws: TileWorkspace,
+  tileId: string,
+): { side: PanSide; kind: TileKind } | null {
+  const left = ws.left.find((t) => t.id === tileId);
+  if (left) return { side: "left", kind: left.kind };
+  const right = ws.right.find((t) => t.id === tileId);
+  if (right) return { side: "right", kind: right.kind };
+  return null;
 }
 
 function stackOnPan(tiles: PlacedTile[]): Map<string, { x: number; y: number }> {
@@ -108,7 +124,14 @@ export default function BalanceWorkspace({
 
   const [vanishing, setVanishing] = useState<Set<string>>(new Set());
   const [zeroFlash, setZeroFlash] = useState(false);
+  const [imbalanceCause, setImbalanceCause] = useState<BalanceAction | null>(
+    null,
+  );
   const pendingRef = useRef<TileWorkspace | null>(null);
+
+  useEffect(() => {
+    setImbalanceCause(null);
+  }, [problem.id]);
 
   const {
     drag,
@@ -136,11 +159,21 @@ export default function BalanceWorkspace({
     return null;
   }, []);
 
-  const applyWithZeroPairs = useCallback(
-    (ws: TileWorkspace) => {
-      const pairs = findZeroPairs(ws);
+  const commitWorkspace = useCallback(
+    (next: TileWorkspace, action: BalanceAction) => {
+      const wasBalanced = isBalancedWs(workspace, xValue);
+      const pairs = findZeroPairs(next);
+      const finalWs = pairs.length > 0 ? applyZeroPairs(next) : next;
+      const nowBalanced = isBalancedWs(finalWs, xValue);
+
+      if (wasBalanced && !nowBalanced) {
+        setImbalanceCause(action);
+      } else if (nowBalanced) {
+        setImbalanceCause(null);
+      }
+
       if (pairs.length === 0) {
-        onChange(ws);
+        onChange(next);
         return;
       }
 
@@ -151,7 +184,7 @@ export default function BalanceWorkspace({
       }
       setVanishing(ids);
       setZeroFlash(true);
-      pendingRef.current = applyZeroPairs(ws);
+      pendingRef.current = finalWs;
 
       window.setTimeout(() => {
         setVanishing(new Set());
@@ -162,7 +195,7 @@ export default function BalanceWorkspace({
         }
       }, 380);
     },
-    [onChange],
+    [onChange, workspace, xValue],
   );
 
   const handleDrop = useCallback(
@@ -170,27 +203,35 @@ export default function BalanceWorkspace({
       if (!drag || locked) return;
 
       let next = workspace;
+      let action: BalanceAction | null = null;
 
       if (drag.source.type === "palette") {
         const kind = drag.source.kind;
-        if (target === "left") next = addTileToPan(next, kind, "left");
-        else if (target === "right") next = addTileToPan(next, kind, "right");
-        else return;
+        if (target === "left" || target === "right") {
+          next = addTileToPan(next, kind, target);
+          action = { type: "add", kind, side: target };
+        } else {
+          return;
+        }
       } else {
-        const { tileId, from } = drag.source;
+        const { tileId, from, kind } = drag.source;
         if (target === "trash") {
+          const info = findTile(workspace, tileId);
+          if (!info) return;
           next = removeTile(next, tileId);
+          action = { type: "remove", kind: info.kind, side: info.side };
         } else if (target === "left" || target === "right") {
           if (from === target) return;
           next = relocateTile(next, tileId, target);
+          action = { type: "move", kind, from, to: target };
         } else {
           return;
         }
       }
 
-      applyWithZeroPairs(next);
+      if (action) commitWorkspace(next, action);
     },
-    [drag, locked, workspace, applyWithZeroPairs],
+    [drag, locked, workspace, commitWorkspace],
   );
 
   const onPointerMove = (e: React.PointerEvent) => {
@@ -283,6 +324,14 @@ export default function BalanceWorkspace({
             rightTiles={renderPanTiles("right")}
           />
 
+          {!balanced && imbalanceCause ? (
+            <ImbalanceCallout
+              x={FULCRUM_X}
+              y={BEAM_Y - 62}
+              actionText={formatBalanceAction(imbalanceCause)}
+            />
+          ) : null}
+
           {!locked ? (
             <TrashZone
               uid={uid}
@@ -331,6 +380,27 @@ export default function BalanceWorkspace({
             </text>
           ) : null}
         </svg>
+
+        {!readOnly && divisors.length > 0 ? (
+          <div className="mt-1 flex flex-wrap justify-center gap-2 border-t border-wood/10 px-2 pt-3">
+            {divisors.map((n) => (
+              <button
+                key={n}
+                type="button"
+                disabled={locked}
+                onClick={() =>
+                  commitWorkspace(divideBothSides(workspace, n), {
+                    type: "divide",
+                    divisor: n,
+                  })
+                }
+                className="rounded-lg bg-lavender/60 px-4 py-2 text-xs font-bold text-wood shadow-sm hover:bg-lavender/80 disabled:opacity-40"
+              >
+                양변을 {n}으로 나누기
+              </button>
+            ))}
+          </div>
+        ) : null}
       </div>
 
       <div className="flex flex-wrap items-center justify-center gap-4 text-center text-xs font-bold text-wood">
@@ -360,22 +430,6 @@ export default function BalanceWorkspace({
             ? "⚖ 균형을 유지하며 x를 구했어요! 확인을 눌러 보세요."
             : "⚖ 균형을 유지하고 있어요. x 막대만 한쪽에 남겨 보세요."}
       </div>
-
-      {!readOnly && divisors.length > 0 ? (
-        <div className="flex flex-wrap justify-center gap-2">
-          {divisors.map((n) => (
-            <button
-              key={n}
-              type="button"
-              disabled={locked}
-              onClick={() => applyWithZeroPairs(divideBothSides(workspace, n))}
-              className="rounded-lg bg-lavender/50 px-4 py-2 text-xs font-bold text-wood hover:bg-lavender/70 disabled:opacity-40"
-            >
-              양변을 {n}으로 나누기
-            </button>
-          ))}
-        </div>
-      ) : null}
     </div>
   );
 }

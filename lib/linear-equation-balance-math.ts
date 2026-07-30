@@ -17,6 +17,13 @@ export type BalanceState = { left: PanExpr; right: PanExpr };
 
 export type PanSide = "left" | "right";
 
+/** 균형이 깨질 때 직전에 한 조작 */
+export type BalanceAction =
+  | { type: "add"; kind: TileKind; side: PanSide }
+  | { type: "remove"; kind: TileKind; side: PanSide }
+  | { type: "move"; kind: TileKind; from: PanSide; to: PanSide }
+  | { type: "divide"; divisor: number };
+
 export type PlacedTile = {
   id: string;
   kind: TileKind;
@@ -190,7 +197,39 @@ export function formatExpr(expr: PanExpr): string {
 
 export function balanceTiltDeg(ws: TileWorkspace, xValue: number): number {
   const diff = panValue(ws.right, xValue) - panValue(ws.left, xValue);
-  return 24 * Math.tanh(diff / 4);
+  if (diff === 0) return 0;
+  const TILT_DEG = 16;
+  return diff > 0 ? TILT_DEG : -TILT_DEG;
+}
+
+function tileKindShort(kind: TileKind): string {
+  switch (kind) {
+    case "x":
+      return "x";
+    case "neg_x":
+      return "−x";
+    case "one":
+      return "+1";
+    case "neg_one":
+      return "−1";
+  }
+}
+
+function panSideLabel(side: PanSide): string {
+  return side === "left" ? "왼쪽" : "오른쪽";
+}
+
+export function formatBalanceAction(action: BalanceAction): string {
+  switch (action.type) {
+    case "add":
+      return `${panSideLabel(action.side)}에 ${tileKindShort(action.kind)} 추가`;
+    case "remove":
+      return `${panSideLabel(action.side)}에서 ${tileKindShort(action.kind)} 제거`;
+    case "move":
+      return `${tileKindShort(action.kind)}을(를) ${panSideLabel(action.from)}→${panSideLabel(action.to)}으로 이동`;
+    case "divide":
+      return `양변을 ${action.divisor}으로 나눔`;
+  }
 }
 
 export function workspaceMass(ws: TileWorkspace, xValue: number): {

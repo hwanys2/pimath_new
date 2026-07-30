@@ -366,7 +366,7 @@ export default function InquiryHostDashboard({
                 stepCount={state.stepCount}
                 workspace={previewBalance}
                 onWorkspaceChange={setPreviewBalance}
-                readOnly
+                hostPreview
               />
             )
           ) : null}

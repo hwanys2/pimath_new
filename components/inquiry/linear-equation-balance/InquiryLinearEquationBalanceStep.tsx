@@ -27,6 +27,8 @@ type Props = {
   workspace: TileWorkspace;
   onWorkspaceChange: (ws: TileWorkspace) => void;
   readOnly?: boolean;
+  /** 교사 시연용 — 제출 UI 없이 저울 조작만 허용 */
+  hostPreview?: boolean;
   disabled?: boolean;
   wrongAttempts?: number;
   softNotice?: SoftNotice | null;
@@ -42,6 +44,7 @@ export default function InquiryLinearEquationBalanceStep({
   workspace,
   onWorkspaceChange,
   readOnly = false,
+  hostPreview = false,
   disabled = false,
   wrongAttempts = 0,
   softNotice = null,
@@ -50,7 +53,8 @@ export default function InquiryLinearEquationBalanceStep({
   onSubmit,
 }: Props) {
   const [hintIndex, setHintIndex] = useState(-1);
-  const locked = readOnly || disabled || submitted;
+  const interactive = hostPreview || !readOnly;
+  const locked = !interactive || disabled || submitted;
   const projected = scoreForAttempts(wrongAttempts);
 
   return (
@@ -59,7 +63,12 @@ export default function InquiryLinearEquationBalanceStep({
         <span className="rounded-xl bg-mint/40 px-3 py-1 tabular-nums">
           문제 {stepIndex + 1}/{stepCount}
         </span>
-        {!readOnly && !submitted ? (
+        {hostPreview ? (
+          <span className="rounded-xl bg-lavender/45 px-3 py-1 text-xs font-bold text-wood">
+            시연 모드 — 저울을 조작하며 설명할 수 있어요
+          </span>
+        ) : null}
+        {!readOnly && !hostPreview && !submitted ? (
           <span className="rounded-xl bg-sky/40 px-3 py-1 tabular-nums">
             오답 {wrongAttempts}회
             <span className="ml-1 font-semibold text-wood/55">
@@ -85,12 +94,12 @@ export default function InquiryLinearEquationBalanceStep({
           problem={problem}
           workspace={workspace}
           onChange={onWorkspaceChange}
-          readOnly={readOnly}
+          readOnly={!interactive}
           disabled={locked}
         />
       </div>
 
-      {softNotice && !submitted && !readOnly ? (
+      {softNotice && !submitted && !readOnly && !hostPreview ? (
         <p
           className="mt-4 text-center text-sm font-bold text-[#a63a1a]"
           role="status"
@@ -126,7 +135,7 @@ export default function InquiryLinearEquationBalanceStep({
         </div>
       ) : null}
 
-      {!readOnly && !submitted && onSubmit ? (
+      {!readOnly && !hostPreview && !submitted && onSubmit ? (
         <div className="mt-6 flex justify-center">
           <button
             type="button"
