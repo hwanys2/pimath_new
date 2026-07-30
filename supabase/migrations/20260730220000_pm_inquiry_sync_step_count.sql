@@ -49,6 +49,9 @@ BEGIN
 END;
 $$;
 
+REVOKE ALL ON FUNCTION public.pm_inquiry_sync_step_count(uuid, int) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.pm_inquiry_sync_step_count(uuid, int) TO authenticated;
+
 -- Backfill open balance sessions created before 15-problem expansion.
 UPDATE public.pm_inquiry_sessions
 SET step_count = 15,

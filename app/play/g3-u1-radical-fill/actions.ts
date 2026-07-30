@@ -41,7 +41,7 @@ export async function inquiryAdvanceStepAction(input: {
   sessionId: string;
   delta: number;
 }) {
-  return inquiryAdvanceStep(input);
+  return inquiryAdvanceStep({ ...input, contentKey: CONTENT_KEY });
 }
 
 export async function inquiryCloseAction(input: { sessionId: string }) {

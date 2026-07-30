@@ -121,7 +121,12 @@ export async function inquiryStart(input: { sessionId: string }) {
 export async function inquiryAdvanceStep(input: {
   sessionId: string;
   delta: number;
+  contentKey?: string | null;
 }) {
+  if (input.contentKey) {
+    await ensureSessionStepCount(input.sessionId, input.contentKey);
+  }
+
   const supabase = await createClient();
   const { data, error } = await supabase.rpc("pm_inquiry_advance_step", {
     p_session_id: input.sessionId,
@@ -243,13 +248,12 @@ export async function inquiryStudentPoll(input: { sessionId: string }) {
   return mapPollRows(firstRows(data as PollRow[]));
 }
 
-async function syncSessionStepCountIfNeeded(
+async function ensureSessionStepCount(
   sessionId: string,
   contentKey: string | null,
-  currentStepCount: number,
 ): Promise<void> {
   const canonical = canonicalInquiryStepCount(contentKey);
-  if (canonical <= 0 || currentStepCount >= canonical) return;
+  if (canonical <= 0) return;
 
   const supabase = await createClient();
   const { error } = await supabase.rpc("pm_inquiry_sync_step_count", {
@@ -263,6 +267,16 @@ async function syncSessionStepCountIfNeeded(
       error.message,
     );
   }
+}
+
+async function syncSessionStepCountIfNeeded(
+  sessionId: string,
+  contentKey: string | null,
+  currentStepCount: number,
+): Promise<void> {
+  const canonical = canonicalInquiryStepCount(contentKey);
+  if (canonical <= 0 || currentStepCount >= canonical) return;
+  await ensureSessionStepCount(sessionId, contentKey);
 }
 
 export async function inquiryTeacherPoll(input: { sessionId: string }) {
