@@ -7,7 +7,7 @@
  */
 
 export const CONTENT_KEY = "g1-u2-2-linear-equation-balance";
-export const PROBLEM_COUNT = 10;
+export const PROBLEM_COUNT = 15;
 
 export type TileKind = "x" | "neg_x" | "one" | "neg_one";
 
@@ -22,7 +22,9 @@ export type BalanceAction =
   | { type: "add"; kind: TileKind; side: PanSide }
   | { type: "remove"; kind: TileKind; side: PanSide }
   | { type: "move"; kind: TileKind; from: PanSide; to: PanSide }
-  | { type: "divide"; divisor: number };
+  | { type: "divide"; divisor: number }
+  | { type: "multiply"; factor: number }
+  | { type: "flip" };
 
 export type PlacedTile = {
   id: string;
@@ -229,6 +231,10 @@ export function formatBalanceAction(action: BalanceAction): string {
       return `${tileKindShort(action.kind)}을(를) ${panSideLabel(action.from)}→${panSideLabel(action.to)}으로 이동`;
     case "divide":
       return `양변을 ${action.divisor}으로 나눔`;
+    case "multiply":
+      return `양변을 ${action.factor}으로 곱함`;
+    case "flip":
+      return "양변 부호 바꾸기";
   }
 }
 
@@ -403,6 +409,71 @@ export function getAvailableDivisors(ws: TileWorkspace): number[] {
   return divisors;
 }
 
+export const MAX_TILES_PER_PAN = 14;
+
+export function flipTileKind(kind: TileKind): TileKind {
+  switch (kind) {
+    case "x":
+      return "neg_x";
+    case "neg_x":
+      return "x";
+    case "one":
+      return "neg_one";
+    case "neg_one":
+      return "one";
+  }
+}
+
+export function flipBothSides(ws: TileWorkspace): TileWorkspace {
+  const flipPan = (tiles: PlacedTile[]) =>
+    tiles.map((t) => createTile(flipTileKind(t.kind), "flip"));
+  return { left: flipPan(ws.left), right: flipPan(ws.right) };
+}
+
+export function multiplyBothSides(ws: TileWorkspace, n: number): TileWorkspace {
+  if (n < 2) return ws;
+  const scalePan = (tiles: PlacedTile[]) => {
+    const result: PlacedTile[] = [];
+    for (const t of tiles) {
+      for (let i = 0; i < n; i++) {
+        result.push(createTile(t.kind, "mul"));
+      }
+    }
+    return result;
+  };
+  return { left: scalePan(ws.left), right: scalePan(ws.right) };
+}
+
+export function getAvailableMultipliers(ws: TileWorkspace): number[] {
+  const lt = ws.left.length;
+  const rt = ws.right.length;
+  if (lt === 0 || rt === 0) return [];
+
+  const multipliers: number[] = [];
+  for (let n = 2; n <= 3; n++) {
+    if (lt * n <= MAX_TILES_PER_PAN && rt * n <= MAX_TILES_PER_PAN) {
+      multipliers.push(n);
+    }
+  }
+  return multipliers;
+}
+
+export function canFlipBothSides(ws: TileWorkspace): boolean {
+  return ws.left.length > 0 && ws.right.length > 0;
+}
+
+export function getScaleOperations(ws: TileWorkspace): {
+  flip: boolean;
+  multiply: number[];
+  divide: number[];
+} {
+  return {
+    flip: canFlipBothSides(ws),
+    multiply: getAvailableMultipliers(ws),
+    divide: getAvailableDivisors(ws),
+  };
+}
+
 function takeFraction(
   tiles: PlacedTile[],
   kind: TileKind,
@@ -571,6 +642,72 @@ export const PROBLEMS: BalanceProblem[] = [
     hints: [
       "양변에 +1을 2개씩 더한 뒤, 양변을 3으로 나누어 보세요.",
       "x = 3 이 정답이에요.",
+    ],
+    allowNegatives: true,
+  },
+  {
+    id: "step-10",
+    title: "양변 곱하기",
+    instruction:
+      "x = 3 이에요. 「양변을 2로 곱하기」를 눌러 보세요. 양변에 같은 수를 곱해도 저울은 균형을 유지해요.",
+    targetLatex: "x = 3",
+    xValue: 3,
+    initial: { left: { x: 1, unit: 0 }, right: { x: 0, unit: 3 } },
+    hints: [
+      "아래 「양변을 2로 곱하기」 버튼을 눌러 보세요. 2x = 6 이 되어도 균형이 유지돼요.",
+      "다시 「양변을 2로 나누기」로 되돌릴 수도 있어요.",
+    ],
+    allowNegatives: true,
+  },
+  {
+    id: "step-11",
+    title: "부호 바꾸기",
+    instruction: "−x = 5 를 풀어 보세요. 양변의 모든 막대 부호를 바꿔도 등식은 성립해요.",
+    targetLatex: "-x = 5",
+    xValue: -5,
+    initial: { left: { x: -1, unit: 0 }, right: { x: 0, unit: 5 } },
+    hints: [
+      "「양변 부호 바꾸기 (−1×)」 버튼을 눌러 보세요.",
+      "x = −5 가 되면 맞아요.",
+    ],
+    allowNegatives: true,
+  },
+  {
+    id: "step-12",
+    title: "부호 바꾸기 2",
+    instruction: "−x = −4 를 풀어 보세요.",
+    targetLatex: "-x = -4",
+    xValue: 4,
+    initial: { left: { x: -1, unit: 0 }, right: { x: 0, unit: -4 } },
+    hints: [
+      "양변 부호 바꾸기를 눌러 보세요.",
+      "x = 4 가 정답이에요.",
+    ],
+    allowNegatives: true,
+  },
+  {
+    id: "step-13",
+    title: "음수 계수",
+    instruction: "−2x = 6 을 풀어 보세요. 나눈 뒤 부호를 바꿔야 할 수 있어요.",
+    targetLatex: "-2x = 6",
+    xValue: -3,
+    initial: { left: { x: -2, unit: 0 }, right: { x: 0, unit: 6 } },
+    hints: [
+      "먼저 양변을 2로 나누어 −x = 3 을 만들어 보세요.",
+      "그다음 양변 부호 바꾸기로 x = −3 을 확인하세요.",
+    ],
+    allowNegatives: true,
+  },
+  {
+    id: "step-14",
+    title: "음수 계수 종합",
+    instruction: "−2x + 4 = −2 를 풀어 보세요.",
+    targetLatex: "-2x + 4 = -2",
+    xValue: 3,
+    initial: { left: { x: -2, unit: 4 }, right: { x: 0, unit: -2 } },
+    hints: [
+      "양변에서 +1을 4개씩 빼 보세요.",
+      "양변을 2로 나눈 뒤, 필요하면 부호 바꾸기로 x = 3 을 확인하세요.",
     ],
     allowNegatives: true,
   },

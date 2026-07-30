@@ -27,11 +27,13 @@ import {
   balanceTiltDeg,
   divideBothSides,
   findZeroPairs,
+  flipBothSides,
   formatBalanceAction,
   formatExpr,
-  getAvailableDivisors,
+  getScaleOperations,
   isBalancedWs,
   isSolved,
+  multiplyBothSides,
   removeTile,
   relocateTile,
   workspaceMass,
@@ -124,6 +126,7 @@ export default function BalanceWorkspace({
 
   const [vanishing, setVanishing] = useState<Set<string>>(new Set());
   const [zeroFlash, setZeroFlash] = useState(false);
+  const [flipping, setFlipping] = useState(false);
   const [imbalanceCause, setImbalanceCause] = useState<BalanceAction | null>(
     null,
   );
@@ -249,7 +252,16 @@ export default function BalanceWorkspace({
   const solved = isSolved(workspace, xValue);
   const mass = workspaceMass(workspace, xValue);
   const expr = workspaceToBalance(workspace);
-  const divisors = getAvailableDivisors(workspace);
+  const scaleOps = getScaleOperations(workspace);
+
+  const handleFlip = useCallback(() => {
+    if (locked || !scaleOps.flip || flipping) return;
+    setFlipping(true);
+    window.setTimeout(() => {
+      setFlipping(false);
+      commitWorkspace(flipBothSides(workspace), { type: "flip" });
+    }, 320);
+  }, [locked, scaleOps.flip, flipping, workspace, commitWorkspace]);
 
   const leftPos = stackOnPan(workspace.left);
   const rightPos = stackOnPan(workspace.right);
@@ -275,6 +287,7 @@ export default function BalanceWorkspace({
               y={pos.y}
               scale={0.88}
               vanishing={vanishing.has(tile.id)}
+              flipping={flipping}
               onPointerDown={
                 locked
                   ? undefined
@@ -381,24 +394,60 @@ export default function BalanceWorkspace({
           ) : null}
         </svg>
 
-        {!readOnly && divisors.length > 0 ? (
-          <div className="mt-1 flex flex-wrap justify-center gap-2 border-t border-wood/10 px-2 pt-3">
-            {divisors.map((n) => (
-              <button
-                key={n}
-                type="button"
-                disabled={locked}
-                onClick={() =>
-                  commitWorkspace(divideBothSides(workspace, n), {
-                    type: "divide",
-                    divisor: n,
-                  })
-                }
-                className="rounded-lg bg-lavender/60 px-4 py-2 text-xs font-bold text-wood shadow-sm hover:bg-lavender/80 disabled:opacity-40"
-              >
-                양변을 {n}으로 나누기
-              </button>
-            ))}
+        {!readOnly ? (
+          <div className="mt-1 space-y-2 border-t border-wood/10 px-2 pt-3">
+            {scaleOps.flip ? (
+              <div className="flex flex-wrap justify-center gap-2">
+                <button
+                  type="button"
+                  disabled={locked || flipping}
+                  onClick={handleFlip}
+                  className="rounded-lg bg-[#e85d4c]/15 px-4 py-2 text-xs font-bold text-[#a63a1a] shadow-sm hover:bg-[#e85d4c]/25 disabled:opacity-40"
+                >
+                  양변 부호 바꾸기 (−1×)
+                </button>
+              </div>
+            ) : null}
+            {scaleOps.multiply.length > 0 ? (
+              <div className="flex flex-wrap justify-center gap-2">
+                {scaleOps.multiply.map((n) => (
+                  <button
+                    key={`mul-${n}`}
+                    type="button"
+                    disabled={locked}
+                    onClick={() =>
+                      commitWorkspace(multiplyBothSides(workspace, n), {
+                        type: "multiply",
+                        factor: n,
+                      })
+                    }
+                    className="rounded-lg bg-sky/50 px-4 py-2 text-xs font-bold text-wood shadow-sm hover:bg-sky/70 disabled:opacity-40"
+                  >
+                    양변을 {n}으로 곱하기
+                  </button>
+                ))}
+              </div>
+            ) : null}
+            {scaleOps.divide.length > 0 ? (
+              <div className="flex flex-wrap justify-center gap-2">
+                {scaleOps.divide.map((n) => (
+                  <button
+                    key={`div-${n}`}
+                    type="button"
+                    disabled={locked}
+                    onClick={() =>
+                      commitWorkspace(divideBothSides(workspace, n), {
+                        type: "divide",
+                        divisor: n,
+                      })
+                    }
+                    className="rounded-lg bg-lavender/60 px-4 py-2 text-xs font-bold text-wood shadow-sm hover:bg-lavender/80 disabled:opacity-40"
+                  >
+                    양변을 {n}으로 나누기
+                  </button>
+                ))}
+              </div>
+            ) : null}
           </div>
         ) : null}
       </div>

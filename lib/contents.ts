@@ -82,7 +82,7 @@ export const CONTENTS: ContentMeta[] = [
     title: "대수막대와 저울로 일차방정식",
     href: "/play/g1-u2-2-linear-equation-balance",
     awardsXp: true,
-    inquiry: { stepCount: 10, grading: "auto", scoring: true },
+    inquiry: { stepCount: 15, grading: "auto", scoring: true },
     description:
       "양팔저울과 대수막대(x, −x, 1, −1)로 등식의 성질을 탐구하고 일차방정식을 풀어 보는 활동. 학생은 선생님이 수업을 시작할 때만 참여해요.",
   },

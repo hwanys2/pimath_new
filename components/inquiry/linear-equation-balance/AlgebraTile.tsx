@@ -41,6 +41,7 @@ type Props = {
   scale?: number;
   dragging?: boolean;
   vanishing?: boolean;
+  flipping?: boolean;
   onPointerDown?: (e: React.PointerEvent) => void;
 };
 
@@ -51,6 +52,7 @@ export default function AlgebraTile({
   scale = 1,
   dragging = false,
   vanishing = false,
+  flipping = false,
   onPointerDown,
 }: Props) {
   const isX = kind === "x" || kind === "neg_x";
@@ -58,18 +60,25 @@ export default function AlgebraTile({
   const h = TILE_H * scale;
   const colors = TILE_COLORS[kind];
   const depth = dragging ? 6 * scale : 3 * scale;
+  const tileScale = vanishing ? 0.3 : flipping ? 0.85 : 1;
 
   return (
     <g
-      transform={`translate(${x}, ${y}) scale(${vanishing ? 0.3 : 1})`}
+      transform={`translate(${x}, ${y}) scale(${tileScale})`}
       onPointerDown={onPointerDown}
       style={{
         cursor: onPointerDown ? (dragging ? "grabbing" : "grab") : undefined,
-        opacity: vanishing ? 0 : dragging ? 0.95 : 1,
+        opacity: vanishing ? 0 : flipping ? 0.45 : dragging ? 0.95 : 1,
         filter: dragging
           ? "drop-shadow(0 8px 12px rgba(61,44,30,0.35))"
-          : undefined,
-        transition: vanishing ? "opacity 0.35s, transform 0.35s" : undefined,
+          : flipping
+            ? "brightness(1.15)"
+            : undefined,
+        transition: vanishing
+          ? "opacity 0.35s, transform 0.35s"
+          : flipping
+            ? "opacity 0.3s, transform 0.3s, filter 0.3s"
+            : undefined,
       }}
       role="img"
       aria-label={tileLabel(kind)}
