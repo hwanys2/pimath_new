@@ -95,7 +95,7 @@ export default function InquiryHostDashboard({
   const [previewBalance, setPreviewBalance] = useState(
     validKey === "g1-u2-2-linear-equation-balance"
       ? balanceInitialState(0)
-      : { left: { x: 0, unit: 0 }, right: { x: 0, unit: 0 } },
+      : { left: [], right: [] },
   );
 
   useEffect(() => {
@@ -364,8 +364,8 @@ export default function InquiryHostDashboard({
                 problem={balanceProblem(state.stepIndex)}
                 stepIndex={state.stepIndex}
                 stepCount={state.stepCount}
-                state={previewBalance}
-                onStateChange={setPreviewBalance}
+                workspace={previewBalance}
+                onWorkspaceChange={setPreviewBalance}
                 readOnly
               />
             )

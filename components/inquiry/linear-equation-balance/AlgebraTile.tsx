@@ -2,18 +2,18 @@
 
 import type { TileKind } from "@/lib/linear-equation-balance-math";
 
-const TILE_W = 28;
-const TILE_H = 28;
-const X_TILE_W = 112;
+export const TILE_UNIT = 32;
+export const TILE_X_LEN = 128;
+export const TILE_H = 32;
 
 export const TILE_COLORS: Record<
   TileKind,
-  { fill: string; stroke: string; hatch?: boolean }
+  { fill: string; stroke: string; shadow: string; hatch?: boolean }
 > = {
-  x: { fill: "#9DE8C8", stroke: "#2A9D8F" },
-  neg_x: { fill: "#FFB4A8", stroke: "#C45C4A", hatch: true },
-  one: { fill: "#A8D8FF", stroke: "#4A90C8" },
-  neg_one: { fill: "#FFB4A8", stroke: "#C45C4A", hatch: true },
+  x: { fill: "#7DD3B0", stroke: "#2A9D8F", shadow: "#1a7a6c" },
+  neg_x: { fill: "#FFB4A8", stroke: "#C45C4A", shadow: "#a04030", hatch: true },
+  one: { fill: "#8EC8F5", stroke: "#4A90C8", shadow: "#3578a8" },
+  neg_one: { fill: "#FFB4A8", stroke: "#C45C4A", shadow: "#a04030", hatch: true },
 };
 
 export function tileLabel(kind: TileKind): string {
@@ -29,15 +29,19 @@ export function tileLabel(kind: TileKind): string {
   }
 }
 
+export function tileWidth(kind: TileKind, scale = 1): number {
+  const isX = kind === "x" || kind === "neg_x";
+  return (isX ? TILE_X_LEN : TILE_UNIT) * scale;
+}
+
 type Props = {
   kind: TileKind;
   x?: number;
   y?: number;
   scale?: number;
-  selected?: boolean;
+  lifted?: boolean;
+  dragging?: boolean;
   onPointerDown?: (e: React.PointerEvent) => void;
-  className?: string;
-  style?: React.CSSProperties;
 };
 
 export default function AlgebraTile({
@@ -45,52 +49,79 @@ export default function AlgebraTile({
   x = 0,
   y = 0,
   scale = 1,
-  selected = false,
+  lifted = false,
+  dragging = false,
   onPointerDown,
-  className = "",
-  style,
 }: Props) {
   const isX = kind === "x" || kind === "neg_x";
-  const w = (isX ? X_TILE_W : TILE_W) * scale;
+  const w = tileWidth(kind, scale);
   const h = TILE_H * scale;
   const colors = TILE_COLORS[kind];
+  const depth = lifted || dragging ? 6 * scale : 3 * scale;
 
   return (
     <g
-      transform={`translate(${x}, ${y})`}
-      className={className}
-      style={style}
+      transform={`translate(${x}, ${y - (lifted || dragging ? 8 * scale : 0)})`}
       onPointerDown={onPointerDown}
+      style={{
+        cursor: onPointerDown ? (dragging ? "grabbing" : "grab") : undefined,
+        opacity: dragging ? 0.92 : 1,
+        filter: dragging
+          ? "drop-shadow(0 8px 12px rgba(61,44,30,0.35))"
+          : lifted
+            ? "drop-shadow(0 4px 6px rgba(61,44,30,0.2))"
+            : undefined,
+      }}
       role="img"
       aria-label={tileLabel(kind)}
     >
+      {/* 3D side */}
+      <rect
+        x={depth}
+        y={depth}
+        width={w}
+        height={h}
+        rx={5 * scale}
+        fill={colors.shadow}
+      />
+      {/* Top face */}
       <rect
         x={0}
         y={0}
         width={w}
         height={h}
-        rx={4 * scale}
+        rx={5 * scale}
         fill={colors.fill}
         stroke={colors.stroke}
-        strokeWidth={selected ? 3 * scale : 2 * scale}
-        className={onPointerDown ? "cursor-grab active:cursor-grabbing" : ""}
+        strokeWidth={2 * scale}
       />
       {colors.hatch ? (
-        <line
-          x1={2 * scale}
-          y1={2 * scale}
-          x2={w - 2 * scale}
-          y2={h - 2 * scale}
-          stroke={colors.stroke}
-          strokeWidth={1.5 * scale}
-          opacity={0.5}
-        />
+        <>
+          <line
+            x1={4 * scale}
+            y1={4 * scale}
+            x2={w - 4 * scale}
+            y2={h - 4 * scale}
+            stroke={colors.stroke}
+            strokeWidth={1.5 * scale}
+            opacity={0.45}
+          />
+          <line
+            x1={w - 4 * scale}
+            y1={4 * scale}
+            x2={4 * scale}
+            y2={h - 4 * scale}
+            stroke={colors.stroke}
+            strokeWidth={1.5 * scale}
+            opacity={0.45}
+          />
+        </>
       ) : null}
       <text
         x={w / 2}
-        y={h / 2 + 5 * scale}
+        y={h / 2 + 6 * scale}
         textAnchor="middle"
-        fontSize={isX ? 14 * scale : 12 * scale}
+        fontSize={isX ? 15 * scale : 13 * scale}
         fontWeight="bold"
         fill="#3d2c1e"
         pointerEvents="none"
@@ -100,5 +131,3 @@ export default function AlgebraTile({
     </g>
   );
 }
-
-export { TILE_W, TILE_H, X_TILE_W };

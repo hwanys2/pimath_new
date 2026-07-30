@@ -1,11 +1,12 @@
 import {
   checkAnswer,
-  emptyWorkspaceState,
+  emptyTileWorkspace,
   problemAt,
   PROBLEM_COUNT,
   scoreForAttempts,
-  type BalanceState,
+  workspaceToBalance,
   type CheckReason,
+  type TileWorkspace,
 } from "@/lib/linear-equation-balance-math";
 import type { InquiryResult } from "@/lib/inquiry-types";
 
@@ -28,15 +29,24 @@ export type SoftNotice = {
   reason: Extract<CheckReason, "unbalanced" | "wrong" | "incomplete">;
 };
 
-export function emptyBalanceState(stepIndex: number): BalanceState {
-  return emptyWorkspaceState(problemAt(stepIndex));
+export function emptyBalanceWorkspace(
+  stepIndex: number,
+  seed = "",
+): TileWorkspace {
+  return emptyTileWorkspace(problemAt(stepIndex), seed);
+}
+
+/** @deprecated use emptyBalanceWorkspace */
+export function emptyBalanceState(stepIndex: number) {
+  return workspaceToBalance(emptyBalanceWorkspace(stepIndex));
 }
 
 export function validateBalanceSubmit(
   stepIndex: number,
-  state: BalanceState,
+  workspace: TileWorkspace,
 ): SoftNotice | null {
   const problem = problemAt(stepIndex);
+  const state = workspaceToBalance(workspace);
   const result = checkAnswer(problem, state);
   if (result.ok) return null;
   if (result.reason === "ok") return null;
@@ -45,11 +55,12 @@ export function validateBalanceSubmit(
 
 export function gradeBalanceStep(
   stepIndex: number,
-  state: BalanceState,
+  workspace: TileWorkspace,
   wrongs: number,
   gaveUp: boolean,
 ): BalanceStepResult {
   const problem = problemAt(stepIndex);
+  const state = workspaceToBalance(workspace);
   const response: BalanceFillResponsePayload = {
     left: { ...state.left },
     right: { ...state.right },

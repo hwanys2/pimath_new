@@ -4,7 +4,7 @@ import { useState } from "react";
 import {
   scoreForAttempts,
   type BalanceProblem,
-  type BalanceState,
+  type TileWorkspace,
 } from "@/lib/linear-equation-balance-math";
 import type { SoftNotice } from "@/lib/inquiry-linear-equation-balance";
 import BalanceWorkspace from "./BalanceWorkspace";
@@ -15,7 +15,7 @@ export type { SoftNotice };
 function softMessage(reason: SoftNotice["reason"]): string {
   switch (reason) {
     case "unbalanced":
-      return "저울이 균형을 이루지 않아요. 양변의 식이 같아지도록 막대를 옮겨 보세요.";
+      return "저울이 균형을 이루지 않아요. 막대를 드래그해서 양변을 맞춰 보세요.";
     case "wrong":
       return "아직 x의 값이 맞지 않아요. 왼쪽에 x만, 오른쪽에 답만 남겨 보세요.";
     case "incomplete":
@@ -27,8 +27,8 @@ type Props = {
   problem: BalanceProblem;
   stepIndex: number;
   stepCount: number;
-  state: BalanceState;
-  onStateChange: (state: BalanceState) => void;
+  workspace: TileWorkspace;
+  onWorkspaceChange: (ws: TileWorkspace) => void;
   readOnly?: boolean;
   disabled?: boolean;
   wrongAttempts?: number;
@@ -42,8 +42,8 @@ export default function InquiryLinearEquationBalanceStep({
   problem,
   stepIndex,
   stepCount,
-  state,
-  onStateChange,
+  workspace,
+  onWorkspaceChange,
   readOnly = false,
   disabled = false,
   wrongAttempts = 0,
@@ -85,8 +85,8 @@ export default function InquiryLinearEquationBalanceStep({
 
       <div className="mt-6">
         <BalanceWorkspace
-          state={state}
-          onChange={onStateChange}
+          workspace={workspace}
+          onChange={onWorkspaceChange}
           allowNegatives={problem.allowNegatives}
           readOnly={readOnly}
           disabled={locked}
@@ -145,5 +145,4 @@ export default function InquiryLinearEquationBalanceStep({
   );
 }
 
-export { validateBalanceSubmit } from "@/lib/inquiry-linear-equation-balance";
-export { emptyBalanceState } from "@/lib/inquiry-linear-equation-balance";
+export { validateBalanceSubmit, emptyBalanceWorkspace } from "@/lib/inquiry-linear-equation-balance";

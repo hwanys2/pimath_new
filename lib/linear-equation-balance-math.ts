@@ -12,6 +12,19 @@ export type PanExpr = { x: number; unit: number };
 
 export type BalanceState = { left: PanExpr; right: PanExpr };
 
+export type PanSide = "left" | "right";
+
+export type PlacedTile = {
+  id: string;
+  kind: TileKind;
+};
+
+/** 드래그 가능한 개별 막대 배치 */
+export type TileWorkspace = {
+  left: PlacedTile[];
+  right: PlacedTile[];
+};
+
 export type BalanceGoal = "balanced" | "isolate_x";
 
 export type BalanceProblem = {
@@ -150,6 +163,96 @@ export function emptyWorkspaceState(problem: BalanceProblem): BalanceState {
   };
 }
 
+export function workspaceFromBalance(
+  state: BalanceState,
+  seed = "",
+): TileWorkspace {
+  const mk = (side: PanSide, expr: PanExpr): PlacedTile[] =>
+    tilesFromExpr(expr).map((kind, i) => ({
+      id: `${seed}${side}-${i}-${kind}`,
+      kind,
+    }));
+
+  return {
+    left: mk("left", state.left),
+    right: mk("right", state.right),
+  };
+}
+
+export function workspaceToBalance(ws: TileWorkspace): BalanceState {
+  return {
+    left: exprFromTiles(ws.left.map((t) => t.kind)),
+    right: exprFromTiles(ws.right.map((t) => t.kind)),
+  };
+}
+
+export function emptyTileWorkspace(
+  problem: BalanceProblem,
+  seed = "",
+): TileWorkspace {
+  return workspaceFromBalance(emptyWorkspaceState(problem), seed);
+}
+
+export function relocateTile(
+  ws: TileWorkspace,
+  tileId: string,
+  to: PanSide | "off",
+): TileWorkspace {
+  const from = findTilePan(ws, tileId);
+  if (!from) return ws;
+
+  const tile = ws[from].find((t) => t.id === tileId);
+  if (!tile) return ws;
+
+  const cleared: TileWorkspace = {
+    left: ws.left.filter((t) => t.id !== tileId),
+    right: ws.right.filter((t) => t.id !== tileId),
+  };
+
+  if (to === "off") return cleared;
+  if (to === "left") return { ...cleared, left: [...cleared.left, tile] };
+  return { ...cleared, right: [...cleared.right, tile] };
+}
+
+export function moveTile(
+  ws: TileWorkspace,
+  tileId: string,
+  to: PanSide | "off",
+): TileWorkspace {
+  return relocateTile(ws, tileId, to);
+}
+
+export function addTileToPan(
+  ws: TileWorkspace,
+  kind: TileKind,
+  pan: PanSide,
+): TileWorkspace {
+  const tile: PlacedTile = {
+    id: `new-${pan}-${kind}-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+    kind,
+  };
+  if (pan === "left") {
+    return { ...ws, left: [...ws.left, tile] };
+  }
+  return { ...ws, right: [...ws.right, tile] };
+}
+
+function findTilePan(ws: TileWorkspace, tileId: string): PanSide | null {
+  if (ws.left.some((t) => t.id === tileId)) return "left";
+  if (ws.right.some((t) => t.id === tileId)) return "right";
+  return null;
+}
+
+/** x 막대=4, 1 막대=1 질량 (음수 막대도 동일 질량) */
+export function panMass(expr: PanExpr): number {
+  return Math.abs(expr.x) * 4 + Math.abs(expr.unit);
+}
+
+export function workspaceMass(ws: TileWorkspace): { left: number; right: number } {
+  const bal = workspaceToBalance(ws);
+  return { left: panMass(bal.left), right: panMass(bal.right) };
+}
+
 export const PROBLEMS: BalanceProblem[] = [
   {
     id: "step-0",
@@ -170,13 +273,13 @@ export const PROBLEMS: BalanceProblem[] = [
     id: "step-1",
     title: "x가 뭘까?",
     instruction:
-      "x 막대는 아직 모르는 수예요. 양변에서 같은 수를 빼서 x만 남겨 보세요.",
+      "x 막대는 아직 모르는 수예요. 1 막대를 드래그해서 양쪽 팬에서 같은 개수만큼 치워 보세요.",
     targetLatex: "x + 3 = 7",
     initial: { left: { x: 1, unit: 3 }, right: { x: 0, unit: 7 } },
     goal: "isolate_x",
     targetX: 4,
     hints: [
-      "양변에서 1을 3개씩 빼 보세요. 「양변에 −1」 버튼을 3번 눌러도 돼요.",
+      "1 막대를 드래그해서 양쪽 팬에서 각각 3개씩 치워 보세요.",
       "왼쪽에 x만, 오른쪽에 4만 남으면 x = 4예요.",
     ],
     allowNegatives: false,
@@ -342,8 +445,17 @@ function addExpr(a: PanExpr, b: PanExpr): PanExpr {
 }
 
 export function balanceTiltDeg(state: BalanceState): number {
-  const leftW = panWeight(state.left);
-  const rightW = panWeight(state.right);
+  const leftW = panMass(state.left);
+  const rightW = panMass(state.right);
   const diff = rightW - leftW;
-  return Math.max(-12, Math.min(12, diff * 2.5));
+  return Math.max(-16, Math.min(16, diff * 2.2));
+}
+
+export function balanceTiltFromWorkspace(ws: TileWorkspace): number {
+  return balanceTiltDeg(workspaceToBalance(ws));
+}
+
+/** 타일 하나의 시각적 질량 */
+export function tileMass(kind: TileKind): number {
+  return kind === "x" || kind === "neg_x" ? 4 : 1;
 }

@@ -7,7 +7,7 @@ import InquiryRadicalFillStep, {
 } from "@/components/inquiry/radical-fill/InquiryRadicalFillStep";
 import InquiryRadicalFillResponseDetail from "@/components/inquiry/radical-fill/InquiryRadicalFillResponseDetail";
 import InquiryLinearEquationBalanceStep, {
-  emptyBalanceState,
+  emptyBalanceWorkspace,
   type SoftNotice as BalanceSoftNotice,
 } from "@/components/inquiry/linear-equation-balance/InquiryLinearEquationBalanceStep";
 import InquiryLinearEquationBalanceResponseDetail from "@/components/inquiry/linear-equation-balance/InquiryLinearEquationBalanceResponseDetail";
@@ -15,7 +15,7 @@ import { radicalFillProblemAt } from "@/lib/inquiry-radical-fill";
 import { balanceProblemAt } from "@/lib/inquiry-linear-equation-balance";
 import { PROBLEM_COUNT as RADICAL_COUNT } from "@/lib/radical-fill-math";
 import { PROBLEM_COUNT as BALANCE_COUNT } from "@/lib/linear-equation-balance-math";
-import type { BalanceState } from "@/lib/linear-equation-balance-math";
+import type { TileWorkspace } from "@/lib/linear-equation-balance-math";
 import type { RadicalProblem } from "@/lib/radical-fill-math";
 import type { InquiryResult } from "@/lib/inquiry-types";
 import type { RadicalFillResponsePayload } from "@/lib/inquiry-radical-fill";
@@ -101,8 +101,8 @@ export function validateRadicalFill(
 
 // --- Balance helpers ---
 
-export function balanceInitialState(stepIndex: number): BalanceState {
-  return emptyBalanceState(stepIndex);
+export function balanceInitialState(stepIndex: number): TileWorkspace {
+  return emptyBalanceWorkspace(stepIndex, `s${stepIndex}-`);
 }
 
 export function balanceProblem(stepIndex: number) {

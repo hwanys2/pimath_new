@@ -18,7 +18,7 @@ import type { SoftNotice as BalanceSoftNotice } from "@/components/inquiry/linea
 import { validateBalanceSubmit } from "@/lib/inquiry-linear-equation-balance";
 import type { SoftNotice as RadicalSoftNotice } from "@/components/inquiry/radical-fill/InquiryRadicalFillStep";
 import type { TermTexts } from "@/components/inquiry/radical-fill/InquiryRadicalFillStep";
-import type { BalanceState } from "@/lib/linear-equation-balance-math";
+import type { TileWorkspace } from "@/lib/linear-equation-balance-math";
 import * as radicalFillActions from "@/app/play/g3-u1-radical-fill/actions";
 import * as balanceActions from "@/app/play/g1-u2-2-linear-equation-balance/actions";
 import { INQUIRY_POLL_MS, type InquiryPollState } from "@/lib/inquiry-types";
@@ -77,9 +77,9 @@ export default function InquiryStudentView({
   const [state, setState] = useState<InquiryPollState>(IDLE);
   const [waitingForSession, setWaitingForSession] = useState(true);
   const [texts, setTexts] = useState<TermTexts[]>([]);
-  const [balanceState, setBalanceState] = useState<BalanceState>({
-    left: { x: 0, unit: 0 },
-    right: { x: 0, unit: 0 },
+  const [balanceWorkspace, setBalanceWorkspace] = useState<TileWorkspace>({
+    left: [],
+    right: [],
   });
   const [wrongAttempts, setWrongAttempts] = useState(0);
   const [radicalNotice, setRadicalNotice] = useState<RadicalSoftNotice | null>(
@@ -108,7 +108,7 @@ export default function InquiryStudentView({
       if (validKey === "g3-u1-radical-fill") {
         setTexts(radicalFillInitialState(stepIndex));
       } else {
-        setBalanceState(balanceInitialState(stepIndex));
+        setBalanceWorkspace(balanceInitialState(stepIndex));
       }
       setWrongAttempts(0);
       wrongRef.current = 0;
@@ -212,7 +212,7 @@ export default function InquiryStudentView({
 
   const onSubmitBalance = () => {
     if (!sessionId || submitted || state.phase !== "live" || !validKey) return;
-    const notice = validateBalanceSubmit(state.stepIndex, balanceState);
+    const notice = validateBalanceSubmit(state.stepIndex, balanceWorkspace);
     if (notice) {
       if (notice.reason === "wrong") {
         const next = wrongRef.current + 1;
@@ -227,7 +227,7 @@ export default function InquiryStudentView({
       const result = await balanceActions.inquirySubmitBalanceAction({
         sessionId,
         stepIndex: state.stepIndex,
-        state: balanceState,
+        workspace: balanceWorkspace,
         wrongs: wrongRef.current,
         gaveUp: false,
       });
@@ -328,9 +328,9 @@ export default function InquiryStudentView({
             problem={balanceProblem(state.stepIndex)}
             stepIndex={state.stepIndex}
             stepCount={state.stepCount}
-            state={balanceState}
-            onStateChange={(next) => {
-              setBalanceState(next);
+            workspace={balanceWorkspace}
+            onWorkspaceChange={(next) => {
+              setBalanceWorkspace(next);
               if (balanceNotice) setBalanceNotice(null);
             }}
             disabled={isPending}

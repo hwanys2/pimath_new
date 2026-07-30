@@ -32,10 +32,10 @@ export default function InquirySpectatorView({
       ? radicalFillInitialState(0)
       : [],
   );
-  const [balanceState, setBalanceState] = useState(() =>
+  const [balanceWorkspace, setBalanceWorkspace] = useState(() =>
     validKey === "g1-u2-2-linear-equation-balance"
       ? balanceInitialState(0)
-      : { left: { x: 0, unit: 0 }, right: { x: 0, unit: 0 } },
+      : { left: [], right: [] },
   );
 
   if (!config || !validKey) {
@@ -54,7 +54,7 @@ export default function InquirySpectatorView({
     if (validKey === "g3-u1-radical-fill") {
       setTexts(radicalFillInitialState(clamped));
     } else {
-      setBalanceState(balanceInitialState(clamped));
+      setBalanceWorkspace(balanceInitialState(clamped));
     }
   };
 
@@ -86,8 +86,8 @@ export default function InquirySpectatorView({
           problem={balanceProblem(stepIndex)}
           stepIndex={stepIndex}
           stepCount={stepCount}
-          state={balanceState}
-          onStateChange={setBalanceState}
+          workspace={balanceWorkspace}
+          onWorkspaceChange={setBalanceWorkspace}
           readOnly
         />
       )}

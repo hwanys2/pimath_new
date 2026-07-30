@@ -22,7 +22,7 @@ import {
   inquiryTeacherPoll,
 } from "@/lib/inquiry-session";
 import { scoreForAttempts } from "@/lib/linear-equation-balance-math";
-import type { BalanceState } from "@/lib/linear-equation-balance-math";
+import type { TileWorkspace } from "@/lib/linear-equation-balance-math";
 
 const CONTENT_KEY = "g1-u2-2-linear-equation-balance";
 const STEP_COUNT = PROBLEM_COUNT;
@@ -81,13 +81,13 @@ export async function inquiryListResponsesAction(input: { sessionId: string }) {
 export async function inquirySubmitBalanceAction(input: {
   sessionId: string;
   stepIndex: number;
-  state: BalanceState;
+  workspace: TileWorkspace;
   wrongs: number;
   gaveUp: boolean;
 }) {
   const graded = gradeBalanceStep(
     input.stepIndex,
-    input.state,
+    input.workspace,
     input.wrongs,
     input.gaveUp,
   );
