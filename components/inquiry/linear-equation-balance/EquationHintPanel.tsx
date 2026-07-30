@@ -1,7 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import katex from "katex";
+import { useMemo, useState } from "react";
 import type { BalanceProblem } from "@/lib/linear-equation-balance-math";
+import "katex/dist/katex.min.css";
 
 type Props = {
   problem: BalanceProblem;
@@ -9,6 +11,17 @@ type Props = {
   onShowHint: () => void;
   canShowMoreHints: boolean;
 };
+
+function renderTargetLatex(latex: string): string {
+  try {
+    return katex.renderToString(latex, {
+      throwOnError: false,
+      displayMode: true,
+    });
+  } catch {
+    return latex;
+  }
+}
 
 export default function EquationHintPanel({
   problem,
@@ -18,13 +31,18 @@ export default function EquationHintPanel({
 }: Props) {
   const [expanded, setExpanded] = useState(false);
   const visibleHints = problem.hints.slice(0, hintIndex + 1);
+  const equationHtml = useMemo(
+    () => renderTargetLatex(problem.targetLatex),
+    [problem.targetLatex],
+  );
 
   return (
     <div className="rounded-xl border-2 border-mint/40 bg-mint/15 p-4">
       <p className="font-display text-lg text-wood">{problem.title}</p>
-      <p className="mt-1 text-center font-mono text-base font-bold text-wood sm:text-lg">
-        {problem.targetLatex}
-      </p>
+      <div
+        className="mt-1 text-center text-wood [&_.katex]:text-[1.15rem]"
+        dangerouslySetInnerHTML={{ __html: equationHtml }}
+      />
       <p className="mt-3 text-sm font-semibold text-foreground/75">
         {problem.instruction}
       </p>
