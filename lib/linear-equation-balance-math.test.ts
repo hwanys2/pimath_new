@@ -73,7 +73,7 @@ describe("linear-equation-balance-math", () => {
   });
 
   it("flipBothSides preserves balance on -2x = 6", () => {
-    const p = problemAt(12);
+    const p = problemAt(11);
     let ws = emptyTileWorkspace(p);
     ws = divideBothSides(ws, 2);
     const flipped = flipBothSides(ws);
@@ -96,7 +96,7 @@ describe("linear-equation-balance-math", () => {
   });
 
   it("solves 1/2 x = 3 via multiply by 2", () => {
-    const p = problemAt(11);
+    const p = problemAt(10);
     let ws = emptyTileWorkspace(p);
     const ops = getPedagogicalScaleOperations(ws, p);
     assert.deepEqual(ops.multiply, [2]);
@@ -109,7 +109,7 @@ describe("linear-equation-balance-math", () => {
   });
 
   it("solves -2x = 6 via divide then flip", () => {
-    const p = problemAt(12);
+    const p = problemAt(11);
     let ws = emptyTileWorkspace(p);
     ws = divideBothSides(ws, 2);
     ws = flipBothSides(ws);
@@ -128,7 +128,7 @@ describe("linear-equation-balance-math", () => {
   });
 
   it("solves -2x + 4 = -2 via subtract, divide, flip", () => {
-    const p = problemAt(13);
+    const p = problemAt(12);
     let ws = workspaceFromBalance({
       left: { x: -2, unit: 0 },
       right: { x: 0, unit: -6 },

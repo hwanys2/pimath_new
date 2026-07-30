@@ -810,21 +810,6 @@ export const PROBLEMS: BalanceProblem[] = [
   },
   {
     id: "step-10",
-    title: "양변 곱하기",
-    instruction:
-      "x = 3 이에요. 「양변을 2로 곱하기」를 눌러 보세요. 양변에 같은 수를 곱해도 저울은 균형을 유지해요.",
-    targetLatex: "x = 3",
-    xValue: 3,
-    initial: { left: { x: 1, unit: 0 }, right: { x: 0, unit: 3 } },
-    hints: [
-      "「양변을 2로 곱하기」를 눌러 2x = 6 을 만들어 보세요.",
-      "다시 「양변을 2로 나누기」로 되돌릴 수도 있어요.",
-    ],
-    allowNegatives: true,
-    scaleOps: { multiply: true, divide: true },
-  },
-  {
-    id: "step-11",
     title: "½x 막대",
     instruction:
       "½x = 3 을 풀어 보세요. 「양변을 2로 곱하기」를 누르면 x 막대로 바뀌어요.",
@@ -839,7 +824,7 @@ export const PROBLEMS: BalanceProblem[] = [
     scaleOps: { multiply: true },
   },
   {
-    id: "step-12",
+    id: "step-11",
     title: "음수 계수",
     instruction: "−2x = 6 을 풀어 보세요. 나눈 뒤 부호를 바꿔야 할 수 있어요.",
     targetLatex: "-2x = 6",
@@ -853,7 +838,7 @@ export const PROBLEMS: BalanceProblem[] = [
     scaleOps: { divide: true, flip: true },
   },
   {
-    id: "step-13",
+    id: "step-12",
     title: "음수 계수 종합",
     instruction: "−2x + 4 = −2 를 풀어 보세요.",
     targetLatex: "-2x + 4 = -2",
@@ -867,8 +852,8 @@ export const PROBLEMS: BalanceProblem[] = [
     scaleOps: { divide: true, flip: true },
   },
   {
-    id: "step-14",
-    title: "종합 도전",
+    id: "step-13",
+    title: "종합 도전 1",
     instruction:
       "2x + 5 = x + 12 를 풀어 보세요. x 막대와 상수를 모두 활용해 보세요.",
     targetLatex: "2x + 5 = x + 12",
@@ -879,6 +864,21 @@ export const PROBLEMS: BalanceProblem[] = [
       "x + 5 = 12 가 되면 x = 7!",
     ],
     allowNegatives: true,
+  },
+  {
+    id: "step-14",
+    title: "종합 도전 2",
+    instruction:
+      "3x − 4 = x + 8 을 풀어 보세요. x를 모은 뒤 나누기까지 써 보세요.",
+    targetLatex: "3x - 4 = x + 8",
+    xValue: 6,
+    initial: { left: { x: 3, unit: -4 }, right: { x: 1, unit: 8 } },
+    hints: [
+      "양변에서 x 막대를 1개씩 빼 보세요.",
+      "2x − 4 = 8 이 되면 +4를 더하고, 2로 나누면 x = 6!",
+    ],
+    allowNegatives: true,
+    scaleOps: { divide: true },
   },
 ];
 
