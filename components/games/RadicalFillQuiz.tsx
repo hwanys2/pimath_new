@@ -2,10 +2,12 @@
 
 import {
   useCallback,
+  useEffect,
   useMemo,
   useRef,
   useState,
   useTransition,
+  type ReactNode,
 } from "react";
 import type { RankingMode, RankingRow, RankingScope } from "@/lib/game-types";
 import GameRankingBoard from "@/components/games/GameRankingBoard";
@@ -23,7 +25,6 @@ import {
   checkAnswer,
   clampScore,
   emptyFills,
-  formatFixedRhs,
   hasDuplicateAmongFills,
   opLabel,
   parsePositiveInt,
@@ -83,7 +84,7 @@ function SlotInput({
   value,
   onChange,
   onEnter,
-  wide,
+  variant,
   duplicate,
   inputRef,
   ariaLabel,
@@ -92,12 +93,13 @@ function SlotInput({
   value: string;
   onChange: (v: string) => void;
   onEnter: () => void;
-  wide?: boolean;
+  variant: "coeff" | "radicand";
   duplicate?: boolean;
   inputRef?: (el: HTMLInputElement | null) => void;
   ariaLabel: string;
   disabled?: boolean;
 }) {
+  const isRad = variant === "radicand";
   return (
     <input
       ref={inputRef}
@@ -119,17 +121,76 @@ function SlotInput({
         }
       }}
       className={[
-        "rounded-lg border-2 bg-cream text-center font-display font-bold tabular-nums text-wood outline-none transition",
-        "focus:border-wood focus:ring-2 focus:ring-wood/20",
-        wide
-          ? "h-11 w-14 text-lg sm:h-12 sm:w-16 sm:text-xl"
-          : "h-9 w-9 text-base sm:h-10 sm:w-10 sm:text-lg",
+        "bg-cream text-center font-display font-bold tabular-nums text-wood outline-none transition",
+        "focus:ring-2 focus:ring-wood/25",
+        isRad
+          ? "h-10 w-[3.25rem] rounded-md rounded-t-none border-2 border-t-0 text-lg sm:h-11 sm:w-16 sm:text-xl"
+          : "h-10 w-10 rounded-lg border-2 text-base sm:h-11 sm:w-11 sm:text-lg",
         duplicate
-          ? "border-[#e85d4c] bg-[#e85d4c]/10"
-          : "border-wood/25",
+          ? isRad
+            ? "border-[#e85d4c] border-t-0 bg-[#e85d4c]/10 focus:border-[#e85d4c]"
+            : "border-[#e85d4c] bg-[#e85d4c]/10 focus:border-[#e85d4c]"
+          : isRad
+            ? "border-wood/35 focus:border-wood"
+            : "border-wood/25 focus:border-wood",
         disabled ? "opacity-60" : "",
       ].join(" ")}
     />
+  );
+}
+
+/**
+ * 교과서형 근호: 왼쪽 체크(√)와 위 가로선(vinculum)이 한 획으로 이어짐.
+ * 문자 "√" + 별도 border-top 조합은 끊겨 보이므로 SVG path로 그림.
+ */
+function RadicalShell({
+  children,
+  emphasize,
+}: {
+  children: ReactNode;
+  emphasize?: boolean;
+}) {
+  return (
+    <span
+      className={[
+        "inline-flex items-start text-wood",
+        emphasize ? "text-foreground" : "",
+      ].join(" ")}
+    >
+      {/*
+        viewBox 높이 56 기준:
+        - 체크 바닥 ≈ 51
+        - 상승선 끝 ≈ 1.4 (vinculum 두께 중앙과 맞춤)
+      */}
+      <svg
+        aria-hidden
+        viewBox="0 0 22 56"
+        className="h-[3.15rem] w-[1.2rem] shrink-0 overflow-visible sm:h-[3.4rem] sm:w-[1.3rem]"
+        fill="none"
+      >
+        <path
+          d="M2 28 H6.8 L12 51.5 L20.8 1.4"
+          stroke="currentColor"
+          strokeWidth="2.85"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+      </svg>
+      {/* 가로선이 SVG 끝점 위로 살짝 겹쳐 끊김 없이 이어짐 */}
+      <span className="relative -ml-[4px] mt-0 flex min-w-[3.4rem] flex-col sm:min-w-[3.85rem]">
+        <span className="relative block h-[2.85px] w-full shrink-0">
+          <span className="absolute inset-0 rounded-full bg-current" />
+          {/* 오른쪽 끝 짧은 세로 훅 — 교과서 근호 느낌 */}
+          <span
+            className="absolute top-0 right-0 h-2 w-[2.85px] rounded-full bg-current"
+            aria-hidden
+          />
+        </span>
+        <span className="flex flex-1 items-center justify-center px-0.5 pb-0.5 pt-1.5">
+          {children}
+        </span>
+      </span>
+    </span>
   );
 }
 
@@ -161,38 +222,85 @@ function RadicalTermView({
   termIndex: number;
 }) {
   return (
-    <span className="inline-flex items-end gap-0.5">
+    <span className="inline-flex items-end gap-0.5 pb-0.5 sm:gap-1">
       {hasCoeff ? (
         <SlotInput
           value={coeff}
           onChange={onCoeffChange}
           onEnter={onEnter}
+          variant="coeff"
           duplicate={coeffDup}
           inputRef={coeffRef}
           ariaLabel={`${termIndex + 1}번째 항 계수`}
           disabled={disabled}
         />
       ) : null}
-      <span className="inline-flex flex-col items-center leading-none">
-        <span
-          className="select-none font-display text-2xl text-wood sm:text-3xl"
-          aria-hidden
-        >
-          √
-        </span>
-        <span className="-mt-1 border-t-2 border-wood px-0.5 pt-0.5">
-          <SlotInput
-            value={radicand}
-            onChange={onRadicandChange}
-            onEnter={onEnter}
-            wide
-            duplicate={radDup}
-            inputRef={radRef}
-            ariaLabel={`${termIndex + 1}번째 항 근호 안`}
-            disabled={disabled}
-          />
-        </span>
-      </span>
+      <RadicalShell>
+        <SlotInput
+          value={radicand}
+          onChange={onRadicandChange}
+          onEnter={onEnter}
+          variant="radicand"
+          duplicate={radDup}
+          inputRef={radRef}
+          ariaLabel={`${termIndex + 1}번째 항 근호 안`}
+          disabled={disabled}
+        />
+      </RadicalShell>
+    </span>
+  );
+}
+
+/** 우변 고정 항도 같은 근호 모양으로 표시 */
+function RhsView({
+  rhs,
+}: {
+  rhs: { coeff: number; radicand: number }[];
+}) {
+  if (rhs.length === 0) return <span>0</span>;
+  return (
+    <span className="inline-flex flex-wrap items-center gap-x-1 gap-y-2">
+      {rhs.map((t, i) => {
+        const abs = Math.abs(t.coeff);
+        const sign =
+          i === 0
+            ? t.coeff < 0
+              ? "−"
+              : ""
+            : t.coeff < 0
+              ? "−"
+              : "+";
+        return (
+          <span
+            key={`${t.coeff}-${t.radicand}-${i}`}
+            className="inline-flex items-center gap-1"
+          >
+            {sign ? (
+              <span className="font-display text-2xl font-bold text-wood/80 sm:text-3xl">
+                {i === 0 ? sign : ` ${sign} `}
+              </span>
+            ) : null}
+            {t.radicand === 1 ? (
+              <span className="font-display text-2xl font-bold tabular-nums sm:text-3xl">
+                {abs}
+              </span>
+            ) : (
+              <span className="inline-flex items-center gap-0.5">
+                {abs !== 1 ? (
+                  <span className="font-display text-2xl font-bold tabular-nums sm:text-3xl">
+                    {abs}
+                  </span>
+                ) : null}
+                <RadicalShell emphasize>
+                  <span className="min-w-[1.75rem] px-1 text-center font-display text-2xl font-bold tabular-nums sm:text-3xl">
+                    {t.radicand}
+                  </span>
+                </RadicalShell>
+              </span>
+            )}
+          </span>
+        );
+      })}
     </span>
   );
 }
@@ -214,9 +322,12 @@ export default function RadicalFillQuiz() {
   const [isPending, startTransition] = useTransition();
 
   const phaseRef = useRef<Phase>(phase);
-  phaseRef.current = phase;
   const inputElsRef = useRef<(HTMLInputElement | null)[]>([]);
   const wrongRef = useRef(0);
+
+  useEffect(() => {
+    phaseRef.current = phase;
+  }, [phase]);
 
   const problem = PROBLEMS[index] ?? PROBLEMS[0]!;
 
@@ -243,6 +354,17 @@ export default function RadicalFillQuiz() {
       [...counts.entries()].filter(([, c]) => c > 1).map(([n]) => n),
     );
   }, [fills, problem.terms]);
+
+  const termSlotStarts = useMemo(() => {
+    const starts: number[] = [];
+    let slot = 0;
+    for (const term of problem.terms) {
+      starts.push(slot);
+      if (term.hasCoeff) slot += 1;
+      slot += 1;
+    }
+    return starts;
+  }, [problem.terms]);
 
   const focusFirst = useCallback(() => {
     window.requestAnimationFrame(() => {
@@ -408,14 +530,6 @@ export default function RadicalFillQuiz() {
     });
   };
 
-  let slotCounter = 0;
-  const termSlotStarts = problem.terms.map((term) => {
-    const start = slotCounter;
-    if (term.hasCoeff) slotCounter += 1;
-    slotCounter += 1;
-    return start;
-  });
-
   const projected = scoreForAttempts(wrongAttempts);
 
   return (
@@ -537,7 +651,7 @@ export default function RadicalFillQuiz() {
           </p>
 
           <div
-            className="mt-6 flex flex-wrap items-center justify-center gap-x-2 gap-y-4 text-xl text-wood sm:text-2xl"
+            className="mt-6 flex flex-wrap items-center justify-center gap-x-2.5 gap-y-5 text-xl text-wood sm:gap-x-3 sm:text-2xl"
             aria-label="근호 식"
           >
             {problem.terms.map((term, ti) => {
@@ -581,9 +695,7 @@ export default function RadicalFillQuiz() {
               );
             })}
             <span className="font-display font-bold text-wood/80">=</span>
-            <span className="font-display text-2xl font-bold text-foreground sm:text-3xl">
-              {formatFixedRhs(problem.rhs)}
-            </span>
+            <RhsView rhs={problem.rhs} />
           </div>
 
           {duplicate && phase === "playing" ? (
