@@ -179,6 +179,16 @@ export const CONTENTS: ContentMeta[] = [
       "넓이가 정수인 정사각형의 한 변 길이를 10번 직접 찾아 보며, 제곱값이 넓이와 정확히 맞지 않음을 체험하는 시뮬레이션입니다. 점수는 없어요.",
   },
   {
+    key: "g3-u1-radical-fill",
+    unitId: "g3-1",
+    type: "game",
+    title: "근호 빈칸 채우기",
+    href: "/play/g3-u1-radical-fill",
+    awardsXp: true,
+    description:
+      "서로 다른 수로 근호 연산 식의 빈칸을 채워 등식을 완성하는 게임. 10문제, 빨리 맞힐수록 높은 점수(문제당 50~100). 학급 배정·활성 시 XP와 랭킹이 쌓여요.",
+  },
+  {
     key: "g3-u1-square-maker",
     unitId: "g3-1",
     type: "game",
