@@ -5,11 +5,14 @@ import {
   applyOp,
   assertAllProblemsBalanced,
   balanceToLatex,
+  buildOpInput,
   initialState,
   isStateSolved,
+  parseOpTerm,
   problemAt,
   projectedScore,
   scoreForTime,
+  termHasX,
   validateOp,
   workspaceFromState,
 } from "@/lib/equation-ops-math";
@@ -74,5 +77,57 @@ describe("equation-ops-math", () => {
     const ws = workspaceFromState(state);
     assert.ok(ws.left.length > 0);
     assert.ok(ws.right.length > 0);
+  });
+
+  it("parseOpTerm accepts constants and x terms", () => {
+    assert.deepEqual(parseOpTerm("3"), { target: "constant", value: 3 });
+    assert.deepEqual(parseOpTerm("-3"), { target: "constant", value: -3 });
+    assert.deepEqual(parseOpTerm("x"), { target: "x", coeff: 1 });
+    assert.deepEqual(parseOpTerm("-x"), { target: "x", coeff: -1 });
+    assert.deepEqual(parseOpTerm("3x"), { target: "x", coeff: 3 });
+    assert.deepEqual(parseOpTerm("-3x"), { target: "x", coeff: -3 });
+  });
+
+  it("parseOpTerm rejects invalid input", () => {
+    assert.equal(parseOpTerm(""), null);
+    assert.equal(parseOpTerm("0"), null);
+    assert.equal(parseOpTerm("0x"), null);
+    assert.equal(parseOpTerm("3y"), null);
+    assert.equal(parseOpTerm("2x+1"), null);
+    assert.equal(parseOpTerm("abc"), null);
+    assert.equal(parseOpTerm("1.5"), null);
+  });
+
+  it("buildOpInput maps signed terms and verbs", () => {
+    const term3x = parseOpTerm("3x")!;
+    const built = buildOpInput("subtract", term3x);
+    assert.equal(built.ok, true);
+    if (built.ok) {
+      assert.deepEqual(built.op, {
+        kind: "subtract",
+        target: "x",
+        value: 3,
+      });
+    }
+
+    const neg3 = parseOpTerm("-3")!;
+    const addNeg = buildOpInput("add", neg3);
+    assert.equal(addNeg.ok, true);
+    if (addNeg.ok) {
+      assert.deepEqual(addNeg.op, {
+        kind: "subtract",
+        target: "constant",
+        value: 3,
+      });
+    }
+  });
+
+  it("buildOpInput blocks multiply/divide on x terms", () => {
+    const term = parseOpTerm("3x")!;
+    assert.equal(termHasX(term), true);
+    const mul = buildOpInput("multiply", term);
+    assert.equal(mul.ok, false);
+    const div = buildOpInput("divide", term);
+    assert.equal(div.ok, false);
   });
 });

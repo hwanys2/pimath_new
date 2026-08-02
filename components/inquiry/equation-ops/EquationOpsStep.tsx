@@ -97,73 +97,91 @@ export default function EquationOpsStep({
     onSubmit();
   };
 
+  const handleApply = (next: EquationOpsState) => {
+    onStateChange(next);
+    setSubmitError(null);
+  };
+
+  const statusMessage = !balanced
+    ? "저울이 기울었어요. 양변에 똑같이 해야 등식이 유지돼요."
+    : solved && !submitted
+      ? "x를 구했어요! 확인을 눌러 점수를 받으세요."
+      : null;
+
   return (
     <section className="quest-card space-y-4 p-4 sm:p-6">
-      <div className="flex flex-wrap items-center justify-between gap-3 text-sm font-bold text-wood">
-        <span className="rounded-xl bg-gold/45 px-3 py-1 tabular-nums">
-          문제 {stepIndex + 1}/{stepCount}
-        </span>
-        {!hostPreview && !submitted ? (
-          <>
-            <span className="rounded-xl bg-sky/40 px-3 py-1 tabular-nums">
-              ⏱ {formatElapsed(elapsedMs)}초
-            </span>
-            <span className="rounded-xl bg-mint/40 px-3 py-1 tabular-nums">
-              맞히면 ~{previewScore}점
-            </span>
-          </>
-        ) : null}
-        {hostPreview ? (
-          <span className="rounded-xl bg-lavender/45 px-3 py-1 text-xs font-bold text-wood">
-            시연 모드
+      {/* Header */}
+      <div className="space-y-4">
+        <div className="flex flex-wrap items-center justify-between gap-3 text-sm font-bold text-wood">
+          <span className="rounded-xl bg-gold/45 px-3 py-1 tabular-nums">
+            문제 {stepIndex + 1}/{stepCount}
           </span>
-        ) : null}
+          {!hostPreview && !submitted ? (
+            <>
+              <span className="rounded-xl bg-sky/40 px-3 py-1 tabular-nums">
+                ⏱ {formatElapsed(elapsedMs)}초
+              </span>
+              <span className="rounded-xl bg-mint/40 px-3 py-1 tabular-nums">
+                맞히면 ~{previewScore}점
+              </span>
+            </>
+          ) : null}
+          {hostPreview ? (
+            <span className="rounded-xl bg-lavender/45 px-3 py-1 text-xs font-bold text-wood">
+              시연 모드
+            </span>
+          ) : null}
+        </div>
+
+        <div className="rounded-xl border-2 border-mint/35 bg-mint/10 p-4 text-center">
+          <p className="font-display text-lg text-wood">{problem.title}</p>
+          <div
+            className="mt-2 text-wood [&_.katex]:text-[1.15rem]"
+            dangerouslySetInnerHTML={{ __html: targetHtml }}
+          />
+          <p className="mt-2 text-sm font-semibold text-foreground/70">
+            {problem.instruction}
+          </p>
+        </div>
       </div>
 
-      <div className="rounded-xl border-2 border-mint/35 bg-mint/10 p-4 text-center">
-        <p className="font-display text-lg text-wood">{problem.title}</p>
-        <div
-          className="mt-2 text-wood [&_.katex]:text-[1.15rem]"
-          dangerouslySetInnerHTML={{ __html: targetHtml }}
-        />
-        <p className="mt-2 text-sm font-semibold text-foreground/70">
-          {problem.instruction}
-        </p>
+      {/* Mobile: input → balance → trail. Desktop: balance | input | trail */}
+      <div className="grid grid-cols-1 items-start gap-4 lg:grid-cols-[1fr_1.15fr_0.85fr]">
+        {/* Balance — left on desktop, second on mobile */}
+        <div className="order-2 lg:order-1">
+          <EquationOpsBalance state={state} xValue={problem.xValue} />
+        </div>
+
+        {/* Operation input — center on desktop, first on mobile */}
+        <div className="order-1 space-y-3 lg:order-2">
+          <OperationPicker
+            state={state}
+            disabled={hostPreview ? false : locked}
+            onApply={handleApply}
+          />
+          {statusMessage ? (
+            <p
+              className={[
+                "text-center text-sm font-bold",
+                balanced ? "text-wood" : "text-[#a63a1a]",
+              ].join(" ")}
+              role="status"
+            >
+              {balanced ? "⚖ " : ""}
+              {statusMessage}
+            </p>
+          ) : null}
+        </div>
+
+        {/* Trail — right on desktop, third on mobile */}
+        <div className="order-3 max-h-64 overflow-y-auto lg:max-h-none lg:overflow-visible">
+          <EquationTrail trail={state.trail} compact />
+        </div>
       </div>
-
-      <EquationTrail trail={state.trail} />
-      <EquationOpsBalance state={state} xValue={problem.xValue} />
-
-      {!hostPreview ? (
-        <OperationPicker
-          state={state}
-          disabled={locked}
-          onApply={(next) => {
-            onStateChange(next);
-            setSubmitError(null);
-          }}
-        />
-      ) : (
-        <OperationPicker
-          state={state}
-          disabled={false}
-          onApply={onStateChange}
-        />
-      )}
 
       {submitError ? (
         <p className="text-center text-sm font-bold text-[#a63a1a]" role="status">
           {submitError}
-        </p>
-      ) : null}
-
-      {!balanced ? (
-        <p className="text-center text-sm font-bold text-[#a63a1a]" role="status">
-          저울이 기울었어요. 양변에 똑같이 해야 등식이 유지돼요.
-        </p>
-      ) : solved && !submitted ? (
-        <p className="text-center text-sm font-bold text-wood" role="status">
-          ⚖ x를 구했어요! 확인을 눌러 점수를 받으세요.
         </p>
       ) : null}
 

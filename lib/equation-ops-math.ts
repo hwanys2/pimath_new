@@ -210,6 +210,93 @@ export function parseOpValue(raw: string): number | null {
   return n;
 }
 
+export type ParsedOpTerm =
+  | { target: "constant"; value: number }
+  | { target: "x"; coeff: number };
+
+/** Parse a term like `3`, `-3`, `x`, `-x`, `3x`, `-3x`. Returns null for invalid input. */
+export function parseOpTerm(raw: string): ParsedOpTerm | null {
+  const s = raw.trim().replace(/\s+/g, "");
+  if (!s) return null;
+
+  const xMatch = /^([+-]?)(\d*)x$/i.exec(s);
+  if (xMatch) {
+    const sign = xMatch[1] === "-" ? -1 : 1;
+    const digits = xMatch[2];
+    const coeff = digits ? parseInt(digits, 10) * sign : sign;
+    if (!Number.isInteger(coeff) || coeff === 0) return null;
+    return { target: "x", coeff };
+  }
+
+  const n = Number(s);
+  if (!Number.isFinite(n) || !Number.isInteger(n) || n === 0) return null;
+  return { target: "constant", value: n };
+}
+
+export function termHasX(term: ParsedOpTerm): boolean {
+  return term.target === "x";
+}
+
+export function formatTermDisplay(term: ParsedOpTerm): string {
+  if (term.target === "constant") return String(term.value);
+  if (term.coeff === 1) return "x";
+  if (term.coeff === -1) return "-x";
+  return `${term.coeff}x`;
+}
+
+export type BuildOpResult =
+  | { ok: true; op: OpInput }
+  | { ok: false; message: string };
+
+export function buildOpInput(kind: OpKind, term: ParsedOpTerm): BuildOpResult {
+  if (kind === "multiply" || kind === "divide") {
+    if (term.target === "x") {
+      return { ok: false, message: "x가 있으면 더하기·빼기만 할 수 있어요." };
+    }
+    if (term.value === 0) {
+      return { ok: false, message: "0은 넣을 수 없어요." };
+    }
+    return { ok: true, op: { kind, target: "constant", value: term.value } };
+  }
+
+  const signed = term.target === "constant" ? term.value : term.coeff;
+  const net = kind === "add" ? signed : -signed;
+  const target: OpTarget = term.target === "x" ? "x" : "constant";
+
+  if (net >= 0) {
+    return { ok: true, op: { kind: "add", target, value: net } };
+  }
+  return { ok: true, op: { kind: "subtract", target, value: Math.abs(net) } };
+}
+
+const VERB_LABELS: Record<OpKind, string> = {
+  add: "더한다",
+  subtract: "뺀다",
+  multiply: "곱한다",
+  divide: "나눈다",
+};
+
+export function previewOpSentence(kind: OpKind, term: ParsedOpTerm): string {
+  const display = formatTermDisplay(term);
+  if (kind === "divide") {
+    const particle = Math.abs(
+      term.target === "constant" ? term.value : term.coeff,
+    ).toString().endsWith("2")
+      ? "로"
+      : "으로";
+    return `양변을 ${display}${particle} 나눕니다`;
+  }
+  if (kind === "multiply") {
+    return `양변에 ${display}을 곱합니다`;
+  }
+  if (kind === "add") {
+    return `양변에 ${display}을 더합니다`;
+  }
+  return `양변에 ${display}을 뺍니다`;
+}
+
+export { VERB_LABELS };
+
 export function formatOpLabel(op: OpInput): string {
   const v = op.value;
   const abs = Math.abs(v);
