@@ -266,6 +266,8 @@ type Props = {
   texts: TermTexts[];
   onTextsChange: (texts: TermTexts[]) => void;
   readOnly?: boolean;
+  /** 교사 시연용 — 제출 UI 없이 빈칸 입력만 허용 */
+  hostPreview?: boolean;
   disabled?: boolean;
   wrongAttempts?: number;
   softNotice?: SoftNotice | null;
@@ -284,6 +286,7 @@ export default function InquiryRadicalFillStep({
   texts,
   onTextsChange,
   readOnly = false,
+  hostPreview = false,
   disabled = false,
   wrongAttempts = 0,
   softNotice = null,
@@ -347,7 +350,7 @@ export default function InquiryRadicalFillStep({
     field: "coeff" | "radicand",
     value: string,
   ) => {
-    if (readOnly || disabled) return;
+    if ((readOnly && !hostPreview) || disabled) return;
     const next = texts.map((t) => ({ ...t }));
     const cur = next[termIndex] ?? { coeff: "", radicand: "" };
     next[termIndex] = { ...cur, [field]: value };
@@ -358,7 +361,8 @@ export default function InquiryRadicalFillStep({
     inputElsRef.current[slot] = el;
   };
 
-  const locked = readOnly || disabled || submitted;
+  const interactive = hostPreview || !readOnly;
+  const locked = !interactive || disabled || submitted;
   const projected = scoreForAttempts(wrongAttempts);
 
   return (
@@ -367,6 +371,11 @@ export default function InquiryRadicalFillStep({
         <span className="rounded-xl bg-lavender/40 px-3 py-1 tabular-nums">
           문제 {stepIndex + 1}/{stepCount}
         </span>
+        {hostPreview ? (
+          <span className="rounded-xl bg-lavender/45 px-3 py-1 text-xs font-bold text-wood">
+            시연 모드 — 빈칸을 채우며 설명할 수 있어요
+          </span>
+        ) : null}
         {showScoreBar ? (
           <>
             <span className="rounded-xl bg-mint/35 px-3 py-1 tabular-nums">
@@ -447,7 +456,7 @@ export default function InquiryRadicalFillStep({
         </p>
       ) : null}
 
-      {softNotice && !submitted && !readOnly ? (
+      {softNotice && !submitted && !readOnly && !hostPreview ? (
         <p className="mt-4 text-center text-sm font-bold text-[#a63a1a]" role="status">
           {softMessage(softNotice.reason)}
           {softNotice.reason === "wrong" ? (
@@ -480,7 +489,7 @@ export default function InquiryRadicalFillStep({
         </div>
       ) : null}
 
-      {!readOnly && !submitted && onSubmit && onGiveUp ? (
+      {!readOnly && !hostPreview && !submitted && onSubmit && onGiveUp ? (
         <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
           <button
             type="button"

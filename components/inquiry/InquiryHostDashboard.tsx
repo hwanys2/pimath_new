@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState, useTransition } from "react";
 import type { TeacherClassOption } from "@/components/content/AssignContentButton";
 import InquiryResponsePanel from "@/components/inquiry/InquiryResponsePanel";
+import InquirySpectatorView from "@/components/inquiry/InquirySpectatorView";
 import InquiryStatusGrid from "@/components/inquiry/InquiryStatusGrid";
 import {
   InquiryLinearEquationBalanceStep,
@@ -332,6 +333,19 @@ export default function InquiryHostDashboard({
         </p>
       ) : null}
 
+      {!sessionId ? (
+        <section className="space-y-3">
+          <p className="text-sm font-semibold text-foreground/70">
+            수업 전에 문제를 직접 조작하며 설명할 수 있어요.
+          </p>
+          <InquirySpectatorView
+            embedded
+            contentKey={validKey}
+            title={config.title}
+          />
+        </section>
+      ) : null}
+
       {sessionId && state.phase !== "idle" ? (
         <>
           <div className="flex flex-wrap gap-2 border-b border-wood/15 pb-2">
@@ -360,7 +374,7 @@ export default function InquiryHostDashboard({
                 stepCount={stepCount}
                 texts={previewTexts}
                 onTextsChange={setPreviewTexts}
-                readOnly
+                hostPreview
               />
             ) : (
               <InquiryLinearEquationBalanceStep

@@ -14,7 +14,7 @@ const CONTENT_KEY = "g3-u1-radical-fill";
 export const metadata: Metadata = {
   title: "근호 빈칸 채우기 | 수학하는 즐거움",
   description:
-    "서로 다른 수로 근호 식을 완성하는 중3 제곱근 탐구 활동. 학생은 선생님이 수업을 시작할 때만 참여하고, 비로그인·교사는 문제를 미리볼 수 있어요.",
+    "서로 다른 수로 근호 식을 완성하는 중3 제곱근 탐구 활동. 학생은 선생님이 수업을 시작할 때만 참여하고, 비로그인·교사는 직접 조작해 볼 수 있어요.",
 };
 
 export default async function RadicalFillPage({

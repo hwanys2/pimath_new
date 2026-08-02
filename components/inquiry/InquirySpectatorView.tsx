@@ -16,12 +16,15 @@ type Props = {
   contentKey: string;
   title: string;
   subtitle?: string;
+  /** 헤더 카드 숨김 — 대시보드 삽입용 */
+  embedded?: boolean;
 };
 
 export default function InquirySpectatorView({
   contentKey,
   title,
   subtitle,
+  embedded = false,
 }: Props) {
   const config = getInquiryContent(contentKey);
   const validKey = isInquiryContentKey(contentKey) ? contentKey : null;
@@ -60,17 +63,19 @@ export default function InquirySpectatorView({
 
   return (
     <div className="space-y-4">
-      <section
-        className={`quest-card bg-gradient-to-br ${config.headerGradient} p-5 sm:p-7`}
-      >
-        <p className="text-sm font-bold text-wood">탐구 미리보기</p>
-        <h1 className="font-display mt-1 text-2xl text-foreground sm:text-3xl">
-          {title}
-        </h1>
-        <p className="mt-2 text-sm text-foreground/70">
-          {subtitle ?? config.spectatorSubtitle}
-        </p>
-      </section>
+      {!embedded ? (
+        <section
+          className={`quest-card bg-gradient-to-br ${config.headerGradient} p-5 sm:p-7`}
+        >
+          <p className="text-sm font-bold text-wood">탐구 미리보기</p>
+          <h1 className="font-display mt-1 text-2xl text-foreground sm:text-3xl">
+            {title}
+          </h1>
+          <p className="mt-2 text-sm text-foreground/70">
+            {subtitle ?? config.spectatorSubtitle}
+          </p>
+        </section>
+      ) : null}
 
       {validKey === "g3-u1-radical-fill" ? (
         <InquiryRadicalFillStep
@@ -79,7 +84,7 @@ export default function InquirySpectatorView({
           stepCount={stepCount}
           texts={texts}
           onTextsChange={setTexts}
-          readOnly
+          hostPreview
         />
       ) : (
         <InquiryLinearEquationBalanceStep
@@ -88,7 +93,7 @@ export default function InquirySpectatorView({
           stepCount={stepCount}
           workspace={balanceWorkspace}
           onWorkspaceChange={setBalanceWorkspace}
-          readOnly
+          hostPreview
         />
       )}
 
