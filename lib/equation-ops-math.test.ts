@@ -18,8 +18,8 @@ import {
 } from "@/lib/equation-ops-math";
 
 describe("equation-ops-math", () => {
-  it("has 10 problems", () => {
-    assert.equal(PROBLEM_COUNT, 10);
+  it("has 15 problems", () => {
+    assert.equal(PROBLEM_COUNT, 15);
   });
 
   it("all problems start balanced", () => {

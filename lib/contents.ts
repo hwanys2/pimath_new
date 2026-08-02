@@ -93,7 +93,7 @@ export const CONTENTS: ContentMeta[] = [
     title: "일차방정식 레이스",
     href: "/play/g1-u2-2-linear-equation-race",
     awardsXp: true,
-    inquiry: { stepCount: 10, grading: "auto", scoring: true },
+    inquiry: { stepCount: 15, grading: "auto", scoring: true },
     description:
       "연산을 선택해 일차방정식을 풀고 속도로 점수를 겨루는 탐구 게임. 학생은 선생님이 수업을 시작할 때만 참여해요.",
   },

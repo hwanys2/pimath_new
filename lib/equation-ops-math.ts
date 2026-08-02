@@ -20,7 +20,7 @@ import {
 } from "@/lib/linear-equation-balance-math";
 
 export const CONTENT_KEY = "g1-u2-2-linear-equation-race";
-export const PROBLEM_COUNT = 10;
+export const PROBLEM_COUNT = 15;
 export const TIME_CAP_MS = 90_000;
 export const MIN_SCORE = 40;
 export const MAX_SCORE = 100;
@@ -144,11 +144,56 @@ export const PROBLEMS: EquationOpsProblem[] = [
   {
     id: "race-9",
     title: "종합 2",
-    instruction: "마지막 문제! 연산을 조합해 풀어 보세요.",
+    instruction: "연산을 조합해 x를 구해 보세요.",
     targetLatex: "3x - 4 = x + 8",
     xValue: 6,
     initial: { left: { x: 3, unit: -4 }, right: { x: 1, unit: 8 } },
     hints: ["x를 모은 뒤 상수를 정리해 보세요.", "x = 6"],
+  },
+  {
+    id: "race-10",
+    title: "종합 3 · 양변 x",
+    instruction: "양변에 x와 상수가 있어요. x를 모아 보세요.",
+    targetLatex: "4x - 3 = 2x + 9",
+    xValue: 6,
+    initial: { left: { x: 4, unit: -3 }, right: { x: 2, unit: 9 } },
+    hints: ["양변에서 2x를 빼 보세요.", "2x - 3 = 9 → x = 6"],
+  },
+  {
+    id: "race-11",
+    title: "종합 4 · 음수 계수",
+    instruction: "음수 x계수와 양변 x를 정리해 보세요.",
+    targetLatex: "-3x + 7 = x - 1",
+    xValue: 2,
+    initial: { left: { x: -3, unit: 7 }, right: { x: 1, unit: -1 } },
+    hints: ["양변에서 x를 빼 보세요.", "-4x + 7 = -1 → x = 2"],
+  },
+  {
+    id: "race-12",
+    title: "종합 5 · x 모으기",
+    instruction: "x를 한쪽으로 모은 뒤 상수를 정리해 보세요.",
+    targetLatex: "5x - 2 = 2x + 7",
+    xValue: 3,
+    initial: { left: { x: 5, unit: -2 }, right: { x: 2, unit: 7 } },
+    hints: ["양변에서 2x를 빼 보세요.", "3x - 2 = 7 → x = 3"],
+  },
+  {
+    id: "race-13",
+    title: "종합 6 · 큰 계수",
+    instruction: "큰 계수가 있는 방정식도 같은 방법으로 풀 수 있어요.",
+    targetLatex: "6x - 5 = 3x + 10",
+    xValue: 5,
+    initial: { left: { x: 6, unit: -5 }, right: { x: 3, unit: 10 } },
+    hints: ["양변에서 3x를 빼 보세요.", "3x - 5 = 10 → x = 5"],
+  },
+  {
+    id: "race-14",
+    title: "종합 7",
+    instruction: "마지막 문제! 연산을 조합해 빠르게 풀어 보세요.",
+    targetLatex: "-2x + 9 = x + 3",
+    xValue: 2,
+    initial: { left: { x: -2, unit: 9 }, right: { x: 1, unit: 3 } },
+    hints: ["양변에서 x를 빼 보세요.", "-3x + 9 = 3 → x = 2"],
   },
 ];
 

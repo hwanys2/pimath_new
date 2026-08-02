@@ -109,51 +109,52 @@ export default function EquationOpsStep({
       : null;
 
   return (
-    <section className="quest-card space-y-4 p-4 sm:p-6">
-      {/* Header */}
-      <div className="space-y-4">
-        <div className="flex flex-wrap items-center justify-between gap-3 text-sm font-bold text-wood">
-          <span className="rounded-xl bg-gold/45 px-3 py-1 tabular-nums">
-            문제 {stepIndex + 1}/{stepCount}
-          </span>
-          {!hostPreview && !submitted ? (
-            <>
-              <span className="rounded-xl bg-sky/40 px-3 py-1 tabular-nums">
-                ⏱ {formatElapsed(elapsedMs)}초
-              </span>
-              <span className="rounded-xl bg-mint/40 px-3 py-1 tabular-nums">
-                맞히면 ~{previewScore}점
-              </span>
-            </>
-          ) : null}
-          {hostPreview ? (
-            <span className="rounded-xl bg-lavender/45 px-3 py-1 text-xs font-bold text-wood">
-              시연 모드
+    <section className="quest-card space-y-4 p-4 sm:p-6 lg:space-y-6">
+      {/* Status badges — full width */}
+      <div className="flex flex-wrap items-center justify-between gap-3 text-sm font-bold text-wood">
+        <span className="rounded-xl bg-gold/45 px-3 py-1 tabular-nums">
+          문제 {stepIndex + 1}/{stepCount}
+        </span>
+        {!hostPreview && !submitted ? (
+          <>
+            <span className="rounded-xl bg-sky/40 px-3 py-1 tabular-nums">
+              ⏱ {formatElapsed(elapsedMs)}초
             </span>
-          ) : null}
-        </div>
+            <span className="rounded-xl bg-mint/40 px-3 py-1 tabular-nums">
+              맞히면 ~{previewScore}점
+            </span>
+          </>
+        ) : null}
+        {hostPreview ? (
+          <span className="rounded-xl bg-lavender/45 px-3 py-1 text-xs font-bold text-wood">
+            시연 모드
+          </span>
+        ) : null}
+      </div>
 
-        <div className="rounded-xl border-2 border-mint/35 bg-mint/10 p-4 text-center">
-          <p className="font-display text-lg text-wood">{problem.title}</p>
+      {/* 2×2 on PC; stacked on mobile */}
+      <div className="grid grid-cols-1 items-stretch gap-4 lg:grid-cols-2 lg:gap-6">
+        {/* Row 1 left: problem card */}
+        <div className="order-1 flex flex-col justify-center rounded-xl border-2 border-mint/35 bg-mint/10 p-4 text-center lg:min-h-[280px] lg:p-6">
+          <p className="font-display text-lg text-wood lg:text-xl">
+            {problem.title}
+          </p>
           <div
-            className="mt-2 text-wood [&_.katex]:text-[1.15rem]"
+            className="mt-3 text-wood [&_.katex]:text-[1.25rem] lg:[&_.katex]:text-[1.5rem]"
             dangerouslySetInnerHTML={{ __html: targetHtml }}
           />
-          <p className="mt-2 text-sm font-semibold text-foreground/70">
+          <p className="mt-3 text-sm font-semibold text-foreground/70 lg:text-base">
             {problem.instruction}
           </p>
         </div>
-      </div>
 
-      {/* Mobile: input → balance → trail. Desktop: balance | input | trail */}
-      <div className="grid grid-cols-1 items-start gap-4 lg:grid-cols-[1fr_1.15fr_0.85fr]">
-        {/* Balance — left on desktop, second on mobile */}
-        <div className="order-2 lg:order-1">
+        {/* Row 1 right: balance */}
+        <div className="order-3 lg:order-2 lg:min-h-[320px]">
           <EquationOpsBalance state={state} xValue={problem.xValue} />
         </div>
 
-        {/* Operation input — center on desktop, first on mobile */}
-        <div className="order-1 space-y-3 lg:order-2">
+        {/* Row 2 left: operation input */}
+        <div className="order-2 space-y-3 lg:order-3">
           <OperationPicker
             state={state}
             disabled={hostPreview ? false : locked}
@@ -173,8 +174,8 @@ export default function EquationOpsStep({
           ) : null}
         </div>
 
-        {/* Trail — right on desktop, third on mobile */}
-        <div className="order-3 max-h-64 overflow-y-auto lg:max-h-none lg:overflow-visible">
+        {/* Row 2 right: trail */}
+        <div className="order-4 max-h-64 overflow-y-auto lg:max-h-[min(50vh,480px)] lg:min-h-[280px]">
           <EquationTrail trail={state.trail} compact />
         </div>
       </div>
