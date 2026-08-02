@@ -1,0 +1,205 @@
+"use client";
+
+import { useEffect, useRef, useState } from "react";
+import katex from "katex";
+import EquationOpsBalance from "./EquationOpsBalance";
+import EquationTrail from "./EquationTrail";
+import OperationPicker from "./OperationPicker";
+import {
+  isStateBalanced,
+  isStateSolved,
+  projectedScore,
+  type EquationOpsProblem,
+  type EquationOpsState,
+} from "@/lib/equation-ops-math";
+import "katex/dist/katex.min.css";
+
+type Props = {
+  problem: EquationOpsProblem;
+  stepIndex: number;
+  stepCount: number;
+  state: EquationOpsState;
+  onStateChange: (state: EquationOpsState) => void;
+  hostPreview?: boolean;
+  disabled?: boolean;
+  submitted?: boolean;
+  submitFeedback?: "correct" | "wrong" | null;
+  earnedScore?: number | null;
+  onSubmit?: () => void;
+  stepStartedAt?: number;
+};
+
+function renderLatex(latex: string): string {
+  try {
+    return katex.renderToString(latex, {
+      throwOnError: false,
+      displayMode: true,
+    });
+  } catch {
+    return latex;
+  }
+}
+
+function formatElapsed(ms: number): string {
+  const sec = ms / 1000;
+  return sec < 10 ? sec.toFixed(1) : Math.round(sec).toString();
+}
+
+export default function EquationOpsStep({
+  problem,
+  stepIndex,
+  stepCount,
+  state,
+  onStateChange,
+  hostPreview = false,
+  disabled = false,
+  submitted = false,
+  submitFeedback = null,
+  earnedScore = null,
+  onSubmit,
+  stepStartedAt,
+}: Props) {
+  const [elapsedMs, setElapsedMs] = useState(0);
+  const [submitError, setSubmitError] = useState<string | null>(null);
+  const startedRef = useRef(stepStartedAt ?? Date.now());
+
+  useEffect(() => {
+    startedRef.current = stepStartedAt ?? Date.now();
+    setElapsedMs(0);
+    setSubmitError(null);
+  }, [stepIndex, stepStartedAt]);
+
+  useEffect(() => {
+    if (submitted || hostPreview) return;
+    const id = window.setInterval(() => {
+      setElapsedMs(Date.now() - startedRef.current);
+    }, 100);
+    return () => window.clearInterval(id);
+  }, [submitted, hostPreview, stepIndex]);
+
+  const locked = disabled || submitted;
+  const balanced = isStateBalanced(state, problem.xValue);
+  const solved = isStateSolved(state, problem.xValue);
+  const targetHtml = renderLatex(problem.targetLatex);
+  const previewScore = projectedScore(elapsedMs);
+
+  const handleSubmit = () => {
+    if (locked || !onSubmit) return;
+    if (!balanced) {
+      setSubmitError("저울이 기울었어요. 양변에 똑같이 해야 해요.");
+      return;
+    }
+    if (!solved) {
+      setSubmitError("x 막대만 한쪽에 남기고 해를 구해 보세요.");
+      return;
+    }
+    setSubmitError(null);
+    onSubmit();
+  };
+
+  return (
+    <section className="quest-card space-y-4 p-4 sm:p-6">
+      <div className="flex flex-wrap items-center justify-between gap-3 text-sm font-bold text-wood">
+        <span className="rounded-xl bg-gold/45 px-3 py-1 tabular-nums">
+          문제 {stepIndex + 1}/{stepCount}
+        </span>
+        {!hostPreview && !submitted ? (
+          <>
+            <span className="rounded-xl bg-sky/40 px-3 py-1 tabular-nums">
+              ⏱ {formatElapsed(elapsedMs)}초
+            </span>
+            <span className="rounded-xl bg-mint/40 px-3 py-1 tabular-nums">
+              맞히면 ~{previewScore}점
+            </span>
+          </>
+        ) : null}
+        {hostPreview ? (
+          <span className="rounded-xl bg-lavender/45 px-3 py-1 text-xs font-bold text-wood">
+            시연 모드
+          </span>
+        ) : null}
+      </div>
+
+      <div className="rounded-xl border-2 border-mint/35 bg-mint/10 p-4 text-center">
+        <p className="font-display text-lg text-wood">{problem.title}</p>
+        <div
+          className="mt-2 text-wood [&_.katex]:text-[1.15rem]"
+          dangerouslySetInnerHTML={{ __html: targetHtml }}
+        />
+        <p className="mt-2 text-sm font-semibold text-foreground/70">
+          {problem.instruction}
+        </p>
+      </div>
+
+      <EquationTrail trail={state.trail} />
+      <EquationOpsBalance state={state} xValue={problem.xValue} />
+
+      {!hostPreview ? (
+        <OperationPicker
+          state={state}
+          disabled={locked}
+          onApply={(next) => {
+            onStateChange(next);
+            setSubmitError(null);
+          }}
+        />
+      ) : (
+        <OperationPicker
+          state={state}
+          disabled={false}
+          onApply={onStateChange}
+        />
+      )}
+
+      {submitError ? (
+        <p className="text-center text-sm font-bold text-[#a63a1a]" role="status">
+          {submitError}
+        </p>
+      ) : null}
+
+      {!balanced ? (
+        <p className="text-center text-sm font-bold text-[#a63a1a]" role="status">
+          저울이 기울었어요. 양변에 똑같이 해야 등식이 유지돼요.
+        </p>
+      ) : solved && !submitted ? (
+        <p className="text-center text-sm font-bold text-wood" role="status">
+          ⚖ x를 구했어요! 확인을 눌러 점수를 받으세요.
+        </p>
+      ) : null}
+
+      {submitted && submitFeedback ? (
+        <div
+          className={[
+            "rounded-2xl px-4 py-3 text-center",
+            submitFeedback === "correct"
+              ? "bg-mint/40 text-wood"
+              : "bg-[#e85d4c]/15 text-[#a63a1a]",
+          ].join(" ")}
+          role="status"
+        >
+          <p className="font-display text-2xl">
+            {submitFeedback === "correct" ? "O" : "X"}
+          </p>
+          <p className="mt-1 text-sm font-bold">
+            {submitFeedback === "correct"
+              ? `+${earnedScore ?? previewScore}점! 선생님이 다음 문제로 넘길 때까지 기다려 주세요.`
+              : "다시 확인해 보세요."}
+          </p>
+        </div>
+      ) : null}
+
+      {!hostPreview && !submitted && onSubmit ? (
+        <div className="flex justify-center">
+          <button
+            type="button"
+            onClick={handleSubmit}
+            disabled={locked}
+            className="rounded-xl bg-wood px-8 py-3 text-base font-bold text-cream disabled:opacity-50"
+          >
+            확인
+          </button>
+        </div>
+      ) : null}
+    </section>
+  );
+}

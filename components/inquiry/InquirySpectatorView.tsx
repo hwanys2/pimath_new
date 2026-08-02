@@ -2,10 +2,13 @@
 
 import { useState } from "react";
 import {
+  InquiryEquationOpsStep,
   InquiryLinearEquationBalanceStep,
   InquiryRadicalFillStep,
   balanceInitialState,
   balanceProblem,
+  equationOpsInitialState,
+  equationOpsProblem,
   getInquiryContent,
   isInquiryContentKey,
   radicalFillInitialState,
@@ -40,6 +43,15 @@ export default function InquirySpectatorView({
       ? balanceInitialState(0)
       : { left: [], right: [] },
   );
+  const [raceState, setRaceState] = useState(() =>
+    validKey === "g1-u2-2-linear-equation-race"
+      ? equationOpsInitialState(0)
+      : {
+          balance: { left: { x: 0, unit: 0 }, right: { x: 0, unit: 0 } },
+          trail: [],
+          opCount: 0,
+        },
+  );
 
   if (!config || !validKey) {
     return (
@@ -56,6 +68,8 @@ export default function InquirySpectatorView({
     setStepIndex(clamped);
     if (validKey === "g3-u1-radical-fill") {
       setTexts(radicalFillInitialState(clamped));
+    } else if (validKey === "g1-u2-2-linear-equation-race") {
+      setRaceState(equationOpsInitialState(clamped));
     } else {
       setBalanceWorkspace(balanceInitialState(clamped));
     }
@@ -84,6 +98,15 @@ export default function InquirySpectatorView({
           stepCount={stepCount}
           texts={texts}
           onTextsChange={setTexts}
+          hostPreview
+        />
+      ) : validKey === "g1-u2-2-linear-equation-race" ? (
+        <InquiryEquationOpsStep
+          problem={equationOpsProblem(stepIndex)}
+          stepIndex={stepIndex}
+          stepCount={stepCount}
+          state={raceState}
+          onStateChange={setRaceState}
           hostPreview
         />
       ) : (

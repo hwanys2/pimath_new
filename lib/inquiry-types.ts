@@ -33,7 +33,7 @@ export type InquiryResponseRow = {
   submittedAt: string;
 };
 
-export type InquiryHostTab = "problem" | "status" | "responses";
+export type InquiryHostTab = "problem" | "status" | "responses" | "ranking";
 
 export const INQUIRY_POLL_MS = 1200;
 

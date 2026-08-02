@@ -3,10 +3,13 @@
 import { useCallback, useEffect, useRef, useState, useTransition } from "react";
 import InquiryWaitingScreen from "@/components/inquiry/InquiryWaitingScreen";
 import {
+  InquiryEquationOpsStep,
   InquiryLinearEquationBalanceStep,
   InquiryRadicalFillStep,
   balanceInitialState,
   balanceProblem,
+  equationOpsInitialState,
+  equationOpsProblem,
   getInquiryContent,
   isInquiryContentKey,
   radicalFillInitialState,
@@ -19,8 +22,11 @@ import { validateBalanceSubmit } from "@/lib/inquiry-linear-equation-balance";
 import type { SoftNotice as RadicalSoftNotice } from "@/components/inquiry/radical-fill/InquiryRadicalFillStep";
 import type { TermTexts } from "@/components/inquiry/radical-fill/InquiryRadicalFillStep";
 import type { TileWorkspace } from "@/lib/linear-equation-balance-math";
+import type { EquationOpsState } from "@/lib/equation-ops-math";
+import { isStateSolved, scoreForTime } from "@/lib/equation-ops-math";
 import * as radicalFillActions from "@/app/play/g3-u1-radical-fill/actions";
 import * as balanceActions from "@/app/play/g1-u2-2-linear-equation-balance/actions";
+import * as raceActions from "@/app/play/g1-u2-2-linear-equation-race/actions";
 import { effectiveInquiryStepCount } from "@/lib/inquiry-step-counts";
 import { INQUIRY_POLL_MS, type InquiryPollState } from "@/lib/inquiry-types";
 
@@ -60,6 +66,8 @@ function getActions(contentKey: InquiryContentKey) {
       return radicalFillActions;
     case "g1-u2-2-linear-equation-balance":
       return balanceActions;
+    case "g1-u2-2-linear-equation-race":
+      return raceActions;
   }
 }
 
@@ -83,6 +91,13 @@ export default function InquiryStudentView({
     right: [],
   });
   const [balanceMoves, setBalanceMoves] = useState(0);
+  const [raceState, setRaceState] = useState<EquationOpsState>({
+    balance: { left: { x: 0, unit: 0 }, right: { x: 0, unit: 0 } },
+    trail: [],
+    opCount: 0,
+  });
+  const [stepStartedAt, setStepStartedAt] = useState<number | null>(null);
+  const [earnedScore, setEarnedScore] = useState<number | null>(null);
   const [wrongAttempts, setWrongAttempts] = useState(0);
   const [radicalNotice, setRadicalNotice] = useState<RadicalSoftNotice | null>(
     null,
@@ -109,6 +124,10 @@ export default function InquiryStudentView({
       if (!validKey) return;
       if (validKey === "g3-u1-radical-fill") {
         setTexts(radicalFillInitialState(stepIndex));
+      } else if (validKey === "g1-u2-2-linear-equation-race") {
+        setRaceState(equationOpsInitialState(stepIndex));
+        setStepStartedAt(Date.now());
+        setEarnedScore(null);
       } else {
         setBalanceWorkspace(balanceInitialState(stepIndex));
         setBalanceMoves(0);
@@ -244,6 +263,35 @@ export default function InquiryStudentView({
     });
   };
 
+  const onSubmitRace = () => {
+    if (!sessionId || submitted || state.phase !== "live" || !validKey) return;
+    const problem = equationOpsProblem(state.stepIndex);
+    const elapsedMs = stepStartedAt ? Date.now() - stepStartedAt : 0;
+
+    if (!isStateSolved(raceState, problem.xValue)) {
+      const next = wrongRef.current + 1;
+      wrongRef.current = next;
+      setWrongAttempts(next);
+      return;
+    }
+
+    startTransition(async () => {
+      const result = await raceActions.inquirySubmitEquationOpsAction({
+        sessionId,
+        stepIndex: state.stepIndex,
+        state: raceState,
+        wrongs: wrongRef.current,
+        elapsedMs,
+      });
+      if ("error" in result) return;
+      const pts = scoreForTime(elapsedMs);
+      setEarnedScore(pts);
+      setSubmitted(true);
+      submittedRef.current = true;
+      setSubmitFeedback("correct");
+    });
+  };
+
   if (!config || !validKey) {
     return (
       <InquiryUnavailable message="알 수 없는 탐구 콘텐츠예요." />
@@ -326,6 +374,20 @@ export default function InquiryStudentView({
             submitted={submitted}
             submitFeedback={submitFeedback}
             onSubmit={onSubmitRadical}
+          />
+        ) : validKey === "g1-u2-2-linear-equation-race" ? (
+          <InquiryEquationOpsStep
+            problem={equationOpsProblem(state.stepIndex)}
+            stepIndex={state.stepIndex}
+            stepCount={stepCount}
+            state={raceState}
+            onStateChange={setRaceState}
+            disabled={isPending}
+            submitted={submitted}
+            submitFeedback={submitFeedback}
+            earnedScore={earnedScore}
+            stepStartedAt={stepStartedAt ?? undefined}
+            onSubmit={onSubmitRace}
           />
         ) : (
           <InquiryLinearEquationBalanceStep

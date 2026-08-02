@@ -87,6 +87,17 @@ export const CONTENTS: ContentMeta[] = [
       "양팔저울과 대수막대(x, −x, 1, −1)로 등식의 성질을 탐구하고 일차방정식을 풀어 보는 활동. 학생은 선생님이 수업을 시작할 때만 참여해요.",
   },
   {
+    key: "g1-u2-2-linear-equation-race",
+    unitId: "g1-2-2",
+    type: "inquiry",
+    title: "일차방정식 레이스",
+    href: "/play/g1-u2-2-linear-equation-race",
+    awardsXp: true,
+    inquiry: { stepCount: 10, grading: "auto", scoring: true },
+    description:
+      "연산을 선택해 일차방정식을 풀고 속도로 점수를 겨루는 탐구 게임. 학생은 선생님이 수업을 시작할 때만 참여해요.",
+  },
+  {
     key: "g1-u2-3-ordered-pair-omok",
     unitId: "g1-2-3",
     type: "game",

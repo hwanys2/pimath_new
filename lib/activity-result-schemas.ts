@@ -37,6 +37,13 @@ export const SUMMARY_LABELS: Record<string, Record<string, string>> = {
     inquirySession: "탐구 수업",
     moves: "조작 횟수",
   },
+  "g1-u2-2-linear-equation-race": {
+    correctCount: "정답",
+    problemCount: "문제 수",
+    totalTimeMs: "총 소요(ms)",
+    avgScorePerProblem: "평균 점수",
+    inquirySession: "탐구 수업",
+  },
   "g1-u1-1-prime-hunt": {
     roundsPlayed: "라운드",
     correctCount: "정답",

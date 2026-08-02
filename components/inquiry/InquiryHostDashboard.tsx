@@ -3,13 +3,17 @@
 import { useCallback, useEffect, useState, useTransition } from "react";
 import type { TeacherClassOption } from "@/components/content/AssignContentButton";
 import InquiryResponsePanel from "@/components/inquiry/InquiryResponsePanel";
+import InquiryLiveRanking from "@/components/inquiry/InquiryLiveRanking";
 import InquirySpectatorView from "@/components/inquiry/InquirySpectatorView";
 import InquiryStatusGrid from "@/components/inquiry/InquiryStatusGrid";
 import {
+  InquiryEquationOpsStep,
   InquiryLinearEquationBalanceStep,
   InquiryRadicalFillStep,
   balanceInitialState,
   balanceProblem,
+  equationOpsInitialState,
+  equationOpsProblem,
   getInquiryContent,
   isInquiryContentKey,
   radicalFillInitialState,
@@ -24,6 +28,7 @@ import {
 } from "@/lib/inquiry-types";
 import * as radicalFillActions from "@/app/play/g3-u1-radical-fill/actions";
 import * as balanceActions from "@/app/play/g1-u2-2-linear-equation-balance/actions";
+import * as raceActions from "@/app/play/g1-u2-2-linear-equation-race/actions";
 import { effectiveInquiryStepCount } from "@/lib/inquiry-step-counts";
 
 const IDLE: InquiryPollState = {
@@ -63,6 +68,8 @@ function getActions(contentKey: InquiryContentKey) {
       return radicalFillActions;
     case "g1-u2-2-linear-equation-balance":
       return balanceActions;
+    case "g1-u2-2-linear-equation-race":
+      return raceActions;
   }
 }
 
@@ -99,11 +106,18 @@ export default function InquiryHostDashboard({
       ? balanceInitialState(0)
       : { left: [], right: [] },
   );
+  const [previewRace, setPreviewRace] = useState(
+    validKey === "g1-u2-2-linear-equation-race"
+      ? equationOpsInitialState(0)
+      : { balance: { left: { x: 0, unit: 0 }, right: { x: 0, unit: 0 } }, trail: [], opCount: 0 },
+  );
 
   useEffect(() => {
     if (!validKey) return;
     if (validKey === "g3-u1-radical-fill") {
       setPreviewTexts(radicalFillInitialState(state.stepIndex));
+    } else if (validKey === "g1-u2-2-linear-equation-race") {
+      setPreviewRace(equationOpsInitialState(state.stepIndex));
     } else {
       setPreviewBalance(balanceInitialState(state.stepIndex));
     }
@@ -225,6 +239,7 @@ export default function InquiryHostDashboard({
     { id: "problem", label: "문제 화면" },
     { id: "status", label: "접속 현황" },
     { id: "responses", label: "학생 응답" },
+    ...(config?.hasLiveRanking ? [{ id: "ranking" as const, label: "랭킹" }] : []),
   ];
 
   if (!config || !validKey) {
@@ -376,6 +391,15 @@ export default function InquiryHostDashboard({
                 onTextsChange={setPreviewTexts}
                 hostPreview
               />
+            ) : validKey === "g1-u2-2-linear-equation-race" ? (
+              <InquiryEquationOpsStep
+                problem={equationOpsProblem(state.stepIndex)}
+                stepIndex={state.stepIndex}
+                stepCount={stepCount}
+                state={previewRace}
+                onStateChange={setPreviewRace}
+                hostPreview
+              />
             ) : (
               <InquiryLinearEquationBalanceStep
                 problem={balanceProblem(state.stepIndex)}
@@ -409,6 +433,18 @@ export default function InquiryHostDashboard({
                 selectedStep={selectedStep}
                 onStepChange={setSelectedStep}
                 contentKey={contentKey}
+              />
+            </section>
+          ) : null}
+
+          {tab === "ranking" ? (
+            <section className="quest-card p-4 sm:p-5">
+              <InquiryLiveRanking
+                responses={responses}
+                stepCount={stepCount}
+                title={
+                  state.phase === "closed" ? "최종 랭킹" : "실시간 랭킹"
+                }
               />
             </section>
           ) : null}
