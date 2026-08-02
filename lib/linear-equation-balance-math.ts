@@ -754,19 +754,6 @@ export const PROBLEMS: BalanceProblem[] = [
   },
   {
     id: "step-6",
-    title: "x 항 옮기기",
-    instruction: "3x = x + 8 을 풀어 보세요. x 막대를 양변에서 맞춰 빼 보세요.",
-    targetLatex: "3x = x + 8",
-    xValue: 4,
-    initial: { left: { x: 3, unit: 0 }, right: { x: 1, unit: 8 } },
-    hints: [
-      "양변에서 x 막대를 1개씩 빼 보세요.",
-      "2x = 8 이 되면 x = 4!",
-    ],
-    allowNegatives: true,
-  },
-  {
-    id: "step-7",
     title: "양변 나누기",
     instruction:
       "2x = 6 을 풀어 보세요. 양변을 똑같이 나눠도 등식은 성립해요.",
@@ -776,6 +763,20 @@ export const PROBLEMS: BalanceProblem[] = [
     hints: [
       "「양변을 2로 나누기」 버튼을 눌러 보세요.",
       "x = 3 이 되면 맞아요.",
+    ],
+    allowNegatives: true,
+    scaleOps: { divide: true },
+  },
+  {
+    id: "step-7",
+    title: "x 항 옮기기",
+    instruction: "3x = x + 8 을 풀어 보세요. x 막대를 양변에서 맞춰 빼 보세요.",
+    targetLatex: "3x = x + 8",
+    xValue: 4,
+    initial: { left: { x: 3, unit: 0 }, right: { x: 1, unit: 8 } },
+    hints: [
+      "양변에서 x 막대를 1개씩 빼 보세요.",
+      "2x = 8 이 되면 「양변을 2로 나누기」로 x = 4!",
     ],
     allowNegatives: true,
     scaleOps: { divide: true },

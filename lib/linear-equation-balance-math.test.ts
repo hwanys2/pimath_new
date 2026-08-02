@@ -38,11 +38,26 @@ describe("linear-equation-balance-math", () => {
   });
 
   it("shows divide only when x coefficient is 2+ on one side", () => {
-    const p = problemAt(7);
+    const p = problemAt(6);
     const ws = emptyTileWorkspace(p);
     const ops = getPedagogicalScaleOperations(ws, p);
     assert.deepEqual(ops.divide, [2]);
     assert.equal(ops.flip, false);
+  });
+
+  it("shows divide on 3x = x + 8 after moving x to one side", () => {
+    const p = problemAt(7);
+    const start = emptyTileWorkspace(p);
+    assert.deepEqual(getPedagogicalScaleOperations(start, p).divide, []);
+
+    const readyToDivide = workspaceFromBalance({
+      left: { x: 2, unit: 0 },
+      right: { x: 0, unit: 8 },
+    });
+    assert.deepEqual(
+      getPedagogicalScaleOperations(readyToDivide, p).divide,
+      [2],
+    );
   });
 
   it("hides divide on step 9 until x is on one side only", () => {
