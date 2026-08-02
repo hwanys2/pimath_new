@@ -66,6 +66,8 @@ export type BalanceProblem = {
     flip?: boolean;
     multiply?: boolean;
     divide?: boolean;
+    /** 자유 입력 곱/나누기 (13번 문항~) */
+    free?: boolean;
   };
 };
 
@@ -595,13 +597,19 @@ export function getPedagogicalScaleOperations(
   ws: TileWorkspace,
   problem: BalanceProblem,
 ): {
+  free: boolean;
   flip: boolean;
   multiply: number[];
   divide: number[];
 } {
   const allowed = problem.scaleOps ?? {};
 
+  if (allowed.free) {
+    return { free: true, flip: false, multiply: [], divide: [] };
+  }
+
   return {
+    free: false,
     flip:
       Boolean(allowed.flip) &&
       hasNegativeXTiles(ws) &&
@@ -663,6 +671,97 @@ export function divideBothSides(ws: TileWorkspace, n: number): TileWorkspace {
   rightResult = takeFraction(rightResult, "neg_one", rc.neg_one / n);
 
   return { left: leftResult, right: rightResult };
+}
+
+export type ScaleValidationReason = "ok" | "zero" | "not_integer" | "too_many_tiles" | "not_divisible" | "empty_pan";
+
+export type ScaleValidation = {
+  ok: boolean;
+  reason: ScaleValidationReason;
+};
+
+/** 자유 스케일 입력 파싱 — 정수만 허용 */
+export function parseScaleInput(raw: string): number | null {
+  const trimmed = raw.trim();
+  if (!trimmed) return null;
+  const n = Number(trimmed);
+  if (!Number.isFinite(n) || !Number.isInteger(n)) return null;
+  return n;
+}
+
+function tileCountsDivisible(c: TileCounts, divisor: number): boolean {
+  const abs = Math.abs(divisor);
+  return (
+    c.x % abs === 0 &&
+    c.neg_x % abs === 0 &&
+    c.half_x % abs === 0 &&
+    c.neg_half_x % abs === 0 &&
+    c.one % abs === 0 &&
+    c.neg_one % abs === 0
+  );
+}
+
+export function canScaleMultiply(ws: TileWorkspace, n: number): ScaleValidation {
+  if (n === 0) return { ok: false, reason: "zero" };
+  if (!Number.isInteger(n)) return { ok: false, reason: "not_integer" };
+  if (ws.left.length === 0 || ws.right.length === 0) {
+    return { ok: false, reason: "empty_pan" };
+  }
+  const factor = Math.abs(n);
+  if (factor === 1) return { ok: true, reason: "ok" };
+  if (ws.left.length * factor > MAX_TILES_PER_PAN || ws.right.length * factor > MAX_TILES_PER_PAN) {
+    return { ok: false, reason: "too_many_tiles" };
+  }
+  return { ok: true, reason: "ok" };
+}
+
+export function canScaleDivide(ws: TileWorkspace, n: number): ScaleValidation {
+  if (n === 0) return { ok: false, reason: "zero" };
+  if (!Number.isInteger(n)) return { ok: false, reason: "not_integer" };
+  if (ws.left.length === 0 || ws.right.length === 0) {
+    return { ok: false, reason: "empty_pan" };
+  }
+  const abs = Math.abs(n);
+  if (abs === 1) return { ok: true, reason: "ok" };
+  const lc = countTiles(ws.left);
+  const rc = countTiles(ws.right);
+  if (!tileCountsDivisible(lc, abs) || !tileCountsDivisible(rc, abs)) {
+    return { ok: false, reason: "not_divisible" };
+  }
+  return { ok: true, reason: "ok" };
+}
+
+export function scaleMultiplyBothSides(ws: TileWorkspace, n: number): TileWorkspace {
+  if (n === 0 || n === 1) return ws;
+  if (n === -1) return flipBothSides(ws);
+  if (n > 1) return multiplyBothSides(ws, n);
+  return flipBothSides(multiplyBothSides(ws, Math.abs(n)));
+}
+
+export function scaleDivideBothSides(ws: TileWorkspace, n: number): TileWorkspace {
+  if (n === 0) return ws;
+  if (n === 1 || n === -1) return flipBothSides(ws);
+  const abs = Math.abs(n);
+  let result = divideBothSides(ws, abs);
+  if (n < 0) result = flipBothSides(result);
+  return result;
+}
+
+export function scaleValidationMessage(reason: ScaleValidationReason): string {
+  switch (reason) {
+    case "zero":
+      return "0은 넣을 수 없어요.";
+    case "not_integer":
+      return "정수만 넣을 수 있어요.";
+    case "too_many_tiles":
+      return "막대가 너무 많아져요.";
+    case "not_divisible":
+      return "나누어떨어지지 않아요.";
+    case "empty_pan":
+      return "양쪽 접시에 막대가 있어야 해요.";
+    default:
+      return "";
+  }
 }
 
 export function finalizeWorkspace(ws: TileWorkspace): TileWorkspace {
@@ -841,22 +940,23 @@ export const PROBLEMS: BalanceProblem[] = [
   {
     id: "step-12",
     title: "음수 계수 종합",
-    instruction: "−2x + 4 = −2 를 풀어 보세요.",
+    instruction:
+      "−2x + 4 = −2 를 풀어 보세요. 아래에서 곱하거나 나눌 숫자를 직접 넣어 보세요.",
     targetLatex: "-2x + 4 = -2",
     xValue: 3,
     initial: { left: { x: -2, unit: 4 }, right: { x: 0, unit: -2 } },
     hints: [
       "양변에서 +1을 4개씩 빼 보세요.",
-      "양변을 2로 나눈 뒤, 부호 바꾸기로 x = 3 을 확인하세요.",
+      "−2x = −6 이 되면 나눌 숫자를 직접 입력해 보세요. (−2로 나누면 x = 3)",
     ],
     allowNegatives: true,
-    scaleOps: { divide: true, flip: true },
+    scaleOps: { free: true },
   },
   {
     id: "step-13",
     title: "종합 도전 1",
     instruction:
-      "2x + 5 = x + 12 를 풀어 보세요. x 막대와 상수를 모두 활용해 보세요.",
+      "2x + 5 = x + 12 를 풀어 보세요. 필요하면 아래에서 곱하거나 나눌 숫자를 직접 넣어 보세요.",
     targetLatex: "2x + 5 = x + 12",
     xValue: 7,
     initial: { left: { x: 2, unit: 5 }, right: { x: 1, unit: 12 } },
@@ -865,21 +965,22 @@ export const PROBLEMS: BalanceProblem[] = [
       "x + 5 = 12 가 되면 x = 7!",
     ],
     allowNegatives: true,
+    scaleOps: { free: true },
   },
   {
     id: "step-14",
     title: "종합 도전 2",
     instruction:
-      "3x − 4 = x + 8 을 풀어 보세요. x를 모은 뒤 나누기까지 써 보세요.",
+      "3x − 4 = x + 8 을 풀어 보세요. x를 모은 뒤 나눌 숫자를 직접 입력해 보세요.",
     targetLatex: "3x - 4 = x + 8",
     xValue: 6,
     initial: { left: { x: 3, unit: -4 }, right: { x: 1, unit: 8 } },
     hints: [
       "양변에서 x 막대를 1개씩 빼 보세요.",
-      "2x − 4 = 8 이 되면 +4를 더하고, 2로 나누면 x = 6!",
+      "2x − 4 = 8 이 되면 +4를 더하고, 나눌 숫자를 직접 입력해 보세요.",
     ],
     allowNegatives: true,
-    scaleOps: { divide: true },
+    scaleOps: { free: true },
   },
 ];
 

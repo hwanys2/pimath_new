@@ -4,6 +4,8 @@ import {
   PROBLEMS,
   PROBLEM_COUNT,
   assertAllProblemsBalanced,
+  canScaleDivide,
+  canScaleMultiply,
   checkAnswer,
   divideBothSides,
   emptyTileWorkspace,
@@ -14,6 +16,8 @@ import {
   multiplyBothSides,
   panValue,
   problemAt,
+  scaleDivideBothSides,
+  scaleMultiplyBothSides,
   workspaceFromBalance,
   workspaceToBalance,
 } from "@/lib/linear-equation-balance-math";
@@ -33,6 +37,7 @@ describe("linear-equation-balance-math", () => {
     const ws = emptyTileWorkspace(p);
     const ops = getPedagogicalScaleOperations(ws, p);
     assert.equal(ops.flip, false);
+    assert.equal(ops.free, false);
     assert.equal(ops.multiply.length, 0);
     assert.equal(ops.divide.length, 0);
   });
@@ -148,9 +153,54 @@ describe("linear-equation-balance-math", () => {
       left: { x: -2, unit: 0 },
       right: { x: 0, unit: -6 },
     });
-    ws = divideBothSides(ws, 2);
-    ws = flipBothSides(ws);
+    ws = scaleDivideBothSides(ws, -2);
     assert.ok(isSolved(ws, p.xValue));
     assert.equal(checkAnswer(p, ws).ok, true);
+  });
+
+  it("free mode problems return free flag", () => {
+    for (const idx of [12, 13, 14]) {
+      const p = problemAt(idx);
+      const ws = emptyTileWorkspace(p);
+      const ops = getPedagogicalScaleOperations(ws, p);
+      assert.equal(ops.free, true, `problem ${idx + 1}`);
+      assert.equal(ops.flip, false);
+      assert.deepEqual(ops.multiply, []);
+      assert.deepEqual(ops.divide, []);
+    }
+  });
+
+  it("scaleMultiplyBothSides handles negative factor", () => {
+    const p = problemAt(6);
+    const ws = emptyTileWorkspace(p);
+    const scaled = scaleMultiplyBothSides(ws, -2);
+    assert.ok(isBalancedWs(scaled, p.xValue));
+    assert.equal(panValue(scaled.left, p.xValue), panValue(ws.left, p.xValue) * -2);
+  });
+
+  it("scaleDivideBothSides by -2 on 2x = 6 gives balanced -x = -3", () => {
+    const p = problemAt(6);
+    const ws = emptyTileWorkspace(p);
+    const divided = scaleDivideBothSides(ws, -2);
+    assert.ok(isBalancedWs(divided, p.xValue));
+    const expr = workspaceToBalance(divided);
+    assert.equal(expr.left.x, -1);
+    assert.equal(expr.right.unit, -3);
+  });
+
+  it("canScaleDivide rejects zero and non-divisible divisors", () => {
+    const p = problemAt(6);
+    const ws = emptyTileWorkspace(p);
+    assert.equal(canScaleDivide(ws, 0).ok, false);
+    assert.equal(canScaleDivide(ws, 3).ok, false);
+    assert.equal(canScaleDivide(ws, 2).ok, true);
+  });
+
+  it("canScaleMultiply rejects zero and too many tiles", () => {
+    const p = problemAt(6);
+    const ws = emptyTileWorkspace(p);
+    assert.equal(canScaleMultiply(ws, 0).ok, false);
+    assert.equal(canScaleMultiply(ws, 2).ok, true);
+    assert.equal(canScaleMultiply(ws, 8).ok, false);
   });
 });

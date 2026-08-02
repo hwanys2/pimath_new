@@ -15,6 +15,7 @@ import BalanceScale, {
   TRASH_Y,
 } from "./BalanceScale";
 import ImbalanceCallout from "./ImbalanceCallout";
+import FreeScaleControls from "./FreeScaleControls";
 import TilePalette from "./TilePalette";
 import TrashZone, { TRASH_HIT_R } from "./TrashZone";
 import {
@@ -256,6 +257,7 @@ export default function BalanceWorkspace({
   const expr = workspaceToBalance(workspace);
   const scaleOps = getPedagogicalScaleOperations(workspace, problem);
   const showScaleOps =
+    scaleOps.free ||
     scaleOps.flip ||
     scaleOps.multiply.length > 0 ||
     scaleOps.divide.length > 0;
@@ -401,6 +403,13 @@ export default function BalanceWorkspace({
         </svg>
 
         {!readOnly && showScaleOps ? (
+          scaleOps.free ? (
+            <FreeScaleControls
+              workspace={workspace}
+              disabled={locked}
+              onApply={(next, action) => commitWorkspace(next, action)}
+            />
+          ) : (
           <div className="mt-1 space-y-2 border-t border-wood/10 px-2 pt-3">
             {scaleOps.flip ? (
               <div className="flex flex-wrap justify-center gap-2">
@@ -455,6 +464,7 @@ export default function BalanceWorkspace({
               </div>
             ) : null}
           </div>
+          )
         ) : null}
       </div>
 
