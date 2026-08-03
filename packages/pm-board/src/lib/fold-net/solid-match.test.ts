@@ -253,6 +253,10 @@ describe("fold transforms", () => {
     );
     const bVerts = tr.get("b")!.vertices;
     assert.ok(bVerts.some((v) => Math.abs(v.z) > 1), "folded face should leave the plane");
+    assert.ok(
+      bVerts.every((v) => v.z > 0),
+      "folded face should lift toward +Z (camera / sky)",
+    );
   });
 
   it("folds tetrahedron net with scene graph at t=1", () => {
