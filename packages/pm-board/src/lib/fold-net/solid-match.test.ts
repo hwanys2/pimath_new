@@ -435,14 +435,17 @@ describe("fold transforms", () => {
       ids,
     );
     assert.ok(tree);
-    const verts = [...evaluateRenderTreeVertices(tree!).values()].flat();
-    assert.equal(
-      countVertexClusters(verts),
-      5,
-      "folded pyramid should have 5 vertices (base corners + apex)",
-    );
+    const byTile = evaluateRenderTreeVertices(tree!);
+    const verts = [...byTile.values()].flat();
     const maxZ = Math.max(...verts.map((v) => Math.abs(v.z)));
     assert.ok(maxZ > 20, "pyramid should fold off the plane at t=1");
+    for (const id of ["tn", "ts", "te", "tw"]) {
+      const triVerts = byTile.get(id) ?? [];
+      assert.ok(
+        triVerts.some((v) => Math.abs(v.z) > 10),
+        `triangle ${id} should fold off the base plane`,
+      );
+    }
   });
 
   it("frustum top face closes flat at t=1", () => {

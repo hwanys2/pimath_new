@@ -1,6 +1,6 @@
 {
   "name": "@hwanys2/pm-board",
-  "version": "0.1.34",
+  "version": "0.1.35",
   "description": "Shared interactive whiteboard for pimath and foreducator",
   "type": "module",
   "license": "UNLICENSED",
