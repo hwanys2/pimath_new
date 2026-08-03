@@ -152,7 +152,10 @@ export default function FoldNetCanvas({
         e.stopPropagation();
         (e.currentTarget as Element).setPointerCapture?.(e.pointerId);
 
-        const dragIds = componentContaining(tiles, joins, tileId);
+        const dragIds =
+          selectedIds.includes(tileId) && selectedIds.length > 0
+            ? selectedIds
+            : [tileId];
 
         if (handle === "rotate") {
           const baseRots: Record<string, number> = {};
@@ -244,10 +247,7 @@ export default function FoldNetCanvas({
         onSelect(nextSelection);
       }
 
-      const dragIds =
-        nextSelection.length > 1
-          ? nextSelection
-          : componentContaining(tiles, joins, hit.id);
+      const dragIds = nextSelection;
 
       const origins: Record<string, { x: number; y: number; rotation: number }> =
         {};
@@ -559,17 +559,18 @@ export default function FoldNetCanvas({
               fill={geometryHidden ? "transparent" : def.color}
               stroke={
                 geometryHidden
-                  ? "transparent"
+                  ? "#1e3a5f"
                   : isSel
                     ? "#1e40af"
                     : isConnected
                       ? "#059669"
-                      : "rgba(0,0,0,0.25)"
+                      : "rgba(0,0,0,0.35)"
               }
               strokeWidth={
-                geometryHidden ? 0 : isSel ? 2.5 : isConnected ? 2 : 1.5
+                geometryHidden ? 1.8 : isSel ? 2.5 : isConnected ? 2 : 1.5
               }
-              opacity={geometryHidden ? 0 : 0.92}
+              strokeLinejoin="round"
+              opacity={geometryHidden ? 1 : 0.92}
             />
             {isSel && (
               <>

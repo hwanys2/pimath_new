@@ -1,14 +1,16 @@
 "use client";
 
-import { Edges, OrthographicCamera } from "@react-three/drei";
+import { Edges, OrbitControls, OrthographicCamera } from "@react-three/drei";
 import { Canvas } from "@react-three/fiber";
 import { useLayoutEffect, useMemo, useRef } from "react";
 import * as THREE from "three";
+import type { OrbitControls as OrbitControlsImpl } from "three-stdlib";
 import {
   SHAPE_DEFS,
   buildFoldRenderTree,
   connectedComponents,
   componentKey,
+  flatNetBounds2D,
   pickFoldRoot,
   worldVertices,
   type FoldRenderTree,
@@ -17,6 +19,7 @@ import {
   type HingeRenderNode,
   type Join,
   type NetFoldState,
+  type OrbitState,
 } from "../../lib/fold-net";
 
 type Props = {
@@ -25,15 +28,37 @@ type Props = {
   netFolds: NetFoldState[];
   viewportWidth: number;
   viewportHeight: number;
+  orbitEnabled: boolean;
+  orbit: OrbitState;
+  orbitTargetTileIds: string[];
+  onOrbitChange: (orbit: OrbitState) => void;
   className?: string;
 };
+
+function canvasToSceneY(y: number): number {
+  return -y;
+}
+
+function netCenter3D(
+  tiles: FoldTile[],
+  tileIds: string[],
+): { x: number; y: number; z: number } {
+  const bounds = flatNetBounds2D(tiles, tileIds);
+  return {
+    x: (bounds.minX + bounds.maxX) / 2,
+    y: canvasToSceneY((bounds.minY + bounds.maxY) / 2),
+    z: 0,
+  };
+}
 
 function TileMesh({
   tile,
   vertices,
+  folded = false,
 }: {
   tile: FoldTile;
   vertices: [number, number, number][];
+  folded?: boolean;
 }) {
   const def = SHAPE_DEFS[tile.kind];
 
@@ -62,8 +87,15 @@ function TileMesh({
         side={THREE.DoubleSide}
         roughness={0.5}
         metalness={0.05}
+        polygonOffset
+        polygonOffsetFactor={1}
+        polygonOffsetUnits={1}
       />
-      <Edges color="#1e3a5f" threshold={15} />
+      <Edges
+        color={folded ? "#0f172a" : "#1e3a5f"}
+        threshold={1}
+        linewidth={folded ? 2 : 1.5}
+      />
     </mesh>
   );
 }
@@ -88,7 +120,7 @@ function HingeSubtree({
   return (
     <group position={[hinge.pivot[0], hinge.pivot[1], hinge.pivot[2]]}>
       <group quaternion={quat}>
-        <TileMesh tile={tile} vertices={hinge.vertices} />
+        <TileMesh tile={tile} vertices={hinge.vertices} folded />
         {hinge.children.map((child) => (
           <HingeSubtree key={child.joinId} hinge={child} tiles={tiles} />
         ))}
@@ -109,7 +141,7 @@ function FoldedNet({
 
   return (
     <group>
-      <TileMesh tile={rootTile} vertices={renderTree.rootVertices} />
+      <TileMesh tile={rootTile} vertices={renderTree.rootVertices} folded />
       {renderTree.hinges.map((h) => (
         <HingeSubtree key={h.joinId} hinge={h} tiles={tiles} />
       ))}
@@ -225,9 +257,14 @@ export default function FoldNetScene({
   netFolds,
   viewportWidth,
   viewportHeight,
+  orbitEnabled,
+  orbit,
+  orbitTargetTileIds,
+  onOrbitChange,
   className,
 }: Props) {
   const cameraRef = useRef<THREE.OrthographicCamera | null>(null);
+  const controlsRef = useRef<OrbitControlsImpl | null>(null);
 
   const camFocus = useMemo(
     () => ({
@@ -236,6 +273,14 @@ export default function FoldNetScene({
       z: 0,
     }),
     [viewportWidth, viewportHeight],
+  );
+
+  const orbitTarget = useMemo(
+    () =>
+      orbitTargetTileIds.length > 0
+        ? netCenter3D(tiles, orbitTargetTileIds)
+        : camFocus,
+    [tiles, orbitTargetTileIds, camFocus],
   );
 
   useLayoutEffect(() => {
@@ -247,10 +292,27 @@ export default function FoldNetScene({
     cam.bottom = -viewportHeight;
     cam.near = -5000;
     cam.far = 5000;
-    cam.position.set(camFocus.x, camFocus.y, 1000);
-    cam.lookAt(camFocus.x, camFocus.y, 0);
+    if (orbitEnabled) {
+      cam.position.set(
+        orbitTarget.x + 400 * Math.sin(orbit.azimuth) * Math.sin(orbit.polar),
+        orbitTarget.y + 400 * Math.cos(orbit.polar),
+        orbitTarget.z + 400 * Math.cos(orbit.azimuth) * Math.sin(orbit.polar),
+      );
+      cam.lookAt(orbitTarget.x, orbitTarget.y, orbitTarget.z);
+    } else {
+      cam.position.set(camFocus.x, camFocus.y, 1000);
+      cam.lookAt(camFocus.x, camFocus.y, 0);
+    }
     cam.updateProjectionMatrix();
-  }, [viewportWidth, viewportHeight, camFocus]);
+  }, [viewportWidth, viewportHeight, camFocus, orbitEnabled, orbit, orbitTarget]);
+
+  useLayoutEffect(() => {
+    const ctrl = controlsRef.current;
+    if (!ctrl || !orbitEnabled) return;
+    ctrl.target.set(orbitTarget.x, orbitTarget.y, orbitTarget.z);
+    ctrl.setAzimuthalAngle(orbit.azimuth);
+    ctrl.setPolarAngle(orbit.polar);
+  }, [orbitTarget, orbit, orbitEnabled]);
 
   return (
     <Canvas
@@ -259,14 +321,29 @@ export default function FoldNetScene({
       style={{ background: "transparent" }}
       orthographic
     >
-      <OrthographicCamera
-        ref={cameraRef}
-        makeDefault
-        position={[camFocus.x, camFocus.y, 1000]}
-      />
+      <OrthographicCamera ref={cameraRef} makeDefault />
       <ambientLight intensity={0.7} />
       <directionalLight intensity={0.9} position={[200, 400, 600]} />
       <SceneContent tiles={tiles} joins={joins} netFolds={netFolds} />
+      {orbitEnabled && (
+        <OrbitControls
+          ref={controlsRef}
+          makeDefault
+          enablePan={false}
+          enableZoom={false}
+          target={[orbitTarget.x, orbitTarget.y, orbitTarget.z]}
+          minPolarAngle={0.2}
+          maxPolarAngle={Math.PI - 0.2}
+          onEnd={() => {
+            const ctrl = controlsRef.current;
+            if (!ctrl) return;
+            onOrbitChange({
+              azimuth: ctrl.getAzimuthalAngle(),
+              polar: ctrl.getPolarAngle(),
+            });
+          }}
+        />
+      )}
     </Canvas>
   );
 }

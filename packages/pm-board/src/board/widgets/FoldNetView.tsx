@@ -2,7 +2,13 @@
 
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import FoldNetCanvas from "./FoldNetCanvas";
-import { componentContaining, type FoldTile, type Join, type NetFoldState } from "../../lib/fold-net";
+import {
+  componentContaining,
+  type FoldTile,
+  type Join,
+  type NetFoldState,
+  type OrbitState,
+} from "../../lib/fold-net";
 
 const FoldNetScene = lazy(() => import("./FoldNetScene"));
 
@@ -10,22 +16,28 @@ type Props = {
   tiles: FoldTile[];
   joins: Join[];
   selectedIds: string[];
+  selectedComp: string[] | null;
+  selectedUnfoldT: number;
   netFolds: NetFoldState[];
-  editing: boolean;
+  orbit: OrbitState;
   onChangeTiles: (tiles: FoldTile[]) => void;
   onChangeJoins: (joins: Join[]) => void;
   onSelect: (ids: string[]) => void;
+  onOrbitChange: (orbit: OrbitState) => void;
 };
 
 export default function FoldNetView({
   tiles,
   joins,
   selectedIds,
+  selectedComp,
+  selectedUnfoldT,
   netFolds,
-  editing,
+  orbit,
   onChangeTiles,
   onChangeJoins,
   onSelect,
+  onOrbitChange,
 }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [viewport, setViewport] = useState({ width: 640, height: 480 });
@@ -57,7 +69,8 @@ export default function FoldNetView({
     return [...set];
   }, [tiles, joins, selectedIds]);
 
-  const showEditOverlay = editing && selectedIds.length > 0;
+  const editing = selectedUnfoldT < 0.005;
+  const orbitEnabled = selectedUnfoldT > 0.05 && !!selectedComp;
 
   return (
     <div
@@ -78,11 +91,15 @@ export default function FoldNetView({
             netFolds={netFolds}
             viewportWidth={viewport.width}
             viewportHeight={viewport.height}
+            orbitEnabled={orbitEnabled}
+            orbit={orbit}
+            orbitTargetTileIds={selectedComp ?? []}
+            onOrbitChange={onOrbitChange}
             className="h-full w-full"
           />
         </Suspense>
       </div>
-      {showEditOverlay && (
+      {editing && (
         <div className="absolute inset-0 z-10">
           <FoldNetCanvas
             tiles={tiles}
@@ -94,6 +111,11 @@ export default function FoldNetView({
             onChangeJoins={onChangeJoins}
             onSelect={onSelect}
           />
+        </div>
+      )}
+      {orbitEnabled && (
+        <div className="pointer-events-none absolute bottom-2 left-2 z-20 rounded-md bg-black/50 px-2 py-1 text-[10px] text-white/90">
+          드래그로 회전
         </div>
       )}
     </div>

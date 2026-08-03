@@ -7,6 +7,7 @@ import {
   SHAPE_DEFS,
   SHAPE_PALETTE_ORDER,
   canFoldNet,
+  componentContaining,
   componentKey,
   createTileId,
   describeWhyNoMatch,
@@ -120,6 +121,11 @@ export default function FoldNetWidget({ state, setState }: Props) {
   }, [s.tiles, s.joins, s.selectedIds]);
 
   const foldTileIds = selectedComp ?? [];
+
+  const selectedConnectedIds = useMemo(() => {
+    if (s.selectedIds.length !== 1) return [];
+    return componentContaining(s.tiles, s.joins, s.selectedIds[0]);
+  }, [s.tiles, s.joins, s.selectedIds]);
 
   const selectedNetFold = useMemo(
     () =>
@@ -298,8 +304,13 @@ export default function FoldNetWidget({ state, setState }: Props) {
   };
 
   const activeNetFolds = useMemo(
-    () => (s.netFolds ?? []).filter((n) => n.unfoldT > 0.005),
+    () => (s.netFolds ?? []).filter((n) => n.unfoldT > 0),
     [s.netFolds],
+  );
+
+  const handleOrbitChange = useCallback(
+    (orbit: FoldNetState["orbit"]) => patch({ orbit }),
+    [patch],
   );
 
   return (
@@ -320,7 +331,12 @@ export default function FoldNetWidget({ state, setState }: Props) {
         ))}
         {!editing && selectedComp && (
           <span className="ml-2 text-[11px] text-wood/60">
-            펼치려면 슬라이더를 왼쪽으로
+            펼치려면 슬라이더를 왼쪽으로 · 드래그로 회전
+          </span>
+        )}
+        {editing && (
+          <span className="ml-2 text-[11px] text-wood/60">
+            타일 클릭 선택 · Shift+클릭 다중 선택 · 접합 해제로 분리
           </span>
         )}
       </div>
@@ -330,10 +346,16 @@ export default function FoldNetWidget({ state, setState }: Props) {
           tiles={s.tiles}
           joins={s.joins}
           selectedIds={s.selectedIds}
+          selectedComp={selectedComp}
+          selectedUnfoldT={selectedUnfoldT}
           netFolds={activeNetFolds}
-          editing={editing}
+          orbit={s.orbit}
           onChangeTiles={(tiles) => {
-            const touched = new Set(foldTileIds);
+            const touched = new Set(
+              selectedComp && selectedComp.length > 0
+                ? selectedComp
+                : s.selectedIds,
+            );
             patch({
               tiles,
               netFolds: clearNetFoldsTouching(s.netFolds ?? [], touched),
@@ -341,7 +363,11 @@ export default function FoldNetWidget({ state, setState }: Props) {
             });
           }}
           onChangeJoins={(joins) => {
-            const touched = new Set(foldTileIds);
+            const touched = new Set(
+              selectedComp && selectedComp.length > 0
+                ? selectedComp
+                : s.selectedIds,
+            );
             patch({
               joins,
               netFolds: clearNetFoldsTouching(s.netFolds ?? [], touched),
@@ -349,6 +375,7 @@ export default function FoldNetWidget({ state, setState }: Props) {
             });
           }}
           onSelect={(selectedIds) => patch({ selectedIds })}
+          onOrbitChange={handleOrbitChange}
         />
         <FoldNetFloatingToolbar
           containerRef={canvasRef}
@@ -371,6 +398,22 @@ export default function FoldNetWidget({ state, setState }: Props) {
           >
             접합 해제
           </button>
+          {s.selectedIds.length === 1 && selectedConnectedIds.length > 1 && (
+            <button
+              type="button"
+              className="rounded-lg bg-black/10 px-2.5 py-1 text-xs font-medium"
+              onClick={() => {
+                const comp = componentContaining(
+                  s.tiles,
+                  s.joins,
+                  s.selectedIds[0],
+                );
+                patch({ selectedIds: comp });
+              }}
+            >
+              전개도 전체 선택
+            </button>
+          )}
         </div>
       )}
 
