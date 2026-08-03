@@ -4,6 +4,7 @@ import { Bounds, Edges, OrbitControls } from "@react-three/drei";
 import { Canvas } from "@react-three/fiber";
 import { useLayoutEffect, useMemo, useRef } from "react";
 import * as THREE from "three";
+import type { OrbitControls as OrbitControlsImpl } from "three-stdlib";
 import {
   buildBoxFaceKeyframes,
   hingeAngleRad,
@@ -205,6 +206,9 @@ export default function FoldNetScene({
   onOrbitChange,
   className,
 }: Props) {
+  const controlsRef = useRef<OrbitControlsImpl | null>(null);
+  void orbit;
+
   return (
     <Canvas
       className={className}
@@ -224,22 +228,20 @@ export default function FoldNetScene({
         <SolidContent tree={tree} unfoldT={unfoldT} />
       </Bounds>
       <OrbitControls
+        ref={controlsRef}
         makeDefault
         enablePan={false}
         target={[0, 0, 0]}
         minPolarAngle={0.2}
         maxPolarAngle={Math.PI - 0.2}
-        onEnd={(e) => {
-          const ctrl = e.target;
+        onEnd={() => {
+          const ctrl = controlsRef.current;
+          if (!ctrl) return;
           onOrbitChange({
             azimuth: ctrl.getAzimuthalAngle(),
             polar: ctrl.getPolarAngle(),
           });
         }}
-        // Apply saved orbit once via key remount parent if needed
-        {...(Number.isFinite(orbit.azimuth)
-          ? {}
-          : {})}
       />
     </Canvas>
   );
