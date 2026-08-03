@@ -5,7 +5,7 @@ import {
   SHAPE_DEFS,
   applyMagnetSnap,
   componentContaining,
-  detachMovingJoins,
+  discoverAlignedJoins,
   edgeCount,
   joinEdgesAligned,
   pointInPolygon,
@@ -143,6 +143,17 @@ export default function FoldNetCanvas({
     [joins],
   );
 
+  const pruneJoinsIfNeeded = useCallback(
+    (nextTiles: FoldTile[]) => {
+      const pruned = pruneSeparatedJoins(nextTiles, joinsRef.current);
+      if (pruned.length !== joinsRef.current.length) {
+        joinsRef.current = pruned;
+        onChangeJoins(pruned);
+      }
+    },
+    [onChangeJoins],
+  );
+
   const onPointerDown = useCallback(
     (e: React.PointerEvent) => {
       if (e.button !== 0) return;
@@ -161,11 +172,6 @@ export default function FoldNetCanvas({
           selectedIds.includes(tileId) && selectedIds.length > 0
             ? selectedIds
             : [tileId];
-
-        const brokenJoins = detachMovingJoins(joinsRef.current, dragIds);
-        if (brokenJoins.length !== joinsRef.current.length) {
-          onChangeJoins(brokenJoins);
-        }
 
         if (handle === "rotate") {
           const baseRots: Record<string, number> = {};
@@ -259,11 +265,6 @@ export default function FoldNetCanvas({
 
       const dragIds = nextSelection;
 
-      const brokenJoins = detachMovingJoins(joinsRef.current, dragIds);
-      if (brokenJoins.length !== joinsRef.current.length) {
-        onChangeJoins(brokenJoins);
-      }
-
       const origins: Record<string, { x: number; y: number; rotation: number }> =
         {};
       for (const id of dragIds) {
@@ -301,6 +302,7 @@ export default function FoldNetCanvas({
           };
         });
         onChangeTiles(next);
+        pruneJoinsIfNeeded(next);
         updateSnapPreview(next, drag.ids, p);
         return;
       }
@@ -316,6 +318,7 @@ export default function FoldNetCanvas({
           };
         });
         onChangeTiles(next);
+        pruneJoinsIfNeeded(next);
         updateSnapPreview(next, drag.ids, p);
         return;
       }
@@ -330,6 +333,7 @@ export default function FoldNetCanvas({
           return { ...t, edgeScale: es };
         });
         onChangeTiles(next);
+        pruneJoinsIfNeeded(next);
         updateSnapPreview(next, [drag.id], p);
         return;
       }
@@ -344,6 +348,7 @@ export default function FoldNetCanvas({
           return { ...t, edgeScale: es };
         });
         onChangeTiles(next);
+        pruneJoinsIfNeeded(next);
         updateSnapPreview(next, [drag.id], p);
         return;
       }
@@ -356,10 +361,11 @@ export default function FoldNetCanvas({
           return { ...t, x: o.x + dx, y: o.y + dy };
         });
         onChangeTiles(next);
+        pruneJoinsIfNeeded(next);
         updateSnapPreview(next, drag.ids, p);
       }
     },
-    [drag, tiles, toLocal, onChangeTiles, updateSnapPreview],
+    [drag, tiles, toLocal, onChangeTiles, updateSnapPreview, pruneJoinsIfNeeded],
   );
 
   const onPointerUp = useCallback(() => {
@@ -408,6 +414,7 @@ export default function FoldNetCanvas({
       );
       let nextJoins = join ? [...joinsRef.current, join] : joinsRef.current;
       nextJoins = pruneSeparatedJoins(snapped, nextJoins);
+      nextJoins = discoverAlignedJoins(snapped, nextJoins);
       onChangeTiles(snapped);
       onChangeJoins(nextJoins);
     }
@@ -450,13 +457,13 @@ export default function FoldNetCanvas({
   }, [preview, snapPreviewTiles]);
 
   const movingIdSet = useMemo(() => {
-    if (!snapPreviewTiles || !drag) return new Set<string>();
+    if (!drag) return new Set<string>();
     if (drag.type === "move" || drag.type === "rotate" || drag.type === "scale")
       return new Set(drag.ids);
     if (drag.type === "scaleX" || drag.type === "scaleY")
       return new Set([drag.id]);
     return new Set<string>();
-  }, [snapPreviewTiles, drag]);
+  }, [drag]);
 
   return (
     <svg
@@ -526,49 +533,28 @@ export default function FoldNetCanvas({
       )}
 
       {tiles.map((tile) => {
-        const isGhost = snapPreviewTiles && movingIdSet.has(tile.id);
-        const displayTile =
-          isGhost && snapPreviewTiles
-            ? snapPreviewTiles.find((t) => t.id === tile.id) ?? tile
-            : tile;
-        const verts = worldVertices(isGhost ? tile : displayTile);
+        const isMoving = movingIdSet.has(tile.id);
+        const snapTile =
+          isMoving && snapPreviewTiles
+            ? snapPreviewTiles.find((t) => t.id === tile.id)
+            : null;
+        const showSnapOverlay =
+          snapTile &&
+          (Math.abs(snapTile.x - tile.x) > 0.5 ||
+            Math.abs(snapTile.y - tile.y) > 0.5 ||
+            Math.abs(snapTile.rotation - tile.rotation) > 0.001);
+        const verts = worldVertices(tile);
         const points = verts.map((v) => `${v.x},${v.y}`).join(" ");
         const def = SHAPE_DEFS[tile.kind];
         const isSel = selected.has(tile.id);
         const isConnected = connected.has(tile.id) && !isSel;
-        const b = tileBounds(isGhost ? tile : displayTile);
+        const b = tileBounds(tile);
         const handleX = (b.minX + b.maxX) / 2;
         const handleY = b.minY - 14;
         const scaleX = b.maxX + 6;
         const scaleY = b.maxY + 6;
         const scaleXHandle = b.maxX + 6;
         const scaleYHandle = b.minY - 6;
-
-        if (isGhost) {
-          const ghostVerts = worldVertices(displayTile);
-          const ghostPoints = ghostVerts.map((v) => `${v.x},${v.y}`).join(" ");
-          return (
-            <g key={tile.id}>
-              {!geometryHidden && (
-                <polygon
-                  points={points}
-                  fill={def.color}
-                  stroke="rgba(0,0,0,0.15)"
-                  strokeWidth={1.5}
-                  opacity={0.35}
-                />
-              )}
-              <polygon
-                points={ghostPoints}
-                fill={geometryHidden ? "transparent" : def.color}
-                stroke="#059669"
-                strokeWidth={2.5}
-                strokeDasharray="6 4"
-                opacity={geometryHidden ? 1 : 0.75}
-              />
-            </g>
-          );
-        }
 
         return (
           <g key={tile.id}>
@@ -590,6 +576,19 @@ export default function FoldNetCanvas({
               strokeLinejoin="round"
               opacity={0.92}
             />
+            {showSnapOverlay && snapTile && (
+              <polygon
+                points={worldVertices(snapTile)
+                  .map((v) => `${v.x},${v.y}`)
+                  .join(" ")}
+                fill={def.color}
+                stroke="#059669"
+                strokeWidth={2.5}
+                strokeDasharray="6 4"
+                opacity={0.55}
+                pointerEvents="none"
+              />
+            )}
             {isSel && (
               <>
                 <circle

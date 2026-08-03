@@ -16,6 +16,7 @@ import {
   removeJoinsForTiles,
   selectedComponentIds,
   solveClosureAngles,
+  syncNetFolds,
   tileBounds,
   type FoldNetState,
   type FoldTile,
@@ -127,12 +128,17 @@ export default function FoldNetWidget({ state, setState }: Props) {
     return componentContaining(s.tiles, s.joins, s.selectedIds[0]);
   }, [s.tiles, s.joins, s.selectedIds]);
 
+  const syncedNetFolds = useMemo(
+    () => syncNetFolds(s.tiles, s.joins, s.netFolds ?? []),
+    [s.tiles, s.joins, s.netFolds],
+  );
+
   const selectedNetFold = useMemo(
     () =>
       selectedComp
-        ? netFoldForComponent(s.netFolds ?? [], selectedComp)
+        ? netFoldForComponent(syncedNetFolds, selectedComp)
         : undefined,
-    [selectedComp, s.netFolds],
+    [selectedComp, syncedNetFolds],
   );
 
   const selectedUnfoldT = selectedNetFold?.unfoldT ?? 0;
@@ -247,23 +253,25 @@ export default function FoldNetWidget({ state, setState }: Props) {
   };
 
   const handleUnfoldTChange = (unfoldT: number) => {
-    if (!selectedComp) return;
-    const key = componentKey(selectedComp);
-    const root = pickFoldRoot(s.tiles, selectedComp) ?? selectedComp[0];
+    if (s.selectedIds.length === 0) return;
+    const comp = componentContaining(s.tiles, s.joins, s.selectedIds[0]);
+    if (comp.length < 2) return;
+    const key = componentKey(comp);
+    const root = pickFoldRoot(s.tiles, comp) ?? comp[0];
 
-    if (unfoldT > 0 && foldable) {
-      const existing = netFoldForComponent(s.netFolds ?? [], selectedComp);
+    if (unfoldT > 0 && canFoldNet(s.tiles, s.joins, comp)) {
+      const existing = netFoldForComponent(syncedNetFolds, comp);
       const solved = solveClosureAngles(
         s.tiles,
         s.joins,
-        selectedComp,
+        comp,
         existing?.hingeOverrides ?? s.hingeOverrides ?? [],
       );
       patch({
-        selectedIds: selectedComp,
-        netFolds: upsertNetFold(s.netFolds ?? [], {
+        selectedIds: comp,
+        netFolds: upsertNetFold(syncedNetFolds, {
           key,
-          tileIds: selectedComp,
+          tileIds: comp,
           unfoldT,
           foldRootId: root,
           hingeOverrides: solved.angles,
@@ -272,7 +280,7 @@ export default function FoldNetWidget({ state, setState }: Props) {
       });
     } else {
       patch({
-        netFolds: (s.netFolds ?? []).filter((n) => n.key !== key),
+        netFolds: syncedNetFolds.filter((n) => n.key !== key),
         unfoldT: 0,
         orbit: { azimuth: 0.55, polar: 1.05 },
       });
@@ -304,8 +312,8 @@ export default function FoldNetWidget({ state, setState }: Props) {
   };
 
   const activeNetFolds = useMemo(
-    () => (s.netFolds ?? []).filter((n) => n.unfoldT > 0),
-    [s.netFolds],
+    () => syncedNetFolds.filter((n) => n.unfoldT > 0),
+    [syncedNetFolds],
   );
 
   const handleOrbitChange = useCallback(
@@ -363,15 +371,9 @@ export default function FoldNetWidget({ state, setState }: Props) {
             });
           }}
           onChangeJoins={(joins) => {
-            const touched = new Set(
-              selectedComp && selectedComp.length > 0
-                ? selectedComp
-                : s.selectedIds,
-            );
             patch({
               joins,
-              netFolds: clearNetFoldsTouching(s.netFolds ?? [], touched),
-              unfoldT: 0,
+              netFolds: syncNetFolds(s.tiles, joins, syncedNetFolds),
             });
           }}
           onSelect={(selectedIds) => patch({ selectedIds })}

@@ -1,5 +1,6 @@
 import { worldEdges } from "./geometry";
-import type { FoldTile, Join } from "./types";
+import { pickFoldRoot } from "./net-fold-tree";
+import type { FoldTile, Join, NetFoldState } from "./types";
 
 /** Stable id for a connected component from sorted tile ids. */
 export function componentKey(tileIds: string[]): string {
@@ -123,11 +124,14 @@ export function detachSelectedJoins(
   );
 }
 
+/** Edge alignment tolerance (px). */
+export const JOIN_ALIGN_EPS = 8;
+
 /** True when joined edges still coincide in world space. */
 export function joinEdgesAligned(
   tiles: FoldTile[],
   join: Join,
-  eps = 6,
+  eps = JOIN_ALIGN_EPS,
 ): boolean {
   const ta = tiles.find((t) => t.id === join.a.tileId);
   const tb = tiles.find((t) => t.id === join.b.tileId);
@@ -168,4 +172,88 @@ export function detachMovingJoins(
     const b = moving.has(j.b.tileId);
     return a === b;
   });
+}
+
+/** Add joins for aligned adjacent edges not yet recorded. */
+export function discoverAlignedJoins(
+  tiles: FoldTile[],
+  joins: Join[],
+): Join[] {
+  const busy = new Set<string>();
+  for (const j of joins) {
+    busy.add(`${j.a.tileId}:${j.a.edgeIndex}`);
+    busy.add(`${j.b.tileId}:${j.b.edgeIndex}`);
+  }
+
+  const pairKeys = new Set(
+    joins.map((j) => {
+      const s1 = `${j.a.tileId}:${j.a.edgeIndex}`;
+      const s2 = `${j.b.tileId}:${j.b.edgeIndex}`;
+      return s1 < s2 ? `${s1}|${s2}` : `${s2}|${s1}`;
+    }),
+  );
+
+  const out = [...joins];
+  let seq = 0;
+  for (let i = 0; i < tiles.length; i++) {
+    for (let j = i + 1; j < tiles.length; j++) {
+      const ta = tiles[i];
+      const tb = tiles[j];
+      const edgesA = worldEdges(ta);
+      const edgesB = worldEdges(tb);
+      for (let ai = 0; ai < edgesA.length; ai++) {
+        const refA = `${ta.id}:${ai}`;
+        if (busy.has(refA)) continue;
+        for (let bi = 0; bi < edgesB.length; bi++) {
+          const refB = `${tb.id}:${bi}`;
+          if (busy.has(refB)) continue;
+          const a = { tileId: ta.id, edgeIndex: ai };
+          const b = { tileId: tb.id, edgeIndex: bi };
+          const pk =
+            refA < refB ? `${refA}|${refB}` : `${refB}|${refA}`;
+          if (pairKeys.has(pk)) continue;
+          const candidate: Join = {
+            id: `fj-${Date.now().toString(36)}-${seq++}`,
+            a,
+            b,
+          };
+          if (!joinEdgesAligned(tiles, candidate)) continue;
+          out.push(candidate);
+          pairKeys.add(pk);
+          busy.add(refA);
+          busy.add(refB);
+        }
+      }
+    }
+  }
+  return out;
+}
+
+/** Keep fold state in sync with the current join graph. */
+export function syncNetFolds(
+  tiles: FoldTile[],
+  joins: Join[],
+  netFolds: NetFoldState[],
+): NetFoldState[] {
+  const seen = new Set<string>();
+  const out: NetFoldState[] = [];
+  for (const nf of netFolds) {
+    const anchor = nf.tileIds.find((id) => tiles.some((t) => t.id === id));
+    if (!anchor) continue;
+    const comp = componentContaining(tiles, joins, anchor);
+    if (comp.length < 2) continue;
+    const key = componentKey(comp);
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push({
+      ...nf,
+      key,
+      tileIds: comp,
+      foldRootId:
+        nf.foldRootId && comp.includes(nf.foldRootId)
+          ? nf.foldRootId
+          : pickFoldRoot(tiles, comp) ?? comp[0],
+    });
+  }
+  return out;
 }
