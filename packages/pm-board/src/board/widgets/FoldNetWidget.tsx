@@ -171,10 +171,10 @@ export default function FoldNetWidget({ state, setState }: Props) {
 
       <div className="relative min-h-0 flex-1 overflow-hidden">
         {s.mode === "solid" && tree ? (
-          <div className="absolute inset-0 overflow-hidden rounded-xl bg-[#14201c]">
+          <div className="absolute inset-0 overflow-hidden rounded-xl bg-[#f0f4f8]">
             <Suspense
               fallback={
-                <div className="flex h-full items-center justify-center text-xs text-white/70">
+                <div className="flex h-full items-center justify-center text-xs text-wood/60">
                   3D 로딩…
                 </div>
               }

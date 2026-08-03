@@ -110,7 +110,11 @@ export function pointInPolygon(p: Vec2, poly: Vec2[]): boolean {
   return inside;
 }
 
-/** Rotate tile so edge `edgeIndex` becomes aligned with target direction (unit). */
+/**
+ * Rotate tile so edge `edgeIndex` points along `targetDir` in world space.
+ * For net snapping, targetDir is the anti-parallel of the fixed edge so
+ * shared vertices coincide and tiles sit on opposite sides of the boundary.
+ */
 export function rotationToAlignEdge(
   tile: FoldTile,
   edgeIndex: number,
@@ -121,8 +125,7 @@ export function rotationToAlignEdge(
   const b = local[(edgeIndex + 1) % local.length];
   const edgeAngle = Math.atan2(b.y - a.y, b.x - a.x);
   const targetAngle = Math.atan2(targetDir.y, targetDir.x);
-  // Align edge to opposite of target (so tiles sit outside each other)
-  return targetAngle + Math.PI - edgeAngle;
+  return targetAngle - edgeAngle;
 }
 
 /** Translate tile so edge midpoint matches target mid, after rotation set. */

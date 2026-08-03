@@ -2,17 +2,22 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { DEFAULT_TILE_SCALE } from "./shape-defs";
 import { matchSolidFromSelection } from "./solid-match";
-import { applyMagnetSnap } from "./magnet";
+import {
+  applyMagnetSnap,
+  computeSnapForCandidate,
+  isOutwardSnap,
+} from "./magnet";
+import { worldEdges } from "./geometry";
 import type { FoldTile, Join } from "./types";
 
-function square(id: string, x: number, y: number): FoldTile {
+function square(id: string, x: number, y: number, rotation = 0): FoldTile {
   return {
     id,
     kind: "square",
     x,
     y,
     scale: DEFAULT_TILE_SCALE,
-    rotation: 0,
+    rotation,
   };
 }
 
@@ -73,13 +78,53 @@ describe("matchSolidFromSelection", () => {
 });
 
 describe("applyMagnetSnap", () => {
-  it("snaps equal-length nearby square edges", () => {
-    const tiles = [
-      square("a", 100, 100),
-      square("b", 100 + DEFAULT_TILE_SCALE + 8, 100),
-    ];
-    const { join, tiles: next } = applyMagnetSnap(tiles, [], ["b"]);
+  it("snaps equal-length nearby square edges outward (not overlapping)", () => {
+    const fixed = square("a", 200, 200);
+    // Place moving square just to the right (8px gap between edges)
+    const moving = square("b", 200 + DEFAULT_TILE_SCALE + 8, 200);
+    const tiles = [fixed, moving];
+    const { join, tiles: next } = applyMagnetSnap(tiles, [], ["b"], {
+      x: moving.x,
+      y: moving.y,
+    });
     assert.ok(join);
-    assert.ok(next.find((t) => t.id === "b"));
+    const snapped = next.find((t) => t.id === "b")!;
+    const fixedRef = join!.a.tileId === "a" ? join!.a : join!.b;
+    const fixedEdge = worldEdges(fixed)[fixedRef.edgeIndex];
+    assert.ok(
+      isOutwardSnap(fixed, snapped, fixedEdge),
+      "snapped tile should be on opposite side of shared edge",
+    );
+    // Centroids should not coincide
+    const dist = Math.hypot(snapped.x - fixed.x, snapped.y - fixed.y);
+    assert.ok(dist > DEFAULT_TILE_SCALE * 0.5, "tiles should not overlap");
+  });
+
+  it("snaps heptagon to heptagon outward when dragged nearby", () => {
+    const fixed: FoldTile = {
+      id: "h1",
+      kind: "regularHeptagon",
+      x: 250,
+      y: 250,
+      scale: DEFAULT_TILE_SCALE,
+      rotation: 0,
+    };
+    const moving: FoldTile = {
+      id: "h2",
+      kind: "regularHeptagon",
+      x: 250 + DEFAULT_TILE_SCALE * 1.5,
+      y: 250,
+      scale: DEFAULT_TILE_SCALE,
+      rotation: 0.3,
+    };
+    const snap = computeSnapForCandidate(
+      moving,
+      fixed,
+      { tileId: "h2", edgeIndex: 0 },
+      { tileId: "h1", edgeIndex: 0 },
+      { x: moving.x, y: moving.y },
+    );
+    assert.ok(snap.outward, "heptagon snap should be outward");
+    assert.ok(!snap.overlap, "heptagon snap should not overlap");
   });
 });

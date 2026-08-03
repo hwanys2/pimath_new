@@ -26,7 +26,7 @@ export {
   createTileId,
   createJoinId,
 } from "./geometry";
-export { findMagnetCandidates, applyMagnetSnap } from "./magnet";
+export { findMagnetCandidates, applyMagnetSnap, previewSnapTiles } from "./magnet";
 export {
   connectedComponents,
   componentContaining,

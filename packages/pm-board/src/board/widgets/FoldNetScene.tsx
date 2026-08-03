@@ -216,7 +216,7 @@ export default function FoldNetScene({
       shadows
       gl={{ antialias: true }}
     >
-      <color attach="background" args={["#14201c"]} />
+      <color attach="background" args={["#f0f4f8"]} />
       <ambientLight intensity={0.55} />
       <directionalLight
         castShadow
