@@ -8,6 +8,7 @@ export type {
   FoldTree,
   FaceNode,
   OrbitState,
+  MagnetCandidate,
 } from "./types";
 export { DEFAULT_FOLD_NET_STATE } from "./types";
 export {
