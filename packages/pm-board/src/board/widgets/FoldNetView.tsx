@@ -1,6 +1,6 @@
 "use client";
 
-import { lazy, Suspense } from "react";
+import { lazy, Suspense, useEffect, useRef, useState } from "react";
 import FoldNetCanvas from "./FoldNetCanvas";
 import type { FoldTile, HingeOverride, Join } from "../../lib/fold-net";
 
@@ -21,12 +21,6 @@ type Props = {
   onChangeJoins: (joins: Join[]) => void;
   onSelect: (ids: string[]) => void;
   onOrbitChange: (orbit: { azimuth: number; polar: number }) => void;
-  onNetScreenBounds?: (bounds: {
-    left: number;
-    top: number;
-    width: number;
-    height: number;
-  } | null) => void;
 };
 
 export default function FoldNetView({
@@ -45,8 +39,30 @@ export default function FoldNetView({
   onSelect,
   onOrbitChange,
 }: Props) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [viewport, setViewport] = useState({ width: 640, height: 480 });
+
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    const update = () => {
+      const r = el.getBoundingClientRect();
+      setViewport({
+        width: Math.max(1, Math.round(r.width)),
+        height: Math.max(1, Math.round(r.height)),
+      });
+    };
+    update();
+    const ro = new ResizeObserver(update);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+
   return (
-    <div className="relative h-full w-full overflow-hidden rounded-xl bg-[#f8f9fb]">
+    <div
+      ref={containerRef}
+      className="relative h-full w-full overflow-hidden rounded-xl bg-[#f8f9fb]"
+    >
       <div className="absolute inset-0">
         <Suspense
           fallback={
@@ -63,6 +79,8 @@ export default function FoldNetView({
             unfoldT={unfoldT}
             hingeOverrides={hingeOverrides}
             orbit={orbit}
+            viewportWidth={viewport.width}
+            viewportHeight={viewport.height}
             onOrbitChange={onOrbitChange}
             className="h-full w-full"
           />
@@ -70,10 +88,7 @@ export default function FoldNetView({
       </div>
 
       {editing && (
-        <div
-          className="absolute inset-0"
-          style={{ pointerEvents: editing ? "auto" : "none" }}
-        >
+        <div className="absolute inset-0">
           <FoldNetCanvas
             tiles={tiles}
             joins={joins}

@@ -26,6 +26,8 @@ type Props = {
   unfoldT: number;
   hingeOverrides: HingeOverride[];
   orbit: OrbitState;
+  viewportWidth: number;
+  viewportHeight: number;
   onOrbitChange: (orbit: OrbitState) => void;
   className?: string;
 };
@@ -58,7 +60,7 @@ function TileMesh({
   }, [vertices]);
 
   return (
-    <mesh geometry={geometry} castShadow receiveShadow>
+    <mesh geometry={geometry}>
       <meshStandardMaterial
         color={def.color}
         side={THREE.DoubleSide}
@@ -184,6 +186,23 @@ function SceneContent({
   );
 }
 
+/** Map canvas pixel coords (y-down) to Three.js scene coords (y-up). */
+export function canvasToSceneY(y: number): number {
+  return -y;
+}
+
+export function netCenter3D(
+  tiles: FoldTile[],
+  tileIds: string[],
+): { x: number; y: number; z: number } {
+  const bounds = flatNetBounds2D(tiles, tileIds);
+  return {
+    x: (bounds.minX + bounds.maxX) / 2,
+    y: canvasToSceneY((bounds.minY + bounds.maxY) / 2),
+    z: 0,
+  };
+}
+
 export default function FoldNetScene({
   tiles,
   joins,
@@ -192,92 +211,84 @@ export default function FoldNetScene({
   unfoldT,
   hingeOverrides,
   orbit,
+  viewportWidth,
+  viewportHeight,
   onOrbitChange,
   className,
 }: Props) {
   const controlsRef = useRef<OrbitControlsImpl | null>(null);
   const cameraRef = useRef<THREE.OrthographicCamera | null>(null);
 
-  const bounds = useMemo(
-    () => flatNetBounds2D(tiles, tiles.map((t) => t.id)),
-    [tiles],
+  const netCenter = useMemo(
+    () =>
+      netCenter3D(
+        tiles,
+        foldTileIds.length > 0 ? foldTileIds : tiles.map((t) => t.id),
+      ),
+    [tiles, foldTileIds],
   );
 
-  const center = useMemo(
+  const camFocus = useMemo(
     () => ({
-      x: (bounds.minX + bounds.maxX) / 2,
-      y: -((bounds.minY + bounds.maxY) / 2),
+      x: viewportWidth / 2,
+      y: canvasToSceneY(viewportHeight / 2),
       z: 0,
     }),
-    [bounds],
+    [viewportWidth, viewportHeight],
   );
-
-  const span = useMemo(
-    () =>
-      Math.max(bounds.maxX - bounds.minX, bounds.maxY - bounds.minY, 120),
-    [bounds],
-  );
-
-  const orthoHalf = span * 0.65;
 
   useLayoutEffect(() => {
     const cam = cameraRef.current;
-    if (!cam) return;
-    cam.left = -orthoHalf;
-    cam.right = orthoHalf;
-    cam.top = orthoHalf * 0.75;
-    cam.bottom = -orthoHalf * 0.75;
-    cam.near = -2000;
-    cam.far = 2000;
-    cam.position.set(center.x, center.y, 500);
-    cam.lookAt(center.x, center.y, 0);
+    if (!cam || viewportWidth < 1 || viewportHeight < 1) return;
+    cam.left = 0;
+    cam.right = viewportWidth;
+    cam.top = 0;
+    cam.bottom = -viewportHeight;
+    cam.near = -5000;
+    cam.far = 5000;
+    cam.position.set(camFocus.x, camFocus.y, 1000);
+    cam.lookAt(camFocus.x, camFocus.y, 0);
     cam.updateProjectionMatrix();
-  }, [center, orthoHalf]);
+  }, [viewportWidth, viewportHeight, camFocus]);
 
   useLayoutEffect(() => {
     const ctrl = controlsRef.current;
     if (!ctrl) return;
-    ctrl.target.set(center.x, center.y, 0);
+    const target = unfoldT > 0.05 ? netCenter : camFocus;
+    ctrl.target.set(target.x, target.y, target.z);
     if (unfoldT > 0.05) {
       ctrl.setAzimuthalAngle(orbit.azimuth);
       ctrl.setPolarAngle(orbit.polar);
     }
-  }, [center, orbit, unfoldT]);
+  }, [netCenter, camFocus, orbit, unfoldT]);
 
   return (
     <Canvas
       className={className}
-      shadows
       gl={{ antialias: true, alpha: true }}
       style={{ background: "transparent" }}
+      orthographic
     >
       <OrthographicCamera
         ref={cameraRef}
         makeDefault
-        position={[center.x, center.y, 500]}
-        zoom={1}
+        position={[camFocus.x, camFocus.y, 1000]}
       />
-      <ambientLight intensity={0.65} />
-      <directionalLight
-        castShadow
-        intensity={1.0}
-        position={[center.x + 200, center.y + 400, 600]}
+      <ambientLight intensity={0.7} />
+      <directionalLight intensity={0.9} position={[200, 400, 600]} />
+      <SceneContent
+        tiles={tiles}
+        joins={joins}
+        foldTileIds={foldTileIds}
+        rootTileId={rootTileId}
+        unfoldT={unfoldT}
+        hingeOverrides={hingeOverrides}
       />
-      <group position={[center.x, center.y, 0]}>
-        <SceneContent
-            tiles={tiles}
-            joins={joins}
-            foldTileIds={foldTileIds}
-            rootTileId={rootTileId}
-            unfoldT={unfoldT}
-            hingeOverrides={hingeOverrides}
-          />
-      </group>
       <OrbitControls
         ref={controlsRef}
         makeDefault
         enablePan={false}
-        target={[center.x, center.y, 0]}
+        target={[camFocus.x, camFocus.y, 0]}
         minPolarAngle={0.15}
         maxPolarAngle={Math.PI - 0.15}
         enabled={unfoldT > 0.05}
