@@ -22,7 +22,12 @@ import type {
 
 export const LENGTH_RATIO_EPS = 0.22;
 export const PARALLEL_EPS = 0.35;
-export const NEAR_RATIO = 0.45;
+/** Same-shape edge proximity threshold (fraction of mean edge length). */
+export const NEAR_RATIO = 0.38;
+/** Tighter threshold when snapping different shapes (e.g. triangle near a cube net). */
+export const MIXED_SHAPE_NEAR_RATIO = 0.18;
+/** Max tile-center jump allowed when committing a snap (fraction of matched edge length). */
+export const SNAP_COMMIT_JUMP_RATIO = 0.3;
 
 function sameEdge(a: EdgeRef, b: EdgeRef): boolean {
   return a.tileId === b.tileId && a.edgeIndex === b.edgeIndex;
@@ -47,6 +52,31 @@ export function isOutwardSnap(
   const fixedSide = sideOfEdge(fixedEdge, { x: fixed.x, y: fixed.y });
   const movingSide = sideOfEdge(fixedEdge, { x: moving.x, y: moving.y });
   return fixedSide * movingSide < -1e-3;
+}
+
+function nearRatioForTiles(
+  tiles: FoldTile[],
+  tileIdA: string,
+  tileIdB: string,
+  defaultRatio: number,
+): number {
+  const a = tiles.find((t) => t.id === tileIdA);
+  const b = tiles.find((t) => t.id === tileIdB);
+  if (a && b && a.kind !== b.kind) return MIXED_SHAPE_NEAR_RATIO;
+  return defaultRatio;
+}
+
+function snapWithinReach(
+  preferPosition: Vec2 | undefined,
+  snapTile: FoldTile,
+  refLength: number,
+  moving: FoldTile,
+  fixed: FoldTile,
+): boolean {
+  if (!preferPosition) return true;
+  if (moving.kind === fixed.kind) return true;
+  const jump = dist(preferPosition, { x: snapTile.x, y: snapTile.y });
+  return jump <= SNAP_COMMIT_JUMP_RATIO * refLength;
 }
 
 function edgeProximity(
@@ -187,7 +217,13 @@ export function findMagnetCandidates(
       if (Math.abs(ea.length - eb.length) / maxLen > lengthRatioEps) continue;
 
       const proximity = edgeProximity(ea, eb, opts?.pointer);
-      const threshold = nearRatio * ((ea.length + eb.length) / 2);
+      const pairNearRatio = nearRatioForTiles(
+        tiles,
+        ea.tileId,
+        eb.tileId,
+        nearRatio,
+      );
+      const threshold = pairNearRatio * ((ea.length + eb.length) / 2);
       if (proximity > threshold) continue;
 
       out.push({
@@ -314,6 +350,9 @@ export function previewSnapTiles(
     movingSet,
   );
   if (!snap.outward || snap.overlap) return { tiles, candidate: null };
+  if (!snapWithinReach(preferPosition, snap.tile, best.length, moving, fixed)) {
+    return { tiles, candidate: null };
+  }
 
   return {
     tiles: applyRigidSnap(tiles, movingSet, moving, snap.tile),
@@ -352,6 +391,9 @@ export function applyMagnetSnap(
     movingSet,
   );
   if (!snap.outward || snap.overlap) {
+    return { tiles, join: null, candidate: null };
+  }
+  if (!snapWithinReach(preferPosition, snap.tile, best.length, moving, fixed)) {
     return { tiles, join: null, candidate: null };
   }
 

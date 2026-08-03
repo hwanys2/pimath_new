@@ -163,6 +163,18 @@ describe("applyMagnetSnap", () => {
     assert.ok(snap.outward);
     assert.ok(!snap.overlap);
   });
+
+  it("does not snap triangle to distant square net", () => {
+    const cube = square("a", 200, 200);
+    const triangle = eqTri("t", 520, 320);
+    const { join } = applyMagnetSnap(
+      [cube, triangle],
+      [],
+      ["t"],
+      { x: triangle.x, y: triangle.y },
+    );
+    assert.equal(join, null);
+  });
 });
 
 describe("fold transforms", () => {

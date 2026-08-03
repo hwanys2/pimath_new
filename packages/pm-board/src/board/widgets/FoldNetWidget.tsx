@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useMemo, useRef } from "react";
+import { useCallback, useEffect, useMemo, useRef } from "react";
 import {
   DEFAULT_FOLD_NET_STATE,
   DEFAULT_TILE_SCALE,
@@ -220,7 +220,7 @@ export default function FoldNetWidget({ state, setState }: Props) {
     });
   };
 
-  const deleteSelected = () => {
+  const deleteSelected = useCallback(() => {
     const sel = new Set(s.selectedIds);
     if (sel.size === 0) return;
     patch({
@@ -230,7 +230,20 @@ export default function FoldNetWidget({ state, setState }: Props) {
       netFolds: clearNetFoldsTouching(s.netFolds ?? [], sel),
       unfoldT: 0,
     });
-  };
+  }, [patch, s.tiles, s.joins, s.selectedIds, s.netFolds]);
+
+  useEffect(() => {
+    if (!editing || s.selectedIds.length === 0) return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key !== "Delete" && e.key !== "Backspace") return;
+      const tag = (e.target as HTMLElement | null)?.tagName;
+      if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return;
+      e.preventDefault();
+      deleteSelected();
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [editing, s.selectedIds.length, deleteSelected]);
 
   const duplicateSelected = () => {
     if (s.selectedIds.length === 0) return;
@@ -344,7 +357,7 @@ export default function FoldNetWidget({ state, setState }: Props) {
         )}
         {editing && (
           <span className="ml-2 text-[11px] text-wood/60">
-            타일 클릭 선택 · 드래그로 개별 이동 · 접합 해제로 분리
+            타일 클릭 선택 · 드래그로 개별 이동 · Delete로 삭제
           </span>
         )}
       </div>
@@ -399,6 +412,13 @@ export default function FoldNetWidget({ state, setState }: Props) {
             onClick={handleDetach}
           >
             접합 해제
+          </button>
+          <button
+            type="button"
+            className="rounded-lg bg-red-500/15 px-2.5 py-1 text-xs font-medium text-red-800"
+            onClick={deleteSelected}
+          >
+            삭제
           </button>
           {s.selectedIds.length === 1 && selectedConnectedIds.length > 1 && (
             <button
