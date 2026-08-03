@@ -551,19 +551,20 @@ export default function FoldNetCanvas({
         </>
       )}
 
-      {joinSegments.map((s) => (
-        <line
-          key={s.key}
-          x1={s.x1}
-          y1={s.y1}
-          x2={s.x2}
-          y2={s.y2}
-          stroke="#d97706"
-          strokeWidth={3}
-          strokeLinecap="round"
-          opacity={0.9}
-        />
-      ))}
+      {!geometryHidden &&
+        joinSegments.map((s) => (
+          <line
+            key={s.key}
+            x1={s.x1}
+            y1={s.y1}
+            x2={s.x2}
+            y2={s.y2}
+            stroke="#d97706"
+            strokeWidth={3}
+            strokeLinecap="round"
+            opacity={0.9}
+          />
+        ))}
 
       {previewEdges && (
         <>
