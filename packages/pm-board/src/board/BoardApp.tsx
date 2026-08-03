@@ -534,17 +534,17 @@ export default function BoardApp({
       );
       const h =
         payload.showGraph && payload.showSolution
-          ? 300
+          ? 600
           : payload.showGraph
-            ? 220
+            ? 440
             : payload.showSolution
-              ? 200
-              : 120;
+              ? 400
+              : 240;
       const card: MathCard = {
         id: `math-${Date.now().toString(36)}`,
         x: rect.x0,
         y: rect.y0,
-        w: 260,
+        w: 520,
         h,
         latex: payload.latex,
         expr: payload.expr,
