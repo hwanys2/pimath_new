@@ -1,3 +1,4 @@
+import { worldEdges } from "./geometry";
 import type { FoldTile, Join } from "./types";
 
 /** Stable id for a connected component from sorted tile ids. */
@@ -120,4 +121,51 @@ export function detachSelectedJoins(
   return joins.filter(
     (j) => !(sel.has(j.a.tileId) || sel.has(j.b.tileId)),
   );
+}
+
+/** True when joined edges still coincide in world space. */
+export function joinEdgesAligned(
+  tiles: FoldTile[],
+  join: Join,
+  eps = 6,
+): boolean {
+  const ta = tiles.find((t) => t.id === join.a.tileId);
+  const tb = tiles.find((t) => t.id === join.b.tileId);
+  if (!ta || !tb) return false;
+  const ea = worldEdges(ta)[join.a.edgeIndex];
+  const eb = worldEdges(tb)[join.b.edgeIndex];
+  if (!ea || !eb) return false;
+  const midDist = Math.hypot(ea.mid.x - eb.mid.x, ea.mid.y - eb.mid.y);
+  if (midDist > eps) return false;
+  const aligned =
+    Math.hypot(ea.a.x - eb.b.x, ea.a.y - eb.b.y) +
+      Math.hypot(ea.b.x - eb.a.x, ea.b.y - eb.a.y);
+  const reversed =
+    Math.hypot(ea.a.x - eb.a.x, ea.a.y - eb.a.y) +
+      Math.hypot(ea.b.x - eb.b.x, ea.b.y - eb.b.y);
+  return Math.min(aligned, reversed) < eps * 2;
+}
+
+/** Drop joins whose tiles are no longer edge-aligned. */
+export function pruneSeparatedJoins(
+  tiles: FoldTile[],
+  joins: Join[],
+): Join[] {
+  return joins.filter((j) => joinEdgesAligned(tiles, j));
+}
+
+/**
+ * Break joins between moving tiles and stationary ones.
+ * Joins fully inside the moving set are kept.
+ */
+export function detachMovingJoins(
+  joins: Join[],
+  movingIds: string[],
+): Join[] {
+  const moving = new Set(movingIds);
+  return joins.filter((j) => {
+    const a = moving.has(j.a.tileId);
+    const b = moving.has(j.b.tileId);
+    return a === b;
+  });
 }

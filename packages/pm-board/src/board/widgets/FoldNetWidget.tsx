@@ -336,7 +336,7 @@ export default function FoldNetWidget({ state, setState }: Props) {
         )}
         {editing && (
           <span className="ml-2 text-[11px] text-wood/60">
-            타일 클릭 선택 · Shift+클릭 다중 선택 · 접합 해제로 분리
+            타일 클릭 선택 · 드래그로 개별 이동 · 접합 해제로 분리
           </span>
         )}
       </div>

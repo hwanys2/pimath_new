@@ -5,9 +5,12 @@ import {
   SHAPE_DEFS,
   applyMagnetSnap,
   componentContaining,
+  detachMovingJoins,
   edgeCount,
+  joinEdgesAligned,
   pointInPolygon,
   previewSnapTiles,
+  pruneSeparatedJoins,
   tileBounds,
   worldEdges,
   worldVertices,
@@ -92,6 +95,7 @@ export default function FoldNetCanvas({
 }: Props) {
   const svgRef = useRef<SVGSVGElement>(null);
   const dragTilesRef = useRef<FoldTile[]>(tiles);
+  const joinsRef = useRef(joins);
   const [drag, setDrag] = useState<DragMode | null>(null);
   const [preview, setPreview] = useState<MagnetCandidate | null>(null);
   const [snapPreviewTiles, setSnapPreviewTiles] = useState<FoldTile[] | null>(
@@ -101,6 +105,7 @@ export default function FoldNetCanvas({
   const connected = useMemo(() => new Set(connectedIds), [connectedIds]);
 
   dragTilesRef.current = tiles;
+  joinsRef.current = joins;
 
   const toLocal = useCallback((clientX: number, clientY: number) => {
     const svg = svgRef.current;
@@ -156,6 +161,11 @@ export default function FoldNetCanvas({
           selectedIds.includes(tileId) && selectedIds.length > 0
             ? selectedIds
             : [tileId];
+
+        const brokenJoins = detachMovingJoins(joinsRef.current, dragIds);
+        if (brokenJoins.length !== joinsRef.current.length) {
+          onChangeJoins(brokenJoins);
+        }
 
         if (handle === "rotate") {
           const baseRots: Record<string, number> = {};
@@ -248,6 +258,11 @@ export default function FoldNetCanvas({
       }
 
       const dragIds = nextSelection;
+
+      const brokenJoins = detachMovingJoins(joinsRef.current, dragIds);
+      if (brokenJoins.length !== joinsRef.current.length) {
+        onChangeJoins(brokenJoins);
+      }
 
       const origins: Record<string, { x: number; y: number; rotation: number }> =
         {};
@@ -387,12 +402,14 @@ export default function FoldNetCanvas({
       const prefer = primary ? { x: primary.x, y: primary.y } : undefined;
       const { tiles: snapped, join } = applyMagnetSnap(
         currentTiles,
-        joins,
+        joinsRef.current,
         movingIds,
         prefer,
       );
+      let nextJoins = join ? [...joinsRef.current, join] : joinsRef.current;
+      nextJoins = pruneSeparatedJoins(snapped, nextJoins);
       onChangeTiles(snapped);
-      if (join) onChangeJoins([...joins, join]);
+      onChangeJoins(nextJoins);
     }
     setDrag(null);
     setPreview(null);
@@ -403,6 +420,7 @@ export default function FoldNetCanvas({
     const segs: { x1: number; y1: number; x2: number; y2: number; key: string }[] =
       [];
     for (const j of joins) {
+      if (!joinEdgesAligned(tiles, j)) continue;
       const ta = tiles.find((t) => t.id === j.a.tileId);
       const tb = tiles.find((t) => t.id === j.b.tileId);
       if (!ta || !tb) continue;
@@ -556,7 +574,7 @@ export default function FoldNetCanvas({
           <g key={tile.id}>
             <polygon
               points={points}
-              fill={geometryHidden ? "transparent" : def.color}
+              fill={def.color}
               stroke={
                 geometryHidden
                   ? "#1e3a5f"
@@ -570,7 +588,7 @@ export default function FoldNetCanvas({
                 geometryHidden ? 1.8 : isSel ? 2.5 : isConnected ? 2 : 1.5
               }
               strokeLinejoin="round"
-              opacity={geometryHidden ? 1 : 0.92}
+              opacity={0.92}
             />
             {isSel && (
               <>

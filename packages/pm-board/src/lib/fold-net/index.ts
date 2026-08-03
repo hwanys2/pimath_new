@@ -36,6 +36,9 @@ export {
   selectedComponentIds,
   activeNetTileIds,
   detachSelectedJoins,
+  detachMovingJoins,
+  joinEdgesAligned,
+  pruneSeparatedJoins,
   removeJoinsForTiles,
 } from "./net-graph";
 export {

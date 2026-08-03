@@ -1,10 +1,9 @@
 "use client";
 
-import { Edges, OrbitControls, OrthographicCamera } from "@react-three/drei";
+import { Edges, OrthographicCamera } from "@react-three/drei";
 import { Canvas } from "@react-three/fiber";
-import { useLayoutEffect, useMemo, useRef } from "react";
+import { useLayoutEffect, useMemo, useRef, type ReactNode } from "react";
 import * as THREE from "three";
-import type { OrbitControls as OrbitControlsImpl } from "three-stdlib";
 import {
   SHAPE_DEFS,
   buildFoldRenderTree,
@@ -30,7 +29,8 @@ type Props = {
   viewportHeight: number;
   orbitEnabled: boolean;
   orbit: OrbitState;
-  orbitTargetTileIds: string[];
+  orbitTargetKey: string | null;
+  renderFlatGeometry: boolean;
   onOrbitChange: (orbit: OrbitState) => void;
   className?: string;
 };
@@ -49,6 +49,16 @@ function netCenter3D(
     y: canvasToSceneY((bounds.minY + bounds.maxY) / 2),
     z: 0,
   };
+}
+
+function orbitToQuaternion(orbit: OrbitState): THREE.Quaternion {
+  const euler = new THREE.Euler(
+    orbit.polar - Math.PI / 2,
+    orbit.azimuth,
+    0,
+    "YXZ",
+  );
+  return new THREE.Quaternion().setFromEuler(euler);
 }
 
 function TileMesh({
@@ -94,7 +104,6 @@ function TileMesh({
       <Edges
         color={folded ? "#0f172a" : "#1e3a5f"}
         threshold={1}
-        linewidth={folded ? 2 : 1.5}
       />
     </mesh>
   );
@@ -160,6 +169,25 @@ function FlatTile({ tile }: { tile: FoldTile }) {
   return <TileMesh tile={tile} vertices={verts} />;
 }
 
+function OrbitPivot({
+  center,
+  orbit,
+  children,
+}: {
+  center: { x: number; y: number; z: number };
+  orbit: OrbitState;
+  children: ReactNode;
+}) {
+  const quat = useMemo(() => orbitToQuaternion(orbit), [orbit]);
+  return (
+    <group position={[center.x, center.y, center.z]}>
+      <group quaternion={quat}>
+        <group position={[-center.x, -center.y, -center.z]}>{children}</group>
+      </group>
+    </group>
+  );
+}
+
 function NetComponent({
   tiles,
   joins,
@@ -167,6 +195,10 @@ function NetComponent({
   unfoldT,
   rootTileId,
   hingeOverrides,
+  compKey,
+  orbit,
+  orbitActive,
+  renderFlatGeometry,
 }: {
   tiles: FoldTile[];
   joins: Join[];
@@ -174,7 +206,16 @@ function NetComponent({
   unfoldT: number;
   rootTileId: string;
   hingeOverrides: HingeOverride[];
+  compKey: string;
+  orbit: OrbitState;
+  orbitActive: boolean;
+  renderFlatGeometry: boolean;
 }) {
+  const center = useMemo(
+    () => netCenter3D(tiles, tileIds),
+    [tiles, tileIds],
+  );
+
   const renderTree = useMemo(
     () =>
       tileIds.length >= 2 && unfoldT > 0.005
@@ -190,11 +231,13 @@ function NetComponent({
     [tiles, joins, rootTileId, unfoldT, hingeOverrides, tileIds],
   );
 
-  if (renderTree) {
-    return <FoldedNet renderTree={renderTree} tiles={tiles} />;
+  if (!renderFlatGeometry && unfoldT < 0.005) {
+    return null;
   }
 
-  return (
+  const content = renderTree ? (
+    <FoldedNet renderTree={renderTree} tiles={tiles} />
+  ) : (
     <>
       {tileIds.map((id) => {
         const tile = tiles.find((t) => t.id === id);
@@ -202,16 +245,32 @@ function NetComponent({
       })}
     </>
   );
+
+  if (orbitActive && unfoldT > 0.05) {
+    return (
+      <OrbitPivot center={center} orbit={orbit}>
+        {content}
+      </OrbitPivot>
+    );
+  }
+
+  return <group key={compKey}>{content}</group>;
 }
 
 function SceneContent({
   tiles,
   joins,
   netFolds,
+  orbit,
+  orbitTargetKey,
+  renderFlatGeometry,
 }: {
   tiles: FoldTile[];
   joins: Join[];
   netFolds: NetFoldState[];
+  orbit: OrbitState;
+  orbitTargetKey: string | null;
+  renderFlatGeometry: boolean;
 }) {
   const components = useMemo(
     () => connectedComponents(tiles, joins),
@@ -238,12 +297,16 @@ function SceneContent({
         return (
           <NetComponent
             key={key}
+            compKey={key}
             tiles={tiles}
             joins={joins}
             tileIds={comp}
             unfoldT={nf?.unfoldT ?? 0}
             rootTileId={root}
             hingeOverrides={nf?.hingeOverrides ?? []}
+            orbit={orbit}
+            orbitActive={orbitTargetKey === key}
+            renderFlatGeometry={renderFlatGeometry}
           />
         );
       })}
@@ -259,12 +322,12 @@ export default function FoldNetScene({
   viewportHeight,
   orbitEnabled,
   orbit,
-  orbitTargetTileIds,
-  onOrbitChange,
+  orbitTargetKey,
+  renderFlatGeometry,
+  onOrbitChange: _onOrbitChange,
   className,
 }: Props) {
   const cameraRef = useRef<THREE.OrthographicCamera | null>(null);
-  const controlsRef = useRef<OrbitControlsImpl | null>(null);
 
   const camFocus = useMemo(
     () => ({
@@ -273,14 +336,6 @@ export default function FoldNetScene({
       z: 0,
     }),
     [viewportWidth, viewportHeight],
-  );
-
-  const orbitTarget = useMemo(
-    () =>
-      orbitTargetTileIds.length > 0
-        ? netCenter3D(tiles, orbitTargetTileIds)
-        : camFocus,
-    [tiles, orbitTargetTileIds, camFocus],
   );
 
   useLayoutEffect(() => {
@@ -292,27 +347,10 @@ export default function FoldNetScene({
     cam.bottom = -viewportHeight;
     cam.near = -5000;
     cam.far = 5000;
-    if (orbitEnabled) {
-      cam.position.set(
-        orbitTarget.x + 400 * Math.sin(orbit.azimuth) * Math.sin(orbit.polar),
-        orbitTarget.y + 400 * Math.cos(orbit.polar),
-        orbitTarget.z + 400 * Math.cos(orbit.azimuth) * Math.sin(orbit.polar),
-      );
-      cam.lookAt(orbitTarget.x, orbitTarget.y, orbitTarget.z);
-    } else {
-      cam.position.set(camFocus.x, camFocus.y, 1000);
-      cam.lookAt(camFocus.x, camFocus.y, 0);
-    }
+    cam.position.set(camFocus.x, camFocus.y, 1000);
+    cam.lookAt(camFocus.x, camFocus.y, 0);
     cam.updateProjectionMatrix();
-  }, [viewportWidth, viewportHeight, camFocus, orbitEnabled, orbit, orbitTarget]);
-
-  useLayoutEffect(() => {
-    const ctrl = controlsRef.current;
-    if (!ctrl || !orbitEnabled) return;
-    ctrl.target.set(orbitTarget.x, orbitTarget.y, orbitTarget.z);
-    ctrl.setAzimuthalAngle(orbit.azimuth);
-    ctrl.setPolarAngle(orbit.polar);
-  }, [orbitTarget, orbit, orbitEnabled]);
+  }, [viewportWidth, viewportHeight, camFocus]);
 
   return (
     <Canvas
@@ -324,26 +362,14 @@ export default function FoldNetScene({
       <OrthographicCamera ref={cameraRef} makeDefault />
       <ambientLight intensity={0.7} />
       <directionalLight intensity={0.9} position={[200, 400, 600]} />
-      <SceneContent tiles={tiles} joins={joins} netFolds={netFolds} />
-      {orbitEnabled && (
-        <OrbitControls
-          ref={controlsRef}
-          makeDefault
-          enablePan={false}
-          enableZoom={false}
-          target={[orbitTarget.x, orbitTarget.y, orbitTarget.z]}
-          minPolarAngle={0.2}
-          maxPolarAngle={Math.PI - 0.2}
-          onEnd={() => {
-            const ctrl = controlsRef.current;
-            if (!ctrl) return;
-            onOrbitChange({
-              azimuth: ctrl.getAzimuthalAngle(),
-              polar: ctrl.getPolarAngle(),
-            });
-          }}
-        />
-      )}
+      <SceneContent
+        tiles={tiles}
+        joins={joins}
+        netFolds={netFolds}
+        orbit={orbit}
+        orbitTargetKey={orbitEnabled ? orbitTargetKey : null}
+        renderFlatGeometry={renderFlatGeometry}
+      />
     </Canvas>
   );
 }
