@@ -12,6 +12,7 @@ import {
   EraserIcon,
   ExitFullscreenIcon,
   FullscreenIcon,
+  GeometryPerfectIcon,
   HighlighterIcon,
   HomeIcon,
   ImageIcon,
@@ -323,6 +324,12 @@ export default function BoardToolbar({
             onClick={onCompassTool}
           >
             <CompassIcon />
+          </DockBtn>
+          <DockBtn
+            label="전개도·입체"
+            onClick={() => onAddWidget("foldNet")}
+          >
+            <GeometryPerfectIcon />
           </DockBtn>
           <DockBtn
             label="수식 인식"

@@ -137,6 +137,7 @@ export const WIDGET_DEFS: Record<WidgetKind, WidgetDef> = {
 };
 
 export const WIDGET_ORDER: WidgetKind[] = [
+  "foldNet",
   "timer",
   "clock",
   "picker",
@@ -148,5 +149,4 @@ export const WIDGET_ORDER: WidgetKind[] = [
   "note",
   "graph",
   "calculator",
-  "foldNet",
 ];
