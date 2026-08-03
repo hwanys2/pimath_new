@@ -26,15 +26,15 @@ export function hingeMagnitudeFromFaceAngles(
     return Math.PI - Math.acos(1 / 3);
   }
 
-  const suggested = Math.PI - angleP - angleC;
-  if (suggested > 0.05 && suggested < Math.PI - 0.05) return suggested;
-
   const denom = Math.sin(angleP) * Math.sin(angleC);
   if (denom < 1e-9) return Math.PI / 2;
 
   const x = (Math.cos(angleP) + Math.cos(angleC)) / denom;
   if (x <= -1 + 1e-9) return Math.PI;
-  if (x >= 1 - 1e-9) return Math.PI / 2;
+  if (x >= 1 - 1e-9) {
+    const flat = Math.PI - angleP - angleC;
+    return flat > 0.05 ? flat : Math.PI / 2;
+  }
 
   return Math.PI - Math.acos(x);
 }
