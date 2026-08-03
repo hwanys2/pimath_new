@@ -1,5 +1,10 @@
 import type { FoldTile, Join } from "./types";
 
+/** Stable id for a connected component from sorted tile ids. */
+export function componentKey(tileIds: string[]): string {
+  return [...tileIds].sort().join("|");
+}
+
 /** Connected component tile ids via joins. */
 export function connectedComponents(
   tiles: FoldTile[],
@@ -35,6 +40,26 @@ export function connectedComponents(
   return comps;
 }
 
+/** Component ids for the current selection; empty when nothing is selected. */
+export function selectedComponentIds(
+  tiles: FoldTile[],
+  joins: Join[],
+  selectedIds: string[],
+): string[][] {
+  if (selectedIds.length === 0) return [];
+  const set = new Set<string>();
+  const out: string[][] = [];
+  for (const id of selectedIds) {
+    if (!tiles.some((t) => t.id === id)) continue;
+    const comp = componentContaining(tiles, joins, id);
+    const key = componentKey(comp);
+    if (set.has(key)) continue;
+    set.add(key);
+    out.push(comp);
+  }
+  return out;
+}
+
 export function componentContaining(
   tiles: FoldTile[],
   joins: Join[],
@@ -66,7 +91,7 @@ export function activeNetTileIds(
   }
   const comps = connectedComponents(tiles, joins);
   if (comps.length === 1) return comps[0];
-  return tiles.map((t) => t.id);
+  return [];
 }
 
 export function joinsTouching(

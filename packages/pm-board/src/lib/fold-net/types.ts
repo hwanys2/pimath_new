@@ -45,6 +45,15 @@ export type HingeOverride = {
   targetAngle: number;
 };
 
+/** Fold state for one connected net component. */
+export type NetFoldState = {
+  key: string;
+  tileIds: string[];
+  unfoldT: number;
+  foldRootId?: string;
+  hingeOverrides?: HingeOverride[];
+};
+
 export type SolidType =
   | "cube"
   | "cuboid"
@@ -65,7 +74,9 @@ export type FoldNetState = {
   solidTileIds?: string[];
   foldRootId?: string;
   hingeOverrides?: HingeOverride[];
+  /** @deprecated use netFolds */
   unfoldT: number;
+  netFolds?: NetFoldState[];
   orbit: OrbitState;
 };
 
@@ -130,5 +141,6 @@ export const DEFAULT_FOLD_NET_STATE: FoldNetState = {
   selectedIds: [],
   mode: "edit",
   unfoldT: 0,
+  netFolds: [],
   orbit: { azimuth: 0.55, polar: 1.05 },
 };

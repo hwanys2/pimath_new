@@ -10,6 +10,7 @@ export type {
   OrbitState,
   MagnetCandidate,
   HingeOverride,
+  NetFoldState,
 } from "./types";
 export { DEFAULT_FOLD_NET_STATE } from "./types";
 export {
@@ -31,6 +32,8 @@ export { findMagnetCandidates, applyMagnetSnap, previewSnapTiles } from "./magne
 export {
   connectedComponents,
   componentContaining,
+  componentKey,
+  selectedComponentIds,
   activeNetTileIds,
   detachSelectedJoins,
   removeJoinsForTiles,
@@ -51,6 +54,7 @@ export { suggestHingeAngle, hingeSpecFromJoin, signedHingeAngle, dihedralMagnitu
 export {
   buildFoldRenderTree,
   computeTileWorldMatrices,
+  evaluateRenderTreeVertices,
   flatNetBounds2D,
   type FoldRenderTree,
   type HingeRenderNode,

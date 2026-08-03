@@ -6,6 +6,8 @@ import {
 import {
   type Mat4,
   type Vec3,
+  mat4FromAxisAngle,
+  mat4FromTranslation,
   mat4HingePivotRotation,
   mat4Identity,
   mat4Invert,
@@ -65,7 +67,7 @@ function buildHingeNode(
   tiles: FoldTile[],
   hingeOverrides: HingeOverride[],
   unfoldT: number,
-  parentMatrix: Mat4,
+  parentFlat: Mat4,
 ): HingeRenderNode {
   const edge = node.parentEdge!;
   const spec = hingeSpecFromJoin(tiles, edge);
@@ -87,7 +89,7 @@ function buildHingeNode(
   const pivotWorld = vec2To3Arr(spec.pivot);
   const axisWorld = normalize3(vec2To3Arr(spec.axisDir));
 
-  const parentInv = mat4Invert(parentMatrix);
+  const parentInv = mat4Invert(parentFlat);
   const pivotLocal = mat4TransformPoint(parentInv, pivotWorld);
   const axisLocal = normalize3(mat4TransformDirection(parentInv, axisWorld));
 
@@ -102,11 +104,13 @@ function buildHingeNode(
     ] as Vec3;
   });
 
-  const hingeMat = mat4HingePivotRotation(pivotLocal, axisLocal, angle);
-  const childMatrix = mat4Multiply(parentMatrix, hingeMat);
+  const childFlat = mat4Multiply(
+    parentFlat,
+    mat4FromTranslation(pivotLocal[0], pivotLocal[1], pivotLocal[2]),
+  );
 
   const children = node.children.map((c) =>
-    buildHingeNode(c, tiles, hingeOverrides, unfoldT, childMatrix),
+    buildHingeNode(c, tiles, hingeOverrides, unfoldT, childFlat),
   );
 
   return {
@@ -190,6 +194,41 @@ export function transformVerticesWithMatrix(
     const p = mat4TransformPoint(matrix, v);
     return { x: p[0], y: p[1], z: p[2] };
   });
+}
+
+function evaluateHingeSubtree(
+  hinge: HingeRenderNode,
+  parentMatrix: Mat4,
+  out: Map<string, { x: number; y: number; z: number }[]>,
+): void {
+  const local = mat4Multiply(
+    mat4FromTranslation(hinge.pivot[0], hinge.pivot[1], hinge.pivot[2]),
+    mat4FromAxisAngle(hinge.axis[0], hinge.axis[1], hinge.axis[2], hinge.angle),
+  );
+  const tileMatrix = mat4Multiply(parentMatrix, local);
+  out.set(
+    hinge.tileId,
+    transformVerticesWithMatrix(hinge.vertices, tileMatrix),
+  );
+  for (const child of hinge.children) {
+    evaluateHingeSubtree(child, tileMatrix, out);
+  }
+}
+
+/** World vertices per tile matching nested R3F hinge groups. */
+export function evaluateRenderTreeVertices(
+  renderTree: FoldRenderTree,
+): Map<string, { x: number; y: number; z: number }[]> {
+  const out = new Map<string, { x: number; y: number; z: number }[]>();
+  const rootMat = mat4Identity();
+  out.set(
+    renderTree.rootTileId,
+    transformVerticesWithMatrix(renderTree.rootVertices, rootMat),
+  );
+  for (const h of renderTree.hinges) {
+    evaluateHingeSubtree(h, rootMat, out);
+  }
+  return out;
 }
 
 export function flatNetBounds2D(

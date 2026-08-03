@@ -58,6 +58,10 @@ export function dihedralMagnitude(
   const angleP = (interiorAngleAt(pVerts, pA) + interiorAngleAt(pVerts, pB)) / 2;
   const angleC = (interiorAngleAt(cVerts, cA) + interiorAngleAt(cVerts, cB)) / 2;
 
+  if (parent.kind === "equilateralTriangle" && child.kind === "equilateralTriangle") {
+    return Math.PI - Math.acos(1 / 3);
+  }
+
   const suggested = Math.PI - angleP - angleC;
   if (suggested > 0.05 && suggested < Math.PI - 0.05) return suggested;
   return Math.PI / 2;

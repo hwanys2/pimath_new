@@ -13,7 +13,11 @@ import { canFoldNet, solveClosureAngles } from "./closure-solver";
 import { computeTileTransforms, vec2To3 } from "./fold-transforms";
 import { signedHingeAngle, dihedralMagnitude } from "./hinge-geometry";
 import { buildNetFoldTree, foldTreeEdges } from "./net-fold-tree";
-import { activeNetTileIds } from "./net-graph";
+import { activeNetTileIds, componentKey } from "./net-graph";
+import {
+  buildFoldRenderTree,
+  evaluateRenderTreeVertices,
+} from "./fold-scene-graph";
 import type { FoldTile, Join } from "./types";
 
 function square(id: string, x: number, y: number, rotation = 0): FoldTile {
@@ -51,6 +55,18 @@ describe("activeNetTileIds", () => {
     ];
     const ids = activeNetTileIds(tiles, joins, ["a", "b"]);
     assert.deepEqual(new Set(ids), new Set(["a", "b", "c"]));
+  });
+
+  it("returns empty when nothing is selected and multiple components exist", () => {
+    const tiles = [square("a", 100, 100), square("b", 400, 100)];
+    const ids = activeNetTileIds(tiles, [], []);
+    assert.deepEqual(ids, []);
+  });
+});
+
+describe("componentKey", () => {
+  it("is stable regardless of tile id order", () => {
+    assert.equal(componentKey(["b", "a", "c"]), componentKey(["a", "b", "c"]));
   });
 });
 
@@ -263,5 +279,73 @@ describe("fold transforms", () => {
     const mag = dihedralMagnitude(parent, child, edge);
     assert.ok(Math.abs(Math.abs(angle) - mag) < 0.02);
     assert.ok(angle !== 0);
+  });
+
+  it("tetrahedron apex vertices converge at t=1", () => {
+    const center = eqTri("c", 300, 300);
+    const right = eqTri("r", 355, 300);
+    const { tiles: afterR, join: j1 } = applyMagnetSnap(
+      [center, right],
+      [],
+      ["r"],
+      { x: right.x, y: right.y },
+    );
+    const left = eqTri("l", 240, 300);
+    const withL = [...afterR.filter((t) => t.id !== "l"), left];
+    const { tiles: afterL, join: j2 } = applyMagnetSnap(withL, [j1!], ["l"], {
+      x: left.x,
+      y: left.y,
+    });
+    const top = eqTri("u", 300, 240);
+    const withU = [...afterL.filter((t) => t.id !== "u"), top];
+    const { tiles: finalTiles, join: j3 } = applyMagnetSnap(
+      withU,
+      [j1!, j2!],
+      ["u"],
+      { x: top.x, y: top.y },
+    );
+    const joins = [j1!, j2!, j3!];
+    const ids = finalTiles.map((t) => t.id);
+    const closure = solveClosureAngles(finalTiles, joins, ids);
+    const tree = buildFoldRenderTree(
+      finalTiles,
+      joins,
+      "c",
+      1,
+      closure.angles,
+      ids,
+    );
+    assert.ok(tree);
+    const tr = evaluateRenderTreeVertices(tree);
+
+    const allVerts = [...tr.values()].flatMap((t) => t);
+    const clusters: { x: number; y: number; z: number }[] = [];
+    const eps = 3;
+    for (const v of allVerts) {
+      const hit = clusters.find(
+        (c) => Math.hypot(c.x - v.x, c.y - v.y, c.z - v.z) < eps,
+      );
+      if (!hit) clusters.push(v);
+    }
+    assert.equal(clusters.length, 4, "folded tetrahedron should have 4 unique vertices");
+
+    const flatTree = buildFoldRenderTree(
+      finalTiles,
+      joins,
+      "c",
+      0.5,
+      closure.angles,
+      ids,
+    );
+    const foldedTree = buildFoldRenderTree(
+      finalTiles,
+      joins,
+      "c",
+      0.5,
+      closure.angles,
+      ids,
+    );
+    assert.ok(flatTree && foldedTree);
+    assert.deepEqual(foldedTree!.hinges[0].pivot, flatTree!.hinges[0].pivot);
   });
 });

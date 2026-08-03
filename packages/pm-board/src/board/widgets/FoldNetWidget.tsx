@@ -6,19 +6,21 @@ import {
   DEFAULT_TILE_SCALE,
   SHAPE_DEFS,
   SHAPE_PALETTE_ORDER,
-  activeNetTileIds,
   canFoldNet,
+  componentKey,
   createTileId,
   describeWhyNoMatch,
   detachSelectedJoins,
   pickFoldRoot,
   removeJoinsForTiles,
+  selectedComponentIds,
   solveClosureAngles,
   tileBounds,
   type FoldNetState,
   type FoldTile,
   type HingeOverride,
   type Join,
+  type NetFoldState,
   type ShapeKind,
 } from "../../lib/fold-net";
 import FoldNetFloatingToolbar from "./FoldNetFloatingToolbar";
@@ -29,12 +31,18 @@ type Props = {
   setState: (patch: Record<string, unknown>) => void;
 };
 
+function readNetFolds(raw: Record<string, unknown>): NetFoldState[] {
+  if (!Array.isArray(raw.netFolds)) return [];
+  return raw.netFolds as NetFoldState[];
+}
+
 function readState(raw: Record<string, unknown>): FoldNetState {
   const tiles = Array.isArray(raw.tiles) ? (raw.tiles as FoldTile[]) : [];
   const joins = Array.isArray(raw.joins) ? (raw.joins as Join[]) : [];
   const selectedIds = Array.isArray(raw.selectedIds)
     ? (raw.selectedIds as string[])
     : [];
+  const netFolds = readNetFolds(raw);
   const unfoldT = Number.isFinite(Number(raw.unfoldT))
     ? Math.max(0, Math.min(1, Number(raw.unfoldT)))
     : 0;
@@ -53,11 +61,34 @@ function readState(raw: Record<string, unknown>): FoldNetState {
     selectedIds,
     mode: "edit",
     unfoldT,
+    netFolds,
     orbit,
     hingeOverrides,
     foldRootId:
       typeof raw.foldRootId === "string" ? raw.foldRootId : undefined,
   };
+}
+
+function upsertNetFold(
+  netFolds: NetFoldState[],
+  entry: NetFoldState,
+): NetFoldState[] {
+  return [...netFolds.filter((n) => n.key !== entry.key), entry];
+}
+
+function clearNetFoldsTouching(
+  netFolds: NetFoldState[],
+  tileIds: Set<string>,
+): NetFoldState[] {
+  return netFolds.filter((n) => !n.tileIds.some((id) => tileIds.has(id)));
+}
+
+function netFoldForComponent(
+  netFolds: NetFoldState[],
+  tileIds: string[],
+): NetFoldState | undefined {
+  const key = componentKey(tileIds);
+  return netFolds.find((n) => n.key === key);
 }
 
 function MiniShape({ kind }: { kind: ShapeKind }) {
@@ -83,37 +114,51 @@ export default function FoldNetWidget({ state, setState }: Props) {
     [setState],
   );
 
-  const foldTileIds = useMemo(
-    () => activeNetTileIds(s.tiles, s.joins, s.selectedIds),
-    [s.tiles, s.joins, s.selectedIds],
+  const selectedComp = useMemo(() => {
+    const comps = selectedComponentIds(s.tiles, s.joins, s.selectedIds);
+    return comps.length === 1 ? comps[0] : null;
+  }, [s.tiles, s.joins, s.selectedIds]);
+
+  const foldTileIds = selectedComp ?? [];
+
+  const selectedNetFold = useMemo(
+    () =>
+      selectedComp
+        ? netFoldForComponent(s.netFolds ?? [], selectedComp)
+        : undefined,
+    [selectedComp, s.netFolds],
   );
 
-  const connectedIds = foldTileIds;
+  const selectedUnfoldT = selectedNetFold?.unfoldT ?? 0;
 
   const foldRootId = useMemo(() => {
+    if (selectedNetFold?.foldRootId && foldTileIds.includes(selectedNetFold.foldRootId)) {
+      return selectedNetFold.foldRootId;
+    }
     if (s.foldRootId && foldTileIds.includes(s.foldRootId)) return s.foldRootId;
     return pickFoldRoot(s.tiles, foldTileIds) ?? foldTileIds[0] ?? "";
-  }, [s.foldRootId, s.tiles, foldTileIds]);
+  }, [selectedNetFold, s.foldRootId, s.tiles, foldTileIds]);
 
   const foldable = useMemo(
     () => canFoldNet(s.tiles, s.joins, foldTileIds),
     [s.tiles, s.joins, foldTileIds],
   );
 
+  const effectiveHinges =
+    selectedNetFold?.hingeOverrides ?? s.hingeOverrides ?? [];
+
   const closure = useMemo(
     () =>
-      foldable
+      foldable && selectedUnfoldT > 0
         ? solveClosureAngles(
             s.tiles,
             s.joins,
             foldTileIds,
-            s.hingeOverrides ?? [],
+            effectiveHinges,
           )
         : null,
-    [s.tiles, s.joins, foldTileIds, s.hingeOverrides, foldable],
+    [s.tiles, s.joins, foldTileIds, effectiveHinges, foldable, selectedUnfoldT],
   );
-
-  const effectiveHinges = closure?.angles ?? s.hingeOverrides ?? [];
 
   const netBounds = useMemo(() => {
     if (!foldable || foldTileIds.length === 0) return null;
@@ -134,7 +179,16 @@ export default function FoldNetWidget({ state, setState }: Props) {
     return { minX, minY, maxX, maxY };
   }, [s.tiles, foldTileIds, foldable]);
 
-  const editing = s.unfoldT < 0.005;
+  const editing = selectedUnfoldT < 0.005;
+
+  const clearSelectedNetFold = useCallback(() => {
+    if (!selectedComp) return;
+    const key = componentKey(selectedComp);
+    patch({
+      netFolds: (s.netFolds ?? []).filter((n) => n.key !== key),
+      unfoldT: 0,
+    });
+  }, [patch, selectedComp, s.netFolds]);
 
   const addShape = (kind: ShapeKind) => {
     const n = s.tiles.length;
@@ -149,6 +203,7 @@ export default function FoldNetWidget({ state, setState }: Props) {
     patch({
       tiles: [...s.tiles, tile],
       selectedIds: [tile.id],
+      netFolds: s.netFolds ?? [],
       unfoldT: 0,
     });
   };
@@ -160,6 +215,7 @@ export default function FoldNetWidget({ state, setState }: Props) {
       tiles: s.tiles.filter((t) => !sel.has(t.id)),
       joins: removeJoinsForTiles(s.joins, sel),
       selectedIds: [],
+      netFolds: clearNetFoldsTouching(s.netFolds ?? [], sel),
       unfoldT: 0,
     });
   };
@@ -185,32 +241,66 @@ export default function FoldNetWidget({ state, setState }: Props) {
   };
 
   const handleUnfoldTChange = (unfoldT: number) => {
-    const netIds = activeNetTileIds(s.tiles, s.joins, s.selectedIds);
+    if (!selectedComp) return;
+    const key = componentKey(selectedComp);
+    const root = pickFoldRoot(s.tiles, selectedComp) ?? selectedComp[0];
+
     if (unfoldT > 0 && foldable) {
+      const existing = netFoldForComponent(s.netFolds ?? [], selectedComp);
       const solved = solveClosureAngles(
         s.tiles,
         s.joins,
-        netIds,
-        s.hingeOverrides ?? [],
+        selectedComp,
+        existing?.hingeOverrides ?? s.hingeOverrides ?? [],
       );
       patch({
-        selectedIds: netIds,
-        foldRootId,
-        hingeOverrides: solved.angles,
+        selectedIds: selectedComp,
+        netFolds: upsertNetFold(s.netFolds ?? [], {
+          key,
+          tileIds: selectedComp,
+          unfoldT,
+          foldRootId: root,
+          hingeOverrides: solved.angles,
+        }),
         unfoldT,
       });
     } else {
-      patch({ unfoldT, ...(unfoldT < 0.005 ? { orbit: { azimuth: 0.55, polar: 1.05 } } : {}) });
+      patch({
+        netFolds: (s.netFolds ?? []).filter((n) => n.key !== key),
+        unfoldT: 0,
+        orbit: { azimuth: 0.55, polar: 1.05 },
+      });
     }
   };
 
   const handleDetach = () => {
     if (s.selectedIds.length === 0) return;
+    clearSelectedNetFold();
     patch({
       joins: detachSelectedJoins(s.joins, s.selectedIds),
-      unfoldT: 0,
     });
   };
+
+  const handleHingeOverrideChange = (next: HingeOverride[]) => {
+    if (!selectedComp) return;
+    const key = componentKey(selectedComp);
+    const existing = netFoldForComponent(s.netFolds ?? [], selectedComp);
+    if (existing) {
+      patch({
+        netFolds: upsertNetFold(s.netFolds ?? [], {
+          ...existing,
+          hingeOverrides: next,
+        }),
+      });
+    } else {
+      patch({ hingeOverrides: next });
+    }
+  };
+
+  const activeNetFolds = useMemo(
+    () => (s.netFolds ?? []).filter((n) => n.unfoldT > 0.005),
+    [s.netFolds],
+  );
 
   return (
     <div className="flex h-full min-h-0 flex-col gap-2 p-2 text-sm text-wood-dark">
@@ -228,7 +318,7 @@ export default function FoldNetWidget({ state, setState }: Props) {
             <MiniShape kind={kind} />
           </button>
         ))}
-        {!editing && (
+        {!editing && selectedComp && (
           <span className="ml-2 text-[11px] text-wood/60">
             펼치려면 슬라이더를 왼쪽으로
           </span>
@@ -240,23 +330,31 @@ export default function FoldNetWidget({ state, setState }: Props) {
           tiles={s.tiles}
           joins={s.joins}
           selectedIds={s.selectedIds}
-          connectedIds={connectedIds}
-          foldTileIds={foldTileIds}
-          foldRootId={foldRootId}
-          unfoldT={s.unfoldT}
-          hingeOverrides={effectiveHinges}
-          orbit={s.orbit}
+          netFolds={activeNetFolds}
           editing={editing}
-          onChangeTiles={(tiles) => patch({ tiles, unfoldT: 0 })}
-          onChangeJoins={(joins) => patch({ joins, unfoldT: 0 })}
+          onChangeTiles={(tiles) => {
+            const touched = new Set(foldTileIds);
+            patch({
+              tiles,
+              netFolds: clearNetFoldsTouching(s.netFolds ?? [], touched),
+              unfoldT: 0,
+            });
+          }}
+          onChangeJoins={(joins) => {
+            const touched = new Set(foldTileIds);
+            patch({
+              joins,
+              netFolds: clearNetFoldsTouching(s.netFolds ?? [], touched),
+              unfoldT: 0,
+            });
+          }}
           onSelect={(selectedIds) => patch({ selectedIds })}
-          onOrbitChange={(orbit) => patch({ orbit })}
         />
         <FoldNetFloatingToolbar
           containerRef={canvasRef}
           netBounds={netBounds}
-          unfoldT={s.unfoldT}
-          foldable={foldable && s.selectedIds.length > 0}
+          unfoldT={selectedUnfoldT}
+          foldable={foldable && s.selectedIds.length > 0 && !!selectedComp}
           disabledHint={describeWhyNoMatch(s.tiles, s.joins, foldTileIds)}
           onUnfoldTChange={handleUnfoldTChange}
           onDuplicate={duplicateSelected}
@@ -282,7 +380,7 @@ export default function FoldNetWidget({ state, setState }: Props) {
         </p>
       )}
 
-      {closure && s.unfoldT > 0 && effectiveHinges.length > 0 && (
+      {closure && selectedUnfoldT > 0 && effectiveHinges.length > 0 && (
         <details className="rounded-lg bg-black/5 px-2 py-1.5">
           <summary className="cursor-pointer text-[11px] font-medium text-wood/80">
             접힘 각도 조절 ({effectiveHinges.length}개)
@@ -312,7 +410,7 @@ export default function FoldNetWidget({ state, setState }: Props) {
                           ? { ...x, targetAngle: (deg * Math.PI) / 180 }
                           : x,
                       );
-                      patch({ hingeOverrides: next });
+                      handleHingeOverrideChange(next);
                     }}
                     className="flex-1"
                   />
