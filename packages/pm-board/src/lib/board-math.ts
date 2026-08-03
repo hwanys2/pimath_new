@@ -17,6 +17,9 @@ const FUNCTIONS: Record<string, (v: number) => number> = {
   asin: Math.asin,
   acos: Math.acos,
   atan: Math.atan,
+  arcsin: Math.asin,
+  arccos: Math.acos,
+  arctan: Math.atan,
   sqrt: Math.sqrt,
   abs: Math.abs,
   log: Math.log10,
@@ -58,10 +61,22 @@ function tokenize(
       while (j < src.length && /[a-zA-Zπ]/.test(src[j])) j++;
       let word = src.slice(i, j);
       // Greedily split concatenated names, e.g. "xsinx" → x, sin, x
+      // With parameters: prefer "a"+"sin" over "asin" (classroom a·sin(x)).
+      // Use arcsin/arccos/arctan for inverse trig in that mode.
       while (word.length > 0) {
         let matched = "";
-        for (const fn of Object.keys(FUNCTIONS)) {
-          if (word.startsWith(fn) && fn.length > matched.length) matched = fn;
+        if (options?.allowParameterNames && /^[a-zA-Z]/.test(word[0])) {
+          const rest = word.slice(1);
+          let restFn = "";
+          for (const fn of Object.keys(FUNCTIONS)) {
+            if (rest.startsWith(fn) && fn.length > restFn.length) restFn = fn;
+          }
+          if (restFn) matched = word[0];
+        }
+        if (!matched) {
+          for (const fn of Object.keys(FUNCTIONS)) {
+            if (word.startsWith(fn) && fn.length > matched.length) matched = fn;
+          }
         }
         if (!matched && word.startsWith("pi")) matched = "pi";
         if (

@@ -24,8 +24,13 @@ export function latexToExpr(latex: string): string {
   s = s.replace(/\\sqrt\s*\{([^{}]*)\}/g, "sqrt($1)");
   s = s.replace(/\\sqrt\[(\d+)\]\{([^{}]*)\}/g, "($2)^(1/$1)");
 
+  // Keep coefficient·trig separate: a\sin → a*sin (not asin/arcsin).
   const trig = ["sin", "cos", "tan", "log", "ln", "exp", "abs"] as const;
   for (const fn of trig) {
+    s = s.replace(
+      new RegExp(`([0-9a-zA-Zπ)])\\s*\\\\${fn}`, "g"),
+      `$1*${fn}`,
+    );
     s = s.replace(new RegExp(`\\\\${fn}`, "g"), fn);
   }
 
