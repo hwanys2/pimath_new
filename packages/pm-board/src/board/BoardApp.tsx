@@ -67,13 +67,14 @@ import QrWidget from "./widgets/QrWidget";
 import TextNoteWidget from "./widgets/TextNoteWidget";
 import GraphWidget from "./widgets/GraphWidget";
 import CalculatorWidget from "./widgets/CalculatorWidget";
+import FoldNetWidget from "./widgets/FoldNetWidget";
 
 const LEGACY_WIDGET_CHROME = {
   solid3d: {
-    label: "입체·전개도",
+    label: "전개도·입체",
     accent: "#7dd3fc",
-    minW: 240,
-    minH: 120,
+    minW: 560,
+    minH: 420,
   },
 } as const;
 
@@ -745,12 +746,9 @@ export default function BoardApp({
         return <GraphWidget state={w.state} setState={setState} />;
       case "calculator":
         return <CalculatorWidget state={w.state} setState={setState} />;
+      case "foldNet":
       case "solid3d":
-        return (
-          <p className="p-3 text-xs text-wood/80">
-            입체 전개 기능은 종료되었어요. 위젯을 닫아 주세요.
-          </p>
-        );
+        return <FoldNetWidget state={w.state} setState={setState} />;
     }
   };
 

@@ -4,6 +4,7 @@ import {
   CalculatorIcon,
   ClockIcon,
   DiceIcon,
+  GeometryPerfectIcon,
   GraphIcon,
   NoiseIcon,
   NoteIcon,
@@ -124,6 +125,15 @@ export const WIDGET_DEFS: Record<WidgetKind, WidgetDef> = {
     minH: 350,
     accent: "#d4c4ff",
   },
+  foldNet: {
+    label: "전개도·입체",
+    icon: GeometryPerfectIcon,
+    w: 720,
+    h: 560,
+    minW: 560,
+    minH: 420,
+    accent: "#7dd3fc",
+  },
 };
 
 export const WIDGET_ORDER: WidgetKind[] = [
@@ -138,4 +148,5 @@ export const WIDGET_ORDER: WidgetKind[] = [
   "note",
   "graph",
   "calculator",
+  "foldNet",
 ];

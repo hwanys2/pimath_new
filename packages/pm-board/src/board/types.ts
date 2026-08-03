@@ -87,9 +87,10 @@ export type WidgetKind =
   | "qr"
   | "note"
   | "graph"
-  | "calculator";
+  | "calculator"
+  | "foldNet";
 
-/** Saved boards may still reference removed widget kinds. */
+/** Saved boards may still reference the pre-foldNet solid widget id. */
 export type LegacyWidgetKind = "solid3d";
 
 export type WidgetInstance = {
