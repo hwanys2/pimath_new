@@ -8,11 +8,11 @@ import {
   findMagnetCandidates,
   isOutwardSnap,
 } from "./magnet";
-import { worldEdges, worldVertices } from "./geometry";
+import { worldEdges, worldVertices, positionForEdgeMatch, rotationToAlignEdge } from "./geometry";
 import { canFoldNet, solveClosureAngles } from "./closure-solver";
 import { computeTileTransforms, vec2To3 } from "./fold-transforms";
 import { signedHingeAngle, dihedralMagnitude } from "./hinge-geometry";
-import { buildNetFoldTree, foldTreeEdges } from "./net-fold-tree";
+import { buildNetFoldTree, foldTreeEdges, pickFoldRoot } from "./net-fold-tree";
 import { activeNetTileIds, componentKey, syncNetFolds, unfoldTForTile } from "./net-graph";
 import {
   buildFoldRenderTree,
@@ -40,6 +40,38 @@ function eqTri(id: string, x: number, y: number, rot = 0): FoldTile {
     scale: DEFAULT_TILE_SCALE,
     rotation: rot,
   };
+}
+
+function placeOnEdge(
+  tile: FoldTile,
+  edgeIndex: number,
+  fixed: FoldTile,
+  fixedEdgeIndex: number,
+): FoldTile {
+  const fe = worldEdges(fixed)[fixedEdgeIndex];
+  const rot = rotationToAlignEdge(tile, edgeIndex, {
+    x: -fe.dir.x,
+    y: -fe.dir.y,
+  });
+  const placed = { ...tile, rotation: rot };
+  return { ...placed, ...positionForEdgeMatch(placed, edgeIndex, fe.mid) };
+}
+
+function countVertexClusters(
+  verts: { x: number; y: number; z: number }[],
+  eps = 10,
+): number {
+  const clusters: typeof verts = [];
+  for (const v of verts) {
+    if (
+      !clusters.find(
+        (c) => Math.hypot(c.x - v.x, c.y - v.y, c.z - v.z) < eps,
+      )
+    ) {
+      clusters.push(v);
+    }
+  }
+  return clusters.length;
 }
 
 describe("activeNetTileIds", () => {
@@ -361,31 +393,164 @@ describe("fold transforms", () => {
     assert.deepEqual(foldedTree!.hinges[0].pivot, flatTree!.hinges[0].pivot);
   });
 
-  it("square pyramid folds upward toward +Z", () => {
+  it("square pyramid apex converges at t=1", () => {
     const base = square("base", 400, 400);
-    const tn = eqTri("tn", base.x, base.y - 80);
-    const { tiles: snapped, join } = applyMagnetSnap(
-      [base, tn],
-      [],
-      ["tn"],
-      { x: tn.x, y: base.y - 40 },
-    );
-    assert.ok(join, "triangle should snap to square edge");
-    const joins = [join];
-    const ids = snapped.map((t) => t.id);
-    const closure = solveClosureAngles(snapped, joins, ids);
+    const tn = placeOnEdge(eqTri("tn", 0, 0), 0, base, 2);
+    const ts = placeOnEdge(eqTri("ts", 0, 0), 0, base, 0);
+    const te = placeOnEdge(eqTri("te", 0, 0), 0, base, 3);
+    const tw = placeOnEdge(eqTri("tw", 0, 0), 0, base, 1);
+    const tiles = [base, tn, ts, te, tw];
+    const joins: Join[] = [
+      {
+        id: "j0",
+        a: { tileId: "base", edgeIndex: 2 },
+        b: { tileId: "tn", edgeIndex: 0 },
+      },
+      {
+        id: "j1",
+        a: { tileId: "base", edgeIndex: 0 },
+        b: { tileId: "ts", edgeIndex: 0 },
+      },
+      {
+        id: "j2",
+        a: { tileId: "base", edgeIndex: 3 },
+        b: { tileId: "te", edgeIndex: 0 },
+      },
+      {
+        id: "j3",
+        a: { tileId: "base", edgeIndex: 1 },
+        b: { tileId: "tw", edgeIndex: 0 },
+      },
+    ];
+    const ids = tiles.map((t) => t.id);
+    assert.ok(canFoldNet(tiles, joins, ids));
+    const root = pickFoldRoot(tiles, ids, joins)!;
+    const closure = solveClosureAngles(tiles, joins, ids);
     const tree = buildFoldRenderTree(
-      snapped,
+      tiles,
       joins,
-      "base",
+      root,
       1,
       closure.angles,
       ids,
     );
     assert.ok(tree);
-    const verts = [...evaluateRenderTreeVertices(tree).values()].flat();
-    const maxZ = Math.max(...verts.map((v) => v.z));
-    assert.ok(maxZ > 5, "pyramid lateral face should fold above the base plane");
+    const verts = [...evaluateRenderTreeVertices(tree!).values()].flat();
+    assert.equal(
+      countVertexClusters(verts),
+      5,
+      "folded pyramid should have 5 vertices (base corners + apex)",
+    );
+    const maxZ = Math.max(...verts.map((v) => Math.abs(v.z)));
+    assert.ok(maxZ > 20, "pyramid should fold off the plane at t=1");
+  });
+
+  it("frustum top face closes flat at t=1", () => {
+    const base: FoldTile = {
+      ...square("base", 400, 400),
+      edgeScale: [1.6, 1.6, 1.6, 1.6],
+    };
+    const tn = placeOnEdge(
+      {
+        id: "tn",
+        kind: "isoscelesTrapezoid",
+        x: 0,
+        y: 0,
+        scale: DEFAULT_TILE_SCALE,
+        rotation: 0,
+      },
+      0,
+      base,
+      2,
+    );
+    const ts = placeOnEdge(
+      {
+        id: "ts",
+        kind: "isoscelesTrapezoid",
+        x: 0,
+        y: 0,
+        scale: DEFAULT_TILE_SCALE,
+        rotation: 0,
+      },
+      0,
+      base,
+      0,
+    );
+    const te = placeOnEdge(
+      {
+        id: "te",
+        kind: "isoscelesTrapezoid",
+        x: 0,
+        y: 0,
+        scale: DEFAULT_TILE_SCALE,
+        rotation: 0,
+      },
+      0,
+      base,
+      3,
+    );
+    const tw = placeOnEdge(
+      {
+        id: "tw",
+        kind: "isoscelesTrapezoid",
+        x: 0,
+        y: 0,
+        scale: DEFAULT_TILE_SCALE,
+        rotation: 0,
+      },
+      0,
+      base,
+      1,
+    );
+    const top = placeOnEdge(square("top", 0, 0), 0, tn, 2);
+    const tiles = [base, tn, ts, te, tw, top];
+    const joins: Join[] = [
+      {
+        id: "j0",
+        a: { tileId: "base", edgeIndex: 2 },
+        b: { tileId: "tn", edgeIndex: 0 },
+      },
+      {
+        id: "j1",
+        a: { tileId: "base", edgeIndex: 0 },
+        b: { tileId: "ts", edgeIndex: 0 },
+      },
+      {
+        id: "j2",
+        a: { tileId: "base", edgeIndex: 3 },
+        b: { tileId: "te", edgeIndex: 0 },
+      },
+      {
+        id: "j3",
+        a: { tileId: "base", edgeIndex: 1 },
+        b: { tileId: "tw", edgeIndex: 0 },
+      },
+      {
+        id: "j4",
+        a: { tileId: "tn", edgeIndex: 2 },
+        b: { tileId: "top", edgeIndex: 0 },
+      },
+    ];
+    const ids = tiles.map((t) => t.id);
+    const root = pickFoldRoot(tiles, ids, joins)!;
+    const closure = solveClosureAngles(tiles, joins, ids);
+    const tree = buildFoldRenderTree(
+      tiles,
+      joins,
+      root,
+      1,
+      closure.angles,
+      ids,
+    );
+    assert.ok(tree);
+    const byTile = evaluateRenderTreeVertices(tree!);
+    const topVerts = byTile.get("top") ?? [];
+    const topZs = topVerts.map((v) => v.z);
+    const topSpread = Math.max(...topZs) - Math.min(...topZs);
+    assert.ok(topSpread < 1, "top cap should be nearly flat at t=1");
+    const allVerts = [...byTile.values()].flat();
+    const maxZ = Math.max(...allVerts.map((v) => Math.abs(v.z)));
+    assert.ok(maxZ > 15, "frustum should fold off the plane at t=1");
   });
 });
 

@@ -1,7 +1,43 @@
 import { edgeLength, worldEdges, worldVertices } from "./geometry";
 import { unitEdgeLengths } from "./shape-defs";
-import type { FoldTile, Vec2 } from "./types";
+import type { FoldTile, ShapeKind, Vec2 } from "./types";
 import type { NetFoldEdge } from "./net-fold-tree";
+
+function isEquilateralTriangleKind(kind: ShapeKind): boolean {
+  return kind === "equilateralTriangle";
+}
+
+/**
+ * Hinge rotation (radians) at unfoldT=1 from a flat net crease, given mean
+ * interior face angles at the shared edge endpoints.
+ */
+export function hingeMagnitudeFromFaceAngles(
+  angleP: number,
+  angleC: number,
+  parentKind?: ShapeKind,
+  childKind?: ShapeKind,
+): number {
+  if (
+    parentKind &&
+    childKind &&
+    isEquilateralTriangleKind(parentKind) &&
+    isEquilateralTriangleKind(childKind)
+  ) {
+    return Math.PI - Math.acos(1 / 3);
+  }
+
+  const denom = Math.sin(angleP) * Math.sin(angleC);
+  if (denom < 1e-9) return Math.PI / 2;
+
+  const x = (Math.cos(angleP) + Math.cos(angleC)) / denom;
+  if (x <= -1 + 1e-9) return Math.PI;
+  if (x >= 1 - 1e-9) {
+    const flat = Math.PI - angleP - angleC;
+    return flat > 0.05 ? flat : Math.PI / 2;
+  }
+
+  return Math.PI - Math.acos(x);
+}
 
 export type HingeSpec = {
   joinId: string;
@@ -40,73 +76,39 @@ function findVertexIndex(verts: Vec2[], target: Vec2): number {
   return best;
 }
 
-function isQuadTile(tile: FoldTile): boolean {
-  return (
-    tile.kind === "square" ||
-    tile.kind === "rectangle" ||
-    tile.kind === "rhombus"
-  );
+function isQuadKind(kind: ShapeKind): boolean {
+  return kind === "square" || kind === "rectangle" || kind === "rhombus";
 }
 
-/** Which parallel base of the unit trapezoid shares this edge. */
-function trapezoidSharedBaseRole(
-  trap: FoldTile,
-  edgeIndex: number,
-): "long" | "short" | "leg" {
-  const units = unitEdgeLengths("isoscelesTrapezoid");
-  const len = edgeLength(trap, edgeIndex);
-  const longLen = units[0] * trap.scale * (trap.edgeScale?.[0] ?? 1);
-  const shortLen = units[2] * trap.scale * (trap.edgeScale?.[2] ?? 1);
-  if (Math.abs(len - longLen) < 3) return "long";
-  if (Math.abs(len - shortLen) < 3) return "short";
-  return "leg";
-}
-
-/** Inward taper φ for an isosceles trapezoid lateral face (radians). */
-function trapezoidTaperAngle(tile: FoldTile): number {
-  const units = unitEdgeLengths("isoscelesTrapezoid");
-  const longBase = units[0] * tile.scale * (tile.edgeScale?.[0] ?? 1);
-  const shortBase = units[2] * tile.scale * (tile.edgeScale?.[2] ?? 1);
-  const leg = units[1] * tile.scale * (tile.edgeScale?.[1] ?? 1);
-  const halfDiff = (longBase - shortBase) / 2;
-  const h = Math.sqrt(Math.max(leg * leg - halfDiff * halfDiff, 1e-6));
-  return Math.atan(halfDiff / h);
-}
-
-function squareTrapezoidHingeMagnitude(
+/** Top-cap joins attach at the trapezoid's short base; sign must fold inward. */
+function flipTrapezoidCapSign(
   parent: FoldTile,
   child: FoldTile,
   edge: NetFoldEdge,
-): number | null {
+): boolean {
   const trap =
     parent.kind === "isoscelesTrapezoid"
       ? parent
       : child.kind === "isoscelesTrapezoid"
         ? child
         : null;
-  if (!trap) return null;
-  const hasQuad =
-    (trap === parent && isQuadTile(child)) ||
-    (trap === child && isQuadTile(parent));
-  if (!hasQuad) return null;
-
+  if (!trap) return false;
+  const quad = trap === parent ? child : parent;
+  if (!isQuadKind(quad.kind)) return false;
   const trapEdgeIndex =
     parent === trap ? edge.parentEdge.edgeIndex : edge.childEdge.edgeIndex;
-  const role = trapezoidSharedBaseRole(trap, trapEdgeIndex);
-  if (role === "leg") return null;
-  if (role === "long") return Math.PI / 2;
-  return Math.PI / 2 - trapezoidTaperAngle(trap);
+  const units = unitEdgeLengths("isoscelesTrapezoid");
+  const len = edgeLength(trap, trapEdgeIndex);
+  const shortLen = units[2] * trap.scale * (trap.edgeScale?.[2] ?? 1);
+  return Math.abs(len - shortLen) < 3;
 }
 
-/** Unsigned dihedral magnitude (radians) from local face angles. */
+/** Unsigned hinge rotation magnitude (radians) from local face angles. */
 export function dihedralMagnitude(
   parent: FoldTile,
   child: FoldTile,
   edge: NetFoldEdge,
 ): number {
-  const frustumMag = squareTrapezoidHingeMagnitude(parent, child, edge);
-  if (frustumMag != null) return frustumMag;
-
   const pVerts = worldVertices(parent);
   const cVerts = worldVertices(child);
   const pe = worldEdges(parent)[edge.parentEdge.edgeIndex];
@@ -120,13 +122,7 @@ export function dihedralMagnitude(
   const angleP = (interiorAngleAt(pVerts, pA) + interiorAngleAt(pVerts, pB)) / 2;
   const angleC = (interiorAngleAt(cVerts, cA) + interiorAngleAt(cVerts, cB)) / 2;
 
-  if (parent.kind === "equilateralTriangle" && child.kind === "equilateralTriangle") {
-    return Math.PI - Math.acos(1 / 3);
-  }
-
-  const suggested = Math.PI - angleP - angleC;
-  if (suggested > 0.05 && suggested < Math.PI - 0.05) return suggested;
-  return Math.PI / 2;
+  return hingeMagnitudeFromFaceAngles(angleP, angleC, parent.kind, child.kind);
 }
 
 /**
@@ -149,7 +145,8 @@ export function signedHingeAngle(
     cVerts.reduce((s, v) => s + v.y, 0) / Math.max(1, cVerts.length);
   const toChild = { x: cx - spec.pivot.x, y: cy - spec.pivot.y };
   const cross = spec.axisDir.x * toChild.y - spec.axisDir.y * toChild.x;
-  const sign = cross >= 0 ? 1 : -1;
+  let sign = cross >= 0 ? 1 : -1;
+  if (flipTrapezoidCapSign(parent, child, edge)) sign *= -1;
   return sign * magnitude;
 }
 
