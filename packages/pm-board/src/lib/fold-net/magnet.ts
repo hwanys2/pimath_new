@@ -2,12 +2,15 @@ import {
   allWorldEdges,
   dist,
   edgeLength,
-  pointInPolygon,
   positionForEdgeMatch,
   rotationToAlignEdge,
   worldEdges,
   worldVertices,
 } from "./geometry";
+import {
+  pointToSegmentDistance,
+  polygonsHaveAreaOverlap,
+} from "./polygon-collision";
 import type {
   EdgeRef,
   FoldTile,
@@ -17,9 +20,9 @@ import type {
   WorldEdge,
 } from "./types";
 
-export const LENGTH_EPS = 4;
-export const NEAR_EPS = 28;
-export const VERTEX_EPS = 14;
+export const LENGTH_RATIO_EPS = 0.22;
+export const PARALLEL_EPS = 0.35;
+export const NEAR_RATIO = 0.45;
 
 function sameEdge(a: EdgeRef, b: EdgeRef): boolean {
   return a.tileId === b.tileId && a.edgeIndex === b.edgeIndex;
@@ -36,7 +39,6 @@ export function sideOfEdge(edge: WorldEdge, p: Vec2): number {
   return edge.dir.x * vy - edge.dir.y * vx;
 }
 
-/** True when tile centroids lie on opposite sides of the shared edge (net unfolds outward). */
 export function isOutwardSnap(
   fixed: FoldTile,
   moving: FoldTile,
@@ -47,12 +49,38 @@ export function isOutwardSnap(
   return fixedSide * movingSide < -1e-3;
 }
 
-/** Rough overlap check: moving centroid inside fixed polygon or vice versa. */
-function tilesOverlap(fixed: FoldTile, moving: FoldTile): boolean {
-  const fixedVerts = worldVertices(fixed);
-  const movingVerts = worldVertices(moving);
-  if (pointInPolygon({ x: moving.x, y: moving.y }, fixedVerts)) return true;
-  if (pointInPolygon({ x: fixed.x, y: fixed.y }, movingVerts)) return true;
+function edgeProximity(
+  ea: WorldEdge,
+  eb: WorldEdge,
+  pointer?: Vec2,
+): number {
+  const dMid = dist(ea.mid, eb.mid);
+  const dA = pointToSegmentDistance(ea.mid, eb.a, eb.b);
+  const dB = pointToSegmentDistance(eb.mid, ea.a, ea.b);
+  const dPtr = pointer
+    ? Math.min(
+        pointToSegmentDistance(pointer, ea.a, ea.b),
+        pointToSegmentDistance(pointer, eb.a, eb.b),
+      )
+    : Infinity;
+  return Math.min(dMid, dA, dB, dPtr);
+}
+
+function lengthRatioOk(lenA: number, lenB: number): boolean {
+  const maxLen = Math.max(lenA, lenB, 1);
+  return Math.abs(lenA - lenB) / maxLen <= LENGTH_RATIO_EPS;
+}
+
+function overlapsAny(
+  tiles: FoldTile[],
+  movingSet: Set<string>,
+  candidateTile: FoldTile,
+): boolean {
+  const movingVerts = worldVertices(candidateTile);
+  for (const t of tiles) {
+    if (movingSet.has(t.id) || t.id === candidateTile.id) continue;
+    if (polygonsHaveAreaOverlap(movingVerts, worldVertices(t))) return true;
+  }
   return false;
 }
 
@@ -62,16 +90,14 @@ export type SnapResult = {
   overlap: boolean;
 };
 
-/**
- * Compute snapped position for moving tile against fixed edge.
- * Edges align anti-parallel (shared boundary) with tiles on opposite sides.
- */
 export function computeSnapForCandidate(
   moving: FoldTile,
   fixed: FoldTile,
   movingRef: EdgeRef,
   fixedRef: EdgeRef,
   preferPosition?: Vec2,
+  allTiles?: FoldTile[],
+  movingSet?: Set<string>,
 ): SnapResult {
   const fixedLen = edgeLength(fixed, fixedRef.edgeIndex);
   const movingLen = edgeLength(moving, movingRef.edgeIndex);
@@ -89,14 +115,13 @@ export function computeSnapForCandidate(
   next = { ...next, x: pos.x, y: pos.y };
 
   let outward = isOutwardSnap(fixed, next, fe);
-  let overlap = tilesOverlap(fixed, next);
+  let overlap =
+    allTiles && movingSet
+      ? overlapsAny(allTiles, movingSet, next)
+      : false;
 
-  // If inward or overlapping, flip 180° around the shared edge midpoint.
   if (!outward || overlap) {
-    const flipped = {
-      ...next,
-      rotation: next.rotation + Math.PI,
-    };
+    const flipped = { ...next, rotation: next.rotation + Math.PI };
     const flippedPos = positionForEdgeMatch(
       flipped,
       movingRef.edgeIndex,
@@ -104,19 +129,18 @@ export function computeSnapForCandidate(
     );
     const flippedTile = { ...flipped, x: flippedPos.x, y: flippedPos.y };
     const flippedOutward = isOutwardSnap(fixed, flippedTile, fe);
-    const flippedOverlap = tilesOverlap(fixed, flippedTile);
+    const flippedOverlap =
+      allTiles && movingSet
+        ? overlapsAny(allTiles, movingSet, flippedTile)
+        : false;
 
     if (flippedOutward && !flippedOverlap) {
       next = flippedTile;
       outward = true;
       overlap = false;
     } else if (preferPosition) {
-      // Pick whichever is closer to where the user dragged.
       const d0 = dist(preferPosition, { x: next.x, y: next.y });
-      const d1 = dist(preferPosition, {
-        x: flippedTile.x,
-        y: flippedTile.y,
-      });
+      const d1 = dist(preferPosition, { x: flippedTile.x, y: flippedTile.y });
       if (d1 < d0) {
         next = flippedTile;
         outward = flippedOutward;
@@ -131,10 +155,15 @@ export function computeSnapForCandidate(
 export function findMagnetCandidates(
   tiles: FoldTile[],
   joins: Join[],
-  opts?: { movingTileIds?: Set<string>; lengthEps?: number; nearEps?: number },
+  opts?: {
+    movingTileIds?: Set<string>;
+    pointer?: Vec2;
+    lengthRatioEps?: number;
+    nearRatio?: number;
+  },
 ): MagnetCandidate[] {
-  const lengthEps = opts?.lengthEps ?? LENGTH_EPS;
-  const nearEps = opts?.nearEps ?? NEAR_EPS;
+  const lengthRatioEps = opts?.lengthRatioEps ?? LENGTH_RATIO_EPS;
+  const nearRatio = opts?.nearRatio ?? NEAR_RATIO;
   const edges = allWorldEdges(tiles);
   const out: MagnetCandidate[] = [];
 
@@ -154,22 +183,17 @@ export function findMagnetCandidates(
         if (aMoving && bMoving) continue;
       }
 
-      if (Math.abs(ea.length - eb.length) > lengthEps) continue;
+      const maxLen = Math.max(ea.length, eb.length, 1);
+      if (Math.abs(ea.length - eb.length) / maxLen > lengthRatioEps) continue;
 
-      const midDist = dist(ea.mid, eb.mid);
-      const vertClose =
-        Math.min(
-          dist(ea.a, eb.a) + dist(ea.b, eb.b),
-          dist(ea.a, eb.b) + dist(ea.b, eb.a),
-        ) <
-        VERTEX_EPS * 2 + lengthEps;
-
-      if (midDist > nearEps && !vertClose) continue;
+      const proximity = edgeProximity(ea, eb, opts?.pointer);
+      const threshold = nearRatio * ((ea.length + eb.length) / 2);
+      if (proximity > threshold) continue;
 
       out.push({
         a: refA,
         b: refB,
-        distance: midDist,
+        distance: proximity,
         length: (ea.length + eb.length) / 2,
       });
     }
@@ -179,7 +203,6 @@ export function findMagnetCandidates(
   return out;
 }
 
-/** Score candidate: prefer outward non-overlapping snaps closer to drag position. */
 function scoreCandidate(
   tiles: FoldTile[],
   candidate: MagnetCandidate,
@@ -199,12 +222,14 @@ function scoreCandidate(
     movingRef,
     fixedRef,
     preferPosition,
+    tiles,
+    movingSet,
   );
   let score = candidate.distance;
   if (!snap.outward) score += 500;
   if (snap.overlap) score += 1000;
   if (preferPosition) {
-    score += dist(preferPosition, { x: snap.tile.x, y: snap.tile.y }) * 0.1;
+    score += dist(preferPosition, { x: snap.tile.x, y: snap.tile.y }) * 0.05;
   }
   return score;
 }
@@ -228,7 +253,36 @@ function pickBestCandidate(
   return best;
 }
 
-/** Preview snapped tiles without creating a join (for live drag feedback). */
+function applyRigidSnap(
+  tiles: FoldTile[],
+  movingSet: Set<string>,
+  moving: FoldTile,
+  nextMoving: FoldTile,
+): FoldTile[] {
+  const dx = nextMoving.x - moving.x;
+  const dy = nextMoving.y - moving.y;
+  const dRot = nextMoving.rotation - moving.rotation;
+  return tiles.map((t) => {
+    if (t.id === nextMoving.id) return nextMoving;
+    if (!movingSet.has(t.id)) return t;
+    if (Math.abs(dRot) < 1e-6) {
+      return { ...t, x: t.x + dx, y: t.y + dy };
+    }
+    const ox = moving.x;
+    const oy = moving.y;
+    const cos = Math.cos(dRot);
+    const sin = Math.sin(dRot);
+    const rx = t.x - ox;
+    const ry = t.y - oy;
+    return {
+      ...t,
+      x: nextMoving.x + rx * cos - ry * sin,
+      y: nextMoving.y + rx * sin + ry * cos,
+      rotation: t.rotation + dRot,
+    };
+  });
+}
+
 export function previewSnapTiles(
   tiles: FoldTile[],
   joins: Join[],
@@ -238,6 +292,7 @@ export function previewSnapTiles(
   const movingSet = new Set(movingIds);
   const candidates = findMagnetCandidates(tiles, joins, {
     movingTileIds: movingSet,
+    pointer: preferPosition,
   });
   const best = pickBestCandidate(tiles, candidates, movingSet, preferPosition);
   if (!best) return { tiles, candidate: null };
@@ -255,35 +310,15 @@ export function previewSnapTiles(
     movingRef,
     fixedRef,
     preferPosition,
+    tiles,
+    movingSet,
   );
   if (!snap.outward || snap.overlap) return { tiles, candidate: null };
 
-  const nextMoving = snap.tile;
-  const dx = nextMoving.x - moving.x;
-  const dy = nextMoving.y - moving.y;
-  const dRot = nextMoving.rotation - moving.rotation;
-
-  const nextTiles = tiles.map((t) => {
-    if (t.id === nextMoving.id) return nextMoving;
-    if (!movingSet.has(t.id)) return t;
-    if (Math.abs(dRot) < 1e-6) {
-      return { ...t, x: t.x + dx, y: t.y + dy };
-    }
-    const ox = moving.x;
-    const oy = moving.y;
-    const cos = Math.cos(dRot);
-    const sin = Math.sin(dRot);
-    const rx = t.x - ox;
-    const ry = t.y - oy;
-    return {
-      ...t,
-      x: nextMoving.x + rx * cos - ry * sin,
-      y: nextMoving.y + rx * sin + ry * cos,
-      rotation: t.rotation + dRot,
-    };
-  });
-
-  return { tiles: nextTiles, candidate: best };
+  return {
+    tiles: applyRigidSnap(tiles, movingSet, moving, snap.tile),
+    candidate: best,
+  };
 }
 
 export function applyMagnetSnap(
@@ -295,16 +330,14 @@ export function applyMagnetSnap(
   const movingSet = new Set(movingIds);
   const candidates = findMagnetCandidates(tiles, joins, {
     movingTileIds: movingSet,
+    pointer: preferPosition,
   });
   const best = pickBestCandidate(tiles, candidates, movingSet, preferPosition);
-  if (!best) {
-    return { tiles, join: null, candidate: null };
-  }
+  if (!best) return { tiles, join: null, candidate: null };
 
   const aMoving = movingSet.has(best.a.tileId);
   const movingRef = aMoving ? best.a : best.b;
   const fixedRef = aMoving ? best.b : best.a;
-
   const moving = tiles.find((t) => t.id === movingRef.tileId);
   const fixed = tiles.find((t) => t.id === fixedRef.tileId);
   if (!moving || !fixed) return { tiles, join: null, candidate: null };
@@ -315,35 +348,12 @@ export function applyMagnetSnap(
     movingRef,
     fixedRef,
     preferPosition,
+    tiles,
+    movingSet,
   );
   if (!snap.outward || snap.overlap) {
     return { tiles, join: null, candidate: null };
   }
-
-  const nextMoving = snap.tile;
-  const dx = nextMoving.x - moving.x;
-  const dy = nextMoving.y - moving.y;
-  const dRot = nextMoving.rotation - moving.rotation;
-
-  const nextTiles = tiles.map((t) => {
-    if (t.id === nextMoving.id) return nextMoving;
-    if (!movingSet.has(t.id)) return t;
-    if (Math.abs(dRot) < 1e-6) {
-      return { ...t, x: t.x + dx, y: t.y + dy };
-    }
-    const ox = moving.x;
-    const oy = moving.y;
-    const cos = Math.cos(dRot);
-    const sin = Math.sin(dRot);
-    const rx = t.x - ox;
-    const ry = t.y - oy;
-    return {
-      ...t,
-      x: nextMoving.x + rx * cos - ry * sin,
-      y: nextMoving.y + rx * sin + ry * cos,
-      rotation: t.rotation + dRot,
-    };
-  });
 
   const join: Join = {
     id: `fj-${Date.now().toString(36)}`,
@@ -351,5 +361,9 @@ export function applyMagnetSnap(
     b: best.b,
   };
 
-  return { tiles: nextTiles, join, candidate: best };
+  return {
+    tiles: applyRigidSnap(tiles, movingSet, moving, snap.tile),
+    join,
+    candidate: best,
+  };
 }

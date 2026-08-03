@@ -5,6 +5,7 @@ import {
   SHAPE_DEFS,
   applyMagnetSnap,
   componentContaining,
+  edgeCount,
   pointInPolygon,
   previewSnapTiles,
   tileBounds,
@@ -21,17 +22,40 @@ type DragMode =
       ids: string[];
       ox: number;
       oy: number;
-      origins: Record<string, { x: number; y: number }>;
+      origins: Record<string, { x: number; y: number; rotation: number }>;
     }
   | {
       type: "rotate";
-      id: string;
+      ids: string[];
       cx: number;
       cy: number;
       startAngle: number;
-      baseRot: number;
+      baseRots: Record<string, number>;
+      origins: Record<string, { x: number; y: number }>;
     }
-  | { type: "scale"; id: string; startDist: number; baseScale: number }
+  | {
+      type: "scale";
+      ids: string[];
+      cx: number;
+      cy: number;
+      startDist: number;
+      baseScales: Record<string, number>;
+      baseEdgeScales: Record<string, number[] | undefined>;
+    }
+  | {
+      type: "scaleX";
+      id: string;
+      cx: number;
+      startDist: number;
+      baseScaleX: number;
+    }
+  | {
+      type: "scaleY";
+      id: string;
+      cy: number;
+      startDist: number;
+      baseScaleY: number;
+    }
   | { type: "marquee"; x0: number; y0: number; x1: number; y1: number };
 
 type Props = {
@@ -44,6 +68,16 @@ type Props = {
   onSelect: (ids: string[]) => void;
 };
 
+function supportsAxisScale(kind: FoldTile["kind"]): boolean {
+  return kind === "rectangle" || kind === "square";
+}
+
+function ensureEdgeScale(tile: FoldTile): number[] {
+  const n = edgeCount(tile.kind);
+  if (tile.edgeScale && tile.edgeScale.length === n) return [...tile.edgeScale];
+  return Array.from({ length: n }, () => 1);
+}
+
 export default function FoldNetCanvas({
   tiles,
   joins,
@@ -54,12 +88,16 @@ export default function FoldNetCanvas({
   onSelect,
 }: Props) {
   const svgRef = useRef<SVGSVGElement>(null);
+  const dragTilesRef = useRef<FoldTile[]>(tiles);
   const [drag, setDrag] = useState<DragMode | null>(null);
   const [preview, setPreview] = useState<MagnetCandidate | null>(null);
   const [snapPreviewTiles, setSnapPreviewTiles] = useState<FoldTile[] | null>(
     null,
   );
   const selected = useMemo(() => new Set(selectedIds), [selectedIds]);
+  const connected = useMemo(() => new Set(connectedIds), [connectedIds]);
+
+  dragTilesRef.current = tiles;
 
   const toLocal = useCallback((clientX: number, clientY: number) => {
     const svg = svgRef.current;
@@ -79,7 +117,12 @@ export default function FoldNetCanvas({
   );
 
   const updateSnapPreview = useCallback(
-    (nextTiles: FoldTile[], movingIds: string[], pointer?: { x: number; y: number }) => {
+    (
+      nextTiles: FoldTile[],
+      movingIds: string[],
+      pointer?: { x: number; y: number },
+    ) => {
+      dragTilesRef.current = nextTiles;
       const { tiles: snapped, candidate } = previewSnapTiles(
         nextTiles,
         joins,
@@ -100,31 +143,80 @@ export default function FoldNetCanvas({
       const handle = target.dataset.handle;
       const tileId = target.dataset.tileId;
 
-      if (handle === "rotate" && tileId) {
+      if (handle && tileId) {
         const tile = tiles.find((t) => t.id === tileId);
         if (!tile) return;
         e.stopPropagation();
         (e.currentTarget as Element).setPointerCapture?.(e.pointerId);
-        setDrag({
-          type: "rotate",
-          id: tileId,
-          cx: tile.x,
-          cy: tile.y,
-          startAngle: Math.atan2(p.y - tile.y, p.x - tile.x),
-          baseRot: tile.rotation,
-        });
-        return;
-      }
-      if (handle === "scale" && tileId) {
-        const tile = tiles.find((t) => t.id === tileId);
-        if (!tile) return;
-        e.stopPropagation();
-        setDrag({
-          type: "scale",
-          id: tileId,
-          startDist: Math.hypot(p.x - tile.x, p.y - tile.y) || 1,
-          baseScale: tile.scale,
-        });
+
+        const dragIds = componentContaining(tiles, joins, tileId);
+
+        if (handle === "rotate") {
+          const baseRots: Record<string, number> = {};
+          const origins: Record<string, { x: number; y: number }> = {};
+          for (const id of dragIds) {
+            const t = tiles.find((x) => x.id === id);
+            if (t) {
+              baseRots[id] = t.rotation;
+              origins[id] = { x: t.x, y: t.y };
+            }
+          }
+          setDrag({
+            type: "rotate",
+            ids: dragIds,
+            cx: tile.x,
+            cy: tile.y,
+            startAngle: Math.atan2(p.y - tile.y, p.x - tile.x),
+            baseRots,
+            origins,
+          });
+          return;
+        }
+
+        if (handle === "scale") {
+          const baseScales: Record<string, number> = {};
+          const baseEdgeScales: Record<string, number[] | undefined> = {};
+          for (const id of dragIds) {
+            const t = tiles.find((x) => x.id === id);
+            if (t) {
+              baseScales[id] = t.scale;
+              baseEdgeScales[id] = t.edgeScale;
+            }
+          }
+          setDrag({
+            type: "scale",
+            ids: dragIds,
+            cx: tile.x,
+            cy: tile.y,
+            startDist: Math.hypot(p.x - tile.x, p.y - tile.y) || 1,
+            baseScales,
+            baseEdgeScales,
+          });
+          return;
+        }
+
+        if (handle === "scaleX" && supportsAxisScale(tile.kind)) {
+          const es = ensureEdgeScale(tile);
+          setDrag({
+            type: "scaleX",
+            id: tileId,
+            cx: tile.x,
+            startDist: Math.abs(p.x - tile.x) || 1,
+            baseScaleX: es[1] ?? 1,
+          });
+          return;
+        }
+
+        if (handle === "scaleY" && supportsAxisScale(tile.kind)) {
+          const es = ensureEdgeScale(tile);
+          setDrag({
+            type: "scaleY",
+            id: tileId,
+            cy: tile.y,
+            startDist: Math.abs(p.y - tile.y) || 1,
+            baseScaleY: es[0] ?? 1,
+          });
+        }
         return;
       }
 
@@ -154,10 +246,11 @@ export default function FoldNetCanvas({
           ? nextSelection
           : componentContaining(tiles, joins, hit.id);
 
-      const origins: Record<string, { x: number; y: number }> = {};
+      const origins: Record<string, { x: number; y: number; rotation: number }> =
+        {};
       for (const id of dragIds) {
         const t = tiles.find((x) => x.id === id);
-        if (t) origins[id] = { x: t.x, y: t.y };
+        if (t) origins[id] = { x: t.x, y: t.y, rotation: t.rotation };
       }
       setDrag({ type: "move", ids: dragIds, ox: p.x, oy: p.y, origins });
     },
@@ -174,26 +267,64 @@ export default function FoldNetCanvas({
       }
       if (drag.type === "rotate") {
         const ang = Math.atan2(p.y - drag.cy, p.x - drag.cx);
-        const next = tiles.map((t) =>
-          t.id === drag.id
-            ? { ...t, rotation: drag.baseRot + (ang - drag.startAngle) }
-            : t,
-        );
+        const dAng = ang - drag.startAngle;
+        const cos = Math.cos(dAng);
+        const sin = Math.sin(dAng);
+        const next = tiles.map((t) => {
+          const o = drag.origins[t.id];
+          if (!o) return t;
+          const rx = o.x - drag.cx;
+          const ry = o.y - drag.cy;
+          return {
+            ...t,
+            x: drag.cx + rx * cos - ry * sin,
+            y: drag.cy + rx * sin + ry * cos,
+            rotation: (drag.baseRots[t.id] ?? t.rotation) + dAng,
+          };
+        });
+        onChangeTiles(next);
+        updateSnapPreview(next, drag.ids, p);
+        return;
+      }
+      if (drag.type === "scale") {
+        const distNow = Math.hypot(p.x - drag.cx, p.y - drag.cy) || 1;
+        const ratio = distNow / drag.startDist;
+        const next = tiles.map((t) => {
+          if (!drag.ids.includes(t.id)) return t;
+          const base = drag.baseScales[t.id] ?? t.scale;
+          return {
+            ...t,
+            scale: Math.max(24, Math.min(200, base * ratio)),
+          };
+        });
+        onChangeTiles(next);
+        updateSnapPreview(next, drag.ids, p);
+        return;
+      }
+      if (drag.type === "scaleX") {
+        const distNow = Math.abs(p.x - drag.cx) || 1;
+        const ratio = distNow / drag.startDist;
+        const next = tiles.map((t) => {
+          if (t.id !== drag.id) return t;
+          const es = ensureEdgeScale(t);
+          es[1] = Math.max(0.4, Math.min(2.5, drag.baseScaleX * ratio));
+          es[3] = es[1];
+          return { ...t, edgeScale: es };
+        });
         onChangeTiles(next);
         updateSnapPreview(next, [drag.id], p);
         return;
       }
-      if (drag.type === "scale") {
-        const tile = tiles.find((t) => t.id === drag.id);
-        if (!tile) return;
-        const distNow = Math.hypot(p.x - tile.x, p.y - tile.y) || 1;
-        const scale = Math.max(
-          24,
-          Math.min(160, drag.baseScale * (distNow / drag.startDist)),
-        );
-        const next = tiles.map((t) =>
-          t.id === drag.id ? { ...t, scale } : t,
-        );
+      if (drag.type === "scaleY") {
+        const distNow = Math.abs(p.y - drag.cy) || 1;
+        const ratio = distNow / drag.startDist;
+        const next = tiles.map((t) => {
+          if (t.id !== drag.id) return t;
+          const es = ensureEdgeScale(t);
+          es[0] = Math.max(0.4, Math.min(2.5, drag.baseScaleY * ratio));
+          es[2] = es[0];
+          return { ...t, edgeScale: es };
+        });
         onChangeTiles(next);
         updateSnapPreview(next, [drag.id], p);
         return;
@@ -210,18 +341,20 @@ export default function FoldNetCanvas({
         updateSnapPreview(next, drag.ids, p);
       }
     },
-    [drag, tiles, joins, toLocal, onChangeTiles, updateSnapPreview],
+    [drag, tiles, toLocal, onChangeTiles, updateSnapPreview],
   );
 
   const onPointerUp = useCallback(() => {
     if (!drag) return;
+    const currentTiles = dragTilesRef.current;
+
     if (drag.type === "marquee") {
       const minX = Math.min(drag.x0, drag.x1);
       const maxX = Math.max(drag.x0, drag.x1);
       const minY = Math.min(drag.y0, drag.y1);
       const maxY = Math.max(drag.y0, drag.y1);
       onSelect(
-        tiles
+        currentTiles
           .filter((t) => {
             const b = tileBounds(t);
             return (
@@ -240,16 +373,17 @@ export default function FoldNetCanvas({
     }
 
     const movingIds =
-      drag.type === "move"
+      drag.type === "move" || drag.type === "rotate" || drag.type === "scale"
         ? drag.ids
-        : drag.type === "rotate" || drag.type === "scale"
+        : drag.type === "scaleX" || drag.type === "scaleY"
           ? [drag.id]
           : [];
+
     if (movingIds.length) {
-      const primary = tiles.find((t) => t.id === movingIds[0]);
+      const primary = currentTiles.find((t) => t.id === movingIds[0]);
       const prefer = primary ? { x: primary.x, y: primary.y } : undefined;
       const { tiles: snapped, join } = applyMagnetSnap(
-        tiles,
+        currentTiles,
         joins,
         movingIds,
         prefer,
@@ -260,7 +394,7 @@ export default function FoldNetCanvas({
     setDrag(null);
     setPreview(null);
     setSnapPreviewTiles(null);
-  }, [drag, tiles, joins, onChangeTiles, onChangeJoins, onSelect]);
+  }, [drag, joins, onChangeTiles, onChangeJoins, onSelect]);
 
   const joinSegments = useMemo(() => {
     const segs: { x1: number; y1: number; x2: number; y2: number; key: string }[] =
@@ -296,12 +430,12 @@ export default function FoldNetCanvas({
 
   const movingIdSet = useMemo(() => {
     if (!snapPreviewTiles || !drag) return new Set<string>();
-    if (drag.type === "move") return new Set(drag.ids);
-    if (drag.type === "rotate" || drag.type === "scale") return new Set([drag.id]);
+    if (drag.type === "move" || drag.type === "rotate" || drag.type === "scale")
+      return new Set(drag.ids);
+    if (drag.type === "scaleX" || drag.type === "scaleY")
+      return new Set([drag.id]);
     return new Set<string>();
   }, [snapPreviewTiles, drag]);
-
-  void connectedIds;
 
   return (
     <svg
@@ -376,11 +510,14 @@ export default function FoldNetCanvas({
         const points = verts.map((v) => `${v.x},${v.y}`).join(" ");
         const def = SHAPE_DEFS[tile.kind];
         const isSel = selected.has(tile.id);
+        const isConnected = connected.has(tile.id) && !isSel;
         const b = tileBounds(isGhost ? tile : displayTile);
         const handleX = (b.minX + b.maxX) / 2;
         const handleY = b.minY - 14;
         const scaleX = b.maxX + 6;
         const scaleY = b.maxY + 6;
+        const scaleXHandle = b.maxX + 6;
+        const scaleYHandle = b.minY - 6;
 
         if (isGhost) {
           const ghostVerts = worldVertices(displayTile);
@@ -411,8 +548,10 @@ export default function FoldNetCanvas({
             <polygon
               points={points}
               fill={def.color}
-              stroke={isSel ? "#1e40af" : "rgba(0,0,0,0.25)"}
-              strokeWidth={isSel ? 2.5 : 1.5}
+              stroke={
+                isSel ? "#1e40af" : isConnected ? "#059669" : "rgba(0,0,0,0.25)"
+              }
+              strokeWidth={isSel ? 2.5 : isConnected ? 2 : 1.5}
               opacity={0.92}
             />
             {isSel && (
@@ -450,6 +589,36 @@ export default function FoldNetCanvas({
                   strokeWidth={1}
                   className="cursor-nwse-resize"
                 />
+                {supportsAxisScale(tile.kind) && (
+                  <>
+                    <rect
+                      data-handle="scaleX"
+                      data-tile-id={tile.id}
+                      x={scaleXHandle - 4}
+                      y={tile.y - 4}
+                      width={8}
+                      height={8}
+                      rx={2}
+                      fill="#3b82f6"
+                      stroke="#fff"
+                      strokeWidth={1}
+                      className="cursor-ew-resize"
+                    />
+                    <rect
+                      data-handle="scaleY"
+                      data-tile-id={tile.id}
+                      x={tile.x - 4}
+                      y={scaleYHandle - 4}
+                      width={8}
+                      height={8}
+                      rx={2}
+                      fill="#8b5cf6"
+                      stroke="#fff"
+                      strokeWidth={1}
+                      className="cursor-ns-resize"
+                    />
+                  </>
+                )}
               </>
             )}
           </g>

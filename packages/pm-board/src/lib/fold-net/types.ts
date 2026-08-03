@@ -39,6 +39,12 @@ export type Join = {
   b: EdgeRef;
 };
 
+/** Per-join manual target fold angle in radians at unfoldT=1. */
+export type HingeOverride = {
+  joinId: string;
+  targetAngle: number;
+};
+
 export type SolidType =
   | "cube"
   | "cuboid"
@@ -57,6 +63,8 @@ export type FoldNetState = {
   mode: FoldNetMode;
   solidType?: SolidType;
   solidTileIds?: string[];
+  foldRootId?: string;
+  hingeOverrides?: HingeOverride[];
   unfoldT: number;
   orbit: OrbitState;
 };

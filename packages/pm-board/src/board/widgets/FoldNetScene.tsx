@@ -6,83 +6,67 @@ import { useLayoutEffect, useMemo, useRef } from "react";
 import * as THREE from "three";
 import type { OrbitControls as OrbitControlsImpl } from "three-stdlib";
 import {
-  buildBoxFaceKeyframes,
-  hingeAngleRad,
-  type FaceNode,
-  type FoldTree,
+  SHAPE_DEFS,
+  computeTileTransforms,
+  netBounds3D,
+  type FoldTile,
+  type HingeOverride,
+  type Join,
   type OrbitState,
 } from "../../lib/fold-net";
 
 type Props = {
-  tree: FoldTree;
+  tiles: FoldTile[];
+  joins: Join[];
+  tileIds: string[];
+  rootTileId: string;
   unfoldT: number;
+  hingeOverrides: HingeOverride[];
   orbit: OrbitState;
   onOrbitChange: (orbit: OrbitState) => void;
   className?: string;
 };
 
-function mat4ToThree(m: readonly number[]): THREE.Matrix4 {
-  const t = new THREE.Matrix4();
-  t.set(
-    m[0], m[1], m[2], m[3],
-    m[4], m[5], m[6], m[7],
-    m[8], m[9], m[10], m[11],
-    m[12], m[13], m[14], m[15],
-  );
-  return t;
-}
-
-function BoxFaceMesh({
-  face,
-  unfoldT,
+function TileMesh({
+  tile,
+  transform,
 }: {
-  face: ReturnType<typeof buildBoxFaceKeyframes>[number];
-  unfoldT: number;
+  tile: FoldTile;
+  transform: { vertices: { x: number; y: number; z: number }[] };
 }) {
   const ref = useRef<THREE.Group>(null);
-  const unfoldPos = useRef(new THREE.Vector3());
-  const unfoldQuat = useRef(new THREE.Quaternion());
-  const unfoldScale = useRef(new THREE.Vector3());
-  const foldPos = useRef(new THREE.Vector3());
-  const foldQuat = useRef(new THREE.Quaternion());
-  const foldScale = useRef(new THREE.Vector3());
-  const pos = useRef(new THREE.Vector3());
-  const quat = useRef(new THREE.Quaternion());
-  const scale = useRef(new THREE.Vector3(1, 1, 1));
+  const def = SHAPE_DEFS[tile.kind];
+  const verts3 = transform.vertices;
+
+  const geometry = useMemo(() => {
+    const geo = new THREE.BufferGeometry();
+    const positions = new Float32Array(verts3.length * 3);
+    for (let i = 0; i < verts3.length; i++) {
+      positions[i * 3] = verts3[i].x;
+      positions[i * 3 + 1] = verts3[i].y;
+      positions[i * 3 + 2] = verts3[i].z;
+    }
+    const indices: number[] = [];
+    for (let i = 1; i < verts3.length - 1; i++) {
+      indices.push(0, i, i + 1);
+    }
+    geo.setAttribute("position", new THREE.BufferAttribute(positions, 3));
+    geo.setIndex(indices);
+    geo.computeVertexNormals();
+    return geo;
+  }, [verts3]);
 
   useLayoutEffect(() => {
-    mat4ToThree(face.unfold).decompose(
-      unfoldPos.current,
-      unfoldQuat.current,
-      unfoldScale.current,
-    );
-    mat4ToThree(face.folded).decompose(
-      foldPos.current,
-      foldQuat.current,
-      foldScale.current,
-    );
-  }, [face]);
+    ref.current?.position.set(0, 0, 0);
+  }, []);
 
-  useLayoutEffect(() => {
-    const g = ref.current;
-    if (!g) return;
-    pos.current.lerpVectors(unfoldPos.current, foldPos.current, unfoldT);
-    quat.current.slerpQuaternions(unfoldQuat.current, foldQuat.current, unfoldT);
-    scale.current.lerpVectors(unfoldScale.current, foldScale.current, unfoldT);
-    g.position.copy(pos.current);
-    g.quaternion.copy(quat.current);
-    g.scale.copy(scale.current);
-  }, [unfoldT, face]);
-
-  const [w, d] = face.size;
   return (
     <group ref={ref}>
-      <mesh rotation={[-Math.PI / 2, 0, 0]} castShadow receiveShadow>
-        <planeGeometry args={[w, d]} />
+      <mesh geometry={geometry} castShadow receiveShadow>
         <meshStandardMaterial
-          color={face.color}
+          color={def.color}
           side={THREE.DoubleSide}
-          roughness={0.55}
+          roughness={0.5}
           metalness={0.05}
         />
         <Edges color="#1e3a5f" threshold={15} />
@@ -91,149 +75,152 @@ function BoxFaceMesh({
   );
 }
 
-function BoxKeyframeSolid({
-  width,
-  depth,
-  height,
+function NetSolid({
+  tiles,
+  joins,
+  tileIds,
+  rootTileId,
   unfoldT,
+  hingeOverrides,
 }: {
-  width: number;
-  depth: number;
-  height: number;
+  tiles: FoldTile[];
+  joins: Join[];
+  tileIds: string[];
+  rootTileId: string;
   unfoldT: number;
+  hingeOverrides: HingeOverride[];
 }) {
-  const faces = useMemo(
-    () => buildBoxFaceKeyframes(width, depth, height),
-    [width, depth, height],
+  const activeTiles = useMemo(
+    () => tiles.filter((t) => tileIds.includes(t.id)),
+    [tiles, tileIds],
   );
+  const transforms = useMemo(
+    () =>
+      computeTileTransforms(
+        tiles,
+        joins,
+        rootTileId,
+        unfoldT,
+        hingeOverrides,
+        tileIds,
+      ),
+    [tiles, joins, rootTileId, unfoldT, hingeOverrides, tileIds],
+  );
+
   return (
     <group>
-      {faces.map((f) => (
-        <BoxFaceMesh key={f.id} face={f} unfoldT={unfoldT} />
-      ))}
+      {activeTiles.map((tile) => {
+        const tr = transforms.get(tile.id);
+        if (!tr) return null;
+        return <TileMesh key={tile.id} tile={tile} transform={tr} />;
+      })}
     </group>
   );
-}
-
-function FaceMesh({ node }: { node: FaceNode }) {
-  const geometry = useMemo(() => {
-    if (node.shape === "rect") {
-      const [w, d] = node.size;
-      return new THREE.PlaneGeometry(w, d);
-    }
-    const verts = node.vertices ?? [];
-    const geo = new THREE.BufferGeometry();
-    if (verts.length >= 3) {
-      const positions = new Float32Array(verts.length * 3);
-      for (let i = 0; i < verts.length; i++) {
-        positions[i * 3] = verts[i][0];
-        positions[i * 3 + 1] = verts[i][1];
-        positions[i * 3 + 2] = verts[i][2];
-      }
-      const indices: number[] = [];
-      for (let i = 1; i < verts.length - 1; i++) {
-        indices.push(0, i, i + 1);
-      }
-      geo.setAttribute("position", new THREE.BufferAttribute(positions, 3));
-      geo.setIndex(indices);
-      geo.computeVertexNormals();
-    }
-    return geo;
-  }, [node]);
-
-  return (
-    <mesh geometry={geometry} rotation={[-Math.PI / 2, 0, 0]} castShadow receiveShadow>
-      <meshStandardMaterial
-        color={node.color ?? "#7ec8f5"}
-        side={THREE.DoubleSide}
-        roughness={0.55}
-        metalness={0.05}
-      />
-      <Edges color="#1e3a5f" threshold={15} />
-    </mesh>
-  );
-}
-
-function FaceBranch({ node, unfoldT }: { node: FaceNode; unfoldT: number }) {
-  return (
-    <group>
-      <FaceMesh node={node} />
-      {node.children.map((child) => (
-        <HingeChild key={child.id} child={child} unfoldT={unfoldT} />
-      ))}
-    </group>
-  );
-}
-
-function HingeChild({ child, unfoldT }: { child: FaceNode; unfoldT: number }) {
-  const hinge = child.hinge;
-  const groupRef = useRef<THREE.Group>(null);
-  const pivotRef = useRef<THREE.Group>(null);
-
-  useLayoutEffect(() => {
-    const pivot = pivotRef.current;
-    if (!pivot || !hinge) return;
-    const angle = hingeAngleRad(hinge.angleFolded, unfoldT);
-    pivot.position.set(...hinge.pivot);
-    pivot.rotation.set(0, 0, 0);
-    pivot.rotateOnAxis(new THREE.Vector3(...hinge.axis).normalize(), angle);
-    const inner = groupRef.current;
-    if (inner) inner.position.set(...hinge.childOffset);
-  }, [hinge, unfoldT]);
-
-  if (!hinge) return null;
-  return (
-    <group ref={pivotRef}>
-      <group ref={groupRef}>
-        <FaceBranch node={child} unfoldT={unfoldT} />
-      </group>
-    </group>
-  );
-}
-
-function SolidContent({ tree, unfoldT }: { tree: FoldTree; unfoldT: number }) {
-  if (tree.useBoxKeyframes && tree.boxSize) {
-    const [w, d, h] = tree.boxSize;
-    return <BoxKeyframeSolid width={w} depth={d} height={h} unfoldT={unfoldT} />;
-  }
-  return <FaceBranch node={tree.root} unfoldT={unfoldT} />;
 }
 
 export default function FoldNetScene({
-  tree,
+  tiles,
+  joins,
+  tileIds,
+  rootTileId,
   unfoldT,
+  hingeOverrides,
   orbit,
   onOrbitChange,
   className,
 }: Props) {
   const controlsRef = useRef<OrbitControlsImpl | null>(null);
-  void orbit;
+  const initialized = useRef(false);
+
+  const activeTiles = useMemo(
+    () => tiles.filter((t) => tileIds.includes(t.id)),
+    [tiles, tileIds],
+  );
+
+  const transforms = useMemo(
+    () =>
+      computeTileTransforms(
+        tiles,
+        joins,
+        rootTileId,
+        unfoldT,
+        hingeOverrides,
+        tileIds,
+      ),
+    [tiles, joins, rootTileId, unfoldT, hingeOverrides, tileIds],
+  );
+
+  const bounds = useMemo(() => netBounds3D(transforms), [transforms]);
+
+  const center = useMemo(
+    () => ({
+      x: (bounds.minX + bounds.maxX) / 2,
+      y: (bounds.minY + bounds.maxY) / 2,
+      z: (bounds.minZ + bounds.maxZ) / 2,
+    }),
+    [bounds],
+  );
+
+  const cameraPos = useMemo(() => {
+    const span = Math.max(
+      bounds.maxX - bounds.minX,
+      bounds.maxY - bounds.minY,
+      bounds.maxZ - bounds.minZ,
+      120,
+    );
+    const dist = span * 1.8;
+    const az = orbit.azimuth;
+    const pol = orbit.polar;
+    return [
+      center.x + dist * Math.sin(pol) * Math.cos(az),
+      center.y + dist * Math.cos(pol),
+      center.z + dist * Math.sin(pol) * Math.sin(az),
+    ] as [number, number, number];
+  }, [bounds, center, orbit]);
+
+  useLayoutEffect(() => {
+    const ctrl = controlsRef.current;
+    if (!ctrl || initialized.current) return;
+    ctrl.target.set(center.x, center.y, center.z);
+    ctrl.setAzimuthalAngle(orbit.azimuth);
+    ctrl.setPolarAngle(orbit.polar);
+    initialized.current = true;
+  }, [center, orbit]);
 
   return (
     <Canvas
       className={className}
-      camera={{ position: [3.2, 2.4, 3.2], fov: 42 }}
+      camera={{ position: cameraPos, fov: 42, near: 1, far: 5000 }}
       shadows
-      gl={{ antialias: true }}
+      gl={{ antialias: true, alpha: true }}
+      style={{ background: "transparent" }}
     >
-      <color attach="background" args={["#f0f4f8"]} />
-      <ambientLight intensity={0.55} />
+      <ambientLight intensity={0.6} />
       <directionalLight
         castShadow
-        intensity={1.1}
-        position={[4, 8, 3]}
-        shadow-mapSize={[1024, 1024]}
+        intensity={1.0}
+        position={[center.x + 200, center.y + 400, center.z + 200]}
       />
-      <Bounds fit clip observe margin={1.35}>
-        <SolidContent tree={tree} unfoldT={unfoldT} />
-      </Bounds>
+      <group position={[-center.x, -center.y, -center.z]}>
+        <Bounds fit clip observe margin={1.2}>
+          <NetSolid
+            tiles={tiles}
+            joins={joins}
+            tileIds={tileIds}
+            rootTileId={rootTileId}
+            unfoldT={unfoldT}
+            hingeOverrides={hingeOverrides}
+          />
+        </Bounds>
+      </group>
       <OrbitControls
         ref={controlsRef}
         makeDefault
         enablePan={false}
         target={[0, 0, 0]}
-        minPolarAngle={0.2}
-        maxPolarAngle={Math.PI - 0.2}
+        minPolarAngle={0.15}
+        maxPolarAngle={Math.PI - 0.15}
+        enabled={unfoldT > 0.02}
         onEnd={() => {
           const ctrl = controlsRef.current;
           if (!ctrl) return;

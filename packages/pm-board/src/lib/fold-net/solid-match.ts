@@ -1,4 +1,5 @@
 import { edgeLength } from "./geometry";
+import { canFoldNet } from "./closure-solver";
 import { SHAPE_DEFS } from "./shape-defs";
 import { connectedComponents } from "./net-graph";
 import type { FoldTile, Join, ShapeKind, SolidMatch, SolidType } from "./types";
@@ -210,13 +211,16 @@ export function describeWhyNoMatch(
   joins: Join[],
   selectedIds: string[],
 ): string {
-  const comps = connectedComponents(tiles, joins);
   if (tiles.length === 0) return "도형을 먼저 배치해 주세요.";
-  if (comps.every((c) => c.length < 4)) {
-    return "같은 길이 변끼리 붙여 전개도를 만든 뒤 선택해 주세요.";
+  const ids =
+    selectedIds.length > 0
+      ? selectedIds
+      : tiles.map((t) => t.id);
+  if (canFoldNet(tiles, joins, ids)) {
+    return "같은 길이 변끼리 붙여 전개도를 완성해 주세요.";
   }
-  void selectedIds;
-  return "이 전개도는 아직 접을 수 없어요. (정육면체·직육면체·정사면체·사각뿔·삼각기둥)";
+  if (tiles.length < 2) return "도형을 더 추가하고 변끼리 붙여 주세요.";
+  return "같은 길이 변끼리 붙여 전개도를 만든 뒤 접어 보세요.";
 }
 
 export type { ShapeKind };
