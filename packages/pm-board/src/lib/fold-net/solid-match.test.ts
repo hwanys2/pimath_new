@@ -11,6 +11,8 @@ import {
 import { worldEdges, worldVertices } from "./geometry";
 import { canFoldNet, solveClosureAngles } from "./closure-solver";
 import { computeTileTransforms, vec2To3 } from "./fold-transforms";
+import { signedHingeAngle, dihedralMagnitude } from "./hinge-geometry";
+import { buildNetFoldTree, foldTreeEdges } from "./net-fold-tree";
 import type { FoldTile, Join } from "./types";
 
 function square(id: string, x: number, y: number, rotation = 0): FoldTile {
@@ -174,5 +176,75 @@ describe("fold transforms", () => {
     );
     const bVerts = tr.get("b")!.vertices;
     assert.ok(bVerts.some((v) => Math.abs(v.z) > 1), "folded face should leave the plane");
+  });
+
+  it("folds tetrahedron net with scene graph at t=1", () => {
+    const center = eqTri("c", 300, 300);
+    const right = eqTri("r", 355, 300);
+    const { tiles: afterR, join: j1 } = applyMagnetSnap(
+      [center, right],
+      [],
+      ["r"],
+      { x: right.x, y: right.y },
+    );
+    assert.ok(j1);
+    const left = eqTri("l", 240, 300);
+    const withL = [...afterR.filter((t) => t.id !== "l"), left];
+    const { tiles: afterL, join: j2 } = applyMagnetSnap(withL, [j1!], ["l"], {
+      x: left.x,
+      y: left.y,
+    });
+    assert.ok(j2);
+    const top = eqTri("u", 300, 240);
+    const withU = [...afterL.filter((t) => t.id !== "u"), top];
+    const { tiles: finalTiles, join: j3 } = applyMagnetSnap(
+      withU,
+      [j1!, j2!],
+      ["u"],
+      { x: top.x, y: top.y },
+    );
+    assert.ok(j3);
+    const joins = [j1!, j2!, j3!];
+    const ids = finalTiles.map((t) => t.id);
+    assert.ok(canFoldNet(finalTiles, joins, ids));
+
+    const closure = solveClosureAngles(finalTiles, joins, ids);
+    assert.equal(closure.angles.length, 3);
+
+    const tr = computeTileTransforms(
+      finalTiles,
+      joins,
+      "c",
+      1,
+      closure.angles,
+      ids,
+    );
+    const zs = [...tr.values()].flatMap((t) => t.vertices.map((v) => v.z));
+    assert.ok(zs.some((z) => Math.abs(z) > 5), "tetrahedron faces should lift off the plane");
+
+    const tree = buildNetFoldTree(joins, "c", ids);
+    assert.ok(tree);
+    const edges = foldTreeEdges(tree!);
+    const edge = edges[0];
+    const parent = finalTiles.find((t) => t.id === edge.parentTileId)!;
+    const child = finalTiles.find((t) => t.id === edge.childTileId)!;
+    const angle = signedHingeAngle(parent, child, edge);
+    assert.ok(Math.abs(angle) > 0.5 && Math.abs(angle) < 2.5, "hinge angle in plausible range");
+  });
+
+  it("signed hinge angle magnitude matches dihedral geometry", () => {
+    const parent = eqTri("p", 200, 200);
+    const child = eqTri("c", 260, 200);
+    const join: Join = {
+      id: "j",
+      a: { tileId: "p", edgeIndex: 0 },
+      b: { tileId: "c", edgeIndex: 0 },
+    };
+    const tree = buildNetFoldTree([join], "p", ["p", "c"]);
+    const edge = foldTreeEdges(tree!)[0];
+    const angle = signedHingeAngle(parent, child, edge);
+    const mag = dihedralMagnitude(parent, child, edge);
+    assert.ok(Math.abs(Math.abs(angle) - mag) < 0.02);
+    assert.ok(angle !== 0);
   });
 });

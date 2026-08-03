@@ -1,16 +1,19 @@
 "use client";
 
-import { Bounds, Edges, OrbitControls } from "@react-three/drei";
+import { Edges, OrbitControls, OrthographicCamera } from "@react-three/drei";
 import { Canvas } from "@react-three/fiber";
 import { useLayoutEffect, useMemo, useRef } from "react";
 import * as THREE from "three";
 import type { OrbitControls as OrbitControlsImpl } from "three-stdlib";
 import {
   SHAPE_DEFS,
-  computeTileTransforms,
-  netBounds3D,
+  buildFoldRenderTree,
+  flatNetBounds2D,
+  worldVertices,
+  type FoldRenderTree,
   type FoldTile,
   type HingeOverride,
+  type HingeRenderNode,
   type Join,
   type OrbitState,
 } from "../../lib/fold-net";
@@ -18,7 +21,7 @@ import {
 type Props = {
   tiles: FoldTile[];
   joins: Join[];
-  tileIds: string[];
+  foldTileIds: string[];
   rootTileId: string;
   unfoldT: number;
   hingeOverrides: HingeOverride[];
@@ -29,91 +32,154 @@ type Props = {
 
 function TileMesh({
   tile,
-  transform,
+  vertices,
 }: {
   tile: FoldTile;
-  transform: { vertices: { x: number; y: number; z: number }[] };
+  vertices: [number, number, number][];
 }) {
-  const ref = useRef<THREE.Group>(null);
   const def = SHAPE_DEFS[tile.kind];
-  const verts3 = transform.vertices;
 
   const geometry = useMemo(() => {
     const geo = new THREE.BufferGeometry();
-    const positions = new Float32Array(verts3.length * 3);
-    for (let i = 0; i < verts3.length; i++) {
-      positions[i * 3] = verts3[i].x;
-      positions[i * 3 + 1] = verts3[i].y;
-      positions[i * 3 + 2] = verts3[i].z;
+    const positions = new Float32Array(vertices.length * 3);
+    for (let i = 0; i < vertices.length; i++) {
+      positions[i * 3] = vertices[i][0];
+      positions[i * 3 + 1] = vertices[i][1];
+      positions[i * 3 + 2] = vertices[i][2];
     }
     const indices: number[] = [];
-    for (let i = 1; i < verts3.length - 1; i++) {
+    for (let i = 1; i < vertices.length - 1; i++) {
       indices.push(0, i, i + 1);
     }
     geo.setAttribute("position", new THREE.BufferAttribute(positions, 3));
     geo.setIndex(indices);
     geo.computeVertexNormals();
     return geo;
-  }, [verts3]);
-
-  useLayoutEffect(() => {
-    ref.current?.position.set(0, 0, 0);
-  }, []);
+  }, [vertices]);
 
   return (
-    <group ref={ref}>
-      <mesh geometry={geometry} castShadow receiveShadow>
-        <meshStandardMaterial
-          color={def.color}
-          side={THREE.DoubleSide}
-          roughness={0.5}
-          metalness={0.05}
-        />
-        <Edges color="#1e3a5f" threshold={15} />
-      </mesh>
+    <mesh geometry={geometry} castShadow receiveShadow>
+      <meshStandardMaterial
+        color={def.color}
+        side={THREE.DoubleSide}
+        roughness={0.5}
+        metalness={0.05}
+      />
+      <Edges color="#1e3a5f" threshold={15} />
+    </mesh>
+  );
+}
+
+function HingeSubtree({
+  hinge,
+  tiles,
+}: {
+  hinge: HingeRenderNode;
+  tiles: FoldTile[];
+}) {
+  const tile = tiles.find((t) => t.id === hinge.tileId);
+  if (!tile) return null;
+
+  const quat = useMemo(() => {
+    const axis = new THREE.Vector3(hinge.axis[0], hinge.axis[1], hinge.axis[2]);
+    if (axis.lengthSq() < 1e-12) return new THREE.Quaternion();
+    axis.normalize();
+    return new THREE.Quaternion().setFromAxisAngle(axis, hinge.angle);
+  }, [hinge.axis, hinge.angle]);
+
+  return (
+    <group position={[hinge.pivot[0], hinge.pivot[1], hinge.pivot[2]]}>
+      <group quaternion={quat}>
+        <TileMesh tile={tile} vertices={hinge.vertices} />
+        {hinge.children.map((child) => (
+          <HingeSubtree key={child.joinId} hinge={child} tiles={tiles} />
+        ))}
+      </group>
     </group>
   );
 }
 
-function NetSolid({
+function FoldedNet({
+  renderTree,
+  tiles,
+}: {
+  renderTree: FoldRenderTree;
+  tiles: FoldTile[];
+}) {
+  const rootTile = tiles.find((t) => t.id === renderTree.rootTileId);
+  if (!rootTile) return null;
+
+  return (
+    <group>
+      <TileMesh tile={rootTile} vertices={renderTree.rootVertices} />
+      {renderTree.hinges.map((h) => (
+        <HingeSubtree key={h.joinId} hinge={h} tiles={tiles} />
+      ))}
+    </group>
+  );
+}
+
+function FlatTile({ tile }: { tile: FoldTile }) {
+  const verts = useMemo(
+    () =>
+      worldVertices(tile).map(
+        (v) => [v.x, -v.y, 0] as [number, number, number],
+      ),
+    [tile],
+  );
+  return <TileMesh tile={tile} vertices={verts} />;
+}
+
+function SceneContent({
   tiles,
   joins,
-  tileIds,
+  foldTileIds,
   rootTileId,
   unfoldT,
   hingeOverrides,
 }: {
   tiles: FoldTile[];
   joins: Join[];
-  tileIds: string[];
+  foldTileIds: string[];
   rootTileId: string;
   unfoldT: number;
   hingeOverrides: HingeOverride[];
 }) {
-  const activeTiles = useMemo(
-    () => tiles.filter((t) => tileIds.includes(t.id)),
-    [tiles, tileIds],
-  );
-  const transforms = useMemo(
+  const foldSet = useMemo(() => new Set(foldTileIds), [foldTileIds]);
+
+  const renderTree = useMemo(
     () =>
-      computeTileTransforms(
-        tiles,
-        joins,
-        rootTileId,
-        unfoldT,
-        hingeOverrides,
-        tileIds,
-      ),
-    [tiles, joins, rootTileId, unfoldT, hingeOverrides, tileIds],
+      foldTileIds.length >= 2
+        ? buildFoldRenderTree(
+            tiles,
+            joins,
+            rootTileId,
+            unfoldT,
+            hingeOverrides,
+            foldTileIds,
+          )
+        : null,
+    [tiles, joins, rootTileId, unfoldT, hingeOverrides, foldTileIds],
+  );
+
+  const isolatedTiles = useMemo(
+    () => tiles.filter((t) => !foldSet.has(t.id)),
+    [tiles, foldSet],
   );
 
   return (
     <group>
-      {activeTiles.map((tile) => {
-        const tr = transforms.get(tile.id);
-        if (!tr) return null;
-        return <TileMesh key={tile.id} tile={tile} transform={tr} />;
-      })}
+      {renderTree ? (
+        <FoldedNet renderTree={renderTree} tiles={tiles} />
+      ) : (
+        foldTileIds.map((id) => {
+          const tile = tiles.find((t) => t.id === id);
+          return tile ? <FlatTile key={id} tile={tile} /> : null;
+        })
+      )}
+      {isolatedTiles.map((t) => (
+        <FlatTile key={t.id} tile={t} />
+      ))}
     </group>
   );
 }
@@ -121,7 +187,7 @@ function NetSolid({
 export default function FoldNetScene({
   tiles,
   joins,
-  tileIds,
+  foldTileIds,
   rootTileId,
   unfoldT,
   hingeOverrides,
@@ -130,97 +196,91 @@ export default function FoldNetScene({
   className,
 }: Props) {
   const controlsRef = useRef<OrbitControlsImpl | null>(null);
-  const initialized = useRef(false);
+  const cameraRef = useRef<THREE.OrthographicCamera | null>(null);
 
-  const activeTiles = useMemo(
-    () => tiles.filter((t) => tileIds.includes(t.id)),
-    [tiles, tileIds],
+  const bounds = useMemo(
+    () => flatNetBounds2D(tiles, tiles.map((t) => t.id)),
+    [tiles],
   );
-
-  const transforms = useMemo(
-    () =>
-      computeTileTransforms(
-        tiles,
-        joins,
-        rootTileId,
-        unfoldT,
-        hingeOverrides,
-        tileIds,
-      ),
-    [tiles, joins, rootTileId, unfoldT, hingeOverrides, tileIds],
-  );
-
-  const bounds = useMemo(() => netBounds3D(transforms), [transforms]);
 
   const center = useMemo(
     () => ({
       x: (bounds.minX + bounds.maxX) / 2,
-      y: (bounds.minY + bounds.maxY) / 2,
-      z: (bounds.minZ + bounds.maxZ) / 2,
+      y: -((bounds.minY + bounds.maxY) / 2),
+      z: 0,
     }),
     [bounds],
   );
 
-  const cameraPos = useMemo(() => {
-    const span = Math.max(
-      bounds.maxX - bounds.minX,
-      bounds.maxY - bounds.minY,
-      bounds.maxZ - bounds.minZ,
-      120,
-    );
-    const dist = span * 1.8;
-    const az = orbit.azimuth;
-    const pol = orbit.polar;
-    return [
-      center.x + dist * Math.sin(pol) * Math.cos(az),
-      center.y + dist * Math.cos(pol),
-      center.z + dist * Math.sin(pol) * Math.sin(az),
-    ] as [number, number, number];
-  }, [bounds, center, orbit]);
+  const span = useMemo(
+    () =>
+      Math.max(bounds.maxX - bounds.minX, bounds.maxY - bounds.minY, 120),
+    [bounds],
+  );
+
+  const orthoHalf = span * 0.65;
+
+  useLayoutEffect(() => {
+    const cam = cameraRef.current;
+    if (!cam) return;
+    cam.left = -orthoHalf;
+    cam.right = orthoHalf;
+    cam.top = orthoHalf * 0.75;
+    cam.bottom = -orthoHalf * 0.75;
+    cam.near = -2000;
+    cam.far = 2000;
+    cam.position.set(center.x, center.y, 500);
+    cam.lookAt(center.x, center.y, 0);
+    cam.updateProjectionMatrix();
+  }, [center, orthoHalf]);
 
   useLayoutEffect(() => {
     const ctrl = controlsRef.current;
-    if (!ctrl || initialized.current) return;
-    ctrl.target.set(center.x, center.y, center.z);
-    ctrl.setAzimuthalAngle(orbit.azimuth);
-    ctrl.setPolarAngle(orbit.polar);
-    initialized.current = true;
-  }, [center, orbit]);
+    if (!ctrl) return;
+    ctrl.target.set(center.x, center.y, 0);
+    if (unfoldT > 0.05) {
+      ctrl.setAzimuthalAngle(orbit.azimuth);
+      ctrl.setPolarAngle(orbit.polar);
+    }
+  }, [center, orbit, unfoldT]);
 
   return (
     <Canvas
       className={className}
-      camera={{ position: cameraPos, fov: 42, near: 1, far: 5000 }}
       shadows
       gl={{ antialias: true, alpha: true }}
       style={{ background: "transparent" }}
     >
-      <ambientLight intensity={0.6} />
+      <OrthographicCamera
+        ref={cameraRef}
+        makeDefault
+        position={[center.x, center.y, 500]}
+        zoom={1}
+      />
+      <ambientLight intensity={0.65} />
       <directionalLight
         castShadow
         intensity={1.0}
-        position={[center.x + 200, center.y + 400, center.z + 200]}
+        position={[center.x + 200, center.y + 400, 600]}
       />
-      <group position={[-center.x, -center.y, -center.z]}>
-        <Bounds fit clip observe margin={1.2}>
-          <NetSolid
+      <group position={[center.x, center.y, 0]}>
+        <SceneContent
             tiles={tiles}
             joins={joins}
-            tileIds={tileIds}
+            foldTileIds={foldTileIds}
             rootTileId={rootTileId}
             unfoldT={unfoldT}
             hingeOverrides={hingeOverrides}
           />
-        </Bounds>
       </group>
       <OrbitControls
         ref={controlsRef}
         makeDefault
         enablePan={false}
-        target={[0, 0, 0]}
+        target={[center.x, center.y, 0]}
         minPolarAngle={0.15}
         maxPolarAngle={Math.PI - 0.15}
-        enabled={unfoldT > 0.02}
+        enabled={unfoldT > 0.05}
         onEnd={() => {
           const ctrl = controlsRef.current;
           if (!ctrl) return;

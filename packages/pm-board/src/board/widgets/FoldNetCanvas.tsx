@@ -66,6 +66,8 @@ type Props = {
   onChangeTiles: (tiles: FoldTile[]) => void;
   onChangeJoins: (joins: Join[]) => void;
   onSelect: (ids: string[]) => void;
+  /** When true, polygons are invisible but still hit-testable (R3F renders geometry). */
+  geometryHidden?: boolean;
 };
 
 function supportsAxisScale(kind: FoldTile["kind"]): boolean {
@@ -86,6 +88,7 @@ export default function FoldNetCanvas({
   onChangeTiles,
   onChangeJoins,
   onSelect,
+  geometryHidden = false,
 }: Props) {
   const svgRef = useRef<SVGSVGElement>(null);
   const dragTilesRef = useRef<FoldTile[]>(tiles);
@@ -440,28 +443,32 @@ export default function FoldNetCanvas({
   return (
     <svg
       ref={svgRef}
-      className="h-full w-full touch-none select-none rounded-xl bg-[#f8f9fb]"
+      className={`h-full w-full touch-none select-none rounded-xl ${geometryHidden ? "bg-transparent" : "bg-[#f8f9fb]"}`}
       onPointerDown={onPointerDown}
       onPointerMove={onPointerMove}
       onPointerUp={onPointerUp}
       onPointerLeave={onPointerUp}
     >
-      <defs>
-        <pattern
-          id="fn-grid"
-          width="24"
-          height="24"
-          patternUnits="userSpaceOnUse"
-        >
-          <path
-            d="M 24 0 L 0 0 0 24"
-            fill="none"
-            stroke="rgba(0,0,0,0.06)"
-            strokeWidth="1"
-          />
-        </pattern>
-      </defs>
-      <rect width="100%" height="100%" fill="url(#fn-grid)" />
+      {!geometryHidden && (
+        <>
+          <defs>
+            <pattern
+              id="fn-grid"
+              width="24"
+              height="24"
+              patternUnits="userSpaceOnUse"
+            >
+              <path
+                d="M 24 0 L 0 0 0 24"
+                fill="none"
+                stroke="rgba(0,0,0,0.06)"
+                strokeWidth="1"
+              />
+            </pattern>
+          </defs>
+          <rect width="100%" height="100%" fill="url(#fn-grid)" />
+        </>
+      )}
 
       {joinSegments.map((s) => (
         <line
@@ -524,20 +531,22 @@ export default function FoldNetCanvas({
           const ghostPoints = ghostVerts.map((v) => `${v.x},${v.y}`).join(" ");
           return (
             <g key={tile.id}>
-              <polygon
-                points={points}
-                fill={def.color}
-                stroke="rgba(0,0,0,0.15)"
-                strokeWidth={1.5}
-                opacity={0.35}
-              />
+              {!geometryHidden && (
+                <polygon
+                  points={points}
+                  fill={def.color}
+                  stroke="rgba(0,0,0,0.15)"
+                  strokeWidth={1.5}
+                  opacity={0.35}
+                />
+              )}
               <polygon
                 points={ghostPoints}
-                fill={def.color}
+                fill={geometryHidden ? "transparent" : def.color}
                 stroke="#059669"
                 strokeWidth={2.5}
                 strokeDasharray="6 4"
-                opacity={0.75}
+                opacity={geometryHidden ? 1 : 0.75}
               />
             </g>
           );
@@ -547,12 +556,20 @@ export default function FoldNetCanvas({
           <g key={tile.id}>
             <polygon
               points={points}
-              fill={def.color}
+              fill={geometryHidden ? "transparent" : def.color}
               stroke={
-                isSel ? "#1e40af" : isConnected ? "#059669" : "rgba(0,0,0,0.25)"
+                geometryHidden
+                  ? "transparent"
+                  : isSel
+                    ? "#1e40af"
+                    : isConnected
+                      ? "#059669"
+                      : "rgba(0,0,0,0.25)"
               }
-              strokeWidth={isSel ? 2.5 : isConnected ? 2 : 1.5}
-              opacity={0.92}
+              strokeWidth={
+                geometryHidden ? 0 : isSel ? 2.5 : isConnected ? 2 : 1.5
+              }
+              opacity={geometryHidden ? 0 : 0.92}
             />
             {isSel && (
               <>

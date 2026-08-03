@@ -26,8 +26,21 @@ export function interiorAngleAt(verts: Vec2[], vertexIndex: number): number {
   return Math.atan2(Math.abs(cross), dot);
 }
 
-/** Suggest folded dihedral angle (radians) for a join between two faces. */
-export function suggestHingeAngle(
+function findVertexIndex(verts: Vec2[], target: Vec2): number {
+  let best = 0;
+  let bestD = Infinity;
+  for (let i = 0; i < verts.length; i++) {
+    const d = Math.hypot(verts[i].x - target.x, verts[i].y - target.y);
+    if (d < bestD) {
+      bestD = d;
+      best = i;
+    }
+  }
+  return best;
+}
+
+/** Unsigned dihedral magnitude (radians) from local face angles. */
+export function dihedralMagnitude(
   parent: FoldTile,
   child: FoldTile,
   edge: NetFoldEdge,
@@ -36,19 +49,6 @@ export function suggestHingeAngle(
   const cVerts = worldVertices(child);
   const pe = worldEdges(parent)[edge.parentEdge.edgeIndex];
   const ce = worldEdges(child)[edge.childEdge.edgeIndex];
-
-  const findVertexIndex = (verts: Vec2[], target: Vec2) => {
-    let best = 0;
-    let bestD = Infinity;
-    for (let i = 0; i < verts.length; i++) {
-      const d = Math.hypot(verts[i].x - target.x, verts[i].y - target.y);
-      if (d < bestD) {
-        bestD = d;
-        best = i;
-      }
-    }
-    return best;
-  };
 
   const pA = findVertexIndex(pVerts, pe.a);
   const pB = findVertexIndex(pVerts, pe.b);
@@ -63,12 +63,58 @@ export function suggestHingeAngle(
   return Math.PI / 2;
 }
 
-export function hingeSpecFromJoin(
-  tiles: FoldTile[],
+/**
+ * Signed hinge angle: magnitude from face geometry, sign from which side of the
+ * shared edge the child face lies (folds toward +Z in 3D canvas space).
+ */
+export function signedHingeAngle(
+  parent: FoldTile,
+  child: FoldTile,
   edge: NetFoldEdge,
+): number {
+  const spec = hingeSpecFromJoin(parent, child, edge);
+  if (!spec) return Math.PI / 2;
+
+  const magnitude = dihedralMagnitude(parent, child, edge);
+  const cVerts = worldVertices(child);
+  const cx =
+    cVerts.reduce((s, v) => s + v.x, 0) / Math.max(1, cVerts.length);
+  const cy =
+    cVerts.reduce((s, v) => s + v.y, 0) / Math.max(1, cVerts.length);
+  const toChild = { x: cx - spec.pivot.x, y: cy - spec.pivot.y };
+  const cross = spec.axisDir.x * toChild.y - spec.axisDir.y * toChild.x;
+  const sign = cross >= 0 ? 1 : -1;
+  return sign * magnitude;
+}
+
+/** Suggest folded dihedral angle (radians) for a join between two faces. */
+export function suggestHingeAngle(
+  parent: FoldTile,
+  child: FoldTile,
+  edge: NetFoldEdge,
+): number {
+  return signedHingeAngle(parent, child, edge);
+}
+
+export function hingeSpecFromJoin(
+  parentOrTiles: FoldTile | FoldTile[],
+  childOrEdge: FoldTile | NetFoldEdge,
+  edgeMaybe?: NetFoldEdge,
 ): HingeSpec | null {
-  const parent = tiles.find((t) => t.id === edge.parentTileId);
-  const child = tiles.find((t) => t.id === edge.childTileId);
+  let parent: FoldTile | undefined;
+  let child: FoldTile | undefined;
+  let edge: NetFoldEdge;
+
+  if (Array.isArray(parentOrTiles)) {
+    edge = childOrEdge as NetFoldEdge;
+    parent = parentOrTiles.find((t) => t.id === edge.parentTileId);
+    child = parentOrTiles.find((t) => t.id === edge.childTileId);
+  } else {
+    parent = parentOrTiles;
+    child = childOrEdge as FoldTile;
+    edge = edgeMaybe!;
+  }
+
   if (!parent || !child) return null;
 
   const pe = worldEdges(parent)[edge.parentEdge.edgeIndex];

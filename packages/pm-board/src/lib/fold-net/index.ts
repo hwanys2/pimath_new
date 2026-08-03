@@ -46,7 +46,14 @@ export {
   pickFoldRoot,
   foldTreeEdges,
 } from "./net-fold-tree";
-export { suggestHingeAngle, hingeSpecFromJoin } from "./hinge-geometry";
+export { suggestHingeAngle, hingeSpecFromJoin, signedHingeAngle, dihedralMagnitude } from "./hinge-geometry";
+export {
+  buildFoldRenderTree,
+  computeTileWorldMatrices,
+  flatNetBounds2D,
+  type FoldRenderTree,
+  type HingeRenderNode,
+} from "./fold-scene-graph";
 export {
   computeTileTransforms,
   transformedVertices,
