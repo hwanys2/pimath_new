@@ -13,6 +13,7 @@ import { canFoldNet, solveClosureAngles } from "./closure-solver";
 import { computeTileTransforms, vec2To3 } from "./fold-transforms";
 import { signedHingeAngle, dihedralMagnitude } from "./hinge-geometry";
 import { buildNetFoldTree, foldTreeEdges } from "./net-fold-tree";
+import { activeNetTileIds } from "./net-graph";
 import type { FoldTile, Join } from "./types";
 
 function square(id: string, x: number, y: number, rotation = 0): FoldTile {
@@ -36,6 +37,22 @@ function eqTri(id: string, x: number, y: number, rot = 0): FoldTile {
     rotation: rot,
   };
 }
+
+describe("activeNetTileIds", () => {
+  it("includes full component when multiple tiles are selected", () => {
+    const tiles = [
+      square("a", 100, 100),
+      square("b", 200, 100),
+      square("c", 300, 100),
+    ];
+    const joins: Join[] = [
+      { id: "j0", a: { tileId: "a", edgeIndex: 1 }, b: { tileId: "b", edgeIndex: 3 } },
+      { id: "j1", a: { tileId: "b", edgeIndex: 1 }, b: { tileId: "c", edgeIndex: 3 } },
+    ];
+    const ids = activeNetTileIds(tiles, joins, ["a", "b"]);
+    assert.deepEqual(new Set(ids), new Set(["a", "b", "c"]));
+  });
+});
 
 describe("matchSolidFromSelection", () => {
   it("matches six equal squares as a cube", () => {

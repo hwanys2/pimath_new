@@ -6,8 +6,8 @@ import {
   DEFAULT_TILE_SCALE,
   SHAPE_DEFS,
   SHAPE_PALETTE_ORDER,
+  activeNetTileIds,
   canFoldNet,
-  componentContaining,
   createTileId,
   describeWhyNoMatch,
   detachSelectedJoins,
@@ -83,15 +83,12 @@ export default function FoldNetWidget({ state, setState }: Props) {
     [setState],
   );
 
-  const connectedIds = useMemo(() => {
-    if (s.selectedIds.length !== 1) return s.selectedIds;
-    return componentContaining(s.tiles, s.joins, s.selectedIds[0]);
-  }, [s.tiles, s.joins, s.selectedIds]);
+  const foldTileIds = useMemo(
+    () => activeNetTileIds(s.tiles, s.joins, s.selectedIds),
+    [s.tiles, s.joins, s.selectedIds],
+  );
 
-  const foldTileIds = useMemo(() => {
-    if (s.selectedIds.length > 0) return connectedIds;
-    return s.tiles.map((t) => t.id);
-  }, [s.selectedIds, connectedIds, s.tiles]);
+  const connectedIds = foldTileIds;
 
   const foldRootId = useMemo(() => {
     if (s.foldRootId && foldTileIds.includes(s.foldRootId)) return s.foldRootId;
@@ -188,20 +185,22 @@ export default function FoldNetWidget({ state, setState }: Props) {
   };
 
   const handleUnfoldTChange = (unfoldT: number) => {
+    const netIds = activeNetTileIds(s.tiles, s.joins, s.selectedIds);
     if (unfoldT > 0 && foldable) {
       const solved = solveClosureAngles(
         s.tiles,
         s.joins,
-        foldTileIds,
+        netIds,
         s.hingeOverrides ?? [],
       );
       patch({
+        selectedIds: netIds,
         foldRootId,
         hingeOverrides: solved.angles,
         unfoldT,
       });
     } else {
-      patch({ unfoldT });
+      patch({ unfoldT, ...(unfoldT < 0.005 ? { orbit: { azimuth: 0.55, polar: 1.05 } } : {}) });
     }
   };
 

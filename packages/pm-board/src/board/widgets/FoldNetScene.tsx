@@ -169,6 +169,9 @@ function SceneContent({
     [tiles, foldSet],
   );
 
+  // Only render tiles outside the active net when still flat (not folding).
+  const showIsolated = unfoldT < 0.005;
+
   return (
     <group>
       {renderTree ? (
@@ -179,9 +182,8 @@ function SceneContent({
           return tile ? <FlatTile key={id} tile={tile} /> : null;
         })
       )}
-      {isolatedTiles.map((t) => (
-        <FlatTile key={t.id} tile={t} />
-      ))}
+      {showIsolated &&
+        isolatedTiles.map((t) => <FlatTile key={t.id} tile={t} />)}
     </group>
   );
 }
@@ -288,10 +290,11 @@ export default function FoldNetScene({
         ref={controlsRef}
         makeDefault
         enablePan={false}
+        enableRotate={unfoldT > 0.95}
         target={[camFocus.x, camFocus.y, 0]}
         minPolarAngle={0.15}
         maxPolarAngle={Math.PI - 0.15}
-        enabled={unfoldT > 0.05}
+        enabled={unfoldT > 0.95}
         onEnd={() => {
           const ctrl = controlsRef.current;
           if (!ctrl) return;

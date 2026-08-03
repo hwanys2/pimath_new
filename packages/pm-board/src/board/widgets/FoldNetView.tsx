@@ -58,48 +58,47 @@ export default function FoldNetView({
     return () => ro.disconnect();
   }, []);
 
+  const folding = unfoldT > 0.005;
+
   return (
     <div
       ref={containerRef}
       className="relative h-full w-full overflow-hidden rounded-xl bg-[#f8f9fb]"
     >
-      <div className="absolute inset-0">
-        <Suspense
-          fallback={
-            <div className="flex h-full items-center justify-center text-xs text-wood/60">
-              로딩…
-            </div>
-          }
-        >
-          <FoldNetScene
-            tiles={tiles}
-            joins={joins}
-            foldTileIds={foldTileIds}
-            rootTileId={foldRootId}
-            unfoldT={unfoldT}
-            hingeOverrides={hingeOverrides}
-            orbit={orbit}
-            viewportWidth={viewport.width}
-            viewportHeight={viewport.height}
-            onOrbitChange={onOrbitChange}
-            className="h-full w-full"
-          />
-        </Suspense>
-      </div>
-
-      {editing && (
+      {folding ? (
         <div className="absolute inset-0">
-          <FoldNetCanvas
-            tiles={tiles}
-            joins={joins}
-            selectedIds={selectedIds}
-            connectedIds={connectedIds}
-            onChangeTiles={onChangeTiles}
-            onChangeJoins={onChangeJoins}
-            onSelect={onSelect}
-            geometryHidden
-          />
+          <Suspense
+            fallback={
+              <div className="flex h-full items-center justify-center text-xs text-wood/60">
+                로딩…
+              </div>
+            }
+          >
+            <FoldNetScene
+              tiles={tiles}
+              joins={joins}
+              foldTileIds={foldTileIds}
+              rootTileId={foldRootId}
+              unfoldT={unfoldT}
+              hingeOverrides={hingeOverrides}
+              orbit={orbit}
+              viewportWidth={viewport.width}
+              viewportHeight={viewport.height}
+              onOrbitChange={onOrbitChange}
+              className="h-full w-full"
+            />
+          </Suspense>
         </div>
+      ) : (
+        <FoldNetCanvas
+          tiles={tiles}
+          joins={joins}
+          selectedIds={selectedIds}
+          connectedIds={connectedIds}
+          onChangeTiles={onChangeTiles}
+          onChangeJoins={onChangeJoins}
+          onSelect={onSelect}
+        />
       )}
     </div>
   );

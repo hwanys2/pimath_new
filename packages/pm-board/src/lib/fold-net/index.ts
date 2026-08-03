@@ -31,6 +31,7 @@ export { findMagnetCandidates, applyMagnetSnap, previewSnapTiles } from "./magne
 export {
   connectedComponents,
   componentContaining,
+  activeNetTileIds,
   detachSelectedJoins,
   removeJoinsForTiles,
 } from "./net-graph";

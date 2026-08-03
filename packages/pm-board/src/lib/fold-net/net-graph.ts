@@ -47,6 +47,28 @@ export function componentContaining(
   );
 }
 
+/** All tile ids in the connected net(s) touched by the current selection. */
+export function activeNetTileIds(
+  tiles: FoldTile[],
+  joins: Join[],
+  selectedIds: string[],
+): string[] {
+  if (tiles.length === 0) return [];
+  if (selectedIds.length > 0) {
+    const set = new Set<string>();
+    for (const id of selectedIds) {
+      if (!tiles.some((t) => t.id === id)) continue;
+      for (const cid of componentContaining(tiles, joins, id)) {
+        set.add(cid);
+      }
+    }
+    return [...set];
+  }
+  const comps = connectedComponents(tiles, joins);
+  if (comps.length === 1) return comps[0];
+  return tiles.map((t) => t.id);
+}
+
 export function joinsTouching(
   joins: Join[],
   tileIds: Set<string>,
