@@ -6,6 +6,7 @@ import {
   type HingeRenderNode,
 } from "./fold-scene-graph";
 import { buildNetFoldTree, foldTreeEdges } from "./net-fold-tree";
+import type { Mat4 } from "./mat4";
 import type { FoldTile, HingeOverride, Join, Vec2 } from "./types";
 
 export type Vec3 = { x: number; y: number; z: number };
@@ -39,7 +40,7 @@ function hingeLocalVerts(h: HingeRenderNode): [number, number, number][] {
 
 function walkHingeTransforms(
   hinges: HingeRenderNode[],
-  matrices: Map<string, number[]>,
+  matrices: Map<string, Mat4>,
   out: Map<string, TileTransform3D>,
   tileIds?: string[],
 ): void {
