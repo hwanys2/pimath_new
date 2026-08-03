@@ -22,7 +22,7 @@ export function solveClosureAngles(
   tileIds: string[],
   existingOverrides: HingeOverride[] = [],
 ): ClosureResult {
-  const rootId = pickFoldRoot(tiles, tileIds);
+  const rootId = pickFoldRoot(tiles, tileIds, joins);
   if (!rootId) {
     return { angles: [], confidence: "low", message: "접을 면이 없습니다." };
   }
@@ -88,7 +88,7 @@ export function canFoldNet(
   tileIds: string[],
 ): boolean {
   if (tileIds.length < 2) return false;
-  const rootId = pickFoldRoot(tiles, tileIds);
+  const rootId = pickFoldRoot(tiles, tileIds, joins);
   if (!rootId) return false;
   const tree = buildNetFoldTree(joins, rootId, tileIds);
   if (!tree) return false;

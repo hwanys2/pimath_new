@@ -148,8 +148,8 @@ export default function FoldNetWidget({ state, setState }: Props) {
       return selectedNetFold.foldRootId;
     }
     if (s.foldRootId && foldTileIds.includes(s.foldRootId)) return s.foldRootId;
-    return pickFoldRoot(s.tiles, foldTileIds) ?? foldTileIds[0] ?? "";
-  }, [selectedNetFold, s.foldRootId, s.tiles, foldTileIds]);
+    return pickFoldRoot(s.tiles, foldTileIds, s.joins) ?? foldTileIds[0] ?? "";
+  }, [selectedNetFold, s.foldRootId, s.tiles, s.joins, foldTileIds]);
 
   const foldable = useMemo(
     () => canFoldNet(s.tiles, s.joins, foldTileIds),
@@ -272,7 +272,7 @@ export default function FoldNetWidget({ state, setState }: Props) {
     const comp = componentContaining(s.tiles, s.joins, s.selectedIds[0]);
     if (comp.length < 2) return;
     const key = componentKey(comp);
-    const root = pickFoldRoot(s.tiles, comp) ?? comp[0];
+    const root = pickFoldRoot(s.tiles, comp, s.joins) ?? comp[0];
 
     if (unfoldT > 0 && canFoldNet(s.tiles, s.joins, comp)) {
       const existing = netFoldForComponent(syncedNetFolds, comp);

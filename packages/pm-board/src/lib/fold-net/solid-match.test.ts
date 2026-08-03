@@ -360,6 +360,33 @@ describe("fold transforms", () => {
     assert.ok(flatTree && foldedTree);
     assert.deepEqual(foldedTree!.hinges[0].pivot, flatTree!.hinges[0].pivot);
   });
+
+  it("square pyramid folds upward toward +Z", () => {
+    const base = square("base", 400, 400);
+    const tn = eqTri("tn", base.x, base.y - 80);
+    const { tiles: snapped, join } = applyMagnetSnap(
+      [base, tn],
+      [],
+      ["tn"],
+      { x: tn.x, y: base.y - 40 },
+    );
+    assert.ok(join, "triangle should snap to square edge");
+    const joins = [join];
+    const ids = snapped.map((t) => t.id);
+    const closure = solveClosureAngles(snapped, joins, ids);
+    const tree = buildFoldRenderTree(
+      snapped,
+      joins,
+      "base",
+      1,
+      closure.angles,
+      ids,
+    );
+    assert.ok(tree);
+    const verts = [...evaluateRenderTreeVertices(tree).values()].flat();
+    const maxZ = Math.max(...verts.map((v) => v.z));
+    assert.ok(maxZ > 5, "pyramid lateral face should fold above the base plane");
+  });
 });
 
 describe("multi-net fold state", () => {

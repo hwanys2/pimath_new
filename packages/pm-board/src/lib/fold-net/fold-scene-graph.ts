@@ -59,7 +59,8 @@ function hingeAngleForEdge(
   if (!parent || !child) return (Math.PI / 2) * unfoldT;
   const target =
     override?.targetAngle ?? signedHingeAngle(parent, child, edge);
-  return target * unfoldT;
+  // Negate so faces fold toward +Z (up / toward camera) instead of into the canvas.
+  return -target * unfoldT;
 }
 
 function buildHingeNode(

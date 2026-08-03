@@ -284,7 +284,7 @@ function SceneContent({
         const root =
           nf?.foldRootId && comp.includes(nf.foldRootId)
             ? nf.foldRootId
-            : pickFoldRoot(tiles, comp) ?? comp[0];
+            : pickFoldRoot(tiles, comp, joins) ?? comp[0];
         return (
           <NetComponent
             key={key}

@@ -17,12 +17,26 @@ export type NetFoldNode = {
 export function pickFoldRoot(
   tiles: FoldTile[],
   tileIds: string[],
+  joins: Join[] = [],
 ): string | null {
   if (tileIds.length === 0) return null;
   const set = new Set(tileIds);
   const candidates = tiles.filter((t) => set.has(t.id));
   if (candidates.length === 0) return null;
-  candidates.sort((a, b) => b.scale - a.scale);
+
+  const degree = new Map<string, number>();
+  for (const id of tileIds) degree.set(id, 0);
+  for (const j of joins) {
+    if (!set.has(j.a.tileId) || !set.has(j.b.tileId)) continue;
+    degree.set(j.a.tileId, (degree.get(j.a.tileId) ?? 0) + 1);
+    degree.set(j.b.tileId, (degree.get(j.b.tileId) ?? 0) + 1);
+  }
+
+  candidates.sort((a, b) => {
+    const byDegree = (degree.get(b.id) ?? 0) - (degree.get(a.id) ?? 0);
+    if (byDegree !== 0) return byDegree;
+    return b.scale - a.scale;
+  });
   return candidates[0].id;
 }
 
