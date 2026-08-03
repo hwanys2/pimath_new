@@ -52,6 +52,8 @@ export type NetFoldState = {
   unfoldT: number;
   foldRootId?: string;
   hingeOverrides?: HingeOverride[];
+  /** Per-net 3D orbit while folded; falls back to global orbit when absent. */
+  orbit?: OrbitState;
 };
 
 export type SolidType =

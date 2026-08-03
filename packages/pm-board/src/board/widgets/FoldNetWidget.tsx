@@ -159,6 +159,8 @@ export default function FoldNetWidget({ state, setState }: Props) {
   const effectiveHinges =
     selectedNetFold?.hingeOverrides ?? s.hingeOverrides ?? [];
 
+  const selectedOrbit = selectedNetFold?.orbit ?? s.orbit;
+
   const closure = useMemo(
     () =>
       foldable && selectedUnfoldT > 0
@@ -280,6 +282,7 @@ export default function FoldNetWidget({ state, setState }: Props) {
         comp,
         existing?.hingeOverrides ?? s.hingeOverrides ?? [],
       );
+      const orbit = existing?.orbit ?? s.orbit;
       patch({
         selectedIds: comp,
         netFolds: upsertNetFold(syncedNetFolds, {
@@ -288,6 +291,7 @@ export default function FoldNetWidget({ state, setState }: Props) {
           unfoldT,
           foldRootId: root,
           hingeOverrides: solved.angles,
+          orbit,
         }),
         unfoldT,
       });
@@ -324,14 +328,23 @@ export default function FoldNetWidget({ state, setState }: Props) {
     }
   };
 
-  const activeNetFolds = useMemo(
-    () => syncedNetFolds.filter((n) => n.unfoldT > 0),
-    [syncedNetFolds],
-  );
-
   const handleOrbitChange = useCallback(
-    (orbit: FoldNetState["orbit"]) => patch({ orbit }),
-    [patch],
+    (orbit: FoldNetState["orbit"]) => {
+      if (!selectedComp) {
+        patch({ orbit });
+        return;
+      }
+      const key = componentKey(selectedComp);
+      const existing = netFoldForComponent(syncedNetFolds, selectedComp);
+      if (existing && existing.unfoldT > 0.05) {
+        patch({
+          netFolds: upsertNetFold(syncedNetFolds, { ...existing, orbit }),
+        });
+      } else {
+        patch({ orbit });
+      }
+    },
+    [patch, selectedComp, syncedNetFolds],
   );
 
   return (
@@ -369,8 +382,8 @@ export default function FoldNetWidget({ state, setState }: Props) {
           selectedIds={s.selectedIds}
           selectedComp={selectedComp}
           selectedUnfoldT={selectedUnfoldT}
-          netFolds={activeNetFolds}
-          orbit={s.orbit}
+          netFolds={syncedNetFolds}
+          orbit={selectedOrbit}
           onChangeTiles={(tiles) => {
             const touched = new Set(
               selectedComp && selectedComp.length > 0

@@ -30,7 +30,6 @@ type Props = {
   orbitEnabled: boolean;
   orbit: OrbitState;
   orbitTargetKey: string | null;
-  renderFlatGeometry: boolean;
   onOrbitChange: (orbit: OrbitState) => void;
   className?: string;
 };
@@ -197,8 +196,6 @@ function NetComponent({
   hingeOverrides,
   compKey,
   orbit,
-  orbitActive,
-  renderFlatGeometry,
 }: {
   tiles: FoldTile[];
   joins: Join[];
@@ -208,8 +205,6 @@ function NetComponent({
   hingeOverrides: HingeOverride[];
   compKey: string;
   orbit: OrbitState;
-  orbitActive: boolean;
-  renderFlatGeometry: boolean;
 }) {
   const center = useMemo(
     () => netCenter3D(tiles, tileIds),
@@ -231,22 +226,20 @@ function NetComponent({
     [tiles, joins, rootTileId, unfoldT, hingeOverrides, tileIds],
   );
 
-  if (!renderFlatGeometry && unfoldT < 0.005) {
-    return null;
+  if (!renderTree) {
+    return (
+      <>
+        {tileIds.map((id) => {
+          const tile = tiles.find((t) => t.id === id);
+          return tile ? <FlatTile key={id} tile={tile} /> : null;
+        })}
+      </>
+    );
   }
 
-  const content = renderTree ? (
-    <FoldedNet renderTree={renderTree} tiles={tiles} />
-  ) : (
-    <>
-      {tileIds.map((id) => {
-        const tile = tiles.find((t) => t.id === id);
-        return tile ? <FlatTile key={id} tile={tile} /> : null;
-      })}
-    </>
-  );
+  const content = <FoldedNet renderTree={renderTree} tiles={tiles} />;
 
-  if (orbitActive && unfoldT > 0.05) {
+  if (unfoldT > 0.05) {
     return (
       <OrbitPivot center={center} orbit={orbit}>
         {content}
@@ -263,14 +256,12 @@ function SceneContent({
   netFolds,
   orbit,
   orbitTargetKey,
-  renderFlatGeometry,
 }: {
   tiles: FoldTile[];
   joins: Join[];
   netFolds: NetFoldState[];
   orbit: OrbitState;
   orbitTargetKey: string | null;
-  renderFlatGeometry: boolean;
 }) {
   const components = useMemo(
     () => connectedComponents(tiles, joins),
@@ -304,9 +295,7 @@ function SceneContent({
             unfoldT={nf?.unfoldT ?? 0}
             rootTileId={root}
             hingeOverrides={nf?.hingeOverrides ?? []}
-            orbit={orbit}
-            orbitActive={orbitTargetKey === key}
-            renderFlatGeometry={renderFlatGeometry}
+            orbit={nf?.orbit ?? orbit}
           />
         );
       })}
@@ -323,7 +312,6 @@ export default function FoldNetScene({
   orbitEnabled,
   orbit,
   orbitTargetKey,
-  renderFlatGeometry,
   onOrbitChange: _onOrbitChange,
   className,
 }: Props) {
@@ -368,7 +356,6 @@ export default function FoldNetScene({
         netFolds={netFolds}
         orbit={orbit}
         orbitTargetKey={orbitEnabled ? orbitTargetKey : null}
-        renderFlatGeometry={renderFlatGeometry}
       />
     </Canvas>
   );

@@ -13,7 +13,7 @@ import { canFoldNet, solveClosureAngles } from "./closure-solver";
 import { computeTileTransforms, vec2To3 } from "./fold-transforms";
 import { signedHingeAngle, dihedralMagnitude } from "./hinge-geometry";
 import { buildNetFoldTree, foldTreeEdges } from "./net-fold-tree";
-import { activeNetTileIds, componentKey } from "./net-graph";
+import { activeNetTileIds, componentKey, syncNetFolds, unfoldTForTile } from "./net-graph";
 import {
   buildFoldRenderTree,
   evaluateRenderTreeVertices,
@@ -359,5 +359,49 @@ describe("fold transforms", () => {
     );
     assert.ok(flatTree && foldedTree);
     assert.deepEqual(foldedTree!.hinges[0].pivot, flatTree!.hinges[0].pivot);
+  });
+});
+
+describe("multi-net fold state", () => {
+  it("tracks unfoldT per connected component independently", () => {
+    const tiles = [
+      square("a1", 100, 100),
+      square("a2", 156, 100),
+      square("b1", 400, 200),
+      square("b2", 456, 200),
+    ];
+    const joins: Join[] = [
+      {
+        id: "j-a",
+        a: { tileId: "a1", edgeIndex: 1 },
+        b: { tileId: "a2", edgeIndex: 3 },
+      },
+      {
+        id: "j-b",
+        a: { tileId: "b1", edgeIndex: 1 },
+        b: { tileId: "b2", edgeIndex: 3 },
+      },
+    ];
+    const compA = ["a1", "a2"];
+    const compB = ["b1", "b2"];
+    const netFolds = syncNetFolds(tiles, joins, [
+      {
+        key: componentKey(compA),
+        tileIds: compA,
+        unfoldT: 0.8,
+        foldRootId: "a1",
+      },
+      {
+        key: componentKey(compB),
+        tileIds: compB,
+        unfoldT: 0.4,
+        foldRootId: "b1",
+      },
+    ]);
+    assert.equal(netFolds.length, 2);
+    assert.equal(unfoldTForTile(tiles, joins, netFolds, "a1"), 0.8);
+    assert.equal(unfoldTForTile(tiles, joins, netFolds, "b2"), 0.4);
+    assert.equal(unfoldTForTile(tiles, joins, netFolds, "a1"), 0.8);
+    assert.equal(unfoldTForTile(tiles, joins, [], "a1"), 0);
   });
 });

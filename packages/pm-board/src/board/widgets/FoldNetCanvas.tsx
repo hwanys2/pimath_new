@@ -12,11 +12,14 @@ import {
   previewSnapTiles,
   pruneSeparatedJoins,
   tileBounds,
+  unfoldTForTile,
   worldEdges,
   worldVertices,
   type FoldTile,
   type Join,
   type MagnetCandidate,
+  type NetFoldState,
+  type OrbitState,
 } from "../../lib/fold-net";
 
 type DragMode =
@@ -59,18 +62,26 @@ type DragMode =
       startDist: number;
       baseScaleY: number;
     }
-  | { type: "marquee"; x0: number; y0: number; x1: number; y1: number };
+  | { type: "marquee"; x0: number; y0: number; x1: number; y1: number }
+  | { type: "orbit"; x: number; y: number };
 
 type Props = {
   tiles: FoldTile[];
   joins: Join[];
   selectedIds: string[];
   connectedIds: string[];
+  selectedComp: string[] | null;
+  netFolds: NetFoldState[];
   onChangeTiles: (tiles: FoldTile[]) => void;
   onChangeJoins: (joins: Join[]) => void;
   onSelect: (ids: string[]) => void;
   /** When true, polygons are invisible but still hit-testable (R3F renders geometry). */
   geometryHidden?: boolean;
+  /** Selected component is flat — show edit handles. */
+  editing?: boolean;
+  orbitEnabled?: boolean;
+  orbit?: OrbitState;
+  onOrbitChange?: (orbit: OrbitState) => void;
 };
 
 function supportsAxisScale(kind: FoldTile["kind"]): boolean {
@@ -88,10 +99,16 @@ export default function FoldNetCanvas({
   joins,
   selectedIds,
   connectedIds,
+  selectedComp,
+  netFolds,
   onChangeTiles,
   onChangeJoins,
   onSelect,
   geometryHidden = false,
+  editing = true,
+  orbitEnabled = false,
+  orbit,
+  onOrbitChange,
 }: Props) {
   const svgRef = useRef<SVGSVGElement>(null);
   const dragTilesRef = useRef<FoldTile[]>(tiles);
@@ -103,6 +120,16 @@ export default function FoldNetCanvas({
   );
   const selected = useMemo(() => new Set(selectedIds), [selectedIds]);
   const connected = useMemo(() => new Set(connectedIds), [connectedIds]);
+  const selectedCompSet = useMemo(
+    () => new Set(selectedComp ?? []),
+    [selectedComp],
+  );
+
+  const isTileFolded = useCallback(
+    (tileId: string) =>
+      unfoldTForTile(tiles, joins, netFolds, tileId) > 0.05,
+    [tiles, joins, netFolds],
+  );
 
   dragTilesRef.current = tiles;
   joinsRef.current = joins;
@@ -249,6 +276,22 @@ export default function FoldNetCanvas({
         return;
       }
 
+      if (isTileFolded(hit.id)) {
+        const comp = componentContaining(tiles, joins, hit.id);
+        const onSelectedFolded =
+          orbitEnabled &&
+          comp.every((id) => selectedCompSet.has(id)) &&
+          comp.length > 0;
+        if (onSelectedFolded && orbit && onOrbitChange) {
+          e.stopPropagation();
+          (e.currentTarget as Element).setPointerCapture?.(e.pointerId);
+          setDrag({ type: "orbit", x: e.clientX, y: e.clientY });
+          return;
+        }
+        onSelect(comp);
+        return;
+      }
+
       let nextSelection: string[];
       if (e.shiftKey) {
         nextSelection = selected.has(hit.id)
@@ -273,13 +316,26 @@ export default function FoldNetCanvas({
       }
       setDrag({ type: "move", ids: dragIds, ox: p.x, oy: p.y, origins });
     },
-    [tiles, joins, selected, selectedIds, hitTile, toLocal, onSelect],
+    [tiles, joins, selected, selectedIds, hitTile, toLocal, onSelect, isTileFolded, orbitEnabled, selectedCompSet, orbit, onOrbitChange],
   );
 
   const onPointerMove = useCallback(
     (e: React.PointerEvent) => {
       if (!drag) return;
       const p = toLocal(e.clientX, e.clientY);
+      if (drag.type === "orbit" && orbit && onOrbitChange) {
+        const dx = e.clientX - drag.x;
+        const dy = e.clientY - drag.y;
+        setDrag({ type: "orbit", x: e.clientX, y: e.clientY });
+        onOrbitChange({
+          azimuth: orbit.azimuth - dx * 0.012,
+          polar: Math.max(
+            0.25,
+            Math.min(Math.PI - 0.25, orbit.polar + dy * 0.012),
+          ),
+        });
+        return;
+      }
       if (drag.type === "marquee") {
         setDrag({ ...drag, x1: p.x, y1: p.y });
         return;
@@ -365,7 +421,7 @@ export default function FoldNetCanvas({
         updateSnapPreview(next, drag.ids, p);
       }
     },
-    [drag, tiles, toLocal, onChangeTiles, updateSnapPreview, pruneJoinsIfNeeded],
+    [drag, tiles, toLocal, onChangeTiles, updateSnapPreview, pruneJoinsIfNeeded, orbit, onOrbitChange],
   );
 
   const onPointerUp = useCallback(() => {
@@ -534,6 +590,7 @@ export default function FoldNetCanvas({
 
       {tiles.map((tile) => {
         const isMoving = movingIdSet.has(tile.id);
+        const folded = isTileFolded(tile.id);
         const snapTile =
           isMoving && snapPreviewTiles
             ? snapPreviewTiles.find((t) => t.id === tile.id)
@@ -548,6 +605,7 @@ export default function FoldNetCanvas({
         const def = SHAPE_DEFS[tile.kind];
         const isSel = selected.has(tile.id);
         const isConnected = connected.has(tile.id) && !isSel;
+        const showEditHandles = editing && isSel && !folded;
         const b = tileBounds(tile);
         const handleX = (b.minX + b.maxX) / 2;
         const handleY = b.minY - 14;
@@ -560,10 +618,18 @@ export default function FoldNetCanvas({
           <g key={tile.id}>
             <polygon
               points={points}
-              fill={def.color}
+              fill={
+                folded && geometryHidden
+                  ? "transparent"
+                  : def.color
+              }
               stroke={
                 geometryHidden
-                  ? "#1e3a5f"
+                  ? folded
+                    ? isSel
+                      ? "#1e40af"
+                      : "rgba(30,58,95,0.35)"
+                    : "#1e3a5f"
                   : isSel
                     ? "#1e40af"
                     : isConnected
@@ -571,10 +637,27 @@ export default function FoldNetCanvas({
                       : "rgba(0,0,0,0.35)"
               }
               strokeWidth={
-                geometryHidden ? 1.8 : isSel ? 2.5 : isConnected ? 2 : 1.5
+                geometryHidden
+                  ? folded
+                    ? isSel
+                      ? 2.2
+                      : 1.2
+                    : 1.8
+                  : isSel
+                    ? 2.5
+                    : isConnected
+                      ? 2
+                      : 1.5
               }
               strokeLinejoin="round"
-              opacity={0.92}
+              opacity={folded && geometryHidden ? 0.01 : 0.92}
+              style={{
+                cursor: folded
+                  ? orbitEnabled && isSel
+                    ? "grab"
+                    : "pointer"
+                  : undefined,
+              }}
             />
             {showSnapOverlay && snapTile && (
               <polygon
@@ -589,7 +672,7 @@ export default function FoldNetCanvas({
                 pointerEvents="none"
               />
             )}
-            {isSel && (
+            {showEditHandles && (
               <>
                 <circle
                   data-handle="rotate"

@@ -229,6 +229,18 @@ export function discoverAlignedJoins(
   return out;
 }
 
+/** unfoldT for the connected component containing tileId (0 when flat). */
+export function unfoldTForTile(
+  tiles: FoldTile[],
+  joins: Join[],
+  netFolds: NetFoldState[],
+  tileId: string,
+): number {
+  const comp = componentContaining(tiles, joins, tileId);
+  const key = componentKey(comp);
+  return netFolds.find((n) => n.key === key)?.unfoldT ?? 0;
+}
+
 /** Keep fold state in sync with the current join graph. */
 export function syncNetFolds(
   tiles: FoldTile[],

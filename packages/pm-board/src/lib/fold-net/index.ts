@@ -42,6 +42,7 @@ export {
   pruneSeparatedJoins,
   syncNetFolds,
   removeJoinsForTiles,
+  unfoldTForTile,
 } from "./net-graph";
 export {
   matchSolidFromSelection,
