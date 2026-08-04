@@ -834,7 +834,7 @@ export default function BoardApp({
           {recognizeSession ? (
             <MathRecognizePanel
               imageDataUrl={recognizeSession.imageDataUrl}
-              canUseApi={isTeacher}
+              canUseApi
               isTeacher={isTeacher}
               apiBase={apiBase}
               getApiAuthHeaders={getApiAuthHeaders}
