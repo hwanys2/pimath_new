@@ -110,7 +110,7 @@ export function prismSideCountFromTiles(tiles: FoldTile[]): number | null {
   return best;
 }
 
-function isPrismNet(netTiles?: FoldTile[]): boolean {
+function isPrismNet(netTiles: FoldTile[] | undefined): netTiles is FoldTile[] {
   if (!netTiles) return false;
   const n = prismSideCountFromTiles(netTiles);
   if (!n) return false;
