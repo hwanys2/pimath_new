@@ -230,9 +230,11 @@ export async function inquiryFindActiveForTeacher(input: { classId: string }) {
   return { sessionId: (data as string | null) ?? null };
 }
 
-export async function inquiryStudentPoll(input: { sessionId: string }) {
+export async function inquiryStudentPoll(
+  input: { sessionId: string },
+): Promise<InquiryPollState | null> {
   const token = await getStudentSessionToken();
-  if (!token) return IDLE;
+  if (!token) return null;
 
   const supabase = await createClient();
   const { data, error } = await supabase.rpc("pm_inquiry_poll", {
@@ -242,7 +244,7 @@ export async function inquiryStudentPoll(input: { sessionId: string }) {
 
   if (error) {
     console.error("[pm] pm_inquiry_poll failed:", error.message);
-    return IDLE;
+    return null;
   }
 
   return mapPollRows(firstRows(data as PollRow[]));

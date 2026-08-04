@@ -28,7 +28,11 @@ import * as radicalFillActions from "@/app/play/g3-u1-radical-fill/actions";
 import * as balanceActions from "@/app/play/g1-u2-2-linear-equation-balance/actions";
 import * as raceActions from "@/app/play/g1-u2-2-linear-equation-race/actions";
 import { effectiveInquiryStepCount } from "@/lib/inquiry-step-counts";
-import { INQUIRY_POLL_MS, type InquiryPollState } from "@/lib/inquiry-types";
+import {
+  INQUIRY_POLL_MS,
+  type InquiryPhase,
+  type InquiryPollState,
+} from "@/lib/inquiry-types";
 
 const IDLE: InquiryPollState = {
   sessionId: null,
@@ -109,9 +113,11 @@ export default function InquiryStudentView({
   const [submitFeedback, setSubmitFeedback] = useState<
     "correct" | "wrong" | null
   >(null);
+  const [syncError, setSyncError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
 
   const prevStepRef = useRef(-1);
+  const prevPhaseRef = useRef<InquiryPhase | "idle">("idle");
   const wrongRef = useRef(0);
   const submittedRef = useRef(false);
 
@@ -157,6 +163,8 @@ export default function InquiryStudentView({
         setSessionId(null);
         setState(IDLE);
         setWaitingForSession(true);
+        setSyncError(null);
+        prevPhaseRef.current = "idle";
         return;
       }
 
@@ -167,6 +175,10 @@ export default function InquiryStudentView({
           setSessionId(null);
           setState(IDLE);
           setWaitingForSession(true);
+          setSyncError(null);
+          prevPhaseRef.current = "idle";
+        } else {
+          setSyncError("수업에 접속하지 못했어요. 잠시 후 다시 시도해 주세요.");
         }
         return;
       }
@@ -175,11 +187,22 @@ export default function InquiryStudentView({
       const poll = await actions.inquiryStudentPollAction({
         sessionId: join.sessionId,
       });
+      if (!poll) {
+        setSyncError("수업 상태를 불러오지 못했어요. 연결을 확인해 주세요.");
+        return;
+      }
+
+      setSyncError(null);
       setState(poll);
 
-      if (poll.phase === "live" && prevStepRef.current !== poll.stepIndex) {
+      const prevPhase = prevPhaseRef.current;
+      if (
+        poll.phase === "live" &&
+        (prevPhase !== "live" || prevStepRef.current !== poll.stepIndex)
+      ) {
         resetStep(poll.stepIndex);
       }
+      prevPhaseRef.current = poll.phase;
 
       if (poll.myStepResult && !submittedRef.current) {
         setSubmitted(true);
@@ -325,6 +348,11 @@ export default function InquiryStudentView({
             ? "접속 확인됨 · 선생님이 수업을 시작하면 문제가 열려요."
             : "선생님이 수업을 준비할 때까지 기다려 주세요."}
         </p>
+        {syncError ? (
+          <p className="text-center text-xs font-bold text-[#a63a1a]" role="alert">
+            {syncError}
+          </p>
+        ) : null}
       </div>
     );
   }
@@ -357,6 +385,15 @@ export default function InquiryStudentView({
             기다려 주세요.
           </p>
         </section>
+
+        {syncError ? (
+          <p
+            className="rounded-xl bg-[#e85d4c]/12 px-4 py-2 text-center text-sm font-bold text-[#a63a1a]"
+            role="alert"
+          >
+            {syncError}
+          </p>
+        ) : null}
 
         {validKey === "g3-u1-radical-fill" ? (
           <InquiryRadicalFillStep
