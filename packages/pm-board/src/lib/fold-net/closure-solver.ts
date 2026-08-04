@@ -43,6 +43,7 @@ export function solveClosureAngles(
 
   const overrideMap = new Map(existingOverrides.map((o) => [o.joinId, o.targetAngle]));
   const angles: HingeOverride[] = [];
+  const netTiles = tiles.filter((t) => tileIds.includes(t.id));
 
   for (const edge of edges) {
     const spec = hingeSpecFromJoin(tiles, edge);
@@ -52,7 +53,7 @@ export function solveClosureAngles(
     const child = tiles.find((t) => t.id === edge.childTileId);
     if (!parent || !child) continue;
     const target =
-      existing ?? suggestHingeAngle(parent, child, edge);
+      existing ?? suggestHingeAngle(parent, child, edge, netTiles);
     angles.push({ joinId: edge.joinId, targetAngle: target });
   }
 

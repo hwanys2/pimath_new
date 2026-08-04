@@ -52,13 +52,14 @@ function hingeAngleForEdge(
   edge: NetFoldEdge,
   overrides: HingeOverride[],
   unfoldT: number,
+  netTiles: FoldTile[],
 ): number {
   const override = overrides.find((o) => o.joinId === edge.joinId);
   const parent = tiles.find((t) => t.id === edge.parentTileId);
   const child = tiles.find((t) => t.id === edge.childTileId);
   if (!parent || !child) return (Math.PI / 2) * unfoldT;
   const target =
-    override?.targetAngle ?? signedHingeAngle(parent, child, edge);
+    override?.targetAngle ?? signedHingeAngle(parent, child, edge, netTiles);
   return target * unfoldT;
 }
 
@@ -68,6 +69,7 @@ function buildHingeNode(
   hingeOverrides: HingeOverride[],
   unfoldT: number,
   parentFlat: Mat4,
+  netTiles: FoldTile[],
 ): HingeRenderNode {
   const edge = node.parentEdge!;
   const spec = hingeSpecFromJoin(tiles, edge);
@@ -85,7 +87,7 @@ function buildHingeNode(
     };
   }
 
-  const angle = hingeAngleForEdge(tiles, edge, hingeOverrides, unfoldT);
+  const angle = hingeAngleForEdge(tiles, edge, hingeOverrides, unfoldT, netTiles);
   const pivotWorld = vec2To3Arr(spec.pivot);
   const axisWorld = normalize3(vec2To3Arr(spec.axisDir));
 
@@ -110,7 +112,7 @@ function buildHingeNode(
   );
 
   const children = node.children.map((c) =>
-    buildHingeNode(c, tiles, hingeOverrides, unfoldT, childFlat),
+    buildHingeNode(c, tiles, hingeOverrides, unfoldT, childFlat, netTiles),
   );
 
   return {
@@ -139,11 +141,15 @@ export function buildFoldRenderTree(
   const rootTile = tiles.find((t) => t.id === tree.tileId);
   if (!rootTile) return null;
 
+  const netTiles = tileIds
+    ? tiles.filter((t) => tileIds.includes(t.id))
+    : tiles;
+
   return {
     rootTileId: tree.tileId,
     rootVertices: worldVertices(rootTile).map(vec2To3Arr),
     hinges: tree.children.map((c) =>
-      buildHingeNode(c, tiles, hingeOverrides, unfoldT, mat4Identity()),
+      buildHingeNode(c, tiles, hingeOverrides, unfoldT, mat4Identity(), netTiles),
     ),
   };
 }

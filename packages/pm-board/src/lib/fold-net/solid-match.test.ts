@@ -42,6 +42,71 @@ function eqTri(id: string, x: number, y: number, rot = 0): FoldTile {
   };
 }
 
+function rectangle(id: string, x: number, y: number, rot = 0): FoldTile {
+  return {
+    id,
+    kind: "rectangle",
+    x,
+    y,
+    scale: DEFAULT_TILE_SCALE,
+    rotation: rot,
+  };
+}
+
+function regularOctagon(id: string, x: number, y: number, rot = 0): FoldTile {
+  return {
+    id,
+    kind: "regularOctagon",
+    x,
+    y,
+    scale: DEFAULT_TILE_SCALE,
+    rotation: rot,
+  };
+}
+
+function buildPrismStripNet(
+  capKind: "equilateralTriangle" | "regularOctagon",
+  lateralCount: number,
+): { tiles: FoldTile[]; joins: Join[] } {
+  const cap1 =
+    capKind === "equilateralTriangle"
+      ? eqTri("cap1", 0, 0)
+      : regularOctagon("cap1", 0, 0);
+  let prev: FoldTile = cap1;
+  const laterals: FoldTile[] = [];
+  const joins: Join[] = [];
+
+  for (let i = 1; i <= lateralCount; i++) {
+    const lateral = placeOnEdge(rectangle(`r${i}`, 0, 0), 1, prev, i === 1 ? 0 : 3);
+    laterals.push(lateral);
+    joins.push({
+      id: `j${i - 1}`,
+      a: {
+        tileId: prev.id,
+        edgeIndex: i === 1 ? 0 : 3,
+      },
+      b: { tileId: lateral.id, edgeIndex: 1 },
+    });
+    prev = lateral;
+  }
+
+  const cap2 = placeOnEdge(
+    capKind === "equilateralTriangle"
+      ? eqTri("cap2", 0, 0)
+      : regularOctagon("cap2", 0, 0),
+    0,
+    prev,
+    1,
+  );
+  joins.push({
+    id: `j${lateralCount}`,
+    a: { tileId: prev.id, edgeIndex: 1 },
+    b: { tileId: cap2.id, edgeIndex: 0 },
+  });
+
+  return { tiles: [cap1, ...laterals, cap2], joins };
+}
+
 function placeOnEdge(
   tile: FoldTile,
   edgeIndex: number,
@@ -556,6 +621,46 @@ describe("fold transforms", () => {
     const allVerts = [...byTile.values()].flat();
     const maxZ = Math.max(...allVerts.map((v) => Math.abs(v.z)));
     assert.ok(maxZ > 15, "frustum should fold off the plane at t=1");
+  });
+
+  it("uses 90° cap and 120° lateral hinges for triangular prism strip nets", () => {
+    const { tiles, joins } = buildPrismStripNet("equilateralTriangle", 3);
+    const ids = tiles.map((t) => t.id);
+    assert.ok(canFoldNet(tiles, joins, ids));
+    const closure = solveClosureAngles(tiles, joins, ids);
+    const magnitudes = closure.angles
+      .map((a) => Math.round((Math.abs(a.targetAngle) * 180) / Math.PI))
+      .sort((a, b) => a - b);
+    assert.deepEqual(magnitudes, [90, 90, 120, 120]);
+
+    const root = pickFoldRoot(tiles, ids, joins)!;
+    const tr = computeTileTransforms(tiles, joins, root, 1, closure.angles, ids);
+    const zs = [...tr.values()].flatMap((t) => t.vertices.map((v) => v.z));
+    assert.ok(zs.some((z) => z > 20), "prism should fold off the plane at t=1");
+    assert.ok(
+      zs.filter((z) => z > 1).length >= zs.length / 3,
+      "most folded vertices should lift toward +Z",
+    );
+  });
+
+  it("uses 90° cap and 135° lateral hinges for octagonal prism strip nets", () => {
+    const { tiles, joins } = buildPrismStripNet("regularOctagon", 8);
+    const ids = tiles.map((t) => t.id);
+    assert.ok(canFoldNet(tiles, joins, ids));
+    const closure = solveClosureAngles(tiles, joins, ids);
+    const magnitudes = closure.angles
+      .map((a) => Math.round((Math.abs(a.targetAngle) * 180) / Math.PI))
+      .sort((a, b) => a - b);
+    assert.deepEqual(magnitudes, [90, 90, 135, 135, 135, 135, 135, 135, 135]);
+
+    const root = pickFoldRoot(tiles, ids, joins)!;
+    const tr = computeTileTransforms(tiles, joins, root, 1, closure.angles, ids);
+    const zs = [...tr.values()].flatMap((t) => t.vertices.map((v) => v.z));
+    assert.ok(zs.some((z) => z > 40), "octagonal prism should fold off the plane at t=1");
+    assert.ok(
+      zs.filter((z) => z > 1).length >= zs.length / 3,
+      "most folded vertices should lift toward +Z",
+    );
   });
 });
 

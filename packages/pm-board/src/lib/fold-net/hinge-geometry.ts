@@ -3,6 +3,16 @@ import { unitEdgeLengths } from "./shape-defs";
 import type { FoldTile, ShapeKind, Vec2 } from "./types";
 import type { NetFoldEdge } from "./net-fold-tree";
 
+const PRISM_CAP_SIDES: Partial<Record<ShapeKind, number>> = {
+  equilateralTriangle: 3,
+  scaleneTriangle: 3,
+  rightTriangle: 3,
+  regularPentagon: 5,
+  regularHexagon: 6,
+  regularHeptagon: 7,
+  regularOctagon: 8,
+};
+
 function isEquilateralTriangleKind(kind: ShapeKind): boolean {
   return kind === "equilateralTriangle";
 }
@@ -80,6 +90,67 @@ function isQuadKind(kind: ShapeKind): boolean {
   return kind === "square" || kind === "rectangle" || kind === "rhombus";
 }
 
+function polygonPrismSides(kind: ShapeKind): number | null {
+  return PRISM_CAP_SIDES[kind] ?? null;
+}
+
+/** Infer prism base side count from cap polygons in a connected net. */
+export function prismSideCountFromTiles(tiles: FoldTile[]): number | null {
+  let best: number | null = null;
+  let bestCaps = 0;
+  for (const tile of tiles) {
+    const n = polygonPrismSides(tile.kind);
+    if (!n) continue;
+    const caps = tiles.filter((t) => polygonPrismSides(t.kind) === n).length;
+    if (caps > bestCaps) {
+      bestCaps = caps;
+      best = n;
+    }
+  }
+  return best;
+}
+
+function isPrismNet(netTiles?: FoldTile[]): boolean {
+  if (!netTiles) return false;
+  const n = prismSideCountFromTiles(netTiles);
+  if (!n) return false;
+  const lateralQuads = netTiles.filter((t) => isQuadKind(t.kind)).length;
+  return lateralQuads >= 2;
+}
+
+function isPrismCapJoin(
+  parent: FoldTile,
+  child: FoldTile,
+  netTiles?: FoldTile[],
+): boolean {
+  if (!isPrismNet(netTiles)) return false;
+  const parentSides = polygonPrismSides(parent.kind);
+  const childSides = polygonPrismSides(child.kind);
+  return (
+    (parentSides != null && isQuadKind(child.kind)) ||
+    (childSides != null && isQuadKind(parent.kind))
+  );
+}
+
+/** Prism caps and lateral bands use angles the generic dihedral formula mishandles. */
+function prismHingeMagnitude(
+  parent: FoldTile,
+  child: FoldTile,
+  netTiles?: FoldTile[],
+): number | null {
+  if (isPrismCapJoin(parent, child, netTiles)) return Math.PI / 2;
+
+  if (!isPrismNet(netTiles) || !isQuadKind(parent.kind) || !isQuadKind(child.kind)) {
+    return null;
+  }
+
+  const n = prismSideCountFromTiles(netTiles);
+  if (!n || n < 3) return null;
+  const interior = ((n - 2) * Math.PI) / n;
+  const exterior = (2 * Math.PI) / n;
+  return Math.max(interior, exterior);
+}
+
 /** Square frustum nets: lateral and cap faces fold perpendicular to neighbors. */
 function squareTrapezoidHingeMagnitude(
   parent: FoldTile,
@@ -136,9 +207,13 @@ export function dihedralMagnitude(
   parent: FoldTile,
   child: FoldTile,
   edge: NetFoldEdge,
+  netTiles?: FoldTile[],
 ): number {
   const frustumMag = squareTrapezoidHingeMagnitude(parent, child, edge);
   if (frustumMag != null) return frustumMag;
+
+  const prismMag = prismHingeMagnitude(parent, child, netTiles);
+  if (prismMag != null) return prismMag;
 
   const pVerts = worldVertices(parent);
   const cVerts = worldVertices(child);
@@ -164,11 +239,12 @@ export function signedHingeAngle(
   parent: FoldTile,
   child: FoldTile,
   edge: NetFoldEdge,
+  netTiles?: FoldTile[],
 ): number {
   const spec = hingeSpecFromJoin(parent, child, edge);
   if (!spec) return Math.PI / 2;
 
-  const magnitude = dihedralMagnitude(parent, child, edge);
+  const magnitude = dihedralMagnitude(parent, child, edge, netTiles);
   const cVerts = worldVertices(child);
   const cx =
     cVerts.reduce((s, v) => s + v.x, 0) / Math.max(1, cVerts.length);
@@ -186,8 +262,9 @@ export function suggestHingeAngle(
   parent: FoldTile,
   child: FoldTile,
   edge: NetFoldEdge,
+  netTiles?: FoldTile[],
 ): number {
-  return signedHingeAngle(parent, child, edge);
+  return signedHingeAngle(parent, child, edge, netTiles);
 }
 
 export function hingeSpecFromJoin(
