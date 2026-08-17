@@ -6,6 +6,7 @@ import {
   InquiryEquationOpsStep,
   InquiryLinearEquationBalanceStep,
   InquiryRadicalFillStep,
+  InquiryTangentIntroStep,
   balanceInitialState,
   balanceProblem,
   equationOpsInitialState,
@@ -14,19 +15,26 @@ import {
   isInquiryContentKey,
   radicalFillInitialState,
   radicalFillProblem,
+  tangentInitialState,
+  tangentScene,
   validateRadicalFill,
+  validateTangent,
   type InquiryContentKey,
 } from "@/lib/inquiry-content-registry";
 import type { SoftNotice as BalanceSoftNotice } from "@/components/inquiry/linear-equation-balance/InquiryLinearEquationBalanceStep";
 import { validateBalanceSubmit } from "@/lib/inquiry-linear-equation-balance";
 import type { SoftNotice as RadicalSoftNotice } from "@/components/inquiry/radical-fill/InquiryRadicalFillStep";
+import type { SoftNotice as TangentSoftNotice } from "@/lib/inquiry-tangent-intro";
 import type { TermTexts } from "@/components/inquiry/radical-fill/InquiryRadicalFillStep";
 import type { TileWorkspace } from "@/lib/linear-equation-balance-math";
 import type { EquationOpsState } from "@/lib/equation-ops-math";
+import type { TangentWorkspace } from "@/lib/inquiry-tangent-intro";
+import { emptyTangentWorkspace } from "@/lib/inquiry-tangent-intro";
 import { isStateSolved, scoreForTime } from "@/lib/equation-ops-math";
 import * as radicalFillActions from "@/app/play/g3-u1-radical-fill/actions";
 import * as balanceActions from "@/app/play/g1-u2-2-linear-equation-balance/actions";
 import * as raceActions from "@/app/play/g1-u2-2-linear-equation-race/actions";
+import * as tangentActions from "@/app/play/g3-u3-1-tangent-intro/actions";
 import { effectiveInquiryStepCount } from "@/lib/inquiry-step-counts";
 import {
   INQUIRY_POLL_MS,
@@ -72,6 +80,8 @@ function getActions(contentKey: InquiryContentKey) {
       return balanceActions;
     case "g1-u2-2-linear-equation-race":
       return raceActions;
+    case "g3-u3-1-tangent-intro":
+      return tangentActions;
   }
 }
 
@@ -100,6 +110,9 @@ export default function InquiryStudentView({
     trail: [],
     opCount: 0,
   });
+  const [tangentWorkspace, setTangentWorkspace] = useState<TangentWorkspace>(
+    () => emptyTangentWorkspace(0),
+  );
   const [stepStartedAt, setStepStartedAt] = useState<number | null>(null);
   const [earnedScore, setEarnedScore] = useState<number | null>(null);
   const [wrongAttempts, setWrongAttempts] = useState(0);
@@ -107,6 +120,9 @@ export default function InquiryStudentView({
     null,
   );
   const [balanceNotice, setBalanceNotice] = useState<BalanceSoftNotice | null>(
+    null,
+  );
+  const [tangentNotice, setTangentNotice] = useState<TangentSoftNotice | null>(
     null,
   );
   const [submitted, setSubmitted] = useState(false);
@@ -134,6 +150,8 @@ export default function InquiryStudentView({
         setRaceState(equationOpsInitialState(stepIndex));
         setStepStartedAt(Date.now());
         setEarnedScore(null);
+      } else if (validKey === "g3-u3-1-tangent-intro") {
+        setTangentWorkspace(tangentInitialState(stepIndex));
       } else {
         setBalanceWorkspace(balanceInitialState(stepIndex));
         setBalanceMoves(0);
@@ -142,6 +160,7 @@ export default function InquiryStudentView({
       wrongRef.current = 0;
       setRadicalNotice(null);
       setBalanceNotice(null);
+      setTangentNotice(null);
       setSubmitted(false);
       setSubmitFeedback(null);
       submittedRef.current = false;
@@ -315,6 +334,37 @@ export default function InquiryStudentView({
     });
   };
 
+  const onSubmitTangent = () => {
+    if (!sessionId || submitted || state.phase !== "live" || !validKey) return;
+    const notice = validateTangent(state.stepIndex, tangentWorkspace);
+    if (notice) {
+      if (notice.reason === "wrong") {
+        const next = wrongRef.current + 1;
+        wrongRef.current = next;
+        setWrongAttempts(next);
+      }
+      setTangentNotice(notice);
+      return;
+    }
+
+    startTransition(async () => {
+      const result = await tangentActions.inquirySubmitTangentAction({
+        sessionId,
+        stepIndex: state.stepIndex,
+        workspace: tangentWorkspace,
+        wrongs: wrongRef.current,
+      });
+      if ("error" in result) {
+        setTangentNotice({ reason: "wrong" });
+        return;
+      }
+      setSubmitted(true);
+      submittedRef.current = true;
+      setSubmitFeedback("correct");
+      setTangentNotice(null);
+    });
+  };
+
   if (!config || !validKey) {
     return (
       <InquiryUnavailable message="알 수 없는 탐구 콘텐츠예요." />
@@ -425,6 +475,23 @@ export default function InquiryStudentView({
             earnedScore={earnedScore}
             stepStartedAt={stepStartedAt ?? undefined}
             onSubmit={onSubmitRace}
+          />
+        ) : validKey === "g3-u3-1-tangent-intro" ? (
+          <InquiryTangentIntroStep
+            scene={tangentScene(state.stepIndex)}
+            stepIndex={state.stepIndex}
+            stepCount={stepCount}
+            workspace={tangentWorkspace}
+            onWorkspaceChange={(next) => {
+              setTangentWorkspace(next);
+              if (tangentNotice) setTangentNotice(null);
+            }}
+            disabled={isPending}
+            wrongAttempts={wrongAttempts}
+            softNotice={tangentNotice}
+            submitted={submitted}
+            submitFeedback={submitFeedback}
+            onSubmit={onSubmitTangent}
           />
         ) : (
           <InquiryLinearEquationBalanceStep

@@ -13,9 +13,17 @@ import InquiryLinearEquationBalanceStep, {
 import InquiryLinearEquationBalanceResponseDetail from "@/components/inquiry/linear-equation-balance/InquiryLinearEquationBalanceResponseDetail";
 import InquiryEquationOpsStep from "@/components/inquiry/equation-ops/EquationOpsStep";
 import InquiryEquationOpsResponseDetail from "@/components/inquiry/equation-ops/InquiryEquationOpsResponseDetail";
+import InquiryTangentIntroStep from "@/components/inquiry/tangent-intro/InquiryTangentIntroStep";
+import InquiryTangentIntroResponseDetail from "@/components/inquiry/tangent-intro/InquiryTangentIntroResponseDetail";
 import { radicalFillProblemAt } from "@/lib/inquiry-radical-fill";
 import { balanceProblemAt } from "@/lib/inquiry-linear-equation-balance";
 import { equationOpsProblemAt } from "@/lib/inquiry-equation-ops";
+import {
+  emptyTangentWorkspace,
+  heightSceneAt,
+  PROBLEM_COUNT as TANGENT_COUNT,
+  validateTangentSubmit,
+} from "@/lib/inquiry-tangent-intro";
 import { PROBLEM_COUNT as RADICAL_COUNT } from "@/lib/radical-fill-math";
 import { PROBLEM_COUNT as BALANCE_COUNT } from "@/lib/linear-equation-balance-math";
 import { PROBLEM_COUNT as RACE_COUNT } from "@/lib/equation-ops-math";
@@ -27,16 +35,19 @@ import type { InquiryResult } from "@/lib/inquiry-types";
 import type { RadicalFillResponsePayload } from "@/lib/inquiry-radical-fill";
 import type { BalanceFillResponsePayload } from "@/lib/inquiry-linear-equation-balance";
 import type { EquationOpsResponsePayload } from "@/lib/inquiry-equation-ops";
+import type { TangentResponsePayload } from "@/lib/inquiry-tangent-intro";
 
 export type InquiryContentKey =
   | "g3-u1-radical-fill"
   | "g1-u2-2-linear-equation-balance"
-  | "g1-u2-2-linear-equation-race";
+  | "g1-u2-2-linear-equation-race"
+  | "g3-u3-1-tangent-intro";
 
 export type InquiryResponsePayload =
   | RadicalFillResponsePayload
   | BalanceFillResponsePayload
-  | EquationOpsResponsePayload;
+  | EquationOpsResponsePayload
+  | TangentResponsePayload;
 
 type ResponseDetailProps = {
   response: InquiryResponsePayload;
@@ -91,6 +102,18 @@ export const INQUIRY_CONTENTS: Record<InquiryContentKey, InquiryContentDef> = {
     ResponseDetail:
       InquiryEquationOpsResponseDetail as ComponentType<ResponseDetailProps>,
   },
+  "g3-u3-1-tangent-intro": {
+    contentKey: "g3-u3-1-tangent-intro",
+    title: "높이 재기 탐구",
+    stepCount: TANGENT_COUNT,
+    hostSubtitle:
+      "거리와 각만 보여 주고, 학생이 작도판에서 비슷한 직각삼각형을 그려 높이를 구합니다. 마지막 페이지에서 표를 채웁니다.",
+    spectatorSubtitle:
+      "장면과 작도판을 직접 조작해 볼 수 있어요. 학생은 선생님이 수업을 시작할 때만 참여할 수 있습니다.",
+    headerGradient: "from-lavender/55 via-sky/20 to-gold/25",
+    ResponseDetail:
+      InquiryTangentIntroResponseDetail as ComponentType<ResponseDetailProps>,
+  },
 };
 
 export function getInquiryContent(
@@ -142,8 +165,26 @@ export function equationOpsProblem(stepIndex: number) {
   return equationOpsProblemAt(stepIndex);
 }
 
+// --- Tangent intro helpers ---
+
+export function tangentInitialState(stepIndex: number) {
+  return emptyTangentWorkspace(stepIndex);
+}
+
+export function tangentScene(stepIndex: number) {
+  return heightSceneAt(stepIndex);
+}
+
+export function validateTangent(
+  stepIndex: number,
+  workspace: ReturnType<typeof emptyTangentWorkspace>,
+) {
+  return validateTangentSubmit(stepIndex, workspace);
+}
+
 export {
   InquiryRadicalFillStep,
   InquiryLinearEquationBalanceStep,
   InquiryEquationOpsStep,
+  InquiryTangentIntroStep,
 };

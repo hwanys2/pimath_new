@@ -119,3 +119,4 @@ await submitActivity({
 |------|------|
 | 2026-07-30 | 최초 도입 — `pm_game_runs.details`, `pm_activity_sessions`, 교사 학습 결과 UI |
 | 2026-07-30 | 탐구 세션 종료 집계 — `pm_inquiry_record_session_runs` |
+| 2026-08-17 | `g3-u3-1-tangent-intro` 세션 종료 집계 · SUMMARY_LABELS |

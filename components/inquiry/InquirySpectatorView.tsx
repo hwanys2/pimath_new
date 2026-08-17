@@ -5,6 +5,7 @@ import {
   InquiryEquationOpsStep,
   InquiryLinearEquationBalanceStep,
   InquiryRadicalFillStep,
+  InquiryTangentIntroStep,
   balanceInitialState,
   balanceProblem,
   equationOpsInitialState,
@@ -13,6 +14,8 @@ import {
   isInquiryContentKey,
   radicalFillInitialState,
   radicalFillProblem,
+  tangentInitialState,
+  tangentScene,
 } from "@/lib/inquiry-content-registry";
 
 type Props = {
@@ -52,6 +55,9 @@ export default function InquirySpectatorView({
           opCount: 0,
         },
   );
+  const [tangentWorkspace, setTangentWorkspace] = useState(() =>
+    tangentInitialState(0),
+  );
 
   if (!config || !validKey) {
     return (
@@ -70,6 +76,8 @@ export default function InquirySpectatorView({
       setTexts(radicalFillInitialState(clamped));
     } else if (validKey === "g1-u2-2-linear-equation-race") {
       setRaceState(equationOpsInitialState(clamped));
+    } else if (validKey === "g3-u3-1-tangent-intro") {
+      setTangentWorkspace(tangentInitialState(clamped));
     } else {
       setBalanceWorkspace(balanceInitialState(clamped));
     }
@@ -107,6 +115,15 @@ export default function InquirySpectatorView({
           stepCount={stepCount}
           state={raceState}
           onStateChange={setRaceState}
+          hostPreview
+        />
+      ) : validKey === "g3-u3-1-tangent-intro" ? (
+        <InquiryTangentIntroStep
+          scene={tangentScene(stepIndex)}
+          stepIndex={stepIndex}
+          stepCount={stepCount}
+          workspace={tangentWorkspace}
+          onWorkspaceChange={setTangentWorkspace}
           hostPreview
         />
       ) : (

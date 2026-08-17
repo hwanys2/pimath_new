@@ -10,6 +10,7 @@ import {
   InquiryEquationOpsStep,
   InquiryLinearEquationBalanceStep,
   InquiryRadicalFillStep,
+  InquiryTangentIntroStep,
   balanceInitialState,
   balanceProblem,
   equationOpsInitialState,
@@ -18,6 +19,8 @@ import {
   isInquiryContentKey,
   radicalFillInitialState,
   radicalFillProblem,
+  tangentInitialState,
+  tangentScene,
   type InquiryContentKey,
 } from "@/lib/inquiry-content-registry";
 import {
@@ -29,6 +32,7 @@ import {
 import * as radicalFillActions from "@/app/play/g3-u1-radical-fill/actions";
 import * as balanceActions from "@/app/play/g1-u2-2-linear-equation-balance/actions";
 import * as raceActions from "@/app/play/g1-u2-2-linear-equation-race/actions";
+import * as tangentActions from "@/app/play/g3-u3-1-tangent-intro/actions";
 import { effectiveInquiryStepCount } from "@/lib/inquiry-step-counts";
 
 const IDLE: InquiryPollState = {
@@ -70,6 +74,8 @@ function getActions(contentKey: InquiryContentKey) {
       return balanceActions;
     case "g1-u2-2-linear-equation-race":
       return raceActions;
+    case "g3-u3-1-tangent-intro":
+      return tangentActions;
   }
 }
 
@@ -111,6 +117,9 @@ export default function InquiryHostDashboard({
       ? equationOpsInitialState(0)
       : { balance: { left: { x: 0, unit: 0 }, right: { x: 0, unit: 0 } }, trail: [], opCount: 0 },
   );
+  const [previewTangent, setPreviewTangent] = useState(() =>
+    tangentInitialState(0),
+  );
 
   useEffect(() => {
     if (!validKey) return;
@@ -118,6 +127,8 @@ export default function InquiryHostDashboard({
       setPreviewTexts(radicalFillInitialState(state.stepIndex));
     } else if (validKey === "g1-u2-2-linear-equation-race") {
       setPreviewRace(equationOpsInitialState(state.stepIndex));
+    } else if (validKey === "g3-u3-1-tangent-intro") {
+      setPreviewTangent(tangentInitialState(state.stepIndex));
     } else {
       setPreviewBalance(balanceInitialState(state.stepIndex));
     }
@@ -398,6 +409,15 @@ export default function InquiryHostDashboard({
                 stepCount={stepCount}
                 state={previewRace}
                 onStateChange={setPreviewRace}
+                hostPreview
+              />
+            ) : validKey === "g3-u3-1-tangent-intro" ? (
+              <InquiryTangentIntroStep
+                scene={tangentScene(state.stepIndex)}
+                stepIndex={state.stepIndex}
+                stepCount={stepCount}
+                workspace={previewTangent}
+                onWorkspaceChange={setPreviewTangent}
                 hostPreview
               />
             ) : (

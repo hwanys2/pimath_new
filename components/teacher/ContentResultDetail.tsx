@@ -73,6 +73,38 @@ function RadicalFillDetail({ items }: { items: ActivityDetailsV1["items"] }) {
   );
 }
 
+function TangentIntroDetail({ items }: { items: ActivityDetailsV1["items"] }) {
+  if (!items?.length) return null;
+  return (
+    <div className="mt-2 overflow-x-auto">
+      <table className="w-full min-w-[280px] text-left text-xs">
+        <thead>
+          <tr className="border-b border-wood/15 text-foreground/55">
+            <th className="py-1 pr-3 font-semibold">문항</th>
+            <th className="py-1 pr-3 font-semibold">내용</th>
+            <th className="py-1 pr-3 font-semibold">점수</th>
+            <th className="py-1 font-semibold">오답</th>
+          </tr>
+        </thead>
+        <tbody>
+          {items.map((item, i) => (
+            <tr key={i} className="border-b border-wood/8">
+              <td className="py-1 pr-3">{(item.index as number) + 1}</td>
+              <td className="py-1 pr-3">
+                {item.kind === "table"
+                  ? `표 ${String(item.filled ?? "—")}칸`
+                  : `높이 ${String(item.height ?? "—")} m`}
+              </td>
+              <td className="py-1 pr-3">{String(item.score ?? "—")}</td>
+              <td className="py-1">{String(item.wrongs ?? 0)}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
 function GenericItemsDetail({ items }: { items: ActivityDetailsV1["items"] }) {
   if (!items?.length) return null;
   return (
@@ -97,6 +129,10 @@ export function ContentResultDetail({
 
   if (contentKey === "g3-u1-radical-fill") {
     return <RadicalFillDetail items={details.items} />;
+  }
+
+  if (contentKey === "g3-u3-1-tangent-intro") {
+    return <TangentIntroDetail items={details.items} />;
   }
 
   return <GenericItemsDetail items={details.items} />;

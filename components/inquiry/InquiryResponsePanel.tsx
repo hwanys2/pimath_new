@@ -3,8 +3,7 @@ import {
   getInquiryContent,
   isInquiryContentKey,
 } from "@/lib/inquiry-content-registry";
-import type { RadicalFillResponsePayload } from "@/lib/inquiry-radical-fill";
-import type { BalanceFillResponsePayload } from "@/lib/inquiry-linear-equation-balance";
+import type { InquiryResponsePayload } from "@/lib/inquiry-content-registry";
 
 type Props = {
   responses: InquiryResponseRow[];
@@ -80,11 +79,7 @@ export default function InquiryResponsePanel({
                   <td className="px-3 py-3">
                     {ResponseDetail ? (
                       <ResponseDetail
-                        response={
-                          r.response as
-                            | RadicalFillResponsePayload
-                            | BalanceFillResponsePayload
-                        }
+                        response={r.response as InquiryResponsePayload}
                         result={r.result}
                       />
                     ) : (

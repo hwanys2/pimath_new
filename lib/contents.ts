@@ -228,6 +228,17 @@ export const CONTENTS: ContentMeta[] = [
     description:
       "가위바위보로 선공을 정하고, 격자에 돌을 두어 먼저 정사각형을 완성하는 게임입니다. 컴퓨터·같은 반·전체 매칭. 학급 배정·활성 시 XP와 랭킹이 쌓여요.",
   },
+  {
+    key: "g3-u3-1-tangent-intro",
+    unitId: "g3-3-1",
+    type: "inquiry",
+    title: "높이 재기 탐구",
+    href: "/play/g3-u3-1-tangent-intro",
+    awardsXp: true,
+    inquiry: { stepCount: 4, grading: "auto", scoring: true },
+    description:
+      "건물·나무·등대 높이를 거리와 각만으로 구하고, 표를 만들며 삼각비를 만나는 탐구 활동. 학생은 선생님이 수업을 시작할 때만 참여해요.",
+  },
 ];
 
 export function getContent(key: string): ContentMeta | undefined {
