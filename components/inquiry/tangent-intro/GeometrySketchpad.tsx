@@ -3,6 +3,9 @@
 import { useCallback, useMemo, useRef, useState } from "react";
 import {
   allIntersections,
+  ANGLE_DIAL_MAX,
+  ANGLE_DIAL_RADIUS,
+  angleDialPoint,
   baseDirection,
   dist,
   elevationDegFromBase,
@@ -11,6 +14,7 @@ import {
   GRID_W,
   leftVertex,
   nearestSeg,
+  nearestSubSegment,
   nearEndpoint,
   perpendicularThrough,
   projectOnSeg,
@@ -37,6 +41,10 @@ function fromSvg(x: number, y: number): Vec2 {
   return { x, y: GRID_H - y };
 }
 
+function chunkKey(segId: string, index: number): string {
+  return `${segId}:${index}`;
+}
+
 const TOOLS: { id: Tool; label: string; hint: string }[] = [
   { id: "segment", label: "선분", hint: "두 점을 찍어 선분을 그리세요. 격자에 붙어요." },
   {
@@ -47,12 +55,12 @@ const TOOLS: { id: Tool; label: string; hint: string }[] = [
   {
     id: "angle",
     label: "각",
-    hint: "밑변 선분을 고른 뒤, 왼쪽 꼭짓점에서 드래그해 각을 맞추세요. 1° 단위로 반직선이 그려져요.",
+    hint: "밑변 선분을 고른 뒤, 단위원 눈금을 따라 1° 단위로 각을 맞추고 떼면 반직선이 그려져요.",
   },
   {
     id: "measure",
     label: "길이",
-    hint: "길이를 볼 선분을 누르세요. 교점마다 잘린 구간 길이가 표시돼요.",
+    hint: "길이를 볼 선분 조각을 누르세요. 누른 부분만 길이가 표시돼요.",
   },
   { id: "erase", label: "지우개", hint: "지울 선분을 누르세요." },
 ];
@@ -61,12 +69,34 @@ type Props = {
   locked?: boolean;
 };
 
-type AngleDrag = {
+type AngleSession = {
+  segId: string;
   origin: Vec2;
   baseDir: Vec2;
   deg: number;
-  end: Vec2;
 };
+
+function semicirclePath(origin: Vec2, baseDir: Vec2, radius: number, maxDeg: number): string {
+  const baseAng = Math.atan2(baseDir.y, baseDir.x);
+  const steps = Math.max(8, maxDeg);
+  const pts: Vec2[] = [];
+  for (let d = 0; d <= maxDeg; d += 1) {
+    const rad = baseAng + (d * Math.PI) / 180;
+    pts.push({
+      x: origin.x + radius * Math.cos(rad),
+      y: origin.y + radius * Math.sin(rad),
+    });
+  }
+  const first = toSvg(pts[0]!);
+  const rest = pts
+    .slice(1)
+    .map((p) => {
+      const s = toSvg(p);
+      return `${s.x} ${s.y}`;
+    })
+    .join(" L ");
+  return `M ${first.x} ${first.y} L ${rest}`;
+}
 
 export default function GeometrySketchpad({ locked = false }: Props) {
   const svgRef = useRef<SVGSVGElement | null>(null);
@@ -79,8 +109,8 @@ export default function GeometrySketchpad({ locked = false }: Props) {
   const [history, setHistory] = useState<SketchSeg[][]>([]);
   const [pending, setPending] = useState<Vec2 | null>(null);
   const [perpTarget, setPerpTarget] = useState<string | null>(null);
-  const [angleTarget, setAngleTarget] = useState<string | null>(null);
-  const [angleDrag, setAngleDrag] = useState<AngleDrag | null>(null);
+  const [angleSession, setAngleSession] = useState<AngleSession | null>(null);
+  const [measuredChunks, setMeasuredChunks] = useState<Set<string>>(new Set());
   const [hover, setHover] = useState<Vec2 | null>(null);
   const [ruler, setRuler] = useState<OverlayPose | null>(null);
 
@@ -111,8 +141,7 @@ export default function GeometrySketchpad({ locked = false }: Props) {
   const resetToolState = () => {
     setPending(null);
     setPerpTarget(null);
-    setAngleTarget(null);
-    setAngleDrag(null);
+    setAngleSession(null);
     draggingAngle.current = false;
   };
 
@@ -122,27 +151,30 @@ export default function GeometrySketchpad({ locked = false }: Props) {
     setSegs((cur) => [...cur, { id: nextId(), a, b }]);
   };
 
-  const beginAngleDrag = (seg: SketchSeg, pointer: Vec2) => {
+  const openAngleSession = (seg: SketchSeg, pointer?: Vec2) => {
     const origin = leftVertex(seg);
     const baseDir = baseDirection(seg);
-    const deg = elevationDegFromBase(origin, baseDir, pointer);
-    const end = rayEndpoint(origin, baseDir, deg);
-    if (!end) return;
-    draggingAngle.current = true;
-    setAngleDrag({ origin, baseDir, deg, end });
+    const deg = pointer
+      ? elevationDegFromBase(origin, baseDir, pointer)
+      : 45;
+    setAngleSession({ segId: seg.id, origin, baseDir, deg });
+    setPerpTarget(null);
   };
 
-  const updateAngleDrag = (pointer: Vec2, drag: AngleDrag) => {
-    const deg = elevationDegFromBase(drag.origin, drag.baseDir, pointer);
-    const end = rayEndpoint(drag.origin, drag.baseDir, deg);
-    if (!end) return;
-    setAngleDrag({ ...drag, deg, end });
+  const updateAngleFromPointer = (session: AngleSession, pointer: Vec2): AngleSession => {
+    const deg = elevationDegFromBase(session.origin, session.baseDir, pointer);
+    return { ...session, deg: Math.min(ANGLE_DIAL_MAX, Math.max(0, deg)) };
   };
 
-  const commitAngleDrag = (drag: AngleDrag) => {
-    addSeg(drag.origin, drag.end);
-    setAngleDrag(null);
-    setAngleTarget(null);
+  const commitAngleSession = (session: AngleSession) => {
+    if (session.deg <= 0) {
+      setAngleSession(null);
+      draggingAngle.current = false;
+      return;
+    }
+    const end = rayEndpoint(session.origin, session.baseDir, session.deg);
+    if (end) addSeg(session.origin, end);
+    setAngleSession(null);
     draggingAngle.current = false;
   };
 
@@ -151,26 +183,26 @@ export default function GeometrySketchpad({ locked = false }: Props) {
     if ((e.target as Element).closest("button")) return;
     const raw = clientToGrid(e);
     if (!raw) return;
-    const p = applySnap(raw);
 
     if (tool === "angle") {
-      if (angleTarget && !draggingAngle.current) {
-        const seg = segs.find((s) => s.id === angleTarget);
-        if (seg) {
-          e.currentTarget.setPointerCapture(e.pointerId);
-          beginAngleDrag(seg, p);
-        }
+      if (angleSession) {
+        e.currentTarget.setPointerCapture(e.pointerId);
+        draggingAngle.current = true;
+        setAngleSession((s) => (s ? updateAngleFromPointer(s, raw) : s));
         return;
       }
-      const hit = nearestSeg(p, segs);
+      const hit = nearestSeg(raw, segs);
       if (!hit) {
-        setAngleTarget(null);
+        setAngleSession(null);
         return;
       }
-      setAngleTarget(hit.id);
-      setPerpTarget(null);
+      openAngleSession(hit, raw);
+      e.currentTarget.setPointerCapture(e.pointerId);
+      draggingAngle.current = true;
       return;
     }
+
+    const p = applySnap(raw);
 
     if (tool === "segment") {
       if (!pending) {
@@ -194,7 +226,7 @@ export default function GeometrySketchpad({ locked = false }: Props) {
           return;
         }
         setPerpTarget(hit.id);
-        setAngleTarget(null);
+        setAngleSession(null);
         return;
       }
       const seg = segs.find((s) => s.id === perpTarget);
@@ -215,11 +247,15 @@ export default function GeometrySketchpad({ locked = false }: Props) {
     }
 
     if (tool === "measure") {
-      const hit = nearestSeg(p, segs);
+      const hit = nearestSubSegment(p, segs);
       if (!hit) return;
-      setSegs((cur) =>
-        cur.map((s) => (s.id === hit.id ? { ...s, measured: !s.measured } : s)),
-      );
+      const key = chunkKey(hit.seg.id, hit.chunkIndex);
+      setMeasuredChunks((prev) => {
+        const next = new Set(prev);
+        if (next.has(key)) next.delete(key);
+        else next.add(key);
+        return next;
+      });
       return;
     }
 
@@ -228,8 +264,15 @@ export default function GeometrySketchpad({ locked = false }: Props) {
       if (!hit) return;
       pushHistory(segs);
       setSegs((cur) => cur.filter((s) => s.id !== hit.id));
+      setMeasuredChunks((prev) => {
+        const next = new Set(prev);
+        for (const k of prev) {
+          if (k.startsWith(`${hit.id}:`)) next.delete(k);
+        }
+        return next;
+      });
       if (perpTarget === hit.id) setPerpTarget(null);
-      if (angleTarget === hit.id) setAngleTarget(null);
+      if (angleSession?.segId === hit.id) setAngleSession(null);
     }
   };
 
@@ -237,19 +280,23 @@ export default function GeometrySketchpad({ locked = false }: Props) {
     if (locked) return;
     const raw = clientToGrid(e);
     if (!raw) return;
-    const p = applySnap(raw);
 
-    if (tool === "angle" && draggingAngle.current && angleDrag) {
-      updateAngleDrag(p, angleDrag);
+    if (tool === "angle" && draggingAngle.current && angleSession) {
+      setAngleSession(updateAngleFromPointer(angleSession, raw));
       return;
     }
 
-    setHover(p);
+    if (tool === "angle" && angleSession) {
+      setAngleSession(updateAngleFromPointer(angleSession, raw));
+      return;
+    }
+
+    setHover(applySnap(raw));
   };
 
   const onUp = (e: React.PointerEvent<SVGSVGElement>) => {
-    if (tool === "angle" && draggingAngle.current && angleDrag) {
-      commitAngleDrag(angleDrag);
+    if (tool === "angle" && draggingAngle.current && angleSession) {
+      commitAngleSession(angleSession);
       try {
         e.currentTarget.releasePointerCapture(e.pointerId);
       } catch {
@@ -264,6 +311,7 @@ export default function GeometrySketchpad({ locked = false }: Props) {
       const prev = h[h.length - 1]!;
       setSegs(prev);
       resetToolState();
+      setMeasuredChunks(new Set());
       return h.slice(0, -1);
     });
   };
@@ -273,6 +321,7 @@ export default function GeometrySketchpad({ locked = false }: Props) {
     pushHistory(segs);
     setSegs([]);
     resetToolState();
+    setMeasuredChunks(new Set());
   };
 
   const toggleRuler = () => {
@@ -285,16 +334,19 @@ export default function GeometrySketchpad({ locked = false }: Props) {
   };
 
   const hint =
-    tool === "angle" && angleTarget && !angleDrag
-      ? "왼쪽 꼭짓점에서 드래그해 각을 맞추세요."
+    tool === "angle" && angleSession
+      ? draggingAngle.current
+        ? `${angleSession.deg}° — 손을 떼면 반직선이 그려져요.`
+        : "단위원을 드래그해 각을 1° 단위로 맞추세요."
       : (TOOLS.find((t) => t.id === tool)?.hint ?? "");
 
   const preview =
     tool === "segment" && pending && hover ? { a: pending, b: hover } : null;
 
-  const angleTargetSeg = angleTarget
-    ? segs.find((s) => s.id === angleTarget)
-    : null;
+  const dialPreviewEnd =
+    angleSession && angleSession.deg > 0
+      ? rayEndpoint(angleSession.origin, angleSession.baseDir, angleSession.deg)
+      : null;
 
   return (
     <div className="flex h-full min-h-[22rem] flex-col overflow-hidden rounded-2xl border-2 border-wood/15 bg-[#fbf7ef]">
@@ -427,8 +479,9 @@ export default function GeometrySketchpad({ locked = false }: Props) {
           {segs.map((s) => {
             const a = toSvg(s.a);
             const b = toSvg(s.b);
-            const active = perpTarget === s.id || angleTarget === s.id;
-            const parts = s.measured ? subSegments(s, segs) : [];
+            const active =
+              perpTarget === s.id || angleSession?.segId === s.id;
+            const parts = subSegments(s, segs);
             return (
               <g key={s.id}>
                 <line
@@ -443,19 +496,19 @@ export default function GeometrySketchpad({ locked = false }: Props) {
                 <circle cx={a.x} cy={a.y} r={0.12} fill="#3d4a8c" />
                 <circle cx={b.x} cy={b.y} r={0.12} fill="#3d4a8c" />
                 {parts.map((part, i) => {
-                  const pa = toSvg(part.a);
-                  const pb = toSvg(part.b);
+                  const key = chunkKey(s.id, i);
+                  if (!measuredChunks.has(key)) return null;
                   const mid = toSvg({
                     x: (part.a.x + part.b.x) / 2,
                     y: (part.a.y + part.b.y) / 2,
                   });
                   return (
                     <text
-                      key={`${s.id}-m${i}`}
+                      key={key}
                       x={mid.x}
                       y={mid.y - 0.25}
                       textAnchor="middle"
-                      fontSize={0.48}
+                      fontSize={0.44}
                       fontWeight={800}
                       fill="#a63a1a"
                     >
@@ -470,76 +523,162 @@ export default function GeometrySketchpad({ locked = false }: Props) {
           {intersections.map((pt, i) => {
             const s = toSvg(pt);
             return (
-              <g key={`ix${i}`}>
-                <circle cx={s.x} cy={s.y} r={0.18} fill="#e85d4c" stroke="#fff" strokeWidth={0.05} />
-              </g>
+              <circle
+                key={`ix${i}`}
+                cx={s.x}
+                cy={s.y}
+                r={0.18}
+                fill="#e85d4c"
+                stroke="#fff"
+                strokeWidth={0.05}
+              />
             );
           })}
 
-          {angleTargetSeg && !angleDrag ? (
+          {angleSession ? (
             (() => {
-              const lv = leftVertex(angleTargetSeg);
-              const p = toSvg(lv);
-              return (
-                <circle
-                  cx={p.x}
-                  cy={p.y}
-                  r={0.2}
-                  fill="none"
-                  stroke="#c9a227"
-                  strokeWidth={0.08}
-                />
+              const { origin, baseDir, deg } = angleSession;
+              const o = toSvg(origin);
+              const dialPath = semicirclePath(
+                origin,
+                baseDir,
+                ANGLE_DIAL_RADIUS,
+                ANGLE_DIAL_MAX,
               );
-            })()
-          ) : null}
-
-          {angleDrag ? (
-            (() => {
-              const o = toSvg(angleDrag.origin);
-              const e = toSvg(angleDrag.end);
-              const arcR = 1.2;
-              const rad = (angleDrag.deg * Math.PI) / 180;
-              const baseAng = Math.atan2(angleDrag.baseDir.y, angleDrag.baseDir.x);
-              const endAng = baseAng + rad;
-              const arcEnd = {
-                x: angleDrag.origin.x + arcR * Math.cos(endAng),
-                y: angleDrag.origin.y + arcR * Math.sin(endAng),
-              };
-              const arcSvg = toSvg(arcEnd);
-              const baseSvg = toSvg({
-                x: angleDrag.origin.x + arcR * Math.cos(baseAng),
-                y: angleDrag.origin.y + arcR * Math.sin(baseAng),
-              });
-              const label = toSvg({
-                x: angleDrag.origin.x + 1.6 * Math.cos(baseAng + rad / 2),
-                y: angleDrag.origin.y + 1.6 * Math.sin(baseAng + rad / 2),
-              });
+              const handle = toSvg(
+                angleDialPoint(origin, baseDir, deg, ANGLE_DIAL_RADIUS),
+              );
+              const baseTip = toSvg(
+                angleDialPoint(origin, baseDir, 0, ANGLE_DIAL_RADIUS * 0.92),
+              );
+              const label = toSvg(
+                angleDialPoint(origin, baseDir, deg, ANGLE_DIAL_RADIUS + 0.75),
+              );
+              const ticks = [];
+              for (let d = 0; d <= ANGLE_DIAL_MAX; d += 5) {
+                const outer = angleDialPoint(origin, baseDir, d, ANGLE_DIAL_RADIUS);
+                const inner = angleDialPoint(
+                  origin,
+                  baseDir,
+                  d,
+                  ANGLE_DIAL_RADIUS - (d % 10 === 0 ? 0.22 : 0.12),
+                );
+                const a = toSvg(outer);
+                const b = toSvg(inner);
+                ticks.push(
+                  <line
+                    key={`tick-${d}`}
+                    x1={a.x}
+                    y1={a.y}
+                    x2={b.x}
+                    y2={b.y}
+                    stroke="#8B5E3C"
+                    strokeWidth={d % 10 === 0 ? 0.06 : 0.035}
+                    opacity={0.55}
+                  />,
+                );
+                if (d % 10 === 0 && d > 0) {
+                  const t = toSvg(
+                    angleDialPoint(origin, baseDir, d, ANGLE_DIAL_RADIUS + 0.45),
+                  );
+                  ticks.push(
+                    <text
+                      key={`lbl-${d}`}
+                      x={t.x}
+                      y={t.y}
+                      textAnchor="middle"
+                      dominantBaseline="central"
+                      fontSize={0.38}
+                      fontWeight={700}
+                      fill="#6b4423"
+                      opacity={0.75}
+                    >
+                      {d}
+                    </text>,
+                  );
+                }
+              }
               return (
                 <g>
+                  <path
+                    d={dialPath}
+                    fill="none"
+                    stroke="#b8a0e8"
+                    strokeWidth={0.07}
+                    strokeDasharray="0.12 0.1"
+                    opacity={0.85}
+                  />
+                  {Array.from({ length: ANGLE_DIAL_MAX + 1 }).map((_, d) => {
+                    if (d % 2 !== 0) return null;
+                    const pt = toSvg(
+                      angleDialPoint(origin, baseDir, d, ANGLE_DIAL_RADIUS),
+                    );
+                    return (
+                      <circle
+                        key={`dot-${d}`}
+                        cx={pt.x}
+                        cy={pt.y}
+                        r={0.045}
+                        fill="#b8a0e8"
+                        opacity={0.45}
+                      />
+                    );
+                  })}
+                  {ticks}
                   <line
                     x1={o.x}
                     y1={o.y}
-                    x2={e.x}
-                    y2={e.y}
-                    stroke="#6b4a9e"
-                    strokeWidth={0.1}
-                    strokeDasharray="0.2 0.15"
-                  />
-                  <path
-                    d={`M ${baseSvg.x} ${baseSvg.y} A ${arcR} ${arcR} 0 0 0 ${arcSvg.x} ${arcSvg.y}`}
-                    fill="none"
-                    stroke="#e85d4c"
+                    x2={baseTip.x}
+                    y2={baseTip.y}
+                    stroke="#8B5E3C"
                     strokeWidth={0.07}
+                    opacity={0.65}
+                  />
+                  {dialPreviewEnd ? (
+                    <line
+                      x1={o.x}
+                      y1={o.y}
+                      x2={toSvg(dialPreviewEnd).x}
+                      y2={toSvg(dialPreviewEnd).y}
+                      stroke="#6b4a9e"
+                      strokeWidth={0.09}
+                      strokeDasharray="0.18 0.12"
+                    />
+                  ) : null}
+                  <line
+                    x1={o.x}
+                    y1={o.y}
+                    x2={handle.x}
+                    y2={handle.y}
+                    stroke="#e85d4c"
+                    strokeWidth={0.08}
+                  />
+                  <circle
+                    cx={handle.x}
+                    cy={handle.y}
+                    r={0.18}
+                    fill="#e85d4c"
+                    stroke="#fff"
+                    strokeWidth={0.05}
+                  />
+                  <circle
+                    cx={o.x}
+                    cy={o.y}
+                    r={0.14}
+                    fill="#c9a227"
+                    stroke="#fff"
+                    strokeWidth={0.04}
                   />
                   <text
                     x={label.x}
                     y={label.y}
                     textAnchor="middle"
-                    fontSize={0.5}
+                    dominantBaseline="central"
+                    fontSize={0.58}
                     fontWeight={800}
                     fill="#a63a1a"
                   >
-                    {angleDrag.deg}°
+                    {deg}°
                   </text>
                 </g>
               );
@@ -562,7 +701,7 @@ export default function GeometrySketchpad({ locked = false }: Props) {
             <circle cx={toSvg(pending).x} cy={toSvg(pending).y} r={0.16} fill="#e85d4c" />
           ) : null}
 
-          {hover && !locked && !draggingAngle.current ? (
+          {hover && !locked && !angleSession ? (
             <circle
               cx={toSvg(hover).x}
               cy={toSvg(hover).y}

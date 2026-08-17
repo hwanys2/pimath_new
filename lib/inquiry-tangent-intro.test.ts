@@ -32,6 +32,8 @@ import {
   segmentIntersection,
   snapPoint,
   splitPointsOnSeg,
+  formatLength,
+  nearestSubSegment,
   subSegments,
 } from "@/lib/inquiry-tangent-sketch";
 
@@ -231,5 +233,23 @@ describe("sketch geometry", () => {
     const parts = subSegments(base, [base, up]);
     assert.equal(parts.length, 2);
     assert.equal(Math.round(parts[0]!.a.x + parts[0]!.b.x), 5);
+  });
+
+  it("formats length to two decimals with third-digit rounding", () => {
+    assert.equal(formatLength(3.141), "3.14");
+    assert.equal(formatLength(3.145), "3.15");
+    assert.equal(formatLength(2), "2.00");
+  });
+
+  it("picks the nearest sub-segment chunk under the pointer", () => {
+    const base = { id: "b", a: { x: 0, y: 0 }, b: { x: 10, y: 0 } };
+    const up = { id: "u", a: { x: 5, y: 0 }, b: { x: 5, y: 8 } };
+    const segs = [base, up];
+    const leftHit = nearestSubSegment({ x: 2, y: 0.1 }, segs);
+    assert.ok(leftHit);
+    assert.equal(leftHit!.chunkIndex, 0);
+    const rightHit = nearestSubSegment({ x: 7, y: 0.1 }, segs);
+    assert.ok(rightHit);
+    assert.equal(rightHit!.chunkIndex, 1);
   });
 });

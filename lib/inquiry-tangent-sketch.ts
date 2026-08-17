@@ -57,8 +57,7 @@ export function segLength(seg: SketchSeg): number {
 }
 
 export function formatLength(n: number): string {
-  if (Math.abs(n - Math.round(n)) < 0.05) return String(Math.round(n));
-  return n.toFixed(1);
+  return (Math.round(n * 100) / 100).toFixed(2);
 }
 
 /** Left endpoint when reading the segment left → right (smaller x, then smaller y). */
@@ -297,3 +296,48 @@ export function subSegments(seg: SketchSeg, allSegs: SketchSeg[]): { a: Vec2; b:
   }
   return out;
 }
+
+export type SubSegHit = {
+  seg: SketchSeg;
+  chunkIndex: number;
+  chunk: { a: Vec2; b: Vec2 };
+};
+
+/** Nearest sub-segment (split at intersections) under pointer. */
+export function nearestSubSegment(
+  p: Vec2,
+  segs: SketchSeg[],
+  maxDist = 0.45,
+): SubSegHit | null {
+  let best: SubSegHit | null = null;
+  let bestD = maxDist;
+  for (const seg of segs) {
+    const parts = subSegments(seg, segs);
+    for (let i = 0; i < parts.length; i++) {
+      const chunk = parts[i]!;
+      const proj = projectOnSeg(p, chunk.a, chunk.b);
+      if (proj.d < bestD) {
+        bestD = proj.d;
+        best = { seg, chunkIndex: i, chunk };
+      }
+    }
+  }
+  return best;
+}
+
+export function angleDialPoint(
+  origin: Vec2,
+  baseDir: Vec2,
+  deg: number,
+  radius: number,
+): Vec2 {
+  const baseAng = Math.atan2(baseDir.y, baseDir.x);
+  const rad = baseAng + (deg * Math.PI) / 180;
+  return {
+    x: origin.x + radius * Math.cos(rad),
+    y: origin.y + radius * Math.sin(rad),
+  };
+}
+
+export const ANGLE_DIAL_RADIUS = 2.8;
+export const ANGLE_DIAL_MAX = 90;
