@@ -1,27 +1,28 @@
 "use client";
 
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import {
+  allIntersections,
+  baseDirection,
+  dist,
+  elevationDegFromBase,
+  formatLength,
   GRID_H,
   GRID_W,
-  formatLength,
+  leftVertex,
   nearestSeg,
   nearEndpoint,
   perpendicularThrough,
   projectOnSeg,
-  segLength,
+  rayEndpoint,
   snapPoint,
+  subSegments,
   type SketchSeg,
   type Vec2,
 } from "@/lib/inquiry-tangent-sketch";
-import {
-  ProtractorOverlay,
-  RulerOverlay,
-  RULER_DEFAULT,
-  type OverlayPose,
-} from "./SketchOverlays";
+import { RulerOverlay, RULER_DEFAULT, type OverlayPose } from "./SketchOverlays";
 
-type Tool = "segment" | "perp" | "measure" | "erase";
+type Tool = "segment" | "perp" | "angle" | "measure" | "erase";
 
 const PAD_X = 0.85;
 const PAD_Y = 0.95;
@@ -38,8 +39,21 @@ function fromSvg(x: number, y: number): Vec2 {
 
 const TOOLS: { id: Tool; label: string; hint: string }[] = [
   { id: "segment", label: "선분", hint: "두 점을 찍어 선분을 그리세요. 격자에 붙어요." },
-  { id: "perp", label: "수선", hint: "선분을 고른 뒤, 수선을 내릴 점을 찍으세요. 끝점을 누르면 바로 그려져요." },
-  { id: "measure", label: "길이", hint: "길이를 볼 선분을 누르세요." },
+  {
+    id: "perp",
+    label: "수선",
+    hint: "선분을 고른 뒤, 수선을 내릴 점을 찍으세요. 끝점을 누르면 바로 그려져요.",
+  },
+  {
+    id: "angle",
+    label: "각",
+    hint: "밑변 선분을 고른 뒤, 왼쪽 꼭짓점에서 드래그해 각을 맞추세요. 1° 단위로 반직선이 그려져요.",
+  },
+  {
+    id: "measure",
+    label: "길이",
+    hint: "길이를 볼 선분을 누르세요. 교점마다 잘린 구간 길이가 표시돼요.",
+  },
   { id: "erase", label: "지우개", hint: "지울 선분을 누르세요." },
 ];
 
@@ -47,18 +61,30 @@ type Props = {
   locked?: boolean;
 };
 
+type AngleDrag = {
+  origin: Vec2;
+  baseDir: Vec2;
+  deg: number;
+  end: Vec2;
+};
+
 export default function GeometrySketchpad({ locked = false }: Props) {
   const svgRef = useRef<SVGSVGElement | null>(null);
   const wrapRef = useRef<HTMLDivElement | null>(null);
   const idRef = useRef(1);
+  const draggingAngle = useRef(false);
+
   const [tool, setTool] = useState<Tool>("segment");
   const [segs, setSegs] = useState<SketchSeg[]>([]);
   const [history, setHistory] = useState<SketchSeg[][]>([]);
   const [pending, setPending] = useState<Vec2 | null>(null);
   const [perpTarget, setPerpTarget] = useState<string | null>(null);
+  const [angleTarget, setAngleTarget] = useState<string | null>(null);
+  const [angleDrag, setAngleDrag] = useState<AngleDrag | null>(null);
   const [hover, setHover] = useState<Vec2 | null>(null);
   const [ruler, setRuler] = useState<OverlayPose | null>(null);
-  const [protractor, setProtractor] = useState<OverlayPose | null>(null);
+
+  const intersections = useMemo(() => allIntersections(segs), [segs]);
 
   const nextId = () => {
     const id = `s${idRef.current}`;
@@ -75,20 +101,49 @@ export default function GeometrySketchpad({ locked = false }: Props) {
     if (!svg) return null;
     const rect = svg.getBoundingClientRect();
     if (rect.width < 4 || rect.height < 4) return null;
-    const x = ((e.clientX - rect.left) / rect.width) * VIEW_W + (-PAD_X);
-    const y = ((e.clientY - rect.top) / rect.height) * VIEW_H + (-PAD_Y);
+    const x = ((e.clientX - rect.left) / rect.width) * VIEW_W + -PAD_X;
+    const y = ((e.clientY - rect.top) / rect.height) * VIEW_H + -PAD_Y;
     return fromSvg(x, y);
   };
 
-  const applySnap = useCallback(
-    (p: Vec2) => snapPoint(p, segs),
-    [segs],
-  );
+  const applySnap = useCallback((p: Vec2) => snapPoint(p, segs), [segs]);
+
+  const resetToolState = () => {
+    setPending(null);
+    setPerpTarget(null);
+    setAngleTarget(null);
+    setAngleDrag(null);
+    draggingAngle.current = false;
+  };
 
   const addSeg = (a: Vec2, b: Vec2) => {
     if (Math.hypot(a.x - b.x, a.y - b.y) < 0.2) return;
     pushHistory(segs);
     setSegs((cur) => [...cur, { id: nextId(), a, b }]);
+  };
+
+  const beginAngleDrag = (seg: SketchSeg, pointer: Vec2) => {
+    const origin = leftVertex(seg);
+    const baseDir = baseDirection(seg);
+    const deg = elevationDegFromBase(origin, baseDir, pointer);
+    const end = rayEndpoint(origin, baseDir, deg);
+    if (!end) return;
+    draggingAngle.current = true;
+    setAngleDrag({ origin, baseDir, deg, end });
+  };
+
+  const updateAngleDrag = (pointer: Vec2, drag: AngleDrag) => {
+    const deg = elevationDegFromBase(drag.origin, drag.baseDir, pointer);
+    const end = rayEndpoint(drag.origin, drag.baseDir, deg);
+    if (!end) return;
+    setAngleDrag({ ...drag, deg, end });
+  };
+
+  const commitAngleDrag = (drag: AngleDrag) => {
+    addSeg(drag.origin, drag.end);
+    setAngleDrag(null);
+    setAngleTarget(null);
+    draggingAngle.current = false;
   };
 
   const onCanvasDown = (e: React.PointerEvent<SVGSVGElement>) => {
@@ -97,6 +152,25 @@ export default function GeometrySketchpad({ locked = false }: Props) {
     const raw = clientToGrid(e);
     if (!raw) return;
     const p = applySnap(raw);
+
+    if (tool === "angle") {
+      if (angleTarget && !draggingAngle.current) {
+        const seg = segs.find((s) => s.id === angleTarget);
+        if (seg) {
+          e.currentTarget.setPointerCapture(e.pointerId);
+          beginAngleDrag(seg, p);
+        }
+        return;
+      }
+      const hit = nearestSeg(p, segs);
+      if (!hit) {
+        setAngleTarget(null);
+        return;
+      }
+      setAngleTarget(hit.id);
+      setPerpTarget(null);
+      return;
+    }
 
     if (tool === "segment") {
       if (!pending) {
@@ -120,6 +194,7 @@ export default function GeometrySketchpad({ locked = false }: Props) {
           return;
         }
         setPerpTarget(hit.id);
+        setAngleTarget(null);
         return;
       }
       const seg = segs.find((s) => s.id === perpTarget);
@@ -129,9 +204,10 @@ export default function GeometrySketchpad({ locked = false }: Props) {
       }
       const foot = projectOnSeg(p, seg.a, seg.b).point;
       const snappedFoot = applySnap(foot);
-      const use = Math.hypot(snappedFoot.x - foot.x, snappedFoot.y - foot.y) < 0.35
-        ? snappedFoot
-        : foot;
+      const use =
+        Math.hypot(snappedFoot.x - foot.x, snappedFoot.y - foot.y) < 0.35
+          ? snappedFoot
+          : foot;
       const line = perpendicularThrough(use, seg);
       if (line) addSeg(line.a, line.b);
       setPerpTarget(null);
@@ -153,6 +229,7 @@ export default function GeometrySketchpad({ locked = false }: Props) {
       pushHistory(segs);
       setSegs((cur) => cur.filter((s) => s.id !== hit.id));
       if (perpTarget === hit.id) setPerpTarget(null);
+      if (angleTarget === hit.id) setAngleTarget(null);
     }
   };
 
@@ -160,7 +237,25 @@ export default function GeometrySketchpad({ locked = false }: Props) {
     if (locked) return;
     const raw = clientToGrid(e);
     if (!raw) return;
-    setHover(applySnap(raw));
+    const p = applySnap(raw);
+
+    if (tool === "angle" && draggingAngle.current && angleDrag) {
+      updateAngleDrag(p, angleDrag);
+      return;
+    }
+
+    setHover(p);
+  };
+
+  const onUp = (e: React.PointerEvent<SVGSVGElement>) => {
+    if (tool === "angle" && draggingAngle.current && angleDrag) {
+      commitAngleDrag(angleDrag);
+      try {
+        e.currentTarget.releasePointerCapture(e.pointerId);
+      } catch {
+        /* ignore */
+      }
+    }
   };
 
   const undo = () => {
@@ -168,8 +263,7 @@ export default function GeometrySketchpad({ locked = false }: Props) {
       if (h.length === 0) return h;
       const prev = h[h.length - 1]!;
       setSegs(prev);
-      setPending(null);
-      setPerpTarget(null);
+      resetToolState();
       return h.slice(0, -1);
     });
   };
@@ -178,26 +272,29 @@ export default function GeometrySketchpad({ locked = false }: Props) {
     if (segs.length === 0) return;
     pushHistory(segs);
     setSegs([]);
-    setPending(null);
-    setPerpTarget(null);
+    resetToolState();
   };
 
-  const placeOverlay = (kind: "ruler" | "protractor") => {
+  const toggleRuler = () => {
     const wrap = wrapRef.current;
     const cx = wrap ? wrap.clientWidth / 2 : 180;
     const cy = wrap ? wrap.clientHeight / 2 : 160;
-    if (kind === "ruler") {
-      setRuler((r) => (r ? null : { x: cx, y: cy + 40, angle: 0, length: RULER_DEFAULT }));
-    } else {
-      setProtractor((p) => (p ? null : { x: cx, y: cy + 20, angle: 0 }));
-    }
+    setRuler((r) =>
+      r ? null : { x: cx, y: cy + 40, angle: 0, length: RULER_DEFAULT },
+    );
   };
 
-  const hint = TOOLS.find((t) => t.id === tool)?.hint ?? "";
+  const hint =
+    tool === "angle" && angleTarget && !angleDrag
+      ? "왼쪽 꼭짓점에서 드래그해 각을 맞추세요."
+      : (TOOLS.find((t) => t.id === tool)?.hint ?? "");
+
   const preview =
-    tool === "segment" && pending && hover
-      ? { a: pending, b: hover }
-      : null;
+    tool === "segment" && pending && hover ? { a: pending, b: hover } : null;
+
+  const angleTargetSeg = angleTarget
+    ? segs.find((s) => s.id === angleTarget)
+    : null;
 
   return (
     <div className="flex h-full min-h-[22rem] flex-col overflow-hidden rounded-2xl border-2 border-wood/15 bg-[#fbf7ef]">
@@ -210,8 +307,7 @@ export default function GeometrySketchpad({ locked = false }: Props) {
             disabled={locked}
             onClick={() => {
               setTool(t.id);
-              setPending(null);
-              setPerpTarget(null);
+              resetToolState();
             }}
             className={[
               "rounded-lg px-2.5 py-1 text-xs font-bold",
@@ -227,24 +323,13 @@ export default function GeometrySketchpad({ locked = false }: Props) {
         <button
           type="button"
           disabled={locked}
-          onClick={() => placeOverlay("ruler")}
+          onClick={toggleRuler}
           className={[
             "rounded-lg px-2.5 py-1 text-xs font-bold",
             ruler ? "bg-gold/80 text-wood" : "bg-wood/10 text-wood hover:bg-wood/15",
           ].join(" ")}
         >
           자
-        </button>
-        <button
-          type="button"
-          disabled={locked}
-          onClick={() => placeOverlay("protractor")}
-          className={[
-            "rounded-lg px-2.5 py-1 text-xs font-bold",
-            protractor ? "bg-sky/70 text-wood" : "bg-wood/10 text-wood hover:bg-wood/15",
-          ].join(" ")}
-        >
-          각도기
         </button>
         <span className="ml-auto flex gap-1">
           <button
@@ -275,15 +360,13 @@ export default function GeometrySketchpad({ locked = false }: Props) {
           className="h-full w-full touch-none"
           onPointerDown={onCanvasDown}
           onPointerMove={onMove}
-          onPointerLeave={() => setHover(null)}
+          onPointerUp={onUp}
+          onPointerCancel={onUp}
+          onPointerLeave={() => {
+            if (!draggingAngle.current) setHover(null);
+          }}
         >
-          <rect
-            x={0}
-            y={0}
-            width={GRID_W}
-            height={GRID_H}
-            fill="#fffdf8"
-          />
+          <rect x={0} y={0} width={GRID_W} height={GRID_H} fill="#fffdf8" />
           {Array.from({ length: GRID_W + 1 }).map((_, i) => (
             <line
               key={`v${i}`}
@@ -344,11 +427,8 @@ export default function GeometrySketchpad({ locked = false }: Props) {
           {segs.map((s) => {
             const a = toSvg(s.a);
             const b = toSvg(s.b);
-            const mid = toSvg({
-              x: (s.a.x + s.b.x) / 2,
-              y: (s.a.y + s.b.y) / 2,
-            });
-            const active = perpTarget === s.id;
+            const active = perpTarget === s.id || angleTarget === s.id;
+            const parts = s.measured ? subSegments(s, segs) : [];
             return (
               <g key={s.id}>
                 <line
@@ -362,21 +442,109 @@ export default function GeometrySketchpad({ locked = false }: Props) {
                 />
                 <circle cx={a.x} cy={a.y} r={0.12} fill="#3d4a8c" />
                 <circle cx={b.x} cy={b.y} r={0.12} fill="#3d4a8c" />
-                {s.measured ? (
-                  <text
-                    x={mid.x}
-                    y={mid.y - 0.25}
-                    textAnchor="middle"
-                    fontSize={0.48}
-                    fontWeight={800}
-                    fill="#a63a1a"
-                  >
-                    {formatLength(segLength(s))}
-                  </text>
-                ) : null}
+                {parts.map((part, i) => {
+                  const pa = toSvg(part.a);
+                  const pb = toSvg(part.b);
+                  const mid = toSvg({
+                    x: (part.a.x + part.b.x) / 2,
+                    y: (part.a.y + part.b.y) / 2,
+                  });
+                  return (
+                    <text
+                      key={`${s.id}-m${i}`}
+                      x={mid.x}
+                      y={mid.y - 0.25}
+                      textAnchor="middle"
+                      fontSize={0.48}
+                      fontWeight={800}
+                      fill="#a63a1a"
+                    >
+                      {formatLength(dist(part.a, part.b))}
+                    </text>
+                  );
+                })}
               </g>
             );
           })}
+
+          {intersections.map((pt, i) => {
+            const s = toSvg(pt);
+            return (
+              <g key={`ix${i}`}>
+                <circle cx={s.x} cy={s.y} r={0.18} fill="#e85d4c" stroke="#fff" strokeWidth={0.05} />
+              </g>
+            );
+          })}
+
+          {angleTargetSeg && !angleDrag ? (
+            (() => {
+              const lv = leftVertex(angleTargetSeg);
+              const p = toSvg(lv);
+              return (
+                <circle
+                  cx={p.x}
+                  cy={p.y}
+                  r={0.2}
+                  fill="none"
+                  stroke="#c9a227"
+                  strokeWidth={0.08}
+                />
+              );
+            })()
+          ) : null}
+
+          {angleDrag ? (
+            (() => {
+              const o = toSvg(angleDrag.origin);
+              const e = toSvg(angleDrag.end);
+              const arcR = 1.2;
+              const rad = (angleDrag.deg * Math.PI) / 180;
+              const baseAng = Math.atan2(angleDrag.baseDir.y, angleDrag.baseDir.x);
+              const endAng = baseAng + rad;
+              const arcEnd = {
+                x: angleDrag.origin.x + arcR * Math.cos(endAng),
+                y: angleDrag.origin.y + arcR * Math.sin(endAng),
+              };
+              const arcSvg = toSvg(arcEnd);
+              const baseSvg = toSvg({
+                x: angleDrag.origin.x + arcR * Math.cos(baseAng),
+                y: angleDrag.origin.y + arcR * Math.sin(baseAng),
+              });
+              const label = toSvg({
+                x: angleDrag.origin.x + 1.6 * Math.cos(baseAng + rad / 2),
+                y: angleDrag.origin.y + 1.6 * Math.sin(baseAng + rad / 2),
+              });
+              return (
+                <g>
+                  <line
+                    x1={o.x}
+                    y1={o.y}
+                    x2={e.x}
+                    y2={e.y}
+                    stroke="#6b4a9e"
+                    strokeWidth={0.1}
+                    strokeDasharray="0.2 0.15"
+                  />
+                  <path
+                    d={`M ${baseSvg.x} ${baseSvg.y} A ${arcR} ${arcR} 0 0 0 ${arcSvg.x} ${arcSvg.y}`}
+                    fill="none"
+                    stroke="#e85d4c"
+                    strokeWidth={0.07}
+                  />
+                  <text
+                    x={label.x}
+                    y={label.y}
+                    textAnchor="middle"
+                    fontSize={0.5}
+                    fontWeight={800}
+                    fill="#a63a1a"
+                  >
+                    {angleDrag.deg}°
+                  </text>
+                </g>
+              );
+            })()
+          ) : null}
 
           {preview ? (
             <line
@@ -391,15 +559,10 @@ export default function GeometrySketchpad({ locked = false }: Props) {
           ) : null}
 
           {pending ? (
-            <circle
-              cx={toSvg(pending).x}
-              cy={toSvg(pending).y}
-              r={0.16}
-              fill="#e85d4c"
-            />
+            <circle cx={toSvg(pending).x} cy={toSvg(pending).y} r={0.16} fill="#e85d4c" />
           ) : null}
 
-          {hover && !locked ? (
+          {hover && !locked && !draggingAngle.current ? (
             <circle
               cx={toSvg(hover).x}
               cy={toSvg(hover).y}
@@ -412,18 +575,7 @@ export default function GeometrySketchpad({ locked = false }: Props) {
         </svg>
 
         {ruler && !locked ? (
-          <RulerOverlay
-            pose={ruler}
-            onChange={setRuler}
-            onClose={() => setRuler(null)}
-          />
-        ) : null}
-        {protractor && !locked ? (
-          <ProtractorOverlay
-            pose={protractor}
-            onChange={setProtractor}
-            onClose={() => setProtractor(null)}
-          />
+          <RulerOverlay pose={ruler} onChange={setRuler} onClose={() => setRuler(null)} />
         ) : null}
       </div>
     </div>

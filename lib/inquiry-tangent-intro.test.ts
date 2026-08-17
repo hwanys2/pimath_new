@@ -22,9 +22,17 @@ import {
 import {
   GRID_H,
   GRID_W,
+  allIntersections,
+  baseDirection,
+  elevationDegFromBase,
+  leftVertex,
   perpendicularThrough,
   projectOnSeg,
+  rayEndpoint,
+  segmentIntersection,
   snapPoint,
+  splitPointsOnSeg,
+  subSegments,
 } from "@/lib/inquiry-tangent-sketch";
 
 describe("tangent intro scenes", () => {
@@ -197,5 +205,31 @@ describe("sketch geometry", () => {
     assert.equal(snapped.x, 0);
     assert.equal(snapped.y, 0);
     assert.equal(GRID_W, 16);
+  });
+
+  it("finds left vertex and ray angle", () => {
+    const seg = { id: "s", a: { x: 8, y: 0 }, b: { x: 2, y: 0 } };
+    const left = leftVertex(seg);
+    assert.equal(left.x, 2);
+    const dir = baseDirection(seg);
+    assert.equal(dir.x, 1);
+    const deg = elevationDegFromBase(left, dir, { x: 6, y: 4 });
+    assert.equal(deg, 45);
+    const end = rayEndpoint(left, dir, deg);
+    assert.ok(end);
+    assert.ok(end!.y > left.y);
+  });
+
+  it("detects intersections and split subsegments", () => {
+    const base = { id: "b", a: { x: 0, y: 0 }, b: { x: 10, y: 0 } };
+    const up = { id: "u", a: { x: 5, y: 0 }, b: { x: 5, y: 8 } };
+    const hits = allIntersections([base, up]);
+    assert.equal(hits.length, 1);
+    assert.ok(segmentIntersection(base.a, base.b, up.a, up.b));
+    const splits = splitPointsOnSeg(base, [base, up]);
+    assert.equal(splits.length, 3);
+    const parts = subSegments(base, [base, up]);
+    assert.equal(parts.length, 2);
+    assert.equal(Math.round(parts[0]!.a.x + parts[0]!.b.x), 5);
   });
 });

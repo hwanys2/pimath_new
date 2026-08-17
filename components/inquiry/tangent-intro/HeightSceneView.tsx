@@ -110,18 +110,6 @@ function Lighthouse({ baseX, groundY, h }: { baseX: number; groundY: number; h: 
   );
 }
 
-function Observer({ x, y }: { x: number; y: number }) {
-  return (
-    <g transform={`translate(${x}, ${y})`}>
-      <circle cx={0} cy={-28} r={8} fill="#f8d5b0" stroke="#8B5E3C" strokeWidth={1.2} />
-      <path d="M -7 -22 Q 0 -8 7 -22" fill="#b8a0e8" />
-      <rect x={-7} y={-20} width={14} height={16} rx={4} fill="#7ec8f5" />
-      <path d="M -6 -6 L -8 0 M 6 -6 L 9 -2" stroke="#8B5E3C" strokeWidth={2} strokeLinecap="round" />
-      <path d="M -4 -4 L -3 0 M 4 -4 L 5 0" stroke="#5a3d8a" strokeWidth={2.2} strokeLinecap="round" />
-    </g>
-  );
-}
-
 export default function HeightSceneView({
   scene,
   distanceM,
@@ -133,12 +121,11 @@ export default function HeightSceneView({
 
   const d = clampDistance(scene, distanceM);
   const angle = elevationAngleDeg(scene.heightM, d);
-  const ox = observerXFor(scene, d);
+  const groundX = observerXFor(scene, d);
   const visualH = VISUAL_H[scene.id];
   const topX = OBJ_BASE_X - 8;
   const topY = GROUND_Y - visualH;
-  const eyeX = ox;
-  const eyeY = GROUND_Y - 28;
+  const mid = groundX + (OBJ_BASE_X - groundX) / 2;
 
   const setFromClientX = useCallback(
     (clientX: number) => {
@@ -167,12 +154,11 @@ export default function HeightSceneView({
     dragging.current = false;
   };
 
-  const losLen = Math.hypot(topX - eyeX, topY - eyeY);
+  const losLen = Math.hypot(topX - groundX, topY - GROUND_Y);
   const arcR = Math.min(46, losLen * 0.28);
   const angRad = (angle * Math.PI) / 180;
-  const arcEndX = eyeX + arcR * Math.cos(angRad);
-  const arcEndY = eyeY - arcR * Math.sin(angRad);
-  const mid = ox + (OBJ_BASE_X - ox) / 2;
+  const arcEndX = groundX + arcR * Math.cos(angRad);
+  const arcEndY = GROUND_Y - arcR * Math.sin(angRad);
 
   return (
     <div className="overflow-hidden rounded-2xl border-2 border-wood/15 bg-gradient-to-b from-[#d7efff] to-[#fef9f0]">
@@ -208,8 +194,8 @@ export default function HeightSceneView({
         )}
 
         <line
-          x1={eyeX}
-          y1={eyeY}
+          x1={groundX}
+          y1={GROUND_Y}
           x2={topX}
           y2={topY}
           stroke="#5a3d8a"
@@ -217,14 +203,14 @@ export default function HeightSceneView({
           strokeDasharray="6 5"
         />
         <path
-          d={`M ${eyeX + arcR} ${eyeY} A ${arcR} ${arcR} 0 0 1 ${arcEndX} ${arcEndY}`}
+          d={`M ${groundX + arcR} ${GROUND_Y} A ${arcR} ${arcR} 0 0 1 ${arcEndX} ${arcEndY}`}
           fill="none"
           stroke="#e85d4c"
           strokeWidth={2.2}
         />
         <text
-          x={eyeX + arcR + 10}
-          y={eyeY - 10}
+          x={groundX + arcR + 10}
+          y={GROUND_Y - 10}
           fill="#a63a1a"
           fontSize={15}
           fontWeight={800}
@@ -232,8 +218,8 @@ export default function HeightSceneView({
           {angle}°
         </text>
 
-        <line x1={ox} y1={GROUND_Y + 10} x2={OBJ_BASE_X} y2={GROUND_Y + 10} stroke="#8B5E3C" strokeWidth={1.6} />
-        <polyline points={`${ox},${GROUND_Y + 6} ${ox},${GROUND_Y + 14}`} stroke="#8B5E3C" strokeWidth={1.6} />
+        <line x1={groundX} y1={GROUND_Y + 10} x2={OBJ_BASE_X} y2={GROUND_Y + 10} stroke="#8B5E3C" strokeWidth={1.6} />
+        <polyline points={`${groundX},${GROUND_Y + 6} ${groundX},${GROUND_Y + 14}`} stroke="#8B5E3C" strokeWidth={1.6} />
         <polyline points={`${OBJ_BASE_X},${GROUND_Y + 6} ${OBJ_BASE_X},${GROUND_Y + 14}`} stroke="#8B5E3C" strokeWidth={1.6} />
         <text
           x={mid}
@@ -246,8 +232,7 @@ export default function HeightSceneView({
           {d} m
         </text>
 
-        <Observer x={ox} y={GROUND_Y} />
-        <circle cx={ox} cy={GROUND_Y} r={4} fill="#e85d4c" />
+        <circle cx={groundX} cy={GROUND_Y} r={5} fill="#e85d4c" stroke="#fff" strokeWidth={1.5} />
       </svg>
 
       <div className="flex flex-wrap items-center justify-center gap-2 border-t border-wood/10 bg-cream/80 px-3 py-2.5">
@@ -259,7 +244,7 @@ export default function HeightSceneView({
         </span>
         {!locked ? (
           <span className="text-xs font-semibold text-foreground/55">
-            땅 위를 눌러 자리를 옮기세요
+            땅 위를 눌러 관찰 위치를 옮기세요
           </span>
         ) : null}
       </div>
