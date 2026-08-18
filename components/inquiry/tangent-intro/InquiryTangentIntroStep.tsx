@@ -17,6 +17,8 @@ function softMessage(notice: SoftNotice, table: boolean): string {
       return table
         ? "여덟 칸을 모두 채워 주세요."
         : "높이를 입력해 주세요.";
+    case "incomplete_method":
+      return "어떻게 계산했는지 적어 주세요.";
     case "invalid":
       return "양의 수를 입력해 주세요. (예: 24 또는 1.73)";
     case "wrong":
@@ -63,6 +65,7 @@ export default function InquiryTangentIntroStep({
   const projected = scoreForAttempts(wrongAttempts);
   const showScoreBar = !readOnly && !hostPreview;
   const wrongSet = new Set(softNotice?.wrongAngles ?? []);
+  const methodMarked = softNotice?.reason === "incomplete_method";
 
   return (
     <section className="quest-card-static p-4 sm:p-6">
@@ -178,6 +181,30 @@ export default function InquiryTangentIntroStep({
               m
             </label>
           ) : null}
+
+          <label className="mt-4 block">
+            <span className="text-sm font-bold text-wood">어떻게 계산했나요?</span>
+            <textarea
+              rows={3}
+              disabled={locked}
+              aria-label="계산 방법 설명"
+              placeholder={
+                table
+                  ? "예: 각도마다 직각삼각형을 그려 높이÷밑변을 구했어요."
+                  : "예: 오른쪽에 비슷한 직각삼각형을 그려 비를 구한 뒤, 실제 거리에 곱했어요."
+              }
+              value={workspace.methodText}
+              onChange={(e) =>
+                onWorkspaceChange({ ...workspace, methodText: e.target.value })
+              }
+              className={[
+                "mt-1.5 w-full resize-y rounded-xl border-2 bg-white px-3 py-2 text-sm font-semibold leading-relaxed text-foreground/85 outline-none placeholder:text-foreground/40",
+                methodMarked
+                  ? "border-[#e85d4c] bg-[#e85d4c]/8"
+                  : "border-wood/20 focus:border-wood/45",
+              ].join(" ")}
+            />
+          </label>
         </div>
 
         <div className="min-h-[22rem] min-w-0">

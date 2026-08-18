@@ -138,6 +138,7 @@ export async function inquiryCloseAndScoreAction(input: { sessionId: string }) {
           index: r.stepIndex,
           kind: "table",
           filled,
+          methodText: r.response.methodText,
           score:
             r.result === "correct" ? scoreForStep(r.response.wrongs) : 0,
           wrongs: r.response.wrongs,
@@ -149,6 +150,7 @@ export async function inquiryCloseAndScoreAction(input: { sessionId: string }) {
         height: r.response.heightM,
         distanceM: r.response.distanceM,
         angleDeg: r.response.angleDeg,
+        methodText: r.response.methodText,
         score: r.result === "correct" ? scoreForStep(r.response.wrongs) : 0,
         wrongs: r.response.wrongs,
       };

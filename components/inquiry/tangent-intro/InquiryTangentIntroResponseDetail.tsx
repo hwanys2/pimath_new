@@ -32,6 +32,12 @@ export default function InquiryTangentIntroResponseDetail({
           ))}
         </ul>
       )}
+      {response.methodText ? (
+        <p className="mt-2 rounded-lg bg-wood/5 px-2 py-1.5 text-xs leading-relaxed text-foreground/75">
+          <span className="font-bold text-wood">계산 방법: </span>
+          {response.methodText}
+        </p>
+      ) : null}
     </div>
   );
 }

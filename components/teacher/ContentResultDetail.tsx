@@ -94,6 +94,11 @@ function TangentIntroDetail({ items }: { items: ActivityDetailsV1["items"] }) {
                 {item.kind === "table"
                   ? `표 ${String(item.filled ?? "—")}칸`
                   : `높이 ${String(item.height ?? "—")} m`}
+                {typeof item.methodText === "string" && item.methodText.trim() ? (
+                  <span className="mt-0.5 block max-w-[14rem] truncate text-foreground/55">
+                    {item.methodText}
+                  </span>
+                ) : null}
               </td>
               <td className="py-1 pr-3">{String(item.score ?? "—")}</td>
               <td className="py-1">{String(item.wrongs ?? 0)}</td>

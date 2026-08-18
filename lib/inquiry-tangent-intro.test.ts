@@ -128,15 +128,24 @@ describe("validate and grade", () => {
     assert.equal(notice?.reason, "incomplete");
   });
 
+  it("flags missing method text after a correct height", () => {
+    const ws = emptyTangentWorkspace(0);
+    ws.heightText = "24";
+    const notice = validateTangentSubmit(0, ws);
+    assert.equal(notice?.reason, "incomplete_method");
+  });
+
   it("grades a correct building height", () => {
     const ws = emptyTangentWorkspace(0);
     ws.heightText = "24";
+    ws.methodText = "비슷한 직각삼각형을 그려 비를 구한 뒤 거리에 곱했어요.";
     assert.equal(validateTangentSubmit(0, ws), null);
     const graded = gradeTangentStep(0, ws, 1);
     assert.equal(graded.result, "correct");
     if (graded.response.kind !== "height") throw new Error("expected height");
     assert.equal(graded.response.sceneId, "building");
     assert.equal(graded.response.wrongs, 1);
+    assert.ok(graded.response.methodText.includes("직각삼각형"));
   });
 
   it("requires all eight table cells", () => {
@@ -146,11 +155,21 @@ describe("validate and grade", () => {
     assert.equal(notice?.reason, "incomplete");
   });
 
+  it("flags missing method text after a full tangent table", () => {
+    const ws = emptyTangentWorkspace(TABLE_STEP_INDEX);
+    for (const a of TABLE_ANGLES) {
+      ws.ratios[String(a)] = String(tanDeg(a));
+    }
+    const notice = validateTangentSubmit(TABLE_STEP_INDEX, ws);
+    assert.equal(notice?.reason, "incomplete_method");
+  });
+
   it("grades a full tangent table", () => {
     const ws = emptyTangentWorkspace(TABLE_STEP_INDEX);
     for (const a of TABLE_ANGLES) {
       ws.ratios[String(a)] = String(tanDeg(a));
     }
+    ws.methodText = "각도마다 직각삼각형을 그려 높이÷밑변을 표에 적었어요.";
     assert.equal(validateTangentSubmit(TABLE_STEP_INDEX, ws), null);
     const graded = gradeTangentStep(TABLE_STEP_INDEX, ws, 0);
     assert.equal(graded.result, "correct");
@@ -178,6 +197,7 @@ describe("score", () => {
   it("aggregates session score", () => {
     const ws0 = emptyTangentWorkspace(0);
     ws0.heightText = "24";
+    ws0.methodText = "비슷한 삼각형을 그려 계산했어요.";
     const g0 = gradeTangentStep(0, ws0, 0);
     const agg = aggregateTangentScore(
       [{ stepIndex: 0, result: g0.result, response: g0.response }],

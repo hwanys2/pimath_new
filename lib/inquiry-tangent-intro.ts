@@ -72,6 +72,8 @@ export type TangentWorkspace = {
   distanceM: number;
   heightText: string;
   ratios: Record<string, string>;
+  /** Student explanation of how they calculated the answer. */
+  methodText: string;
 };
 
 export type HeightResponsePayload = {
@@ -80,12 +82,14 @@ export type HeightResponsePayload = {
   distanceM: number;
   angleDeg: number;
   heightM: string;
+  methodText: string;
   wrongs: number;
 };
 
 export type TableResponsePayload = {
   kind: "table";
   ratios: Record<string, string>;
+  methodText: string;
   wrongs: number;
 };
 
@@ -99,7 +103,7 @@ export type TangentStepResult = {
 };
 
 export type SoftNotice = {
-  reason: "incomplete" | "invalid" | "wrong";
+  reason: "incomplete" | "incomplete_method" | "invalid" | "wrong";
   wrongAngles?: number[];
 };
 
@@ -117,6 +121,7 @@ export function emptyTangentWorkspace(stepIndex: number): TangentWorkspace {
     distanceM: scene?.defaultDistanceM ?? 30,
     heightText: "",
     ratios: Object.fromEntries(TABLE_ANGLES.map((a) => [String(a), ""])),
+    methodText: "",
   };
 }
 
@@ -224,6 +229,7 @@ export function validateTangentSubmit(
     if (empty) return { reason: "incomplete", wrongAngles };
     if (invalid) return { reason: "invalid", wrongAngles };
     if (wrongAngles.length > 0) return { reason: "wrong", wrongAngles };
+    if (!workspace.methodText.trim()) return { reason: "incomplete_method" };
     return null;
   }
 
@@ -236,6 +242,7 @@ export function validateTangentSubmit(
   if (!heightIsCorrect(scene, workspace.distanceM, n)) {
     return { reason: "wrong" };
   }
+  if (!workspace.methodText.trim()) return { reason: "incomplete_method" };
   return null;
 }
 
@@ -250,6 +257,7 @@ export function gradeTangentStep(
     const response: TableResponsePayload = {
       kind: "table",
       ratios: { ...workspace.ratios },
+      methodText: workspace.methodText.trim(),
       wrongs,
     };
     return {
@@ -266,6 +274,7 @@ export function gradeTangentStep(
     distanceM,
     angleDeg: elevationAngleDeg(scene.heightM, distanceM),
     heightM: workspace.heightText,
+    methodText: workspace.methodText.trim(),
     wrongs,
   };
   return {
