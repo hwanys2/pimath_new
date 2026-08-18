@@ -109,38 +109,140 @@ function TabletBody({
   angRad: number;
   len: number;
 }) {
-  const tx = hingeX + len * Math.cos(angRad);
-  const ty = hingeY - len * Math.sin(angRad);
   const ux = Math.cos(angRad);
   const uy = -Math.sin(angRad);
   const px = -uy;
   const py = ux;
-  const w = 18;
-  const inset = 10;
-  const a = { x: hingeX + px * w * 0.15, y: hingeY + py * w * 0.15 };
-  const b = { x: tx + px * w + ux * inset, y: ty + py * w + uy * inset };
-  const c = { x: tx - px * (w * 0.35) + ux * inset, y: ty - py * (w * 0.35) + uy * inset };
-  const d = { x: hingeX - px * w * 0.05, y: hingeY - py * w * 0.05 };
+  const tabletLength = 52;
+  const tabletWidth = 18;
+  const lift = 16;
+  const gap = 4;
+  const start = {
+    x: hingeX + ux * (len - tabletLength - 2) - px * lift,
+    y: hingeY + uy * (len - tabletLength - 2) - py * lift,
+  };
+  const end = {
+    x: start.x + ux * tabletLength,
+    y: start.y + uy * tabletLength,
+  };
+  const topLeft = {
+    x: start.x - px * (tabletWidth / 2),
+    y: start.y - py * (tabletWidth / 2),
+  };
+  const topRight = {
+    x: end.x - px * (tabletWidth / 2),
+    y: end.y - py * (tabletWidth / 2),
+  };
+  const bottomLeft = {
+    x: start.x + px * (tabletWidth / 2),
+    y: start.y + py * (tabletWidth / 2),
+  };
+  const bottomRight = {
+    x: end.x + px * (tabletWidth / 2),
+    y: end.y + py * (tabletWidth / 2),
+  };
+  const supportNear = {
+    x: hingeX + ux * (len - tabletLength - 6),
+    y: hingeY + uy * (len - tabletLength - 6),
+  };
+  const supportFar = {
+    x: hingeX + ux * (len - 10),
+    y: hingeY + uy * (len - 10),
+  };
+  const supportTopNear = {
+    x: supportNear.x - px * (lift - gap),
+    y: supportNear.y - py * (lift - gap),
+  };
+  const supportTopFar = {
+    x: supportFar.x - px * (lift - gap),
+    y: supportFar.y - py * (lift - gap),
+  };
+  const lipOuter = {
+    x: hingeX + ux * (len - tabletLength + 1) - px * (lift - 2),
+    y: hingeY + uy * (len - tabletLength + 1) - py * (lift - 2),
+  };
+  const lipInner = {
+    x: lipOuter.x + ux * 10,
+    y: lipOuter.y + uy * 10,
+  };
+  const homeButton = {
+    x: start.x + ux * (tabletLength * 0.12),
+    y: start.y + uy * (tabletLength * 0.12),
+  };
   return (
     <g>
-      <polygon
-        points={`${b.x},${b.y} ${c.x},${c.y} ${c.x + ux * 52},${c.y + uy * 52} ${b.x + ux * 52},${b.y + uy * 52}`}
-        fill="#3d4a8c"
-        stroke="#1f2a5c"
-        strokeWidth={1.6}
-      />
-      <polygon
-        points={`${b.x + ux * 6 + px * -3},${b.y + uy * 6 + py * -3} ${c.x + ux * 6 + px * 3},${c.y + uy * 6 + py * 3} ${c.x + ux * 46 + px * 3},${c.y + uy * 46 + py * 3} ${b.x + ux * 46 + px * -3},${b.y + uy * 46 + py * -3}`}
-        fill="#9ad7ff"
-        opacity={0.85}
+      <line
+        x1={hingeX}
+        y1={hingeY}
+        x2={supportNear.x}
+        y2={supportNear.y}
+        stroke="#694733"
+        strokeWidth={4.4}
+        strokeLinecap="round"
       />
       <line
-        x1={a.x}
-        y1={a.y}
-        x2={d.x}
-        y2={d.y}
-        stroke="#8B5E3C"
-        strokeWidth={2}
+        x1={supportTopNear.x}
+        y1={supportTopNear.y}
+        x2={supportTopFar.x}
+        y2={supportTopFar.y}
+        stroke="#8c6547"
+        strokeWidth={5.2}
+        strokeLinecap="round"
+      />
+      <line
+        x1={supportNear.x}
+        y1={supportNear.y}
+        x2={supportTopNear.x}
+        y2={supportTopNear.y}
+        stroke="#7b563d"
+        strokeWidth={3.4}
+        strokeLinecap="round"
+      />
+      <ellipse
+        cx={(start.x + end.x) / 2 + px * 7}
+        cy={(start.y + end.y) / 2 + py * 7}
+        rx={26}
+        ry={9}
+        fill="#000"
+        opacity={0.12}
+        transform={`rotate(${(-angRad * 180) / Math.PI} ${(start.x + end.x) / 2 + px * 7} ${(start.y + end.y) / 2 + py * 7})`}
+      />
+      <polygon
+        points={`${topLeft.x},${topLeft.y} ${topRight.x},${topRight.y} ${bottomRight.x},${bottomRight.y} ${bottomLeft.x},${bottomLeft.y}`}
+        fill="#44529b"
+        stroke="#24306b"
+        strokeWidth={1.8}
+        strokeLinejoin="round"
+      />
+      <polygon
+        points={`${topLeft.x + ux * 5 + px * 2},${topLeft.y + uy * 5 + py * 2} ${topRight.x - ux * 5 + px * 2},${topRight.y - uy * 5 + py * 2} ${bottomRight.x - ux * 5 - px * 2},${bottomRight.y - uy * 5 - py * 2} ${bottomLeft.x + ux * 5 - px * 2},${bottomLeft.y + uy * 5 - py * 2}`}
+        fill="#a8defe"
+        opacity={0.92}
+      />
+      <line
+        x1={topLeft.x}
+        y1={topLeft.y}
+        x2={topRight.x}
+        y2={topRight.y}
+        stroke="#8895d4"
+        strokeWidth={1}
+        opacity={0.7}
+      />
+      <circle
+        cx={homeButton.x}
+        cy={homeButton.y}
+        r={1.7}
+        fill="#d6e7ff"
+        opacity={0.95}
+      />
+      <line
+        x1={lipOuter.x}
+        y1={lipOuter.y}
+        x2={lipInner.x}
+        y2={lipInner.y}
+        stroke="#6f4e3c"
+        strokeWidth={3}
+        strokeLinecap="round"
       />
     </g>
   );
@@ -345,8 +447,10 @@ export default function HypotenuseSceneView({
           x2={tipX}
           y2={tipY}
           stroke="#5a3d8a"
-          strokeWidth={scene.id === "ladder" ? 7 : 3.2}
+          strokeWidth={scene.id === "ladder" ? 7 : scene.id === "tablet" ? 2.4 : 3.2}
           strokeLinecap="round"
+          strokeDasharray={scene.id === "tablet" ? "4 3" : undefined}
+          opacity={scene.id === "tablet" ? 0.7 : 1}
         />
         {scene.id === "ladder" ? (
           <>
@@ -374,8 +478,8 @@ export default function HypotenuseSceneView({
         ) : null}
 
         <text
-          x={midHypX + 10}
-          y={midHypY - 8}
+          x={scene.id === "tablet" ? midHypX - 6 : midHypX + 10}
+          y={scene.id === "tablet" ? midHypY + 20 : midHypY - 8}
           fill="#5a3d8a"
           fontSize={13}
           fontWeight={800}
