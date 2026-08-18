@@ -159,6 +159,10 @@ export default function HeightSceneView({
   const angRad = (angle * Math.PI) / 180;
   const arcEndX = groundX + arcR * Math.cos(angRad);
   const arcEndY = GROUND_Y - arcR * Math.sin(angRad);
+  const halfAngRad = angRad / 2;
+  const labelR = arcR + 14;
+  const labelX = groundX + labelR * Math.cos(halfAngRad);
+  const labelY = GROUND_Y - labelR * Math.sin(halfAngRad);
 
   return (
     <div className="overflow-hidden rounded-2xl border-2 border-wood/15 bg-gradient-to-b from-[#d7efff] to-[#fef9f0]">
@@ -203,14 +207,17 @@ export default function HeightSceneView({
           strokeDasharray="6 5"
         />
         <path
-          d={`M ${groundX + arcR} ${GROUND_Y} A ${arcR} ${arcR} 0 0 1 ${arcEndX} ${arcEndY}`}
+          d={`M ${groundX + arcR} ${GROUND_Y} A ${arcR} ${arcR} 0 0 0 ${arcEndX} ${arcEndY}`}
           fill="none"
           stroke="#e85d4c"
           strokeWidth={2.2}
+          strokeLinecap="round"
         />
         <text
-          x={groundX + arcR + 10}
-          y={GROUND_Y - 10}
+          x={labelX}
+          y={labelY}
+          textAnchor="middle"
+          dominantBaseline="middle"
           fill="#a63a1a"
           fontSize={15}
           fontWeight={800}
