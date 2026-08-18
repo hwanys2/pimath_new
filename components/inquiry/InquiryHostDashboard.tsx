@@ -11,6 +11,7 @@ import {
   InquiryLinearEquationBalanceStep,
   InquiryRadicalFillStep,
   InquiryTangentIntroStep,
+  InquirySincosIntroStep,
   balanceInitialState,
   balanceProblem,
   equationOpsInitialState,
@@ -21,6 +22,8 @@ import {
   radicalFillProblem,
   tangentInitialState,
   tangentScene,
+  sincosInitialState,
+  sincosScene,
   type InquiryContentKey,
 } from "@/lib/inquiry-content-registry";
 import {
@@ -33,6 +36,7 @@ import * as radicalFillActions from "@/app/play/g3-u1-radical-fill/actions";
 import * as balanceActions from "@/app/play/g1-u2-2-linear-equation-balance/actions";
 import * as raceActions from "@/app/play/g1-u2-2-linear-equation-race/actions";
 import * as tangentActions from "@/app/play/g3-u3-1-tangent-intro/actions";
+import * as sincosActions from "@/app/play/g3-u3-1-sincos-intro/actions";
 import { effectiveInquiryStepCount } from "@/lib/inquiry-step-counts";
 
 const IDLE: InquiryPollState = {
@@ -76,6 +80,8 @@ function getActions(contentKey: InquiryContentKey) {
       return raceActions;
     case "g3-u3-1-tangent-intro":
       return tangentActions;
+    case "g3-u3-1-sincos-intro":
+      return sincosActions;
   }
 }
 
@@ -120,6 +126,9 @@ export default function InquiryHostDashboard({
   const [previewTangent, setPreviewTangent] = useState(() =>
     tangentInitialState(0),
   );
+  const [previewSincos, setPreviewSincos] = useState(() =>
+    sincosInitialState(0),
+  );
 
   useEffect(() => {
     if (!validKey) return;
@@ -129,6 +138,8 @@ export default function InquiryHostDashboard({
       setPreviewRace(equationOpsInitialState(state.stepIndex));
     } else if (validKey === "g3-u3-1-tangent-intro") {
       setPreviewTangent(tangentInitialState(state.stepIndex));
+    } else if (validKey === "g3-u3-1-sincos-intro") {
+      setPreviewSincos(sincosInitialState(state.stepIndex));
     } else {
       setPreviewBalance(balanceInitialState(state.stepIndex));
     }
@@ -418,6 +429,15 @@ export default function InquiryHostDashboard({
                 stepCount={stepCount}
                 workspace={previewTangent}
                 onWorkspaceChange={setPreviewTangent}
+                hostPreview
+              />
+            ) : validKey === "g3-u3-1-sincos-intro" ? (
+              <InquirySincosIntroStep
+                scene={sincosScene(state.stepIndex)}
+                stepIndex={state.stepIndex}
+                stepCount={stepCount}
+                workspace={previewSincos}
+                onWorkspaceChange={setPreviewSincos}
                 hostPreview
               />
             ) : (

@@ -7,6 +7,7 @@ import {
   InquiryLinearEquationBalanceStep,
   InquiryRadicalFillStep,
   InquiryTangentIntroStep,
+  InquirySincosIntroStep,
   balanceInitialState,
   balanceProblem,
   equationOpsInitialState,
@@ -17,24 +18,31 @@ import {
   radicalFillProblem,
   tangentInitialState,
   tangentScene,
+  sincosInitialState,
+  sincosScene,
   validateRadicalFill,
   validateTangent,
+  validateSincos,
   type InquiryContentKey,
 } from "@/lib/inquiry-content-registry";
 import type { SoftNotice as BalanceSoftNotice } from "@/components/inquiry/linear-equation-balance/InquiryLinearEquationBalanceStep";
 import { validateBalanceSubmit } from "@/lib/inquiry-linear-equation-balance";
 import type { SoftNotice as RadicalSoftNotice } from "@/components/inquiry/radical-fill/InquiryRadicalFillStep";
 import type { SoftNotice as TangentSoftNotice } from "@/lib/inquiry-tangent-intro";
+import type { SoftNotice as SincosSoftNotice } from "@/lib/inquiry-sincos-intro";
 import type { TermTexts } from "@/components/inquiry/radical-fill/InquiryRadicalFillStep";
 import type { TileWorkspace } from "@/lib/linear-equation-balance-math";
 import type { EquationOpsState } from "@/lib/equation-ops-math";
 import type { TangentWorkspace } from "@/lib/inquiry-tangent-intro";
 import { emptyTangentWorkspace } from "@/lib/inquiry-tangent-intro";
+import type { SincosWorkspace } from "@/lib/inquiry-sincos-intro";
+import { emptySincosWorkspace } from "@/lib/inquiry-sincos-intro";
 import { isStateSolved, scoreForTime } from "@/lib/equation-ops-math";
 import * as radicalFillActions from "@/app/play/g3-u1-radical-fill/actions";
 import * as balanceActions from "@/app/play/g1-u2-2-linear-equation-balance/actions";
 import * as raceActions from "@/app/play/g1-u2-2-linear-equation-race/actions";
 import * as tangentActions from "@/app/play/g3-u3-1-tangent-intro/actions";
+import * as sincosActions from "@/app/play/g3-u3-1-sincos-intro/actions";
 import { effectiveInquiryStepCount } from "@/lib/inquiry-step-counts";
 import {
   INQUIRY_POLL_MS,
@@ -82,6 +90,8 @@ function getActions(contentKey: InquiryContentKey) {
       return raceActions;
     case "g3-u3-1-tangent-intro":
       return tangentActions;
+    case "g3-u3-1-sincos-intro":
+      return sincosActions;
   }
 }
 
@@ -113,6 +123,9 @@ export default function InquiryStudentView({
   const [tangentWorkspace, setTangentWorkspace] = useState<TangentWorkspace>(
     () => emptyTangentWorkspace(0),
   );
+  const [sincosWorkspace, setSincosWorkspace] = useState<SincosWorkspace>(
+    () => emptySincosWorkspace(0),
+  );
   const [stepStartedAt, setStepStartedAt] = useState<number | null>(null);
   const [earnedScore, setEarnedScore] = useState<number | null>(null);
   const [wrongAttempts, setWrongAttempts] = useState(0);
@@ -123,6 +136,9 @@ export default function InquiryStudentView({
     null,
   );
   const [tangentNotice, setTangentNotice] = useState<TangentSoftNotice | null>(
+    null,
+  );
+  const [sincosNotice, setSincosNotice] = useState<SincosSoftNotice | null>(
     null,
   );
   const [submitted, setSubmitted] = useState(false);
@@ -152,6 +168,8 @@ export default function InquiryStudentView({
         setEarnedScore(null);
       } else if (validKey === "g3-u3-1-tangent-intro") {
         setTangentWorkspace(tangentInitialState(stepIndex));
+      } else if (validKey === "g3-u3-1-sincos-intro") {
+        setSincosWorkspace(sincosInitialState(stepIndex));
       } else {
         setBalanceWorkspace(balanceInitialState(stepIndex));
         setBalanceMoves(0);
@@ -161,6 +179,7 @@ export default function InquiryStudentView({
       setRadicalNotice(null);
       setBalanceNotice(null);
       setTangentNotice(null);
+      setSincosNotice(null);
       setSubmitted(false);
       setSubmitFeedback(null);
       submittedRef.current = false;
@@ -365,6 +384,37 @@ export default function InquiryStudentView({
     });
   };
 
+  const onSubmitSincos = () => {
+    if (!sessionId || submitted || state.phase !== "live" || !validKey) return;
+    const notice = validateSincos(state.stepIndex, sincosWorkspace);
+    if (notice) {
+      if (notice.reason === "wrong") {
+        const next = wrongRef.current + 1;
+        wrongRef.current = next;
+        setWrongAttempts(next);
+      }
+      setSincosNotice(notice);
+      return;
+    }
+
+    startTransition(async () => {
+      const result = await sincosActions.inquirySubmitSincosAction({
+        sessionId,
+        stepIndex: state.stepIndex,
+        workspace: sincosWorkspace,
+        wrongs: wrongRef.current,
+      });
+      if ("error" in result) {
+        setSincosNotice({ reason: "wrong" });
+        return;
+      }
+      setSubmitted(true);
+      submittedRef.current = true;
+      setSubmitFeedback("correct");
+      setSincosNotice(null);
+    });
+  };
+
   if (!config || !validKey) {
     return (
       <InquiryUnavailable message="알 수 없는 탐구 콘텐츠예요." />
@@ -492,6 +542,23 @@ export default function InquiryStudentView({
             submitted={submitted}
             submitFeedback={submitFeedback}
             onSubmit={onSubmitTangent}
+          />
+        ) : validKey === "g3-u3-1-sincos-intro" ? (
+          <InquirySincosIntroStep
+            scene={sincosScene(state.stepIndex)}
+            stepIndex={state.stepIndex}
+            stepCount={stepCount}
+            workspace={sincosWorkspace}
+            onWorkspaceChange={(next) => {
+              setSincosWorkspace(next);
+              if (sincosNotice) setSincosNotice(null);
+            }}
+            disabled={isPending}
+            wrongAttempts={wrongAttempts}
+            softNotice={sincosNotice}
+            submitted={submitted}
+            submitFeedback={submitFeedback}
+            onSubmit={onSubmitSincos}
           />
         ) : (
           <InquiryLinearEquationBalanceStep

@@ -1,0 +1,777 @@
+"use client";
+
+import { useCallback, useMemo, useRef, useState } from "react";
+import {
+  allIntersections,
+  ANGLE_DIAL_MAX,
+  ANGLE_DIAL_RADIUS,
+  dist,
+  formatLength,
+  GRID_H,
+  GRID_W,
+  nearestSeg,
+  nearestSubSegment,
+  subSegments,
+  type SketchSeg,
+  type Vec2,
+} from "@/lib/inquiry-tangent-sketch";
+import {
+  belowDegFromBase,
+  belowDialPoint,
+  belowRayEndpoint,
+  hypCircleFromSeg,
+  nearestVertex,
+  originOnSeg,
+  perpFromPointToLine,
+  snapPointWithCircle,
+  type HypCircle,
+} from "@/lib/inquiry-sincos-sketch";
+import {
+  RulerOverlay,
+  RULER_DEFAULT,
+  type OverlayPose,
+} from "@/components/inquiry/tangent-intro/SketchOverlays";
+
+type Tool = "segment" | "perp" | "angle" | "measure" | "erase";
+
+const PAD_X = 0.85;
+const PAD_Y = 0.95;
+const VIEW_W = GRID_W + PAD_X * 2 + 0.4;
+const VIEW_H = GRID_H + PAD_Y * 2 + 0.3;
+
+function toSvg(p: Vec2): { x: number; y: number } {
+  return { x: p.x, y: GRID_H - p.y };
+}
+
+function fromSvg(x: number, y: number): Vec2 {
+  return { x, y: GRID_H - y };
+}
+
+function chunkKey(segId: string, index: number): string {
+  return `${segId}:${index}`;
+}
+
+const TOOLS: { id: Tool; label: string; hint: string }[] = [
+  {
+    id: "segment",
+    label: "선분",
+    hint: "첫 점은 중심, 둘째 점은 원 위의 점(빗변)입니다. 첫 선분을 그리면 점선 원이 생겨요.",
+  },
+  {
+    id: "perp",
+    label: "수선",
+    hint: "원 위의 점을 고른 뒤, 수선을 내릴 선(각으로 그린 반직선)을 누르세요.",
+  },
+  {
+    id: "angle",
+    label: "각",
+    hint: "빗변을 고른 뒤, 선분 아래쪽으로 1° 단위 눈금을 맞춰 떼면 반직선이 그려져요.",
+  },
+  {
+    id: "measure",
+    label: "길이",
+    hint: "길이를 볼 선분 조각을 누르세요. 누른 부분만 길이가 표시돼요.",
+  },
+  { id: "erase", label: "지우개", hint: "지울 선분을 누르세요." },
+];
+
+type Props = {
+  locked?: boolean;
+};
+
+type AngleSession = {
+  segId: string;
+  origin: Vec2;
+  baseDir: Vec2;
+  deg: number;
+};
+
+function belowSemicirclePath(
+  origin: Vec2,
+  baseDir: Vec2,
+  radius: number,
+  maxDeg: number,
+): string {
+  const pts: Vec2[] = [];
+  for (let d = 0; d <= maxDeg; d += 1) {
+    pts.push(belowDialPoint(origin, baseDir, d, radius));
+  }
+  const first = toSvg(pts[0]!);
+  const rest = pts
+    .slice(1)
+    .map((p) => {
+      const s = toSvg(p);
+      return `${s.x} ${s.y}`;
+    })
+    .join(" L ");
+  return `M ${first.x} ${first.y} L ${rest}`;
+}
+
+export default function SincosSketchpad({ locked = false }: Props) {
+  const svgRef = useRef<SVGSVGElement | null>(null);
+  const wrapRef = useRef<HTMLDivElement | null>(null);
+  const idRef = useRef(1);
+  const draggingAngle = useRef(false);
+
+  const [tool, setTool] = useState<Tool>("segment");
+  const [segs, setSegs] = useState<SketchSeg[]>([]);
+  const [history, setHistory] = useState<SketchSeg[][]>([]);
+  const [hypSegId, setHypSegId] = useState<string | null>(null);
+  const [pending, setPending] = useState<Vec2 | null>(null);
+  const [perpPoint, setPerpPoint] = useState<Vec2 | null>(null);
+  const [angleSession, setAngleSession] = useState<AngleSession | null>(null);
+  const [measuredChunks, setMeasuredChunks] = useState<Set<string>>(new Set());
+  const [hover, setHover] = useState<Vec2 | null>(null);
+  const [ruler, setRuler] = useState<OverlayPose | null>(null);
+
+  const intersections = useMemo(() => allIntersections(segs), [segs]);
+  const hypSeg = segs.find((s) => s.id === hypSegId) ?? null;
+  const circle: HypCircle | null = hypSeg ? hypCircleFromSeg(hypSeg) : null;
+
+  const nextId = () => {
+    const id = `s${idRef.current}`;
+    idRef.current += 1;
+    return id;
+  };
+
+  const pushHistory = (prev: SketchSeg[]) => {
+    setHistory((h) => [...h.slice(-29), prev]);
+  };
+
+  const clientToGrid = (e: { clientX: number; clientY: number }): Vec2 | null => {
+    const svg = svgRef.current;
+    if (!svg) return null;
+    const rect = svg.getBoundingClientRect();
+    if (rect.width < 4 || rect.height < 4) return null;
+    const x = ((e.clientX - rect.left) / rect.width) * VIEW_W + -PAD_X;
+    const y = ((e.clientY - rect.top) / rect.height) * VIEW_H + -PAD_Y;
+    return fromSvg(x, y);
+  };
+
+  const applySnap = useCallback(
+    (p: Vec2) => snapPointWithCircle(p, segs, circle),
+    [segs, circle],
+  );
+
+  const resetToolState = () => {
+    setPending(null);
+    setPerpPoint(null);
+    setAngleSession(null);
+    draggingAngle.current = false;
+  };
+
+  const addSeg = (a: Vec2, b: Vec2) => {
+    if (Math.hypot(a.x - b.x, a.y - b.y) < 0.2) return;
+    const id = nextId();
+    pushHistory(segs);
+    setSegs((cur) => {
+      const next = [...cur, { id, a, b }];
+      return next;
+    });
+    if (!segs.some((s) => s.id === hypSegId)) {
+      setHypSegId(id);
+    }
+  };
+
+  const openAngleSession = (seg: SketchSeg, pointer: Vec2) => {
+    const { origin, baseDir } = originOnSeg(seg, pointer, hypSegId);
+    const deg = belowDegFromBase(origin, baseDir, pointer);
+    setAngleSession({
+      segId: seg.id,
+      origin,
+      baseDir,
+      deg: Math.min(ANGLE_DIAL_MAX, deg),
+    });
+    setPerpPoint(null);
+  };
+
+  const updateAngleFromPointer = (
+    session: AngleSession,
+    pointer: Vec2,
+  ): AngleSession => {
+    const deg = belowDegFromBase(session.origin, session.baseDir, pointer);
+    return { ...session, deg: Math.min(ANGLE_DIAL_MAX, Math.max(0, deg)) };
+  };
+
+  const commitAngleSession = (session: AngleSession) => {
+    if (session.deg <= 0) {
+      setAngleSession(null);
+      draggingAngle.current = false;
+      return;
+    }
+    const end = belowRayEndpoint(session.origin, session.baseDir, session.deg);
+    if (end) addSeg(session.origin, end);
+    setAngleSession(null);
+    draggingAngle.current = false;
+  };
+
+  const onCanvasDown = (e: React.PointerEvent<SVGSVGElement>) => {
+    if (locked) return;
+    if ((e.target as Element).closest("button")) return;
+    const raw = clientToGrid(e);
+    if (!raw) return;
+
+    if (tool === "angle") {
+      if (angleSession) {
+        e.currentTarget.setPointerCapture(e.pointerId);
+        draggingAngle.current = true;
+        setAngleSession((s) => (s ? updateAngleFromPointer(s, raw) : s));
+        return;
+      }
+      const hit = nearestSeg(raw, segs);
+      if (!hit) {
+        setAngleSession(null);
+        return;
+      }
+      openAngleSession(hit, raw);
+      e.currentTarget.setPointerCapture(e.pointerId);
+      draggingAngle.current = true;
+      return;
+    }
+
+    const p = applySnap(raw);
+
+    if (tool === "segment") {
+      if (!pending) {
+        setPending(p);
+        return;
+      }
+      addSeg(pending, p);
+      setPending(null);
+      setHover(null);
+      return;
+    }
+
+    if (tool === "perp") {
+      if (!perpPoint) {
+        const v = nearestVertex(p, segs, 0.5);
+        const onCircle =
+          circle && Math.abs(dist(p, circle.center) - circle.radius) <= 0.5
+            ? p
+            : null;
+        const pt = v ?? onCircle;
+        if (!pt) return;
+        setPerpPoint(pt);
+        setAngleSession(null);
+        return;
+      }
+      const hit = nearestSeg(p, segs);
+      if (!hit) {
+        setPerpPoint(null);
+        return;
+      }
+      const line = perpFromPointToLine(perpPoint, hit);
+      if (line) addSeg(line.a, line.b);
+      setPerpPoint(null);
+      return;
+    }
+
+    if (tool === "measure") {
+      const hit = nearestSubSegment(p, segs);
+      if (!hit) return;
+      const key = chunkKey(hit.seg.id, hit.chunkIndex);
+      setMeasuredChunks((prev) => {
+        const next = new Set(prev);
+        if (next.has(key)) next.delete(key);
+        else next.add(key);
+        return next;
+      });
+      return;
+    }
+
+    if (tool === "erase") {
+      const hit = nearestSeg(p, segs);
+      if (!hit) return;
+      pushHistory(segs);
+      setSegs((cur) => cur.filter((s) => s.id !== hit.id));
+      setMeasuredChunks((prev) => {
+        const next = new Set(prev);
+        for (const k of prev) {
+          if (k.startsWith(`${hit.id}:`)) next.delete(k);
+        }
+        return next;
+      });
+      if (angleSession?.segId === hit.id) setAngleSession(null);
+    }
+  };
+
+  const onMove = (e: React.PointerEvent<SVGSVGElement>) => {
+    if (locked) return;
+    const raw = clientToGrid(e);
+    if (!raw) return;
+
+    if (tool === "angle" && draggingAngle.current && angleSession) {
+      setAngleSession(updateAngleFromPointer(angleSession, raw));
+      return;
+    }
+
+    if (tool === "angle" && angleSession) {
+      setAngleSession(updateAngleFromPointer(angleSession, raw));
+      return;
+    }
+
+    setHover(applySnap(raw));
+  };
+
+  const onUp = (e: React.PointerEvent<SVGSVGElement>) => {
+    if (tool === "angle" && draggingAngle.current && angleSession) {
+      commitAngleSession(angleSession);
+      try {
+        e.currentTarget.releasePointerCapture(e.pointerId);
+      } catch {
+        /* ignore */
+      }
+    }
+  };
+
+  const undo = () => {
+    setHistory((h) => {
+      if (h.length === 0) return h;
+      const prev = h[h.length - 1]!;
+      setSegs(prev);
+      resetToolState();
+      setMeasuredChunks(new Set());
+      return h.slice(0, -1);
+    });
+  };
+
+  const clearAll = () => {
+    if (segs.length === 0) return;
+    pushHistory(segs);
+    setSegs([]);
+    setHypSegId(null);
+    resetToolState();
+    setMeasuredChunks(new Set());
+  };
+
+  const toggleRuler = () => {
+    const wrap = wrapRef.current;
+    const cx = wrap ? wrap.clientWidth / 2 : 180;
+    const cy = wrap ? wrap.clientHeight / 2 : 160;
+    setRuler((r) =>
+      r ? null : { x: cx, y: cy + 40, angle: 0, length: RULER_DEFAULT },
+    );
+  };
+
+  const hint =
+    tool === "angle" && angleSession
+      ? draggingAngle.current
+        ? `${angleSession.deg}° — 손을 떼면 반직선이 그려져요.`
+        : "선분 아래쪽 눈금을 드래그해 각을 1° 단위로 맞추세요."
+      : tool === "perp" && perpPoint
+        ? "수선을 내릴 선(반직선)을 누르세요."
+        : tool === "segment" && pending
+          ? "둘째 점(원 위)을 찍어 빗변을 완성하세요."
+          : (TOOLS.find((t) => t.id === tool)?.hint ?? "");
+
+  const preview =
+    tool === "segment" && pending && hover ? { a: pending, b: hover } : null;
+
+  const dialPreviewEnd =
+    angleSession && angleSession.deg > 0
+      ? belowRayEndpoint(
+          angleSession.origin,
+          angleSession.baseDir,
+          angleSession.deg,
+        )
+      : null;
+
+  const circleSvg = circle ? toSvg(circle.center) : null;
+
+  return (
+    <div className="flex h-full min-h-[22rem] flex-col overflow-hidden rounded-2xl border-2 border-wood/15 bg-[#fbf7ef]">
+      <div className="flex flex-wrap items-center gap-1.5 border-b border-wood/10 bg-cream px-2 py-2">
+        {TOOLS.map((t) => (
+          <button
+            key={t.id}
+            type="button"
+            aria-pressed={tool === t.id}
+            disabled={locked}
+            onClick={() => {
+              setTool(t.id);
+              resetToolState();
+            }}
+            className={[
+              "rounded-lg px-2.5 py-1 text-xs font-bold",
+              tool === t.id
+                ? "bg-wood text-cream"
+                : "bg-wood/10 text-wood hover:bg-wood/15",
+            ].join(" ")}
+          >
+            {t.label}
+          </button>
+        ))}
+        <span className="mx-1 h-4 w-px bg-wood/20" />
+        <button
+          type="button"
+          disabled={locked}
+          onClick={toggleRuler}
+          className={[
+            "rounded-lg px-2.5 py-1 text-xs font-bold",
+            ruler ? "bg-gold/80 text-wood" : "bg-wood/10 text-wood hover:bg-wood/15",
+          ].join(" ")}
+        >
+          자
+        </button>
+        <span className="ml-auto flex gap-1">
+          <button
+            type="button"
+            disabled={locked || history.length === 0}
+            onClick={undo}
+            className="rounded-lg bg-wood/10 px-2 py-1 text-xs font-bold text-wood disabled:opacity-40"
+          >
+            실행 취소
+          </button>
+          <button
+            type="button"
+            disabled={locked || segs.length === 0}
+            onClick={clearAll}
+            className="rounded-lg bg-wood/10 px-2 py-1 text-xs font-bold text-wood disabled:opacity-40"
+          >
+            모두 지우기
+          </button>
+        </span>
+      </div>
+
+      <p className="px-3 py-1.5 text-[11px] font-semibold text-foreground/55">{hint}</p>
+
+      <div ref={wrapRef} className="relative min-h-0 flex-1">
+        <svg
+          ref={svgRef}
+          viewBox={`${-PAD_X} ${-PAD_Y} ${VIEW_W} ${VIEW_H}`}
+          className="h-full w-full touch-none"
+          onPointerDown={onCanvasDown}
+          onPointerMove={onMove}
+          onPointerUp={onUp}
+          onPointerCancel={onUp}
+          onPointerLeave={() => {
+            if (!draggingAngle.current) setHover(null);
+          }}
+        >
+          <rect x={0} y={0} width={GRID_W} height={GRID_H} fill="#fffdf8" />
+          {Array.from({ length: GRID_W + 1 }).map((_, i) => (
+            <line
+              key={`v${i}`}
+              x1={i}
+              y1={0}
+              x2={i}
+              y2={GRID_H}
+              stroke={i === 0 ? "#8B5E3C" : i % 5 === 0 ? "#d7c4a8" : "#eee4d4"}
+              strokeWidth={i === 0 ? 0.08 : 0.035}
+            />
+          ))}
+          {Array.from({ length: GRID_H + 1 }).map((_, i) => {
+            const mathY = i;
+            const svgY = GRID_H - mathY;
+            return (
+              <line
+                key={`h${i}`}
+                x1={0}
+                y1={svgY}
+                x2={GRID_W}
+                y2={svgY}
+                stroke={mathY === 0 ? "#8B5E3C" : mathY % 5 === 0 ? "#d7c4a8" : "#eee4d4"}
+                strokeWidth={mathY === 0 ? 0.08 : 0.035}
+              />
+            );
+          })}
+          {Array.from({ length: GRID_W + 1 }).map((_, i) =>
+            i % 2 === 0 ? (
+              <text
+                key={`xl${i}`}
+                x={i}
+                y={GRID_H + 0.55}
+                textAnchor="middle"
+                fontSize={0.42}
+                fill="#8B5E3C"
+                fontWeight={700}
+              >
+                {i}
+              </text>
+            ) : null,
+          )}
+          {Array.from({ length: GRID_H + 1 }).map((_, i) =>
+            i % 2 === 0 ? (
+              <text
+                key={`yl${i}`}
+                x={-0.35}
+                y={GRID_H - i + 0.14}
+                textAnchor="end"
+                fontSize={0.42}
+                fill="#8B5E3C"
+                fontWeight={700}
+              >
+                {i}
+              </text>
+            ) : null,
+          )}
+
+          {circle && circleSvg ? (
+            <circle
+              cx={circleSvg.x}
+              cy={circleSvg.y}
+              r={circle.radius}
+              fill="none"
+              stroke="#6b4a9e"
+              strokeWidth={0.07}
+              strokeDasharray="0.22 0.16"
+              opacity={0.75}
+            />
+          ) : null}
+
+          {segs.map((s) => {
+            const a = toSvg(s.a);
+            const b = toSvg(s.b);
+            const active =
+              angleSession?.segId === s.id ||
+              (hypSegId === s.id && tool === "segment");
+            const parts = subSegments(s, segs);
+            return (
+              <g key={s.id}>
+                <line
+                  x1={a.x}
+                  y1={a.y}
+                  x2={b.x}
+                  y2={b.y}
+                  stroke={active ? "#c9a227" : "#3d4a8c"}
+                  strokeWidth={active ? 0.14 : 0.1}
+                  strokeLinecap="round"
+                />
+                <circle cx={a.x} cy={a.y} r={0.12} fill="#3d4a8c" />
+                <circle cx={b.x} cy={b.y} r={0.12} fill="#3d4a8c" />
+                {parts.map((part, i) => {
+                  const key = chunkKey(s.id, i);
+                  if (!measuredChunks.has(key)) return null;
+                  const mid = toSvg({
+                    x: (part.a.x + part.b.x) / 2,
+                    y: (part.a.y + part.b.y) / 2,
+                  });
+                  return (
+                    <text
+                      key={key}
+                      x={mid.x}
+                      y={mid.y - 0.25}
+                      textAnchor="middle"
+                      fontSize={0.44}
+                      fontWeight={800}
+                      fill="#a63a1a"
+                    >
+                      {formatLength(dist(part.a, part.b))}
+                    </text>
+                  );
+                })}
+              </g>
+            );
+          })}
+
+          {intersections.map((pt, i) => {
+            const s = toSvg(pt);
+            return (
+              <circle
+                key={`ix${i}`}
+                cx={s.x}
+                cy={s.y}
+                r={0.18}
+                fill="#e85d4c"
+                stroke="#fff"
+                strokeWidth={0.05}
+              />
+            );
+          })}
+
+          {perpPoint ? (
+            <circle
+              cx={toSvg(perpPoint).x}
+              cy={toSvg(perpPoint).y}
+              r={0.22}
+              fill="none"
+              stroke="#e85d4c"
+              strokeWidth={0.07}
+            />
+          ) : null}
+
+          {angleSession ? (
+            (() => {
+              const { origin, baseDir, deg } = angleSession;
+              const o = toSvg(origin);
+              const dialPath = belowSemicirclePath(
+                origin,
+                baseDir,
+                ANGLE_DIAL_RADIUS,
+                ANGLE_DIAL_MAX,
+              );
+              const handle = toSvg(
+                belowDialPoint(origin, baseDir, deg, ANGLE_DIAL_RADIUS),
+              );
+              const baseTip = toSvg(
+                belowDialPoint(origin, baseDir, 0, ANGLE_DIAL_RADIUS * 0.92),
+              );
+              const label = toSvg(
+                belowDialPoint(origin, baseDir, deg, ANGLE_DIAL_RADIUS + 0.75),
+              );
+              const ticks = [];
+              for (let d = 0; d <= ANGLE_DIAL_MAX; d += 5) {
+                const outer = belowDialPoint(origin, baseDir, d, ANGLE_DIAL_RADIUS);
+                const inner = belowDialPoint(
+                  origin,
+                  baseDir,
+                  d,
+                  ANGLE_DIAL_RADIUS - (d % 10 === 0 ? 0.22 : 0.12),
+                );
+                const a = toSvg(outer);
+                const b = toSvg(inner);
+                ticks.push(
+                  <line
+                    key={`tick-${d}`}
+                    x1={a.x}
+                    y1={a.y}
+                    x2={b.x}
+                    y2={b.y}
+                    stroke="#8B5E3C"
+                    strokeWidth={d % 10 === 0 ? 0.06 : 0.035}
+                    opacity={0.55}
+                  />,
+                );
+                if (d % 10 === 0 && d > 0) {
+                  const t = toSvg(
+                    belowDialPoint(origin, baseDir, d, ANGLE_DIAL_RADIUS + 0.45),
+                  );
+                  ticks.push(
+                    <text
+                      key={`lbl-${d}`}
+                      x={t.x}
+                      y={t.y}
+                      textAnchor="middle"
+                      dominantBaseline="central"
+                      fontSize={0.38}
+                      fontWeight={700}
+                      fill="#6b4423"
+                      opacity={0.75}
+                    >
+                      {d}
+                    </text>,
+                  );
+                }
+              }
+              return (
+                <g>
+                  <path
+                    d={dialPath}
+                    fill="none"
+                    stroke="#b8a0e8"
+                    strokeWidth={0.07}
+                    strokeDasharray="0.12 0.1"
+                    opacity={0.85}
+                  />
+                  {Array.from({ length: ANGLE_DIAL_MAX + 1 }).map((_, d) => {
+                    if (d % 2 !== 0) return null;
+                    const pt = toSvg(
+                      belowDialPoint(origin, baseDir, d, ANGLE_DIAL_RADIUS),
+                    );
+                    return (
+                      <circle
+                        key={`dot-${d}`}
+                        cx={pt.x}
+                        cy={pt.y}
+                        r={0.045}
+                        fill="#b8a0e8"
+                        opacity={0.45}
+                      />
+                    );
+                  })}
+                  {ticks}
+                  <line
+                    x1={o.x}
+                    y1={o.y}
+                    x2={baseTip.x}
+                    y2={baseTip.y}
+                    stroke="#8B5E3C"
+                    strokeWidth={0.07}
+                    opacity={0.65}
+                  />
+                  {dialPreviewEnd ? (
+                    <line
+                      x1={o.x}
+                      y1={o.y}
+                      x2={toSvg(dialPreviewEnd).x}
+                      y2={toSvg(dialPreviewEnd).y}
+                      stroke="#6b4a9e"
+                      strokeWidth={0.09}
+                      strokeDasharray="0.18 0.12"
+                    />
+                  ) : null}
+                  <line
+                    x1={o.x}
+                    y1={o.y}
+                    x2={handle.x}
+                    y2={handle.y}
+                    stroke="#e85d4c"
+                    strokeWidth={0.08}
+                  />
+                  <circle
+                    cx={handle.x}
+                    cy={handle.y}
+                    r={0.18}
+                    fill="#e85d4c"
+                    stroke="#fff"
+                    strokeWidth={0.05}
+                  />
+                  <circle
+                    cx={o.x}
+                    cy={o.y}
+                    r={0.14}
+                    fill="#c9a227"
+                    stroke="#fff"
+                    strokeWidth={0.04}
+                  />
+                  <text
+                    x={label.x}
+                    y={label.y}
+                    textAnchor="middle"
+                    dominantBaseline="central"
+                    fontSize={0.58}
+                    fontWeight={800}
+                    fill="#a63a1a"
+                  >
+                    {deg}°
+                  </text>
+                </g>
+              );
+            })()
+          ) : null}
+
+          {preview ? (
+            <line
+              x1={toSvg(preview.a).x}
+              y1={toSvg(preview.a).y}
+              x2={toSvg(preview.b).x}
+              y2={toSvg(preview.b).y}
+              stroke="#8B5E3C"
+              strokeWidth={0.08}
+              strokeDasharray="0.25 0.18"
+            />
+          ) : null}
+
+          {pending ? (
+            <circle cx={toSvg(pending).x} cy={toSvg(pending).y} r={0.16} fill="#e85d4c" />
+          ) : null}
+
+          {hover && !locked && !angleSession ? (
+            <circle
+              cx={toSvg(hover).x}
+              cy={toSvg(hover).y}
+              r={0.12}
+              fill="none"
+              stroke="#8B5E3C"
+              strokeWidth={0.06}
+            />
+          ) : null}
+        </svg>
+
+        {ruler && !locked ? (
+          <RulerOverlay pose={ruler} onChange={setRuler} onClose={() => setRuler(null)} />
+        ) : null}
+      </div>
+    </div>
+  );
+}

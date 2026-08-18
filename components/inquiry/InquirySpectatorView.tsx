@@ -6,6 +6,7 @@ import {
   InquiryLinearEquationBalanceStep,
   InquiryRadicalFillStep,
   InquiryTangentIntroStep,
+  InquirySincosIntroStep,
   balanceInitialState,
   balanceProblem,
   equationOpsInitialState,
@@ -16,6 +17,8 @@ import {
   radicalFillProblem,
   tangentInitialState,
   tangentScene,
+  sincosInitialState,
+  sincosScene,
 } from "@/lib/inquiry-content-registry";
 
 type Props = {
@@ -58,6 +61,9 @@ export default function InquirySpectatorView({
   const [tangentWorkspace, setTangentWorkspace] = useState(() =>
     tangentInitialState(0),
   );
+  const [sincosWorkspace, setSincosWorkspace] = useState(() =>
+    sincosInitialState(0),
+  );
 
   if (!config || !validKey) {
     return (
@@ -78,6 +84,8 @@ export default function InquirySpectatorView({
       setRaceState(equationOpsInitialState(clamped));
     } else if (validKey === "g3-u3-1-tangent-intro") {
       setTangentWorkspace(tangentInitialState(clamped));
+    } else if (validKey === "g3-u3-1-sincos-intro") {
+      setSincosWorkspace(sincosInitialState(clamped));
     } else {
       setBalanceWorkspace(balanceInitialState(clamped));
     }
@@ -124,6 +132,15 @@ export default function InquirySpectatorView({
           stepCount={stepCount}
           workspace={tangentWorkspace}
           onWorkspaceChange={setTangentWorkspace}
+          hostPreview
+        />
+      ) : validKey === "g3-u3-1-sincos-intro" ? (
+        <InquirySincosIntroStep
+          scene={sincosScene(stepIndex)}
+          stepIndex={stepIndex}
+          stepCount={stepCount}
+          workspace={sincosWorkspace}
+          onWorkspaceChange={setSincosWorkspace}
           hostPreview
         />
       ) : (

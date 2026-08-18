@@ -1,0 +1,262 @@
+import assert from "node:assert/strict";
+import { describe, it } from "node:test";
+import {
+  HYP_SCENES,
+  PROBLEM_COUNT,
+  TABLE_ANGLES,
+  TABLE_STEP_INDEX,
+  aggregateSincosScore,
+  clampAngle,
+  cosDeg,
+  cosRatioIsCorrect,
+  emptySincosWorkspace,
+  expectedAdj,
+  expectedOpp,
+  gradeSincosStep,
+  hypSceneAt,
+  isTableStep,
+  lengthIsCorrect,
+  parseStudentNumber,
+  scoreForAttempts,
+  sinDeg,
+  sinRatioIsCorrect,
+  validateSincosSubmit,
+} from "@/lib/inquiry-sincos-intro";
+import {
+  GRID_H,
+  GRID_W,
+  dist,
+  perpendicularThrough,
+} from "@/lib/inquiry-tangent-sketch";
+import {
+  belowDegFromBase,
+  belowRayEndpoint,
+  belowSign,
+  hypCircleFromSeg,
+  originOnSeg,
+  perpFromPointToLine,
+  projectOnCircle,
+  projectOnLine,
+  snapPointWithCircle,
+} from "@/lib/inquiry-sincos-sketch";
+
+describe("sincos intro scenes", () => {
+  it("has 3 hypotenuse scenes and a table step", () => {
+    assert.equal(HYP_SCENES.length, 3);
+    assert.equal(PROBLEM_COUNT, 4);
+    assert.equal(TABLE_STEP_INDEX, 3);
+    assert.equal(isTableStep(2), false);
+    assert.equal(isTableStep(3), true);
+    assert.equal(hypSceneAt(0)?.id, "kite");
+    assert.equal(hypSceneAt(1)?.id, "ladder");
+    assert.equal(hypSceneAt(2)?.id, "tablet");
+    assert.equal(hypSceneAt(3), null);
+  });
+
+  it("clamps elevation angle to 1 degree within the scene range", () => {
+    const kite = HYP_SCENES[0]!;
+    assert.equal(clampAngle(kite, 40.4), 40);
+    assert.equal(clampAngle(kite, 3), kite.minAngleDeg);
+    assert.equal(clampAngle(kite, 89), kite.maxAngleDeg);
+  });
+});
+
+describe("parseStudentNumber", () => {
+  it("accepts decimals, commas, fractions, and unit suffixes", () => {
+    assert.equal(parseStudentNumber("23"), 23);
+    assert.equal(parseStudentNumber("23m"), 23);
+    assert.equal(parseStudentNumber("18cm"), 18);
+    assert.equal(parseStudentNumber("1,73"), 1.73);
+    assert.equal(parseStudentNumber("3/5"), 0.6);
+    assert.equal(parseStudentNumber(""), null);
+    assert.equal(parseStudentNumber("abc"), null);
+  });
+});
+
+describe("scene length grading", () => {
+  const kite = HYP_SCENES[0]!;
+
+  it("accepts 30 m kite height and distance at 40°", () => {
+    const ang = 40;
+    assert.equal(lengthIsCorrect(kite, ang, expectedOpp(kite, ang), "opp"), true);
+    assert.equal(lengthIsCorrect(kite, ang, expectedAdj(kite, ang), "adj"), true);
+  });
+
+  it("accepts 30 * sin/cos within 12%", () => {
+    assert.equal(lengthIsCorrect(kite, 40, 30 * sinDeg(40), "opp"), true);
+    assert.equal(lengthIsCorrect(kite, 40, 30 * cosDeg(40), "adj"), true);
+    assert.equal(lengthIsCorrect(kite, 40, 5, "opp"), false);
+    assert.equal(lengthIsCorrect(kite, 40, 80, "adj"), false);
+  });
+
+  it("uses a 0.3 m floor for the short ladder", () => {
+    const ladder = HYP_SCENES[1]!;
+    const h = expectedOpp(ladder, 60);
+    assert.equal(lengthIsCorrect(ladder, 60, h, "opp"), true);
+    assert.equal(lengthIsCorrect(ladder, 60, h - 0.25, "opp"), true);
+    assert.equal(lengthIsCorrect(ladder, 60, 1, "opp"), false);
+  });
+});
+
+describe("ratio grading", () => {
+  it("accepts sin 30° = 1/2 and cos 60° = 1/2", () => {
+    assert.equal(sinRatioIsCorrect(30, 0.5), true);
+    assert.equal(cosRatioIsCorrect(60, 0.5), true);
+    assert.equal(sinRatioIsCorrect(90, 1), true);
+    assert.equal(sinRatioIsCorrect(30, 1), false);
+  });
+
+  it("accepts approximate sin 45° and cos 45°", () => {
+    const s = Math.SQRT1_2;
+    assert.equal(sinRatioIsCorrect(45, s), true);
+    assert.equal(cosRatioIsCorrect(45, s), true);
+  });
+});
+
+describe("validate and grade", () => {
+  it("flags empty height or distance as incomplete", () => {
+    const ws = emptySincosWorkspace(0);
+    const notice = validateSincosSubmit(0, ws);
+    assert.equal(notice?.reason, "incomplete");
+    assert.ok(notice?.wrongKeys?.includes("adj"));
+    assert.ok(notice?.wrongKeys?.includes("opp"));
+  });
+
+  it("flags missing method text after a correct scene", () => {
+    const kite = HYP_SCENES[0]!;
+    const ws = emptySincosWorkspace(0);
+    ws.adjText = String(expectedAdj(kite, ws.angleDeg));
+    ws.oppText = String(expectedOpp(kite, ws.angleDeg));
+    const notice = validateSincosSubmit(0, ws);
+    assert.equal(notice?.reason, "incomplete_method");
+  });
+
+  it("grades a correct kite scene", () => {
+    const kite = HYP_SCENES[0]!;
+    const ws = emptySincosWorkspace(0);
+    ws.adjText = String(expectedAdj(kite, 40));
+    ws.oppText = String(expectedOpp(kite, 40));
+    ws.methodText = "빗변을 그리고 원과 수선으로 비를 구한 뒤 30m에 곱했어요.";
+    assert.equal(validateSincosSubmit(0, ws), null);
+    const graded = gradeSincosStep(0, ws, 1);
+    assert.equal(graded.result, "correct");
+    if (graded.response.kind !== "scene") throw new Error("expected scene");
+    assert.equal(graded.response.sceneId, "kite");
+    assert.equal(graded.response.wrongs, 1);
+  });
+
+  it("requires all sixteen table cells", () => {
+    const ws = emptySincosWorkspace(TABLE_STEP_INDEX);
+    ws.sinRatios["10"] = "0.17";
+    const notice = validateSincosSubmit(TABLE_STEP_INDEX, ws);
+    assert.equal(notice?.reason, "incomplete");
+  });
+
+  it("grades a full sin/cos table", () => {
+    const ws = emptySincosWorkspace(TABLE_STEP_INDEX);
+    for (const a of TABLE_ANGLES) {
+      ws.sinRatios[String(a)] = String(sinDeg(a));
+      ws.cosRatios[String(a)] = String(cosDeg(a));
+    }
+    ws.methodText = "빗변 10칸 직각삼각형을 그려 높이÷빗변, 밑변÷빗변을 적었어요.";
+    assert.equal(validateSincosSubmit(TABLE_STEP_INDEX, ws), null);
+    const graded = gradeSincosStep(TABLE_STEP_INDEX, ws, 0);
+    assert.equal(graded.result, "correct");
+  });
+
+  it("lists wrong sin and cos cells separately", () => {
+    const ws = emptySincosWorkspace(TABLE_STEP_INDEX);
+    for (const a of TABLE_ANGLES) {
+      ws.sinRatios[String(a)] = "1";
+      ws.cosRatios[String(a)] = String(cosDeg(a));
+    }
+    const notice = validateSincosSubmit(TABLE_STEP_INDEX, ws);
+    assert.equal(notice?.reason, "wrong");
+    assert.ok(notice?.wrongKeys?.includes("sin:10"));
+    assert.ok(!notice?.wrongKeys?.includes("cos:60"));
+  });
+});
+
+describe("score", () => {
+  it("penalizes wrong attempts with a floor of 40", () => {
+    assert.equal(scoreForAttempts(0), 100);
+    assert.equal(scoreForAttempts(1), 85);
+    assert.equal(scoreForAttempts(10), 40);
+  });
+
+  it("aggregates session score", () => {
+    const kite = HYP_SCENES[0]!;
+    const ws0 = emptySincosWorkspace(0);
+    ws0.adjText = String(expectedAdj(kite, 40));
+    ws0.oppText = String(expectedOpp(kite, 40));
+    ws0.methodText = "비슷한 삼각형을 그려 계산했어요.";
+    const g0 = gradeSincosStep(0, ws0, 0);
+    const agg = aggregateSincosScore(
+      [{ stepIndex: 0, result: g0.result, response: g0.response }],
+      PROBLEM_COUNT,
+    );
+    assert.equal(agg.correctCount, 1);
+    assert.equal(agg.score, 100);
+  });
+});
+
+describe("sincos sketch geometry", () => {
+  it("builds a hypotenuse circle from the first segment", () => {
+    const seg = { id: "h", a: { x: 4, y: 4 }, b: { x: 10, y: 4 } };
+    const circle = hypCircleFromSeg(seg);
+    assert.equal(circle.center.x, 4);
+    assert.equal(circle.center.y, 4);
+    assert.equal(circle.radius, 6);
+    const on = projectOnCircle({ x: 4, y: 20 }, circle);
+    assert.ok(Math.abs(dist(on, circle.center) - 6) < 1e-9);
+    assert.ok(Math.abs(on.x - 4) < 1e-9);
+  });
+
+  it("sweeps the angle below a rightward hypotenuse", () => {
+    const origin = { x: 4, y: 8 };
+    const baseDir = { x: 1, y: 0 };
+    assert.equal(belowSign(baseDir), -1);
+    const down = { x: 8, y: 4 };
+    const deg = belowDegFromBase(origin, baseDir, down);
+    assert.equal(deg, 45);
+    const end = belowRayEndpoint(origin, baseDir, deg);
+    assert.ok(end);
+    assert.ok(end!.y < origin.y);
+  });
+
+  it("uses the circle center as origin on the hypotenuse segment", () => {
+    const hyp = { id: "h", a: { x: 2, y: 2 }, b: { x: 8, y: 8 } };
+    const nearB = originOnSeg(hyp, { x: 8, y: 8 }, "h");
+    assert.equal(nearB.origin.x, 2);
+    assert.equal(nearB.origin.y, 2);
+    const other = originOnSeg(hyp, { x: 8, y: 8 }, null);
+    assert.equal(other.origin.x, 8);
+  });
+
+  it("drops a perpendicular from a circle point to a base ray", () => {
+    const base = { id: "r", a: { x: 2, y: 2 }, b: { x: 14, y: 2 } };
+    const p = { x: 8, y: 8 };
+    const line = perpFromPointToLine(p, base);
+    assert.ok(line);
+    assert.ok(Math.abs(line!.a.x - 8) < 1e-6);
+    assert.ok(Math.abs(line!.b.x - 8) < 1e-6);
+    const through = perpendicularThrough({ x: 8, y: 2 }, base);
+    assert.ok(through);
+    assert.equal(Math.min(through!.a.y, through!.b.y), 0);
+    assert.equal(Math.max(through!.a.y, through!.b.y), GRID_H);
+  });
+
+  it("projects onto an infinite line past the segment", () => {
+    const proj = projectOnLine({ x: 20, y: 3 }, { x: 0, y: 0 }, { x: 4, y: 0 });
+    assert.equal(proj.point.y, 0);
+    assert.ok(proj.t > 1);
+  });
+
+  it("snaps onto the hypotenuse circle", () => {
+    const hyp = { id: "h", a: { x: 4, y: 4 }, b: { x: 10, y: 4 } };
+    const circle = hypCircleFromSeg(hyp);
+    const snapped = snapPointWithCircle({ x: 4.05, y: 10.1 }, [hyp], circle);
+    assert.ok(Math.abs(dist(snapped, circle.center) - circle.radius) < 0.2);
+    assert.equal(GRID_W, 16);
+  });
+});
