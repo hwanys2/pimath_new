@@ -7,11 +7,20 @@ export const POINT_EPS = 0.08;
 
 export type Vec2 = { x: number; y: number };
 
+export type SketchAngle = {
+  origin: Vec2;
+  baseDir: Vec2;
+  deg: number;
+  /** +1 = counterclockwise from base (elevation), -1 = clockwise / below. */
+  sign: 1 | -1;
+};
+
 export type SketchSeg = {
   id: string;
   a: Vec2;
   b: Vec2;
   measured?: boolean;
+  angle?: SketchAngle;
 };
 
 export function dist(a: Vec2, b: Vec2): number {
@@ -341,3 +350,4 @@ export function angleDialPoint(
 
 export const ANGLE_DIAL_RADIUS = 2.8;
 export const ANGLE_DIAL_MAX = 90;
+export const ANGLE_MARK_RADIUS = 1.55;

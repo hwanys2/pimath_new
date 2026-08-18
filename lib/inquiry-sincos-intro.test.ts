@@ -25,6 +25,7 @@ import {
 import {
   GRID_H,
   GRID_W,
+  angleDialPoint,
   dist,
   perpendicularThrough,
 } from "@/lib/inquiry-tangent-sketch";
@@ -210,6 +211,15 @@ describe("sincos sketch geometry", () => {
     const on = projectOnCircle({ x: 4, y: 20 }, circle);
     assert.ok(Math.abs(dist(on, circle.center) - 6) < 1e-9);
     assert.ok(Math.abs(on.x - 4) < 1e-9);
+  });
+
+  it("places a below-angle label on the ground side of the hypotenuse", () => {
+    const origin = { x: 4, y: 8 };
+    const baseDir = { x: 1, y: 0 };
+    const sign = belowSign(baseDir);
+    assert.equal(sign, -1);
+    const label = angleDialPoint(origin, baseDir, sign * 45, 1.55);
+    assert.ok(label.y < origin.y);
   });
 
   it("sweeps the angle below a rightward hypotenuse", () => {

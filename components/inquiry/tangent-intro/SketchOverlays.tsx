@@ -1,6 +1,12 @@
 "use client";
 
 import { useCallback, useEffect, useRef } from "react";
+import {
+  ANGLE_MARK_RADIUS,
+  angleDialPoint,
+  type SketchAngle,
+  type Vec2,
+} from "@/lib/inquiry-tangent-sketch";
 
 export type OverlayPose = {
   x: number;
@@ -14,6 +20,48 @@ const RULER_UNIT = 28;
 const RULER_MIN = 160;
 const RULER_MAX = 420;
 export const RULER_DEFAULT = 260;
+
+export function AngleDegreeMark({
+  angle,
+  toSvg,
+}: {
+  angle: SketchAngle;
+  toSvg: (p: Vec2) => { x: number; y: number };
+}) {
+  const { origin, baseDir, deg, sign } = angle;
+  if (deg <= 0) return null;
+  const r = ANGLE_MARK_RADIUS;
+  const pts: string[] = [];
+  for (let d = 0; d <= deg; d += 1) {
+    const s = toSvg(angleDialPoint(origin, baseDir, sign * d, r));
+    pts.push(`${s.x} ${s.y}`);
+  }
+  const label = toSvg(
+    angleDialPoint(origin, baseDir, sign * (deg / 2), r + 0.72),
+  );
+  return (
+    <g>
+      <path
+        d={`M ${pts.join(" L ")}`}
+        fill="none"
+        stroke="#e85d4c"
+        strokeWidth={0.09}
+        strokeLinecap="round"
+      />
+      <text
+        x={label.x}
+        y={label.y}
+        textAnchor="middle"
+        dominantBaseline="central"
+        fontSize={0.52}
+        fontWeight={800}
+        fill="#a63a1a"
+      >
+        {deg}°
+      </text>
+    </g>
+  );
+}
 
 function clampLen(n: number): number {
   return Math.min(RULER_MAX, Math.max(RULER_MIN, Math.round(n)));

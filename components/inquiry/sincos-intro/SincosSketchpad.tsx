@@ -19,6 +19,7 @@ import {
   belowDegFromBase,
   belowDialPoint,
   belowRayEndpoint,
+  belowSign,
   hypCircleFromSeg,
   nearestVertex,
   originOnSeg,
@@ -29,6 +30,7 @@ import {
 import {
   RulerOverlay,
   RULER_DEFAULT,
+  AngleDegreeMark,
   type OverlayPose,
 } from "@/components/inquiry/tangent-intro/SketchOverlays";
 
@@ -160,15 +162,15 @@ export default function SincosSketchpad({ locked = false }: Props) {
     draggingAngle.current = false;
   };
 
-  const addSeg = (a: Vec2, b: Vec2) => {
+  const addSeg = (a: Vec2, b: Vec2, extra?: Pick<SketchSeg, "angle">) => {
     if (Math.hypot(a.x - b.x, a.y - b.y) < 0.2) return;
     const id = nextId();
     pushHistory(segs);
     setSegs((cur) => {
-      const next = [...cur, { id, a, b }];
+      const next = [...cur, { id, a, b, ...extra }];
       return next;
     });
-    if (!segs.some((s) => s.id === hypSegId)) {
+    if (!extra?.angle && !segs.some((s) => s.id === hypSegId)) {
       setHypSegId(id);
     }
   };
@@ -200,7 +202,16 @@ export default function SincosSketchpad({ locked = false }: Props) {
       return;
     }
     const end = belowRayEndpoint(session.origin, session.baseDir, session.deg);
-    if (end) addSeg(session.origin, end);
+    if (end) {
+      addSeg(session.origin, end, {
+        angle: {
+          origin: session.origin,
+          baseDir: session.baseDir,
+          deg: session.deg,
+          sign: belowSign(session.baseDir),
+        },
+      });
+    }
     setAngleSession(null);
     draggingAngle.current = false;
   };
@@ -563,6 +574,12 @@ export default function SincosSketchpad({ locked = false }: Props) {
               </g>
             );
           })}
+
+          {segs.map((s) =>
+            s.angle ? (
+              <AngleDegreeMark key={`ang-${s.id}`} angle={s.angle} toSvg={toSvg} />
+            ) : null,
+          )}
 
           {intersections.map((pt, i) => {
             const s = toSvg(pt);

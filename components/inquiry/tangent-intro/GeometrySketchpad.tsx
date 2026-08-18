@@ -24,7 +24,7 @@ import {
   type SketchSeg,
   type Vec2,
 } from "@/lib/inquiry-tangent-sketch";
-import { RulerOverlay, RULER_DEFAULT, type OverlayPose } from "./SketchOverlays";
+import { RulerOverlay, RULER_DEFAULT, AngleDegreeMark, type OverlayPose } from "./SketchOverlays";
 
 type Tool = "segment" | "perp" | "angle" | "measure" | "erase";
 
@@ -145,10 +145,10 @@ export default function GeometrySketchpad({ locked = false }: Props) {
     draggingAngle.current = false;
   };
 
-  const addSeg = (a: Vec2, b: Vec2) => {
+  const addSeg = (a: Vec2, b: Vec2, extra?: Pick<SketchSeg, "angle">) => {
     if (Math.hypot(a.x - b.x, a.y - b.y) < 0.2) return;
     pushHistory(segs);
-    setSegs((cur) => [...cur, { id: nextId(), a, b }]);
+    setSegs((cur) => [...cur, { id: nextId(), a, b, ...extra }]);
   };
 
   const openAngleSession = (seg: SketchSeg, pointer?: Vec2) => {
@@ -173,7 +173,16 @@ export default function GeometrySketchpad({ locked = false }: Props) {
       return;
     }
     const end = rayEndpoint(session.origin, session.baseDir, session.deg);
-    if (end) addSeg(session.origin, end);
+    if (end) {
+      addSeg(session.origin, end, {
+        angle: {
+          origin: session.origin,
+          baseDir: session.baseDir,
+          deg: session.deg,
+          sign: 1,
+        },
+      });
+    }
     setAngleSession(null);
     draggingAngle.current = false;
   };
@@ -519,6 +528,12 @@ export default function GeometrySketchpad({ locked = false }: Props) {
               </g>
             );
           })}
+
+          {segs.map((s) =>
+            s.angle ? (
+              <AngleDegreeMark key={`ang-${s.id}`} angle={s.angle} toSvg={toSvg} />
+            ) : null,
+          )}
 
           {intersections.map((pt, i) => {
             const s = toSvg(pt);
