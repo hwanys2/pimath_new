@@ -38,7 +38,7 @@ export default function AuthShell({
 
       <p className="mt-5 text-center text-sm text-foreground/70">{footer}</p>
 
-      <OpenChatLink className="mt-3" />
+      <OpenChatLink variant="button" className="mt-3" />
 
       <Link
         href="/"
