@@ -10,6 +10,7 @@ import {
 } from "@/lib/inquiry-sincos-intro";
 import HypotenuseSceneView from "./HypotenuseSceneView";
 import SincosSketchpad from "./SincosSketchpad";
+import InquiryCalculator from "@/components/inquiry/InquiryCalculator";
 
 function softMessage(notice: SoftNotice, table: boolean): string {
   switch (notice.reason) {
@@ -96,7 +97,10 @@ export default function InquirySincosIntroStep({
       </p>
 
       <div className="mt-4 grid gap-4 lg:grid-cols-2">
-        <div className="min-w-0">
+        <div className="relative min-w-0">
+          <div className="mb-2 flex justify-end">
+            <InquiryCalculator />
+          </div>
           {table ? (
             <div className="overflow-x-auto overflow-hidden rounded-2xl border-2 border-wood/15 bg-cream/70">
               <table className="w-full min-w-[18rem] text-sm">
