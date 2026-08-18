@@ -1,6 +1,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { type ReactNode } from "react";
+import OpenChatLink from "@/components/OpenChatLink";
 
 type Props = {
   title: string;
@@ -36,6 +37,8 @@ export default function AuthShell({
       <div className="quest-card w-full p-6 sm:p-8">{children}</div>
 
       <p className="mt-5 text-center text-sm text-foreground/70">{footer}</p>
+
+      <OpenChatLink className="mt-3" />
 
       <Link
         href="/"

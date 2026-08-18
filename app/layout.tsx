@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { GoogleAnalytics } from "@next/third-parties/google";
 import { Jua, Noto_Sans_KR } from "next/font/google";
+import OpenChatLink from "@/components/OpenChatLink";
 import StudentTopBar from "@/components/StudentTopBar";
 import TopMenuBar from "@/components/TopMenuBar";
 import { getActor } from "@/lib/auth";
@@ -51,6 +52,7 @@ export default async function RootLayout({
         <footer className="border-t border-wood/10 bg-wood/5 py-6 text-center text-sm text-foreground/60">
           <p className="font-display text-base text-wood">수학하는 즐거움</p>
           <p className="mt-1">중학교 수학 모험 · 시뮬레이션 · 게임</p>
+          <OpenChatLink className="mt-3" />
         </footer>
       </body>
       {process.env.NODE_ENV === "production" && gaId ? (
