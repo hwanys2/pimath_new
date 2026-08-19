@@ -140,6 +140,8 @@ export default function HeightSceneView({
 
   const onPointerDown = (e: React.PointerEvent<SVGSVGElement>) => {
     if (locked) return;
+    e.preventDefault();
+    window.getSelection()?.removeAllRanges();
     dragging.current = true;
     e.currentTarget.setPointerCapture(e.pointerId);
     setFromClientX(e.clientX);
@@ -147,6 +149,7 @@ export default function HeightSceneView({
 
   const onPointerMove = (e: React.PointerEvent<SVGSVGElement>) => {
     if (!dragging.current || locked) return;
+    e.preventDefault();
     setFromClientX(e.clientX);
   };
 
@@ -165,11 +168,11 @@ export default function HeightSceneView({
   const labelY = GROUND_Y - labelR * Math.sin(halfAngRad);
 
   return (
-    <div className="overflow-hidden rounded-2xl border-2 border-wood/15 bg-gradient-to-b from-[#d7efff] to-[#fef9f0]">
+    <div className="select-none overflow-hidden rounded-2xl border-2 border-wood/15 bg-gradient-to-b from-[#d7efff] to-[#fef9f0]">
       <svg
         ref={svgRef}
         viewBox={`0 0 ${VB_W} ${VB_H}`}
-        className={`block h-auto w-full touch-none ${locked ? "cursor-default" : "cursor-ew-resize"}`}
+        className={`block h-auto w-full touch-none select-none ${locked ? "cursor-default" : "cursor-ew-resize"}`}
         role="img"
         aria-label={`${scene.title} 높이 재기. 거리 ${d}미터, 각 ${angle}도`}
         onPointerDown={onPointerDown}
@@ -221,6 +224,7 @@ export default function HeightSceneView({
           fill="#a63a1a"
           fontSize={15}
           fontWeight={800}
+          className="pointer-events-none select-none"
         >
           {angle}°
         </text>
@@ -235,6 +239,7 @@ export default function HeightSceneView({
           fill="#6b4423"
           fontSize={14}
           fontWeight={800}
+          className="pointer-events-none select-none"
         >
           {d} m
         </text>
