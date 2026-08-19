@@ -338,6 +338,8 @@ export default function HypotenuseSceneView({
     if (locked) return;
     const svg = svgRef.current;
     if (!svg) return;
+    e.preventDefault();
+    window.getSelection()?.removeAllRanges();
     const p = clientToVb(svg, e.clientX, e.clientY);
     const kind = pickKind(p.x, p.y);
     dragRef.current = kind;
@@ -349,6 +351,7 @@ export default function HypotenuseSceneView({
     if (!dragRef.current || locked) return;
     const svg = svgRef.current;
     if (!svg) return;
+    e.preventDefault();
     const p = clientToVb(svg, e.clientX, e.clientY);
     applyPointer(dragRef.current, p.x, p.y);
   };
@@ -374,11 +377,11 @@ export default function HypotenuseSceneView({
         : "from-[#e8eef8] to-[#f6f0e8]";
 
   return (
-    <div className={`overflow-hidden rounded-2xl border-2 border-wood/15 bg-gradient-to-b ${sky}`}>
+    <div className={`select-none overflow-hidden rounded-2xl border-2 border-wood/15 bg-gradient-to-b ${sky}`}>
       <svg
         ref={svgRef}
         viewBox={`0 0 ${VB_W} ${VB_H}`}
-        className={`block h-auto w-full touch-none ${locked ? "cursor-default" : "cursor-grab active:cursor-grabbing"}`}
+        className={`block h-auto w-full touch-none select-none ${locked ? "cursor-default" : "cursor-grab active:cursor-grabbing"}`}
         role="img"
         aria-label={`${scene.title}. 빗변 ${scene.hyp}${scene.unit}, 각 ${angle}도`}
         onPointerDown={onPointerDown}
@@ -483,6 +486,7 @@ export default function HypotenuseSceneView({
           fill="#5a3d8a"
           fontSize={13}
           fontWeight={800}
+          className="pointer-events-none select-none"
         >
           {scene.hyp} {scene.unit}
         </text>
@@ -502,6 +506,7 @@ export default function HypotenuseSceneView({
           fill="#a63a1a"
           fontSize={15}
           fontWeight={800}
+          className="pointer-events-none select-none"
         >
           {angle}°
         </text>
