@@ -134,7 +134,22 @@ export default function TrigBuilderScene({
   const [bridgeFrom, bridgeTo] = sideEndpoints(pts, stage.unknownSide);
   const [givenFrom, givenTo] = sideEndpoints(pts, stage.givenSide);
   const givenMid = mid(givenFrom, givenTo);
-  const bridgeLen = dist(bridgeFrom, bridgeTo);
+  const bridgeMid = mid(bridgeFrom, bridgeTo);
+  const bridgeLen = Math.max(dist(bridgeFrom, bridgeTo), 1);
+  const centroid = {
+    x: (pts.A.x + pts.B.x + pts.C.x) / 3,
+    y: (pts.A.y + pts.B.y + pts.C.y) / 3,
+  };
+  // x sits at the midpoint of the unknown side, slightly outside the fill
+  const bdx = (bridgeTo.x - bridgeFrom.x) / bridgeLen;
+  const bdy = (bridgeTo.y - bridgeFrom.y) / bridgeLen;
+  let nx = -bdy;
+  let ny = bdx;
+  if (nx * (centroid.x - bridgeMid.x) + ny * (centroid.y - bridgeMid.y) > 0) {
+    nx = -nx;
+    ny = -ny;
+  }
+  const xLabel = { x: bridgeMid.x + nx * 18, y: bridgeMid.y + ny * 18 };
   const displayRatio =
     ratio === null ? 0.12 : Math.max(0.05, Math.min(1.55, ratio));
   const tip = lerp(bridgeFrom, bridgeTo, displayRatio);
@@ -236,10 +251,11 @@ export default function TrigBuilderScene({
     x: pts.B.x + vBC.x * arcR,
     y: pts.B.y + vBC.y * arcR,
   };
+  // SVG arc sweep: pick the short arc that sits inside ∠ABC (convex toward exterior of angle rays)
   const cross =
     (pts.A.x - pts.B.x) * (pts.C.y - pts.B.y) -
     (pts.A.y - pts.B.y) * (pts.C.x - pts.B.x);
-  const sweep = cross < 0 ? 1 : 0;
+  const sweep = cross < 0 ? 0 : 1;
 
   const bridgeColor =
     status === "success" || connected
@@ -397,12 +413,14 @@ export default function TrigBuilderScene({
           })
         : null}
 
-      {/* x label near target end */}
+      {/* x label at midpoint of the unknown side */}
       <text
-        x={bridgeTo.x + 10}
-        y={bridgeTo.y - 12}
+        x={xLabel.x}
+        y={xLabel.y}
+        textAnchor="middle"
+        dominantBaseline="middle"
         fill="#B8A0E8"
-        className="text-[18px] font-black italic"
+        className="text-[20px] font-black italic"
       >
         x
       </text>

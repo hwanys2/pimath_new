@@ -258,7 +258,7 @@ export const CONTENTS: ContentMeta[] = [
     href: "/play/g3-u3-1-trig-builder",
     awardsXp: true,
     description:
-      "끊어진 다리 길이를 sin·cos·tan 수식 블록으로 조립해 잇는 게임입니다. 계산 대신 수식 표현력을 길러요. 학급 배정·활성 시 XP와 랭킹이 쌓여요.",
+      "끊어진 다리 길이를 길이×삼각비(각도)로 직접 입력해 잇는 게임입니다. 계산 대신 수식 표현력을 길러요. 학급 배정·활성 시 XP와 랭킹이 쌓여요.",
   },
 ];
 
