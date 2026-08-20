@@ -225,13 +225,19 @@ export default function TrigBuilder() {
       setPhase("animating");
     } else {
       const r = ratio ?? 0;
-      setStageWrong((w) => w + 1);
+      const nextWrong = stageWrong + 1;
+      setStageWrong(nextWrong);
       setTotalWrong((w) => w + 1);
+      const nextPoints = pointsForStage(nextWrong);
       if (r < 1) {
-        setFeedback("다리가 짧아요… 수식을 다시 입력해 보세요");
+        setFeedback(
+          `다리가 짧아요… 다시 입력해 보세요 (이번 다리 ${nextPoints}점)`,
+        );
         setSceneStatus("wrong-short");
       } else {
-        setFeedback("다리가 너무 길어요! 절벽을 뚫고 나갔어요");
+        setFeedback(
+          `다리가 너무 길어요! 절벽을 뚫고 나갔어요 (이번 다리 ${nextPoints}점)`,
+        );
         setSceneStatus("wrong-long");
       }
       setPhase("animating");
@@ -375,9 +381,13 @@ export default function TrigBuilder() {
               </span>
               {stageWrong > 0 ? (
                 <span className="rounded-xl bg-[#e85d4c]/15 px-3 py-1 text-[#a63a1a]">
-                  이번 다리 오답 {stageWrong}
+                  오답 {stageWrong} · 지금 맞히면 {pointsForStage(stageWrong)}점
                 </span>
-              ) : null}
+              ) : (
+                <span className="rounded-xl bg-mint/35 px-3 py-1 text-wood/70">
+                  이번 다리 {pointsForStage(0)}점
+                </span>
+              )}
             </div>
 
             <TrigBuilderScene

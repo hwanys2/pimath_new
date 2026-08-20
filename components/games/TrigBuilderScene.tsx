@@ -6,7 +6,7 @@ export type SceneStatus = "idle" | "wrong-short" | "wrong-long" | "success" | "f
 
 type Props = {
   stage: StageDef;
-  /** Current bridge length as ratio of target (0..~1.5+). Null = no expression yet. */
+  /** Expression length ÷ target. Used only when confirming (status ≠ idle). */
   ratio: number | null;
   status: SceneStatus;
   onAnimComplete?: (status: SceneStatus) => void;
@@ -150,10 +150,9 @@ export default function TrigBuilderScene({
     ny = -ny;
   }
   const xLabel = { x: bridgeMid.x + nx * 18, y: bridgeMid.y + ny * 18 };
-  const displayRatio =
-    ratio === null ? 0.12 : Math.max(0.05, Math.min(1.55, ratio));
-  const tip = lerp(bridgeFrom, bridgeTo, displayRatio);
 
+  /** Solid bridge is hidden until confirm; then grows to `ratio`. */
+  const [bridgeDraw, setBridgeDraw] = useState(0);
   const [charT, setCharT] = useState(0);
   const [fallY, setFallY] = useState(0);
   const [shake, setShake] = useState(0);
@@ -163,27 +162,68 @@ export default function TrigBuilderScene({
 
   useEffect(() => {
     if (animRef.current) cancelAnimationFrame(animRef.current);
+
+    if (status === "idle") {
+      setBridgeDraw(0);
+      setCharT(0);
+      setFallY(0);
+      setShake(0);
+      return;
+    }
+
+    const targetRatio = Math.max(
+      0.05,
+      Math.min(1.55, ratio === null ? 0.05 : ratio),
+    );
+    const start = performance.now();
+
+    if (status === "falling") {
+      // Keep bridge as drawn; only fall
+      const duration = 900;
+      const tick = (now: number) => {
+        const t = Math.min(1, (now - start) / duration);
+        setShake(Math.sin(t * Math.PI * 8) * (1 - t) * 6);
+        setFallY(t * t * 120);
+        if (t < 1) {
+          animRef.current = requestAnimationFrame(tick);
+        } else {
+          completeRef.current?.(status);
+        }
+      };
+      animRef.current = requestAnimationFrame(tick);
+      return () => {
+        if (animRef.current) cancelAnimationFrame(animRef.current);
+      };
+    }
+
+    // Confirm: grow the bridge first, then success walk / wrong shake
+    const GROW_MS = 550;
+    const ACT_MS = status === "success" ? 1200 : 650;
+    const total = GROW_MS + ACT_MS;
+
     setCharT(0);
     setFallY(0);
     setShake(0);
-
-    if (status === "idle") return;
-
-    const start = performance.now();
-    const duration =
-      status === "success" ? 1400 : status === "falling" ? 900 : 700;
+    setBridgeDraw(0);
 
     const tick = (now: number) => {
-      const t = Math.min(1, (now - start) / duration);
-      if (status === "success") {
-        setCharT(t);
-      } else if (status === "falling" || status === "wrong-short") {
-        setShake(Math.sin(t * Math.PI * 8) * (1 - t) * 6);
-        if (status === "falling") setFallY(t * t * 120);
-      } else if (status === "wrong-long") {
-        setShake(Math.sin(t * Math.PI * 6) * (1 - t) * 4);
+      const elapsed = now - start;
+      if (elapsed < GROW_MS) {
+        const g = Math.min(1, elapsed / GROW_MS);
+        const eased = 1 - Math.pow(1 - g, 3);
+        setBridgeDraw(targetRatio * eased);
+      } else {
+        setBridgeDraw(targetRatio);
+        const a = Math.min(1, (elapsed - GROW_MS) / ACT_MS);
+        if (status === "success") {
+          setCharT(a);
+        } else if (status === "wrong-short") {
+          setShake(Math.sin(a * Math.PI * 8) * (1 - a) * 6);
+        } else if (status === "wrong-long") {
+          setShake(Math.sin(a * Math.PI * 6) * (1 - a) * 4);
+        }
       }
-      if (t < 1) {
+      if (elapsed < total) {
         animRef.current = requestAnimationFrame(tick);
       } else {
         completeRef.current?.(status);
@@ -193,7 +233,10 @@ export default function TrigBuilderScene({
     return () => {
       if (animRef.current) cancelAnimationFrame(animRef.current);
     };
-  }, [status, stage.id]);
+  }, [status, stage.id, ratio]);
+
+  const tip = lerp(bridgeFrom, bridgeTo, bridgeDraw);
+  const showBridge = bridgeDraw > 0.02;
 
   const charPos =
     status === "success"
@@ -208,7 +251,7 @@ export default function TrigBuilderScene({
             y: bridgeFrom.y - 28,
           };
 
-  const connected = ratio !== null && Math.abs(ratio - 1) <= 0.02;
+  const connected = status === "success";
 
   // Right-angle mark near A
   const markSize = 14;
@@ -360,7 +403,7 @@ export default function TrigBuilderScene({
         {stage.givenLength}
       </text>
 
-      {/* Ghost full bridge path */}
+      {/* Ghost full bridge path (always visible as the gap to span) */}
       <line
         x1={bridgeFrom.x}
         y1={bridgeFrom.y}
@@ -372,46 +415,41 @@ export default function TrigBuilderScene({
         opacity="0.45"
       />
 
-      {/* Growing bridge plank */}
-      <line
-        x1={bridgeFrom.x}
-        y1={bridgeFrom.y}
-        x2={tip.x}
-        y2={tip.y}
-        stroke={bridgeColor}
-        strokeWidth="10"
-        strokeLinecap="round"
-        style={{
-          transition:
-            status === "idle"
-              ? "x2 280ms ease-out, y2 280ms ease-out, stroke 200ms"
-              : undefined,
-        }}
-      />
-      {/* Plank boards */}
-      {displayRatio > 0.15
-        ? Array.from({ length: Math.floor(displayRatio * 8) }, (_, i) => {
-            const t0 = (i + 0.5) / 8;
-            if (t0 > displayRatio) return null;
-            const p = lerp(bridgeFrom, bridgeTo, t0);
-            const dx = (bridgeTo.x - bridgeFrom.x) / bridgeLen;
-            const dy = (bridgeTo.y - bridgeFrom.y) / bridgeLen;
-            const nx = -dy * 7;
-            const ny = dx * 7;
-            return (
-              <line
-                key={i}
-                x1={p.x - nx}
-                y1={p.y - ny}
-                x2={p.x + nx}
-                y2={p.y + ny}
-                stroke="#8B5E3C"
-                strokeWidth="2"
-                opacity="0.55"
-              />
-            );
-          })
-        : null}
+      {/* Solid bridge — only after "다리 놓기 확인" */}
+      {showBridge ? (
+        <>
+          <line
+            x1={bridgeFrom.x}
+            y1={bridgeFrom.y}
+            x2={tip.x}
+            y2={tip.y}
+            stroke={bridgeColor}
+            strokeWidth="10"
+            strokeLinecap="round"
+          />
+          {bridgeDraw > 0.15
+            ? Array.from({ length: Math.floor(bridgeDraw * 8) }, (_, i) => {
+                const t0 = (i + 0.5) / 8;
+                if (t0 > bridgeDraw) return null;
+                const p = lerp(bridgeFrom, bridgeTo, t0);
+                const pnx = -bdy * 7;
+                const pny = bdx * 7;
+                return (
+                  <line
+                    key={i}
+                    x1={p.x - pnx}
+                    y1={p.y - pny}
+                    x2={p.x + pnx}
+                    y2={p.y + pny}
+                    stroke="#8B5E3C"
+                    strokeWidth="2"
+                    opacity="0.55"
+                  />
+                );
+              })
+            : null}
+        </>
+      ) : null}
 
       {/* x label at midpoint of the unknown side */}
       <text
