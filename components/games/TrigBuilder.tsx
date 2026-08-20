@@ -8,6 +8,7 @@ import GameRankingBoard from "@/components/games/GameRankingBoard";
 import TrigBuilderScene, {
   type SceneStatus,
 } from "@/components/games/TrigBuilderScene";
+import TrigBuilderHintModal from "@/components/games/TrigBuilderHintModal";
 import {
   submitGameRun,
   fetchGameRanking,
@@ -16,6 +17,7 @@ import {
 import { activityDetailsV1 } from "@/lib/activity-result-schemas";
 import {
   CONTENT_KEY,
+  HINT_PENALTY,
   STAGES,
   STAGE_COUNT,
   type ExpressionSlots,
@@ -95,7 +97,10 @@ export default function TrigBuilder() {
   const [trigOpen, setTrigOpen] = useState(false);
   const [score, setScore] = useState(0);
   const [stageWrong, setStageWrong] = useState(0);
+  const [stageHints, setStageHints] = useState(0);
   const [totalWrong, setTotalWrong] = useState(0);
+  const [totalHints, setTotalHints] = useState(0);
+  const [hintOpen, setHintOpen] = useState(false);
   const [cleared, setCleared] = useState(0);
   const [sceneStatus, setSceneStatus] = useState<SceneStatus>("idle");
   const [feedback, setFeedback] = useState<string | null>(null);
@@ -135,6 +140,8 @@ export default function TrigBuilder() {
     !!slots.angle &&
     sceneStatus === "idle";
 
+  const stagePoints = pointsForStage(stageWrong, stageHints);
+
   const resetStageLocal = useCallback((idx: number) => {
     setStageIndex(idx);
     setLengthRaw("");
@@ -142,6 +149,8 @@ export default function TrigBuilder() {
     setAngleRaw("");
     setTrigOpen(false);
     setStageWrong(0);
+    setStageHints(0);
+    setHintOpen(false);
     setSceneStatus("idle");
     setFeedback(null);
   }, []);
@@ -149,6 +158,7 @@ export default function TrigBuilder() {
   const startFresh = useCallback(() => {
     setScore(0);
     setTotalWrong(0);
+    setTotalHints(0);
     setCleared(0);
     setSubmitResult(null);
     setRanking([]);
@@ -159,7 +169,12 @@ export default function TrigBuilder() {
   }, [resetStageLocal]);
 
   const endRun = useCallback(
-    (finalScore: number, clearedCount: number, wrongs: number) => {
+    (
+      finalScore: number,
+      clearedCount: number,
+      wrongs: number,
+      hints: number,
+    ) => {
       setPhase("ended");
       startTransition(async () => {
         const result = await submitGameRun({
@@ -169,6 +184,7 @@ export default function TrigBuilder() {
             cleared: clearedCount,
             stages: STAGE_COUNT,
             wrongAttempts: wrongs,
+            hintsUsed: hints,
           }),
         });
         setSubmitResult(result);
@@ -215,7 +231,7 @@ export default function TrigBuilder() {
     if (!canConfirm) return;
     const correct = isExpressionCorrect(slots, stage);
     if (correct) {
-      const gained = pointsForStage(stageWrong);
+      const gained = pointsForStage(stageWrong, stageHints);
       const nextScore = applyScoreGain(score, gained);
       const nextCleared = cleared + 1;
       setScore(nextScore);
@@ -228,7 +244,7 @@ export default function TrigBuilder() {
       const nextWrong = stageWrong + 1;
       setStageWrong(nextWrong);
       setTotalWrong((w) => w + 1);
-      const nextPoints = pointsForStage(nextWrong);
+      const nextPoints = pointsForStage(nextWrong, stageHints);
       if (r < 1) {
         setFeedback(
           `다리가 짧아요… 다시 입력해 보세요 (이번 다리 ${nextPoints}점)`,
@@ -242,7 +258,19 @@ export default function TrigBuilder() {
       }
       setPhase("animating");
     }
-  }, [canConfirm, slots, stage, stageWrong, score, cleared, ratio]);
+  }, [canConfirm, slots, stage, stageWrong, stageHints, score, cleared, ratio]);
+
+  const openHint = useCallback(() => {
+    if (inputsLocked) return;
+    if (stageHints === 0) {
+      setStageHints(1);
+      setTotalHints((h) => h + 1);
+      setFeedback(
+        `힌트를 열었어요 (−${HINT_PENALTY}점). 이번 다리 ${pointsForStage(stageWrong, 1)}점`,
+      );
+    }
+    setHintOpen(true);
+  }, [inputsLocked, stageHints, stageWrong]);
 
   const scoreRef = useRef(score);
   scoreRef.current = score;
@@ -250,12 +278,19 @@ export default function TrigBuilder() {
   clearedRef.current = cleared;
   const totalWrongRef = useRef(totalWrong);
   totalWrongRef.current = totalWrong;
+  const totalHintsRef = useRef(totalHints);
+  totalHintsRef.current = totalHints;
 
   const onSceneAnimCompleteStable = useCallback(
     (status: SceneStatus) => {
       if (status === "success") {
         if (stageIndex + 1 >= STAGE_COUNT) {
-          endRun(scoreRef.current, clearedRef.current, totalWrongRef.current);
+          endRun(
+            scoreRef.current,
+            clearedRef.current,
+            totalWrongRef.current,
+            totalHintsRef.current,
+          );
         } else {
           resetStageLocal(stageIndex + 1);
           setPhase("playing");
@@ -292,6 +327,7 @@ export default function TrigBuilder() {
           <ul className="mt-4 list-disc space-y-1 pl-5 text-sm font-semibold text-foreground/65">
             <li>스테이지 {STAGE_COUNT}개 · 만점 약 1000점</li>
             <li>길이와 각도는 숫자 입력, 삼각비는 sin · cos · tan 중 선택</li>
+            <li>어려우면 힌트(−{HINT_PENALTY}점)로 그림을 바로잡아 보세요</li>
             <li>
               <Latex latex="\sin\theta=\cos(90^\circ-\theta)" /> 처럼 동치인
               식도 정답이에요
@@ -317,7 +353,8 @@ export default function TrigBuilder() {
             {score}점
           </p>
           <p className="mt-2 text-sm font-semibold text-foreground/70">
-            다리 {cleared}/{STAGE_COUNT}개 연결 · 오답 시도 {totalWrong}회
+            다리 {cleared}/{STAGE_COUNT}개 연결 · 오답 {totalWrong}회 · 힌트{" "}
+            {totalHints}회
           </p>
 
           {isPending && !submitResult ? (
@@ -379,13 +416,16 @@ export default function TrigBuilder() {
               <span className="rounded-xl bg-gold/50 px-3 py-1">
                 {score}점
               </span>
-              {stageWrong > 0 ? (
+              {stageWrong > 0 || stageHints > 0 ? (
                 <span className="rounded-xl bg-[#e85d4c]/15 px-3 py-1 text-[#a63a1a]">
-                  오답 {stageWrong} · 지금 맞히면 {pointsForStage(stageWrong)}점
+                  {stageWrong > 0 ? `오답 ${stageWrong}` : null}
+                  {stageWrong > 0 && stageHints > 0 ? " · " : null}
+                  {stageHints > 0 ? `힌트 ${stageHints}` : null}
+                  {" · "}지금 맞히면 {stagePoints}점
                 </span>
               ) : (
                 <span className="rounded-xl bg-mint/35 px-3 py-1 text-wood/70">
-                  이번 다리 {pointsForStage(0)}점
+                  이번 다리 {stagePoints}점
                 </span>
               )}
             </div>
@@ -552,6 +592,16 @@ export default function TrigBuilder() {
               <button
                 type="button"
                 disabled={inputsLocked}
+                onClick={openHint}
+                className="rounded-xl border-2 border-lavender/70 bg-lavender/35 px-4 py-3 text-sm font-bold text-wood disabled:opacity-40"
+              >
+                {stageHints > 0
+                  ? "힌트 다시 보기"
+                  : `힌트 (−${HINT_PENALTY}점)`}
+              </button>
+              <button
+                type="button"
+                disabled={inputsLocked}
                 onClick={clearInputs}
                 className="rounded-xl bg-wood/10 px-4 py-3 text-sm font-bold text-wood disabled:opacity-40"
               >
@@ -559,6 +609,12 @@ export default function TrigBuilder() {
               </button>
             </div>
           </section>
+
+          <TrigBuilderHintModal
+            stage={stage}
+            open={hintOpen}
+            onClose={() => setHintOpen(false)}
+          />
         </>
       ) : null}
     </div>

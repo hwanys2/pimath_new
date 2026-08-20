@@ -46,6 +46,7 @@ export const SUMMARY_LABELS: Record<string, Record<string, string>> = {
     cleared: "연결한 다리",
     stages: "전체 스테이지",
     wrongAttempts: "오답 시도",
+    hintsUsed: "힌트 사용",
   },
   "g1-u2-2-linear-equation-balance": {
     correctCount: "정답",

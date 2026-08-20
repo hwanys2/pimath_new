@@ -248,8 +248,17 @@ export function isExpressionCorrect(
   return Math.abs(value - target) <= absTol;
 }
 
-export function pointsForStage(wrongAttempts: number): number {
-  const raw = BASE_POINTS_PER_STAGE - wrongAttempts * WRONG_PENALTY;
+/** Points deducted the first time a hint is opened on a stage. */
+export const HINT_PENALTY = 30;
+
+export function pointsForStage(
+  wrongAttempts: number,
+  hintsUsed = 0,
+): number {
+  const raw =
+    BASE_POINTS_PER_STAGE -
+    wrongAttempts * WRONG_PENALTY -
+    hintsUsed * HINT_PENALTY;
   return Math.max(MIN_POINTS_PER_STAGE, Math.round(raw));
 }
 
@@ -312,6 +321,145 @@ export function expressionLatex(slots: ExpressionSlots): string {
   return `${L}\\times ${T}\\!(${A})`;
 }
 
+export type Pts = {
+  A: { x: number; y: number }; // right angle
+  B: { x: number; y: number }; // theta vertex
+  C: { x: number; y: number }; // other acute
+};
+
+/**
+ * Build right-triangle vertices in a 640×360 viewBox.
+ * Right angle at A, θ at B: adj=AB, opp=AC? No — opp= side opposite B = AC only if...
+ * Standard: adj=AB, opp=BC? Wait: opposite to B is AC. Yes opp=AC, hyp=BC.
+ */
+export function layoutPoints(layout: TriangleLayout, stage: StageDef): Pts {
+  const hyp =
+    stage.givenSide === "hyp"
+      ? stage.givenLength
+      : stage.givenSide === "adj"
+        ? stage.givenLength / Math.cos((stage.theta * Math.PI) / 180)
+        : stage.givenLength / Math.sin((stage.theta * Math.PI) / 180);
+  const adj = hyp * Math.cos((stage.theta * Math.PI) / 180);
+  const opp = hyp * Math.sin((stage.theta * Math.PI) / 180);
+  const scale = 220 / Math.max(adj, opp, 1);
+
+  const ax = adj * scale;
+  const oy = opp * scale;
+
+  let A = { x: 0, y: 0 };
+  let B = { x: ax, y: 0 };
+  let C = { x: 0, y: -oy };
+
+  switch (layout) {
+    case "floor-right": {
+      A = { x: 160, y: 260 };
+      B = { x: 160 + ax, y: 260 };
+      C = { x: 160, y: 260 - oy };
+      break;
+    }
+    case "floor-left": {
+      A = { x: 480, y: 260 };
+      B = { x: 480 - ax, y: 260 };
+      C = { x: 480, y: 260 - oy };
+      break;
+    }
+    case "wall-up": {
+      A = { x: 200, y: 280 };
+      B = { x: 200, y: 280 - ax };
+      C = { x: 200 + oy, y: 280 };
+      break;
+    }
+    case "wall-down": {
+      A = { x: 200, y: 80 };
+      B = { x: 200, y: 80 + ax };
+      C = { x: 200 + oy, y: 80 };
+      break;
+    }
+    case "roof": {
+      A = { x: 420, y: 100 };
+      B = { x: 420 - ax, y: 100 };
+      C = { x: 420, y: 100 + oy };
+      break;
+    }
+    case "lean-left": {
+      A = { x: 360, y: 260 };
+      B = { x: 360 - ax, y: 260 };
+      C = { x: 360, y: 260 - oy };
+      break;
+    }
+  }
+
+  return { A, B, C };
+}
+
+/** Textbook form: θ on the left, right angle on the right (viewBox ~640×360). */
+export function standardHintPoints(stage: StageDef): Pts {
+  const hyp =
+    stage.givenSide === "hyp"
+      ? stage.givenLength
+      : stage.givenSide === "adj"
+        ? stage.givenLength / Math.cos((stage.theta * Math.PI) / 180)
+        : stage.givenLength / Math.sin((stage.theta * Math.PI) / 180);
+  const adj = hyp * Math.cos((stage.theta * Math.PI) / 180);
+  const opp = hyp * Math.sin((stage.theta * Math.PI) / 180);
+  const scale = 200 / Math.max(adj, opp, 1);
+  const ax = adj * scale;
+  const oy = opp * scale;
+  // B(θ) left —— A(90°) right, C above A (opp vertical)
+  const originX = 320 - ax / 2;
+  const originY = 220;
+  return {
+    B: { x: originX, y: originY },
+    A: { x: originX + ax, y: originY },
+    C: { x: originX + ax, y: originY - oy },
+  };
+}
+
+export function sideEndpoints(
+  pts: Pts,
+  side: SideKind,
+): [{ x: number; y: number }, { x: number; y: number }] {
+  // θ at B, right∠ at A: adj=AB, opp=AC, hyp=BC
+  switch (side) {
+    case "adj":
+      return [pts.A, pts.B];
+    case "opp":
+      return [pts.A, pts.C];
+    case "hyp":
+      return [pts.B, pts.C];
+  }
+}
+
+export function midPoint(
+  a: { x: number; y: number },
+  b: { x: number; y: number },
+) {
+  return { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
+}
+
+export function distPoints(
+  a: { x: number; y: number },
+  b: { x: number; y: number },
+) {
+  return Math.hypot(b.x - a.x, b.y - a.y);
+}
+
+export function lerpPoints(
+  a: { x: number; y: number },
+  b: { x: number; y: number },
+  t: number,
+) {
+  return { x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t };
+}
+
+export function lerpPts(from: Pts, to: Pts, t: number): Pts {
+  return {
+    A: lerpPoints(from.A, to.A, t),
+    B: lerpPoints(from.B, to.B, t),
+    C: lerpPoints(from.C, to.C, t),
+  };
+}
+
 export function sideLabelKo(side: SideKind): string {
   switch (side) {
     case "hyp":
@@ -321,6 +469,14 @@ export function sideLabelKo(side: SideKind): string {
     case "opp":
       return "대변";
   }
+}
+
+/** Which trig relates given → unknown for multiply form (educational highlight). */
+export function suggestedTrig(stage: StageDef): TrigFn | null {
+  if (stage.givenSide === "hyp" && stage.unknownSide === "opp") return "sin";
+  if (stage.givenSide === "hyp" && stage.unknownSide === "adj") return "cos";
+  if (stage.givenSide === "adj" && stage.unknownSide === "opp") return "tan";
+  return null;
 }
 
 export { applyScoreGain, SCORE_HARD_MAX, SCORE_SOFT_CAP };

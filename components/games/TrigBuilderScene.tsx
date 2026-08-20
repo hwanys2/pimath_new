@@ -1,8 +1,21 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import type { StageDef, TriangleLayout } from "@/lib/trig-builder-math";
-export type SceneStatus = "idle" | "wrong-short" | "wrong-long" | "success" | "falling";
+import type { StageDef } from "@/lib/trig-builder-math";
+import {
+  distPoints,
+  layoutPoints,
+  lerpPoints,
+  midPoint,
+  sideEndpoints,
+} from "@/lib/trig-builder-math";
+
+export type SceneStatus =
+  | "idle"
+  | "wrong-short"
+  | "wrong-long"
+  | "success"
+  | "falling";
 
 type Props = {
   stage: StageDef;
@@ -11,118 +24,6 @@ type Props = {
   status: SceneStatus;
   onAnimComplete?: (status: SceneStatus) => void;
 };
-
-type Pts = {
-  A: { x: number; y: number }; // right angle
-  B: { x: number; y: number }; // theta vertex
-  C: { x: number; y: number }; // other acute
-};
-
-/**
- * Build right-triangle vertices in a 640×360 viewBox.
- * Side AB = adjacent (to θ at B), AC = opposite, BC = hypotenuse.
- * (Wait — if θ is at B: adj = AB, opp = AC? No:
- *  θ at B: adjacent legs from B are BA and BC? 
- *  Standard: right angle at A, θ at B:
- *    - adj to θ = AB (leg along from B to right angle)
- *    - opp to θ = AC
- *    - hyp = BC
- */
-function layoutPoints(layout: TriangleLayout, stage: StageDef): Pts {
-  const hyp =
-    stage.givenSide === "hyp"
-      ? stage.givenLength
-      : stage.givenSide === "adj"
-        ? stage.givenLength / Math.cos((stage.theta * Math.PI) / 180)
-        : stage.givenLength / Math.sin((stage.theta * Math.PI) / 180);
-  const adj = hyp * Math.cos((stage.theta * Math.PI) / 180);
-  const opp = hyp * Math.sin((stage.theta * Math.PI) / 180);
-  // Normalize so the larger leg fits ~220 px
-  const scale = 220 / Math.max(adj, opp, 1);
-
-  const ax = adj * scale;
-  const oy = opp * scale;
-
-  // Canonical: A at origin (right∠), B at (ax,0) (θ), C at (0,-oy)
-  let A = { x: 0, y: 0 };
-  let B = { x: ax, y: 0 };
-  let C = { x: 0, y: -oy };
-
-  switch (layout) {
-    case "floor-right": {
-      // Place with A near left cliff, bridge along AB (adj) or AC (opp) or BC
-      A = { x: 160, y: 260 };
-      B = { x: 160 + ax, y: 260 };
-      C = { x: 160, y: 260 - oy };
-      break;
-    }
-    case "floor-left": {
-      // Mirror horizontally: θ on the left
-      A = { x: 480, y: 260 };
-      B = { x: 480 - ax, y: 260 };
-      C = { x: 480, y: 260 - oy };
-      break;
-    }
-    case "wall-up": {
-      // Vertical climb: adj vertical, opp horizontal
-      A = { x: 200, y: 280 };
-      B = { x: 200, y: 280 - ax }; // θ up the wall
-      C = { x: 200 + oy, y: 280 };
-      break;
-    }
-    case "wall-down": {
-      A = { x: 200, y: 80 };
-      B = { x: 200, y: 80 + ax };
-      C = { x: 200 + oy, y: 80 };
-      break;
-    }
-    case "roof": {
-      A = { x: 420, y: 100 };
-      B = { x: 420 - ax, y: 100 };
-      C = { x: 420, y: 100 + oy };
-      break;
-    }
-    case "lean-left": {
-      A = { x: 360, y: 260 };
-      B = { x: 360 - ax, y: 260 };
-      C = { x: 360, y: 260 - oy };
-      break;
-    }
-  }
-
-  return { A, B, C };
-}
-
-function sideEndpoints(
-  pts: Pts,
-  side: "hyp" | "adj" | "opp",
-): [{ x: number; y: number }, { x: number; y: number }] {
-  // θ at B, right∠ at A: adj=AB, opp=AC, hyp=BC
-  switch (side) {
-    case "adj":
-      return [pts.A, pts.B];
-    case "opp":
-      return [pts.A, pts.C];
-    case "hyp":
-      return [pts.B, pts.C];
-  }
-}
-
-function mid(a: { x: number; y: number }, b: { x: number; y: number }) {
-  return { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
-}
-
-function dist(a: { x: number; y: number }, b: { x: number; y: number }) {
-  return Math.hypot(b.x - a.x, b.y - a.y);
-}
-
-function lerp(
-  a: { x: number; y: number },
-  b: { x: number; y: number },
-  t: number,
-) {
-  return { x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t };
-}
 
 export default function TrigBuilderScene({
   stage,
@@ -133,14 +34,13 @@ export default function TrigBuilderScene({
   const pts = layoutPoints(stage.layout, stage);
   const [bridgeFrom, bridgeTo] = sideEndpoints(pts, stage.unknownSide);
   const [givenFrom, givenTo] = sideEndpoints(pts, stage.givenSide);
-  const givenMid = mid(givenFrom, givenTo);
-  const bridgeMid = mid(bridgeFrom, bridgeTo);
-  const bridgeLen = Math.max(dist(bridgeFrom, bridgeTo), 1);
+  const givenMid = midPoint(givenFrom, givenTo);
+  const bridgeMid = midPoint(bridgeFrom, bridgeTo);
+  const bridgeLen = Math.max(distPoints(bridgeFrom, bridgeTo), 1);
   const centroid = {
     x: (pts.A.x + pts.B.x + pts.C.x) / 3,
     y: (pts.A.y + pts.B.y + pts.C.y) / 3,
   };
-  // x sits at the midpoint of the unknown side, slightly outside the fill
   const bdx = (bridgeTo.x - bridgeFrom.x) / bridgeLen;
   const bdy = (bridgeTo.y - bridgeFrom.y) / bridgeLen;
   let nx = -bdy;
@@ -235,16 +135,16 @@ export default function TrigBuilderScene({
     };
   }, [status, stage.id, ratio]);
 
-  const tip = lerp(bridgeFrom, bridgeTo, bridgeDraw);
+  const tip = lerpPoints(bridgeFrom, bridgeTo, bridgeDraw);
   const showBridge = bridgeDraw > 0.02;
 
   const charPos =
     status === "success"
-      ? lerp(bridgeFrom, bridgeTo, charT)
+      ? lerpPoints(bridgeFrom, bridgeTo, charT)
       : status === "falling"
         ? {
-            x: lerp(bridgeFrom, tip, 0.55).x + shake,
-            y: lerp(bridgeFrom, tip, 0.55).y + fallY,
+            x: lerpPoints(bridgeFrom, tip, 0.55).x + shake,
+            y: lerpPoints(bridgeFrom, tip, 0.55).y + fallY,
           }
         : {
             x: bridgeFrom.x - 22 + shake,
@@ -256,12 +156,12 @@ export default function TrigBuilderScene({
   // Right-angle mark near A
   const markSize = 14;
   const vAB = {
-    x: (pts.B.x - pts.A.x) / dist(pts.A, pts.B),
-    y: (pts.B.y - pts.A.y) / dist(pts.A, pts.B),
+    x: (pts.B.x - pts.A.x) / distPoints(pts.A, pts.B),
+    y: (pts.B.y - pts.A.y) / distPoints(pts.A, pts.B),
   };
   const vAC = {
-    x: (pts.C.x - pts.A.x) / dist(pts.A, pts.C),
-    y: (pts.C.y - pts.A.y) / dist(pts.A, pts.C),
+    x: (pts.C.x - pts.A.x) / distPoints(pts.A, pts.C),
+    y: (pts.C.y - pts.A.y) / distPoints(pts.A, pts.C),
   };
   const ra1 = {
     x: pts.A.x + vAB.x * markSize,
@@ -279,12 +179,12 @@ export default function TrigBuilderScene({
   // Angle arc at B
   const arcR = 28;
   const vBA = {
-    x: (pts.A.x - pts.B.x) / dist(pts.B, pts.A),
-    y: (pts.A.y - pts.B.y) / dist(pts.B, pts.A),
+    x: (pts.A.x - pts.B.x) / distPoints(pts.B, pts.A),
+    y: (pts.A.y - pts.B.y) / distPoints(pts.B, pts.A),
   };
   const vBC = {
-    x: (pts.C.x - pts.B.x) / dist(pts.B, pts.C),
-    y: (pts.C.y - pts.B.y) / dist(pts.B, pts.C),
+    x: (pts.C.x - pts.B.x) / distPoints(pts.B, pts.C),
+    y: (pts.C.y - pts.B.y) / distPoints(pts.B, pts.C),
   };
   const arcStart = {
     x: pts.B.x + vBA.x * arcR,
@@ -431,7 +331,7 @@ export default function TrigBuilderScene({
             ? Array.from({ length: Math.floor(bridgeDraw * 8) }, (_, i) => {
                 const t0 = (i + 0.5) / 8;
                 if (t0 > bridgeDraw) return null;
-                const p = lerp(bridgeFrom, bridgeTo, t0);
+                const p = lerpPoints(bridgeFrom, bridgeTo, t0);
                 const pnx = -bdy * 7;
                 const pny = bdx * 7;
                 return (
