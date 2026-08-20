@@ -250,6 +250,16 @@ export const CONTENTS: ContentMeta[] = [
     description:
       "연실·사다리·거치대의 빗변과 각만으로 수평거리와 높이를 구하고, 표를 만들며 사인·코사인을 만나는 탐구 활동. 학생은 선생님이 수업을 시작할 때만 참여해요.",
   },
+  {
+    key: "g3-u3-1-trig-builder",
+    unitId: "g3-3-1",
+    type: "game",
+    title: "삼각비 다리 놓기",
+    href: "/play/g3-u3-1-trig-builder",
+    awardsXp: true,
+    description:
+      "끊어진 다리 길이를 sin·cos·tan 수식 블록으로 조립해 잇는 게임입니다. 계산 대신 수식 표현력을 길러요. 학급 배정·활성 시 XP와 랭킹이 쌓여요.",
+  },
 ];
 
 export function getContent(key: string): ContentMeta | undefined {
