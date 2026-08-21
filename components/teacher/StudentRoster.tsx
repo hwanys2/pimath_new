@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useActionState } from "react";
 import {
   createStudent,
@@ -7,6 +8,7 @@ import {
   deleteStudent,
   type ActionResult,
 } from "@/app/teacher/actions";
+import StudentQrPngButton from "@/components/teacher/StudentQrPngButton";
 
 const inputClass =
   "w-full min-w-0 rounded-lg border-2 border-wood/15 bg-white px-2.5 py-2 text-sm text-foreground outline-none transition placeholder:text-foreground/35 focus:border-sky focus:ring-2 focus:ring-sky/40";
@@ -24,29 +26,50 @@ type Student = {
 
 type Props = {
   classId: string;
+  origin: string;
   students: Student[];
 };
 
 const empty: ActionResult = {};
 
-export default function StudentRoster({ classId, students }: Props) {
+export default function StudentRoster({ classId, origin, students }: Props) {
   return (
-    <div className="overflow-x-auto">
-      <div className="flex flex-col gap-2">
-        <div
-          className={`${rowGridClass} py-1 text-xs font-bold uppercase tracking-wide text-wood/70`}
+    <div className="flex flex-col gap-3">
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+        <p className="text-xs leading-relaxed text-foreground/60">
+          QR을 교과서에 붙이면 학생이 카메라로 찍고 바로 들어올 수 있어요.
+          교사용 태블릿·컴퓨터에서는 학생 QR을 찍지 마세요. 교사 로그인이
+          풀립니다.
+        </p>
+        <Link
+          href={`/teacher/classes/${classId}/qr`}
+          className="block-btn block-btn-mint font-display shrink-0 px-4 py-2 text-sm"
         >
-          <div>이름</div>
-          <div>아이디</div>
-          <div>레벨</div>
-          <div>비밀번호</div>
-          <div className="text-right">관리</div>
-        </div>
+          QR 인쇄
+        </Link>
+      </div>
+      <div className="overflow-x-auto">
+        <div className="flex flex-col gap-2">
+          <div
+            className={`${rowGridClass} py-1 text-xs font-bold uppercase tracking-wide text-wood/70`}
+          >
+            <div>이름</div>
+            <div>아이디</div>
+            <div>레벨</div>
+            <div>비밀번호</div>
+            <div className="text-right">관리</div>
+          </div>
 
-        {students.map((s) => (
-          <StudentRow key={s.id} classId={classId} student={s} />
-        ))}
-        <NewStudentRow classId={classId} resetToken={students.length} />
+          {students.map((s) => (
+            <StudentRow
+              key={s.id}
+              classId={classId}
+              origin={origin}
+              student={s}
+            />
+          ))}
+          <NewStudentRow classId={classId} resetToken={students.length} />
+        </div>
       </div>
     </div>
   );
@@ -54,9 +77,11 @@ export default function StudentRoster({ classId, students }: Props) {
 
 function StudentRow({
   classId,
+  origin,
   student,
 }: {
   classId: string;
+  origin: string;
   student: Student;
 }) {
   const [state, action, pending] = useActionState(updateStudent, empty);
@@ -116,6 +141,11 @@ function StudentRow({
         >
           삭제
         </button>
+        <StudentQrPngButton
+          studentId={student.id}
+          displayName={student.display_name}
+          origin={origin}
+        />
       </div>
       {state.error && (
         <p className="col-span-full rounded-lg bg-peach/40 px-2 py-1 text-xs font-semibold text-[#a63a1a]">

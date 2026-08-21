@@ -11,6 +11,10 @@ import {
   setStudentSessionCookie,
 } from "@/lib/student-session";
 import { isValidLoginId, normalizeLoginId } from "@/lib/students";
+import {
+  isValidStudentQrToken,
+  normalizeStudentQrToken,
+} from "@/lib/student-qr";
 
 export type AuthState = {
   error?: string;
@@ -74,6 +78,54 @@ export async function signInWithEmail(
   redirect("/teacher");
 }
 
+type StudentAuthRow = {
+  id: string;
+  login_id: string;
+  display_name: string;
+  class_id: string;
+  class_name: string;
+  teacher_id: string;
+  session_token: string;
+};
+
+function asStudentAuthRow(data: unknown): StudentAuthRow | null {
+  const row = Array.isArray(data) ? data[0] : data;
+  if (!row || typeof row !== "object") return null;
+  const student = row as Partial<StudentAuthRow>;
+  if (
+    !student.id ||
+    !student.login_id ||
+    !student.display_name ||
+    !student.class_id ||
+    !student.class_name ||
+    !student.teacher_id ||
+    !student.session_token
+  ) {
+    return null;
+  }
+  return student as StudentAuthRow;
+}
+
+async function establishStudentSession(
+  student: StudentAuthRow,
+): Promise<AuthState> {
+  const supabase = await createClient();
+  // Clear any teacher session so roles don't mix.
+  await supabase.auth.signOut();
+
+  await setStudentSessionCookie({
+    id: student.id,
+    loginId: student.login_id,
+    displayName: student.display_name,
+    classId: student.class_id,
+    className: student.class_name,
+    teacherId: student.teacher_id,
+    sessionToken: student.session_token,
+  });
+
+  redirect("/adventure");
+}
+
 export async function signInAsStudent(
   _prevState: AuthState,
   formData: FormData,
@@ -99,39 +151,42 @@ export async function signInAsStudent(
     return { error: "로그인에 실패했어요. 잠시 후 다시 시도해 주세요." };
   }
 
-  const row = Array.isArray(data) ? data[0] : data;
-  if (!row || typeof row !== "object") {
+  const student = asStudentAuthRow(data);
+  if (!student) {
     return { error: "아이디 또는 비밀번호가 올바르지 않아요." };
   }
 
-  const student = row as {
-    id: string;
-    login_id: string;
-    display_name: string;
-    class_id: string;
-    class_name: string;
-    teacher_id: string;
-    session_token: string;
-  };
+  return establishStudentSession(student);
+}
 
-  if (!student.session_token) {
-    return { error: "세션을 만들지 못했어요. 다시 로그인해 주세요." };
+export async function signInWithStudentQrToken(
+  _prevState: AuthState,
+  formData: FormData,
+): Promise<AuthState> {
+  const token = normalizeStudentQrToken(String(formData.get("token") ?? ""));
+
+  if (!isValidStudentQrToken(token)) {
+    return { error: "올바르지 않은 로그인 코드예요." };
   }
 
-  // Clear any teacher session so roles don't mix.
-  await supabase.auth.signOut();
-
-  await setStudentSessionCookie({
-    id: student.id,
-    loginId: student.login_id,
-    displayName: student.display_name,
-    classId: student.class_id,
-    className: student.class_name,
-    teacherId: student.teacher_id,
-    sessionToken: student.session_token,
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("pm_authenticate_student_qr", {
+    p_token: token,
   });
 
-  redirect("/adventure");
+  if (error) {
+    console.error("[pm] pm_authenticate_student_qr failed:", error.message);
+    return { error: "로그인에 실패했어요. 잠시 후 다시 시도해 주세요." };
+  }
+
+  const student = asStudentAuthRow(data);
+  if (!student) {
+    return {
+      error: "이 QR로는 들어갈 수 없어요. 선생님께 새 QR을 받아 주세요.",
+    };
+  }
+
+  return establishStudentSession(student);
 }
 
 export async function signUpWithEmail(

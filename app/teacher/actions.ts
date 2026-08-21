@@ -415,3 +415,89 @@ export async function assignContentToClassActive(
     message: "학급에 배정하고 활성화했어요. 학생이 목록에서 플레이할 수 있어요.",
   };
 }
+
+type QrTokenRow = {
+  student_id: string;
+  display_name: string;
+  login_id: string;
+  token: string;
+};
+
+function asQrTokenRows(data: unknown): QrTokenRow[] {
+  if (data == null) return [];
+  const list = Array.isArray(data) ? data : [data];
+  return list.flatMap((row) => {
+    if (!row || typeof row !== "object") return [];
+    const r = row as Partial<QrTokenRow>;
+    if (!r.student_id || !r.display_name || !r.login_id || !r.token) return [];
+    return [
+      {
+        student_id: r.student_id,
+        display_name: r.display_name,
+        login_id: r.login_id,
+        token: r.token,
+      },
+    ];
+  });
+}
+
+export async function getOrCreateStudentQrToken(
+  studentId: string,
+): Promise<{ token?: string; error?: string }> {
+  await requireTeacher();
+  if (!studentId) return { error: "학생 정보가 없어요." };
+
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc(
+    "pm_get_or_create_student_qr_token",
+    { p_student_id: studentId },
+  );
+
+  if (error) {
+    console.error("[pm] getOrCreateStudentQrToken failed:", error.message);
+    return { error: mapDbError(error.message) };
+  }
+
+  const row = asQrTokenRows(data)[0];
+  if (!row?.token) return { error: "QR을 만들지 못했어요." };
+  return { token: row.token };
+}
+
+export async function listOrCreateClassQrTokens(
+  classId: string,
+): Promise<{ rows: QrTokenRow[]; error?: string }> {
+  await requireTeacher();
+  if (!classId) return { rows: [], error: "학급 정보가 없어요." };
+
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc(
+    "pm_list_or_create_class_qr_tokens",
+    { p_class_id: classId },
+  );
+
+  if (error) {
+    console.error("[pm] listOrCreateClassQrTokens failed:", error.message);
+    return { rows: [], error: mapDbError(error.message) };
+  }
+
+  return { rows: asQrTokenRows(data) };
+}
+
+export async function rotateStudentQrToken(formData: FormData): Promise<void> {
+  await requireTeacher();
+  const classId = String(formData.get("classId") ?? "");
+  const studentId = String(formData.get("studentId") ?? "");
+  if (!classId || !studentId) return;
+
+  const supabase = await createClient();
+  const { error } = await supabase.rpc("pm_rotate_student_qr_token", {
+    p_student_id: studentId,
+  });
+
+  if (error) {
+    console.error("[pm] rotateStudentQrToken failed:", error.message);
+  }
+
+  revalidatePath(`/teacher/classes/${classId}`);
+  revalidatePath(`/teacher/classes/${classId}/qr`);
+}

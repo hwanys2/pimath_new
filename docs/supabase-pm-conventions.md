@@ -133,6 +133,10 @@ PM_STUDENT_SESSION_SECRET=...  # 서버 전용, 긴 랜덤 문자열
 | `pm_classes` | 교사 소유 학급 |
 | `pm_students` | 학급 학생 (login_id 전역 unique, password_hash) |
 | `pm_authenticate_student` | 학생 로그인 검증 RPC (anon 호출 가능) |
+| `pm_student_qr_tokens` | 학생 개별 QR 로그인 토큰 (재사용, 비밀번호와 별개) |
+| `pm_get_or_create_student_qr_token` / `pm_list_or_create_class_qr_tokens` | 교사 소유 학생 QR 발급·재인쇄 |
+| `pm_rotate_student_qr_token` | QR 재발급 (이전 스티커 무효) |
+| `pm_authenticate_student_qr` | QR 토큰 로그인 (anon 호출 가능) |
 | `pm_create_student` / `pm_bulk_create_students` | 교사 소유 검증 후 해시 포함 생성 |
 | `pm_set_student_password` / `pm_update_student` | 비밀번호·프로필 수정 |
 | `pm_students.total_xp` / `level` / `active_avatar` | 학생 육성 진행 |
@@ -155,7 +159,7 @@ PM_STUDENT_SESSION_SECRET=...  # 서버 전용, 긴 랜덤 문자열
 - 앱에서 학생 세션은 `lib/student-session.ts` (`jose` JWT 쿠키 + DB session token). 교사 식별은 계속 `getUser()`.
 - 레벨/XP 규칙: [`docs/progression-system.md`](progression-system.md)
 - 콘텐츠·배정·공개 링크: [`docs/content-system.md`](content-system.md)
-- UI: `/login` 선택 → `/login/teacher` 또는 `/login/student`. 학급 관리: `/teacher`. 학생 모험: `/adventure`.
+- UI: `/login` 선택 → `/login/teacher` 또는 `/login/student`. 학급 관리: `/teacher`. 학생 모험: `/adventure`. 학생 QR: `/teacher/classes/[classId]/qr` → 스캔 `/s/{token}`.
 
 ---
 
