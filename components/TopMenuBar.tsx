@@ -5,6 +5,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { GRADES } from "@/lib/grades";
 import { signOut } from "@/app/auth/actions";
+import NicknameEditor from "@/components/NicknameEditor";
 import type { TeacherActor } from "@/lib/auth";
 
 export default function TopMenuBar({
@@ -83,9 +84,7 @@ export default function TopMenuBar({
               내 학급
             </Link>
             <span className="badge-pill hidden md:inline-flex">교사</span>
-            <span className="hidden max-w-[8rem] truncate text-sm font-semibold text-cream sm:inline">
-              {actor.name}
-            </span>
+            <NicknameEditor name={actor.name} />
             <form action={signOut}>
               <button
                 type="submit"

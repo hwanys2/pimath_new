@@ -35,15 +35,25 @@ export type StudentActor = {
 
 export type Actor = TeacherActor | StudentActor;
 
+function firstNonEmpty(...values: unknown[]): string | null {
+  for (const value of values) {
+    if (typeof value !== "string") continue;
+    const trimmed = value.trim();
+    if (trimmed) return trimmed;
+  }
+  return null;
+}
+
 function pickName(
   email: string | null | undefined,
   meta: Record<string, unknown> | undefined,
 ): string {
-  const candidate =
-    (meta?.name as string) ||
-    (meta?.full_name as string) ||
-    (meta?.nickname as string) ||
-    (meta?.user_name as string);
+  const candidate = firstNonEmpty(
+    meta?.nickname,
+    meta?.name,
+    meta?.full_name,
+    meta?.user_name,
+  );
   if (candidate) return candidate;
   if (email) return email.split("@")[0];
   return "탐험가";

@@ -1,5 +1,6 @@
 "use server";
 
+import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import type { Provider } from "@supabase/supabase-js";
 import { getAuthCallbackUrl, getAuthOrigin } from "@/lib/auth-origin";
@@ -329,6 +330,29 @@ export async function signInWithProvider(formData: FormData): Promise<void> {
   }
 
   redirect(data.url);
+}
+
+export async function updateDisplayName(formData: FormData): Promise<AuthState> {
+  const nickname = String(formData.get("nickname") ?? "").trim();
+  if (!nickname) return { error: "닉네임을 입력해 주세요." };
+  if (nickname.length > 20) return { error: "닉네임은 20자까지예요." };
+
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { error: "로그인이 필요해요." };
+
+  const { error } = await supabase.auth.updateUser({
+    data: { nickname },
+  });
+  if (error) {
+    console.error("[pm] updateDisplayName failed:", error.message);
+    return { error: "닉네임을 바꾸지 못했어요." };
+  }
+
+  revalidatePath("/", "layout");
+  return { message: "닉네임을 저장했어요." };
 }
 
 export async function signOut(): Promise<void> {
