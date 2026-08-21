@@ -78,14 +78,18 @@ export const getDisplayUser = cache(async (): Promise<DisplayUser | null> => {
   try {
     const supabase = await createClient();
     const { data } = await supabase.auth.getClaims();
-    const claims = data?.claims;
+    const claims = data?.claims as Record<string, unknown> | undefined;
     if (!claims?.sub) return null;
 
-    const meta = claims.user_metadata as Record<string, unknown> | undefined;
+    const meta = (
+      claims.user_metadata && typeof claims.user_metadata === "object"
+        ? claims.user_metadata
+        : claims
+    ) as Record<string, unknown>;
     const email = (claims.email as string | undefined) ?? null;
 
     return {
-      id: claims.sub,
+      id: String(claims.sub),
       email,
       name: pickName(email, meta),
     };

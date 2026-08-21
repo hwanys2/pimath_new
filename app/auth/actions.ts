@@ -20,6 +20,7 @@ import {
 export type AuthState = {
   error?: string;
   message?: string;
+  nickname?: string;
 };
 
 function isValidEmail(email: string): boolean {
@@ -332,7 +333,10 @@ export async function signInWithProvider(formData: FormData): Promise<void> {
   redirect(data.url);
 }
 
-export async function updateDisplayName(formData: FormData): Promise<AuthState> {
+export async function updateDisplayName(
+  _prev: AuthState,
+  formData: FormData,
+): Promise<AuthState> {
   const nickname = String(formData.get("nickname") ?? "").trim();
   if (!nickname) return { error: "닉네임을 입력해 주세요." };
   if (nickname.length > 20) return { error: "닉네임은 20자까지예요." };
@@ -344,15 +348,24 @@ export async function updateDisplayName(formData: FormData): Promise<AuthState> 
   if (!user) return { error: "로그인이 필요해요." };
 
   const { error } = await supabase.auth.updateUser({
-    data: { nickname },
+    data: {
+      nickname,
+      // Keep the JWT display field in sync so getClaims() shows the new name.
+      name: nickname,
+    },
   });
   if (error) {
     console.error("[pm] updateDisplayName failed:", error.message);
     return { error: "닉네임을 바꾸지 못했어요." };
   }
 
+  const { error: refreshError } = await supabase.auth.refreshSession();
+  if (refreshError) {
+    console.error("[pm] refreshSession after nickname failed:", refreshError.message);
+  }
+
   revalidatePath("/", "layout");
-  return { message: "닉네임을 저장했어요." };
+  return { message: "닉네임을 저장했어요.", nickname };
 }
 
 export async function signOut(): Promise<void> {

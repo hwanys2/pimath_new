@@ -1,21 +1,26 @@
 "use client";
 
-import { useEffect, useRef, useState, useTransition } from "react";
-import { updateDisplayName } from "@/app/auth/actions";
+import { useActionState, useEffect, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
+import { updateDisplayName, type AuthState } from "@/app/auth/actions";
 
 type Props = {
   name: string;
 };
 
+const empty: AuthState = {};
+
 export default function NicknameEditor({ name }: Props) {
+  const router = useRouter();
   const [editing, setEditing] = useState(false);
-  const [value, setValue] = useState(name);
-  const [pending, startTransition] = useTransition();
+  const [shown, setShown] = useState(name);
+  const [state, formAction, pending] = useActionState(updateDisplayName, empty);
   const inputRef = useRef<HTMLInputElement>(null);
-  const savingRef = useRef(false);
+  const savedRef = useRef<string | undefined>(undefined);
+  const skipBlurRef = useRef(false);
 
   useEffect(() => {
-    setValue(name);
+    setShown(name);
   }, [name]);
 
   useEffect(() => {
@@ -24,65 +29,59 @@ export default function NicknameEditor({ name }: Props) {
     inputRef.current?.select();
   }, [editing]);
 
-  function cancel() {
-    setValue(name);
+  useEffect(() => {
+    if (!state.nickname || state.nickname === savedRef.current) return;
+    savedRef.current = state.nickname;
+    setShown(state.nickname);
     setEditing(false);
-  }
-
-  function save() {
-    if (savingRef.current || pending) return;
-    const next = value.trim();
-    if (!next || next === name) {
-      cancel();
-      return;
-    }
-    savingRef.current = true;
-    startTransition(async () => {
-      const fd = new FormData();
-      fd.set("nickname", next);
-      const result = await updateDisplayName(fd);
-      savingRef.current = false;
-      if (result.error) {
-        setValue(name);
-      }
-      setEditing(false);
-    });
-  }
+    router.refresh();
+  }, [state.nickname, router]);
 
   if (!editing) {
     return (
       <button
         type="button"
         title="닉네임 바꾸기"
-        aria-label={`${name}, 닉네임 바꾸기`}
+        aria-label={`${shown}, 닉네임 바꾸기`}
         onClick={() => setEditing(true)}
         className="hidden max-w-[8rem] truncate rounded-lg px-1.5 py-1 text-left text-sm font-semibold text-cream transition hover:bg-black/15 sm:inline"
       >
-        {name}
+        {shown}
       </button>
     );
   }
 
   return (
-    <input
-      ref={inputRef}
-      value={value}
-      maxLength={20}
-      disabled={pending}
-      aria-label="닉네임"
-      onChange={(event) => setValue(event.target.value)}
-      onBlur={save}
-      onKeyDown={(event) => {
-        if (event.key === "Enter") {
-          event.preventDefault();
-          save();
-        }
-        if (event.key === "Escape") {
-          event.preventDefault();
-          cancel();
-        }
-      }}
-      className="hidden w-[8rem] rounded-lg border border-cream/25 bg-black/20 px-2 py-1 text-sm font-semibold text-cream outline-none focus:border-gold/70 sm:inline disabled:opacity-60"
-    />
+    <form action={formAction} className="hidden sm:block">
+      <input
+        ref={inputRef}
+        name="nickname"
+        defaultValue={shown}
+        maxLength={20}
+        disabled={pending}
+        aria-label="닉네임"
+        onBlur={(event) => {
+          if (pending || skipBlurRef.current) {
+            skipBlurRef.current = false;
+            return;
+          }
+          const next = event.currentTarget.value.trim();
+          if (!next || next === shown) {
+            setEditing(false);
+            return;
+          }
+          event.currentTarget.form?.requestSubmit();
+        }}
+        onKeyDown={(event) => {
+          if (event.nativeEvent.isComposing || event.keyCode === 229) return;
+          if (event.key === "Escape") {
+            event.preventDefault();
+            skipBlurRef.current = true;
+            setEditing(false);
+          }
+        }}
+        className="w-[8rem] rounded-lg border border-cream/25 bg-black/20 px-2 py-1 text-sm font-semibold text-cream outline-none focus:border-gold/70 disabled:opacity-60"
+      />
+    </form>
   );
 }
