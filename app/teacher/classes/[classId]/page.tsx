@@ -11,7 +11,7 @@ import BulkStudentImport from "@/components/teacher/BulkStudentImport";
 import ClassContentManager from "@/components/teacher/ClassContentManager";
 import ClassActivitySummary from "@/components/teacher/ClassActivitySummary";
 import ClassDetailTabs from "@/components/teacher/ClassDetailTabs";
-import { deleteClass } from "@/app/teacher/actions";
+import DeleteClassButton from "@/components/teacher/DeleteClassButton";
 import { fetchClassActivityOverview } from "@/lib/activity-results";
 import { getAuthOrigin } from "@/lib/auth-origin";
 
@@ -90,15 +90,12 @@ export default async function ClassDetailPage({ params }: Props) {
       <section className="quest-card p-5 sm:p-6">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <h2 className="font-display text-xl text-wood">학급 정보</h2>
-          <form action={deleteClass}>
-            <input type="hidden" name="classId" value={classId} />
-            <button
-              type="submit"
-              className="text-xs font-semibold text-[#a63a1a] underline-offset-2 hover:underline"
-            >
-              학급 삭제
-            </button>
-          </form>
+          <DeleteClassButton
+            classId={classId}
+            name={klass.name}
+            studentCount={(students ?? []).length}
+            label="학급 삭제"
+          />
         </div>
         <div className="mt-4">
           <EditClassForm

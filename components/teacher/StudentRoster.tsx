@@ -5,9 +5,9 @@ import { useActionState } from "react";
 import {
   createStudent,
   updateStudent,
-  deleteStudent,
   type ActionResult,
 } from "@/app/teacher/actions";
+import DeleteStudentButton from "@/components/teacher/DeleteStudentButton";
 import StudentQrPngButton from "@/components/teacher/StudentQrPngButton";
 
 const inputClass =
@@ -129,18 +129,11 @@ function StudentRow({
         >
           {pending ? "저장…" : "저장"}
         </button>
-        <button
-          type="submit"
-          formAction={deleteStudent}
-          className="text-xs font-semibold text-[#a63a1a] underline-offset-2 hover:underline"
-          onClick={(e) => {
-            if (!confirm(`${student.display_name} 학생을 삭제할까요?`)) {
-              e.preventDefault();
-            }
-          }}
-        >
-          삭제
-        </button>
+        <DeleteStudentButton
+          classId={classId}
+          studentId={student.id}
+          displayName={student.display_name}
+        />
         <StudentQrPngButton
           studentId={student.id}
           displayName={student.display_name}

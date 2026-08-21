@@ -104,12 +104,16 @@ export async function updateClass(
 }
 
 export async function deleteClass(formData: FormData): Promise<void> {
-  await requireTeacher();
+  const teacher = await requireTeacher();
   const classId = String(formData.get("classId") ?? "");
   if (!classId) redirect("/teacher");
 
   const supabase = await createClient();
-  const { error } = await supabase.from("pm_classes").delete().eq("id", classId);
+  const { error } = await supabase
+    .from("pm_classes")
+    .delete()
+    .eq("id", classId)
+    .eq("teacher_id", teacher.id);
 
   if (error) {
     console.error("[pm] deleteClass failed:", error.message);
@@ -198,7 +202,7 @@ export async function updateStudent(
 }
 
 export async function deleteStudent(formData: FormData): Promise<void> {
-  await requireTeacher();
+  const teacher = await requireTeacher();
   const classId = String(formData.get("classId") ?? "");
   const studentId = String(formData.get("studentId") ?? "");
 
@@ -208,7 +212,8 @@ export async function deleteStudent(formData: FormData): Promise<void> {
   const { error } = await supabase
     .from("pm_students")
     .delete()
-    .eq("id", studentId);
+    .eq("id", studentId)
+    .eq("teacher_id", teacher.id);
 
   if (error) {
     console.error("[pm] deleteStudent failed:", error.message);

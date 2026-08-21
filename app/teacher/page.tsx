@@ -3,7 +3,7 @@ import Link from "next/link";
 import { requireTeacher } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import CreateClassForm from "@/components/teacher/CreateClassForm";
-import { deleteClass } from "@/app/teacher/actions";
+import DeleteClassButton from "@/components/teacher/DeleteClassButton";
 import { fetchClassTodayActivityCounts } from "@/lib/activity-results";
 
 export const metadata: Metadata = {
@@ -96,15 +96,11 @@ export default async function TeacherPage() {
                       ) : null}
                     </p>
                   </div>
-                  <form action={deleteClass}>
-                    <input type="hidden" name="classId" value={c.id} />
-                    <button
-                      type="submit"
-                      className="text-xs font-semibold text-[#a63a1a] underline-offset-2 hover:underline"
-                    >
-                      삭제
-                    </button>
-                  </form>
+                  <DeleteClassButton
+                    classId={c.id}
+                    name={c.name}
+                    studentCount={counts[c.id] ?? 0}
+                  />
                 </div>
                 <Link
                   href={`/teacher/classes/${c.id}`}
