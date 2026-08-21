@@ -190,7 +190,7 @@ export default function TrigoSlashScene({
               points={polyString(sh.points)}
               fill={fill}
               stroke={strokeTri}
-              strokeWidth={1.4}
+              strokeWidth={1.15}
               strokeLinejoin="round"
               className={reducedMotion ? "" : "trigo-slash-shard"}
               style={
@@ -229,7 +229,7 @@ export default function TrigoSlashScene({
                   x2={b.x}
                   y2={b.y}
                   stroke={color}
-                  strokeWidth={wide ? 2.4 : 1.7}
+                  strokeWidth={wide ? 1.55 : 1.2}
                   strokeLinecap="round"
                   opacity={hideBody ? 0 : 1}
                 />
@@ -285,7 +285,7 @@ export default function TrigoSlashScene({
             d={arc}
             fill="none"
             stroke={ROLE_COLOR.opp}
-            strokeWidth={1.35}
+            strokeWidth={1.05}
             opacity={0.95}
           />
           {VERTEX_IDS.map((id) => {
@@ -322,7 +322,7 @@ export default function TrigoSlashScene({
           points={polyString(draft)}
           fill="none"
           stroke="#f3c14a"
-          strokeWidth={2.6}
+          strokeWidth={2.1}
           strokeLinecap="round"
           strokeLinejoin="round"
           filter="url(#trigo-slash-glow)"

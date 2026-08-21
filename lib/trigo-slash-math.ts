@@ -227,7 +227,7 @@ function placeTriangle(
   }
 
   const rotated = rotateVertices(local, rotation, { x: 0, y: 0 });
-  return fitByRadius(rotated, 16);
+  return fitByRadius(rotated, 12);
 }
 
 function fitByRadius(verts: VertexMap, padding: number): VertexMap {
@@ -262,9 +262,10 @@ export type Difficulty = {
 export function difficultyAt(cleared: number): Difficulty {
   const n = Math.max(0, cleared);
   const isBoss = n >= 9 && (n + 1) % 10 === 0;
+  // Tighten the clock gradually; bosses get a bit more time than the curve.
   const timeLimitSec = isBoss
-    ? 7.2
-    : Math.max(4.2, 8.4 - n * 0.12);
+    ? Math.max(5.4, 7.6 - n * 0.08)
+    : Math.max(3.8, 8.6 - n * 0.18);
 
   if (n <= 1) {
     return {
@@ -289,7 +290,7 @@ export function difficultyAt(cleared: number): Difficulty {
       hideSideLetters: false,
       timeLimitSec,
       isBoss: false,
-      freeRotation: false,
+      freeRotation: n >= 4,
       allowMirror: n >= 3,
     };
   }
@@ -299,7 +300,8 @@ export function difficultyAt(cleared: number): Difficulty {
       randomizeRight: false,
       spin: false,
       spinSpeed: 0,
-      shapePool: ["normal", "normal", "flat", "skinny"],
+      // Mostly ordinary triangles; occasional mild flat/skinny for variety.
+      shapePool: ["normal", "normal", "normal", "flat", "skinny"],
       hideSideLetters: false,
       timeLimitSec,
       isBoss: false,
@@ -308,16 +310,20 @@ export function difficultyAt(cleared: number): Difficulty {
     };
   }
 
+  // From here difficulty grows via spin + clock, not extreme skinny/flat only.
+  const spinOn = isBoss || n >= 10;
+  const spinSpeed = !spinOn
+    ? 0
+    : isBoss
+      ? Math.min(0.95, 0.48 + n * 0.02)
+      : Math.min(0.88, 0.22 + (n - 10) * 0.055);
+
   return {
     randomizeRight: n >= 12 || isBoss,
-    spin: isBoss || n >= 14,
-    spinSpeed: isBoss ? 0.55 : 0.32,
-    shapePool: isBoss
-      ? ["flat", "skinny"]
-      : n >= 10
-        ? ["normal", "flat", "skinny"]
-        : ["normal", "normal", "flat", "skinny"],
-    hideSideLetters: n >= 18,
+    spin: spinOn,
+    spinSpeed,
+    shapePool: ["normal", "normal", "flat", "skinny"],
+    hideSideLetters: n >= 16,
     timeLimitSec,
     isBoss,
     freeRotation: true,
@@ -325,14 +331,20 @@ export function difficultyAt(cleared: number): Difficulty {
   };
 }
 
+/**
+ * Sample leg lengths from a reference acute angle so shapes stay readable.
+ * flat/skinny are mild classroom extremes — not needle-thin wedges.
+ */
 function lengthsForShape(shape: ShapeKind): { adj: number; opp: number } {
-  if (shape === "flat") {
-    return { adj: randRange(6.4, 8.2), opp: randRange(1.7, 2.35) };
-  }
-  if (shape === "skinny") {
-    return { adj: randRange(1.7, 2.35), opp: randRange(6.4, 8.2) };
-  }
-  return { adj: randRange(3.1, 5.2), opp: randRange(3.1, 5.2) };
+  const deg =
+    shape === "flat"
+      ? randRange(24, 34)
+      : shape === "skinny"
+        ? randRange(56, 66)
+        : randRange(34, 56);
+  const rad = (deg * Math.PI) / 180;
+  const scale = randRange(7.2, 8.6);
+  return { adj: Math.cos(rad) * scale, opp: Math.sin(rad) * scale };
 }
 
 function poseRotation(diff: Difficulty, cleared: number): number {
@@ -383,7 +395,7 @@ export function dealRound(cleared: number): Round {
             A: { x: 0, y: -adj },
             B: { x: opp, y: 0 },
           },
-          16,
+          12,
         )
       : placeTriangle(
           rightAt,
