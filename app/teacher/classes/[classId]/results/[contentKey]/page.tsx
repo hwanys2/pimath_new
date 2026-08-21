@@ -15,6 +15,7 @@ import { fetchClassPvpResults } from "@/lib/activity-results-pvp";
 import { fetchClassSessionResults } from "@/lib/activity-results-sessions";
 import { ContentResultTable } from "@/components/teacher/ContentResultDetail";
 import StudentRunHistory from "@/components/teacher/StudentRunHistory";
+import { formatStudentLabel } from "@/lib/students";
 
 type Props = {
   params: Promise<{ classId: string; contentKey: string }>;
@@ -97,7 +98,10 @@ export default async function ContentResultsPage({ params }: Props) {
                 contentKey={contentKey}
                 contentType={content.type}
                 studentId={student.id}
-                displayName={student.displayName}
+                displayName={formatStudentLabel(
+                  student.displayName,
+                  student.studentNumber,
+                )}
               />
             ))}
           </div>

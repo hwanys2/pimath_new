@@ -5,19 +5,20 @@ import { useActionState } from "react";
 import {
   createStudent,
   updateStudent,
+  deleteStudent,
   type ActionResult,
 } from "@/app/teacher/actions";
-import DeleteStudentButton from "@/components/teacher/DeleteStudentButton";
 import StudentQrPngButton from "@/components/teacher/StudentQrPngButton";
 
 const inputClass =
   "w-full min-w-0 rounded-lg border-2 border-wood/15 bg-white px-2.5 py-2 text-sm text-foreground outline-none transition placeholder:text-foreground/35 focus:border-sky focus:ring-2 focus:ring-sky/40";
 
 const rowGridClass =
-  "grid min-w-[48rem] grid-cols-[minmax(0,1.2fr)_minmax(0,1.2fr)_4.5rem_minmax(0,1.2fr)_auto] items-center gap-2 px-2";
+  "grid min-w-[52rem] grid-cols-[4rem_minmax(0,1.2fr)_minmax(0,1.2fr)_4.5rem_minmax(0,1.2fr)_auto] items-center gap-2 px-2";
 
 type Student = {
   id: string;
+  student_number: number | null;
   display_name: string;
   login_id: string;
   level: number;
@@ -53,6 +54,7 @@ export default function StudentRoster({ classId, origin, students }: Props) {
           <div
             className={`${rowGridClass} py-1 text-xs font-bold uppercase tracking-wide text-wood/70`}
           >
+            <div>번호</div>
             <div>이름</div>
             <div>아이디</div>
             <div>레벨</div>
@@ -94,6 +96,14 @@ function StudentRow({
       <input type="hidden" name="classId" value={classId} />
       <input type="hidden" name="studentId" value={student.id} />
       <input
+        name="studentNumber"
+        defaultValue={student.student_number ?? ""}
+        inputMode="numeric"
+        placeholder="번호"
+        aria-label="번호"
+        className={inputClass}
+      />
+      <input
         name="displayName"
         defaultValue={student.display_name}
         required
@@ -129,11 +139,18 @@ function StudentRow({
         >
           {pending ? "저장…" : "저장"}
         </button>
-        <DeleteStudentButton
-          classId={classId}
-          studentId={student.id}
-          displayName={student.display_name}
-        />
+        <button
+          type="submit"
+          formAction={deleteStudent}
+          className="text-xs font-semibold text-[#a63a1a] underline-offset-2 hover:underline"
+          onClick={(e) => {
+            if (!confirm(`${student.display_name} 학생을 삭제할까요?`)) {
+              e.preventDefault();
+            }
+          }}
+        >
+          삭제
+        </button>
         <StudentQrPngButton
           studentId={student.id}
           displayName={student.display_name}
@@ -170,6 +187,13 @@ function NewStudentRow({
       className={`${rowGridClass} rounded-xl border-2 border-dashed border-wood/20 bg-white/70 py-2`}
     >
       <input type="hidden" name="classId" value={classId} />
+      <input
+        name="studentNumber"
+        inputMode="numeric"
+        placeholder="번호"
+        aria-label="번호"
+        className={inputClass}
+      />
       <input
         name="displayName"
         required

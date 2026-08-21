@@ -57,7 +57,12 @@ export async function fetchClassSessionPlayers(
 }
 
 export function buildSessionStudentSummaries(
-  students: { id: string; displayName: string; loginId: string }[],
+  students: {
+    id: string;
+    displayName: string;
+    loginId: string;
+    studentNumber: number | null;
+  }[],
   rows: SessionPlayerRow[],
 ): StudentActivitySummary[] {
   const byStudent = new Map<string, SessionPlayerRow[]>();
@@ -90,6 +95,7 @@ export function buildSessionStudentSummaries(
       studentId: student.id,
       displayName: student.displayName,
       loginId: student.loginId,
+      studentNumber: student.studentNumber,
       participated: studentRows.length > 0,
       runCount: studentRows.length,
       bestScore: best?.sessionScore ?? null,

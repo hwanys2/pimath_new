@@ -3,11 +3,13 @@
 import { rotateStudentQrToken } from "@/app/teacher/actions";
 import { downloadDataUrl } from "@/components/teacher/downloadDataUrl";
 import { studentQrFileName } from "@/lib/student-qr";
+import { formatStudentLabel } from "@/lib/students";
 
 export type QrCardStudent = {
   id: string;
   displayName: string;
   loginId: string;
+  studentNumber: number | null;
   qrDataUrl: string;
 };
 
@@ -79,7 +81,7 @@ function QrPrintCard({
       </p>
       <p className="text-xs text-foreground/55">{className}</p>
       <h3 className="font-display text-xl text-foreground">
-        {student.displayName}
+        {formatStudentLabel(student.displayName, student.studentNumber)}
       </h3>
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img

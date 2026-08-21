@@ -4,6 +4,7 @@ import { getActor } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { BoardApp } from "@hwanys2/pm-board";
 import type { ClassRoster } from "@hwanys2/pm-board";
+import { formatStudentLabel, withStudentRosterOrder } from "@/lib/students";
 
 export const metadata: Metadata = {
   title: "전자칠판 | 수학하는 즐거움",
@@ -31,11 +32,12 @@ async function fetchRosters(): Promise<ClassRoster[]> {
   }
 
   const classIds = classes.map((c) => c.id as string);
-  const { data: students, error: studentError } = await supabase
-    .from("pm_students")
-    .select("class_id, display_name")
-    .in("class_id", classIds)
-    .order("display_name", { ascending: true });
+  const { data: students, error: studentError } = await withStudentRosterOrder(
+    supabase
+      .from("pm_students")
+      .select("class_id, display_name, student_number")
+      .in("class_id", classIds),
+  );
 
   if (studentError) {
     console.error("[pm] board fetch students failed:", studentError.message);
@@ -46,7 +48,12 @@ async function fetchRosters(): Promise<ClassRoster[]> {
     name: c.name as string,
     students: (students ?? [])
       .filter((s) => s.class_id === c.id)
-      .map((s) => s.display_name as string),
+      .map((s) =>
+        formatStudentLabel(
+          s.display_name as string,
+          typeof s.student_number === "number" ? s.student_number : null,
+        ),
+      ),
   }));
 }
 

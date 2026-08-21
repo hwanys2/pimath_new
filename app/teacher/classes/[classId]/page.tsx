@@ -14,6 +14,7 @@ import ClassDetailTabs from "@/components/teacher/ClassDetailTabs";
 import DeleteClassButton from "@/components/teacher/DeleteClassButton";
 import { fetchClassActivityOverview } from "@/lib/activity-results";
 import { getAuthOrigin } from "@/lib/auth-origin";
+import { withStudentRosterOrder } from "@/lib/students";
 
 type Props = {
   params: Promise<{ classId: string }>;
@@ -48,11 +49,12 @@ export default async function ClassDetailPage({ params }: Props) {
 
   const [{ data: students, error: studentError }, assignments, origin] =
     await Promise.all([
-      supabase
-        .from("pm_students")
-        .select("id, display_name, login_id, level, total_xp")
-        .eq("class_id", classId)
-        .order("display_name", { ascending: true }),
+      withStudentRosterOrder(
+        supabase
+          .from("pm_students")
+          .select("id, student_number, display_name, login_id, level, total_xp")
+          .eq("class_id", classId),
+      ),
       fetchClassContentAssignments(classId),
       getAuthOrigin(),
     ]);
@@ -133,7 +135,7 @@ export default async function ClassDetailPage({ params }: Props) {
               <div className="flex flex-col gap-6">
                 <div>
                   <p className="text-sm text-foreground/65">
-                    이름·아이디는 바로 수정하고 저장하세요. 비밀번호는 바꿀
+                    번호·이름·아이디는 바로 수정하고 저장하세요. 비밀번호는 바꿀
                     때만 입력하면 됩니다. QR을 인쇄해 교과서에 붙이면 학생이
                     카메라로 찍고 바로 들어올 수 있어요.
                   </p>

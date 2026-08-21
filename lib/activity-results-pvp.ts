@@ -62,7 +62,12 @@ export async function fetchClassPvpGames(
 }
 
 export function buildPvpStudentSummaries(
-  students: { id: string; displayName: string; loginId: string }[],
+  students: {
+    id: string;
+    displayName: string;
+    loginId: string;
+    studentNumber: number | null;
+  }[],
   games: PvpGameRow[],
 ): StudentActivitySummary[] {
   const byStudent = new Map<string, PvpGameRow[]>();
@@ -91,6 +96,7 @@ export function buildPvpStudentSummaries(
       studentId: student.id,
       displayName: student.displayName,
       loginId: student.loginId,
+      studentNumber: student.studentNumber,
       participated: studentGames.length > 0,
       runCount: studentGames.length,
       bestScore: wins > 0 ? wins * 100 : null,

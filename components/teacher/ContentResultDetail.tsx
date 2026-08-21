@@ -6,6 +6,7 @@ import {
 } from "@/lib/activity-result-schemas";
 import type { ContentType } from "@/lib/contents";
 import type { StudentActivitySummary } from "@/lib/activity-results";
+import { formatStudentLabel } from "@/lib/students";
 
 function formatDate(iso: string): string {
   try {
@@ -211,7 +212,7 @@ export function StudentResultRow({
       <div className="flex flex-wrap items-start justify-between gap-2">
         <div className="min-w-0">
           <p className="font-display text-base text-foreground">
-            {student.displayName}
+            {formatStudentLabel(student.displayName, student.studentNumber)}
           </p>
           <p className="text-xs text-foreground/50">{student.loginId}</p>
         </div>

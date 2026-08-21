@@ -7,6 +7,7 @@ import { createClient } from "@/lib/supabase/server";
 import {
   isValidLoginId,
   normalizeLoginId,
+  parseStudentNumber,
   type RosterRowInput,
 } from "@/lib/students";
 
@@ -19,6 +20,12 @@ export type ActionResult = {
 
 function mapDbError(message: string): string {
   const lower = message.toLowerCase();
+  if (lower.includes("student_number") || message.includes("있는 번호")) {
+    if (lower.includes("invalid")) {
+      return "번호는 1–999 사이 숫자여야 해요.";
+    }
+    return "같은 학급에 이미 있는 번호예요.";
+  }
   if (lower.includes("unique") || lower.includes("duplicate")) {
     return "이미 사용 중인 아이디예요.";
   }
@@ -132,8 +139,12 @@ export async function createStudent(
   const displayName = String(formData.get("displayName") ?? "").trim();
   const loginId = normalizeLoginId(String(formData.get("loginId") ?? ""));
   const password = String(formData.get("password") ?? "");
+  const parsedNumber = parseStudentNumber(
+    String(formData.get("studentNumber") ?? ""),
+  );
 
   if (!classId) return { error: "학급 정보가 없어요." };
+  if (parsedNumber.error) return { error: parsedNumber.error };
   if (!displayName) return { error: "이름을 입력해 주세요." };
   if (!isValidLoginId(loginId)) {
     return { error: "아이디를 올바르게 입력해 주세요. (공백 불가)" };
@@ -146,6 +157,7 @@ export async function createStudent(
     p_display_name: displayName,
     p_login_id: loginId,
     p_password: password,
+    p_student_number: parsedNumber.value,
   });
 
   if (error) {
@@ -167,8 +179,12 @@ export async function updateStudent(
   const displayName = String(formData.get("displayName") ?? "").trim();
   const loginId = normalizeLoginId(String(formData.get("loginId") ?? ""));
   const password = String(formData.get("password") ?? "");
+  const parsedNumber = parseStudentNumber(
+    String(formData.get("studentNumber") ?? ""),
+  );
 
   if (!classId || !studentId) return { error: "학생 정보가 없어요." };
+  if (parsedNumber.error) return { error: parsedNumber.error };
   if (!displayName) return { error: "이름을 입력해 주세요." };
   if (!isValidLoginId(loginId)) {
     return { error: "아이디를 올바르게 입력해 주세요. (공백 불가)" };
@@ -179,6 +195,7 @@ export async function updateStudent(
     p_student_id: studentId,
     p_display_name: displayName,
     p_login_id: loginId,
+    p_student_number: parsedNumber.value,
   });
 
   if (updateError) {
@@ -235,6 +252,7 @@ export async function bulkCreateStudents(
     display_name: r.displayName.trim(),
     login_id: normalizeLoginId(r.loginId),
     password: r.password,
+    student_number: r.studentNumber,
   }));
 
   const supabase = await createClient();
@@ -426,6 +444,7 @@ type QrTokenRow = {
   display_name: string;
   login_id: string;
   token: string;
+  student_number: number | null;
 };
 
 function asQrTokenRows(data: unknown): QrTokenRow[] {
@@ -441,6 +460,8 @@ function asQrTokenRows(data: unknown): QrTokenRow[] {
         display_name: r.display_name,
         login_id: r.login_id,
         token: r.token,
+        student_number:
+          typeof r.student_number === "number" ? r.student_number : null,
       },
     ];
   });

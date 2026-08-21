@@ -53,6 +53,7 @@ export default async function ClassQrPrintPage({ params }: Props) {
           id: row.student_id,
           displayName: row.display_name,
           loginId: row.login_id,
+          studentNumber: row.student_number,
           qrDataUrl: await qrDataUrl(
             getStudentQrLoginUrl(origin, row.token),
             512,

@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { parseActivityDetails } from "@/lib/activity-result-schemas";
 import type { ActivityDetailsV1 } from "@/lib/activity-result-schemas";
 import type { ContentType } from "@/lib/contents";
+import { withStudentRosterOrder } from "@/lib/students";
 
 export type GameRunRow = {
   id: string;
@@ -26,6 +27,7 @@ export type StudentActivitySummary = {
   studentId: string;
   displayName: string;
   loginId: string;
+  studentNumber: number | null;
   participated: boolean;
   runCount: number;
   bestScore: number | null;
@@ -122,14 +124,15 @@ export async function fetchClassActivitySessions(
 }
 
 export async function fetchClassStudents(classId: string): Promise<
-  { id: string; displayName: string; loginId: string }[]
+  { id: string; displayName: string; loginId: string; studentNumber: number | null }[]
 > {
   const supabase = await createClient();
-  const { data, error } = await supabase
-    .from("pm_students")
-    .select("id, display_name, login_id")
-    .eq("class_id", classId)
-    .order("display_name", { ascending: true });
+  const { data, error } = await withStudentRosterOrder(
+    supabase
+      .from("pm_students")
+      .select("id, display_name, login_id, student_number")
+      .eq("class_id", classId),
+  );
 
   if (error) {
     console.error("[pm] fetchClassStudents failed:", error.message);
@@ -140,11 +143,18 @@ export async function fetchClassStudents(classId: string): Promise<
     id: row.id,
     displayName: row.display_name,
     loginId: row.login_id,
+    studentNumber:
+      typeof row.student_number === "number" ? row.student_number : null,
   }));
 }
 
 function buildStudentSummariesFromRuns(
-  students: { id: string; displayName: string; loginId: string }[],
+  students: {
+    id: string;
+    displayName: string;
+    loginId: string;
+    studentNumber: number | null;
+  }[],
   runs: GameRunRow[],
 ): StudentActivitySummary[] {
   const byStudent = new Map<string, GameRunRow[]>();
@@ -166,6 +176,7 @@ function buildStudentSummariesFromRuns(
       studentId: student.id,
       displayName: student.displayName,
       loginId: student.loginId,
+      studentNumber: student.studentNumber,
       participated: studentRuns.length > 0,
       runCount: studentRuns.length,
       bestScore: best?.score ?? null,
@@ -179,7 +190,12 @@ function buildStudentSummariesFromRuns(
 }
 
 function buildStudentSummariesFromSessions(
-  students: { id: string; displayName: string; loginId: string }[],
+  students: {
+    id: string;
+    displayName: string;
+    loginId: string;
+    studentNumber: number | null;
+  }[],
   sessions: ActivitySessionRow[],
 ): StudentActivitySummary[] {
   const byStudent = new Map<string, ActivitySessionRow[]>();
@@ -200,6 +216,7 @@ function buildStudentSummariesFromSessions(
       studentId: student.id,
       displayName: student.displayName,
       loginId: student.loginId,
+      studentNumber: student.studentNumber,
       participated: studentSessions.length > 0,
       runCount: studentSessions.length,
       bestScore: null,

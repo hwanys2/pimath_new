@@ -50,6 +50,7 @@ export default function BulkStudentImport({ classId }: Props) {
       const result = await bulkCreateStudents(
         classId,
         preview.map((r) => ({
+          studentNumber: r.studentNumber,
           displayName: r.displayName,
           loginId: r.loginId,
           password: r.password,
@@ -74,9 +75,11 @@ export default function BulkStudentImport({ classId }: Props) {
   function downloadSample() {
     const csv =
       "\uFEFF" +
-      ["이름,아이디,비밀번호", "김민수,minsu01,1234", "이서연,seoyeon,abcd"].join(
-        "\n",
-      );
+      [
+        "번호,이름,아이디,비밀번호",
+        "1,김민수,minsu01,1234",
+        "2,이서연,seoyeon,abcd",
+      ].join("\n");
     const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
@@ -90,15 +93,15 @@ export default function BulkStudentImport({ classId }: Props) {
     <div className="quest-card p-5 sm:p-6">
       <h2 className="font-display text-xl text-wood">엑셀·CSV로 한 번에 등록</h2>
       <p className="mt-1 text-sm text-foreground/65">
-        샘플을 받아 엑셀에서 채운 뒤 CSV로 저장·업로드하거나, 이름·아이디·비밀번호
-        세 열을 복사해 붙여 넣으세요.
+        샘플을 받아 엑셀에서 채운 뒤 CSV로 저장·업로드하거나, 번호·이름·아이디·비밀번호
+        네 열을 복사해 붙여 넣으세요.
       </p>
 
       <textarea
         value={text}
         onChange={(e) => runPreview(e.target.value)}
         rows={6}
-        placeholder={"이름\t아이디\t비밀번호\n김민수\tminsu01\t1234\n이서연\tseoyeon\tabcd"}
+        placeholder={"번호\t이름\t아이디\t비밀번호\n1\t김민수\tminsu01\t1234\n2\t이서연\tseoyeon\tabcd"}
         className="mt-4 w-full rounded-xl border-2 border-wood/15 bg-white px-4 py-3 font-mono text-sm text-foreground outline-none focus:border-sky focus:ring-2 focus:ring-sky/40"
       />
 
@@ -156,6 +159,7 @@ export default function BulkStudentImport({ classId }: Props) {
             <thead>
               <tr className="text-xs font-bold text-wood/70">
                 <th className="px-2 py-1">행</th>
+                <th className="px-2 py-1">번호</th>
                 <th className="px-2 py-1">이름</th>
                 <th className="px-2 py-1">아이디</th>
                 <th className="px-2 py-1">비밀번호</th>
@@ -166,6 +170,7 @@ export default function BulkStudentImport({ classId }: Props) {
               {preview.map((r) => (
                 <tr key={r.line} className="border-t border-wood/10">
                   <td className="px-2 py-1.5 text-foreground/50">{r.line}</td>
+                  <td className="px-2 py-1.5">{r.studentNumber ?? "—"}</td>
                   <td className="px-2 py-1.5">{r.displayName || "—"}</td>
                   <td className="px-2 py-1.5 font-mono">{r.loginId || "—"}</td>
                   <td className="px-2 py-1.5 font-mono">
