@@ -11,6 +11,7 @@ import {
   normalizeGraphExpression,
 } from "../lib/board-math";
 import { parseInequality, inequalityShadePath } from "../lib/graph-inequality";
+import { resolveAxisScale, safePlotView } from "../lib/graph-plot";
 import type { BoardGraphSeriesInput, GraphSettings } from "./graph-types";
 import BoardGraphAxisDecor from "./BoardGraphAxisDecor";
 
@@ -22,14 +23,14 @@ type Props = {
   paramValues?: Record<string, number>;
 };
 
-function gridAxisOpts(): {
+function gridAxisOpts(step: number): {
   axis: false;
   lines: number;
   labels: false;
 } {
   return {
     axis: false,
-    lines: 1,
+    lines: step > 0 ? step : 1,
     labels: false,
   };
 }
@@ -91,17 +92,18 @@ export default function BoardGraphInner({
   settings,
   paramValues = {},
 }: Props) {
-  const { view } = settings;
+  const view = useMemo(() => safePlotView(settings.view), [settings.view]);
   const viewBox = useMemo(
     () => ({
       x: [view.xMin, view.xMax] as vec.Vector2,
       y: [view.yMin, view.yMax] as vec.Vector2,
-      padding: 0.35,
+      padding: 0.2,
     }),
     [view],
   );
 
-  const gridAxis = gridAxisOpts();
+  const xGrid = resolveAxisScale(view.xMin, view.xMax, settings.xScale, width);
+  const yGrid = resolveAxisScale(view.yMin, view.yMax, settings.yScale, height);
   const showAnyGrid = settings.showMajorGrid || settings.showMinorGrid;
 
   const plots = useMemo(() => {
@@ -162,7 +164,7 @@ export default function BoardGraphInner({
         pan={settings.panZoom}
         zoom={settings.panZoom}
         viewBox={viewBox}
-        preserveAspectRatio="contain"
+        preserveAspectRatio={settings.equalAxes ? "contain" : false}
       >
         {showAnyGrid ? (
           <Coordinates.Cartesian
@@ -171,13 +173,21 @@ export default function BoardGraphInner({
                 ? settings.subdivisions
                 : false
             }
-            xAxis={gridAxis}
-            yAxis={gridAxis}
+            xAxis={gridAxisOpts(xGrid)}
+            yAxis={gridAxisOpts(yGrid)}
           />
         ) : null}
         <BoardGraphAxisDecor
-          showAxes={settings.showAxes}
+          showXAxis={settings.showXAxis}
+          showYAxis={settings.showYAxis}
           showNumbers={settings.showNumbers}
+          showTicks={settings.showTicks}
+          showArrows={settings.showArrows}
+          showAxisNames={settings.showAxisNames}
+          xAxisName={settings.xAxisName}
+          yAxisName={settings.yAxisName}
+          xScale={settings.xScale}
+          yScale={settings.yScale}
         />
         {plots.plots}
       </Mafs>

@@ -2,7 +2,7 @@
 
 import { lazy, Suspense, useEffect, useRef, useState } from "react";
 import type { BoardGraphSeriesInput, GraphSettings } from "./graph-types";
-import { DEFAULT_GRAPH_SETTINGS } from "./graph-types";
+import { DEFAULT_GRAPH_SETTINGS, mergeGraphSettings } from "./graph-types";
 
 const BoardGraphInner = lazy(() => import("./BoardGraphInner"));
 
@@ -49,7 +49,7 @@ export default function BoardGraph({
             width={dims.w}
             height={dims.h}
             series={series}
-            settings={settings}
+            settings={mergeGraphSettings(settings)}
             paramValues={paramValues}
           />
         </Suspense>

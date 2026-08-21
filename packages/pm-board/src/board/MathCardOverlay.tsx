@@ -12,7 +12,7 @@ import { CloseIcon } from "./icons";
 import BoardGraph from "./BoardGraph";
 import GraphSettingsPanel from "./GraphSettingsPanel";
 import MathRichText from "./MathRichText";
-import { DEFAULT_GRAPH_SETTINGS } from "./graph-types";
+import { mergeGraphSettings } from "./graph-types";
 
 const MIN_W = 180;
 const MIN_H = 100;
@@ -48,7 +48,7 @@ export default function MathCardOverlay({
     return { ...base, ...card.paramValues };
   }, [params, card.paramValues]);
 
-  const graphSettings = card.graphSettings ?? DEFAULT_GRAPH_SETTINGS;
+  const graphSettings = mergeGraphSettings(card.graphSettings);
 
   const series = useMemo(() => {
     if (!card.showGraph || !card.expr.trim()) return [];

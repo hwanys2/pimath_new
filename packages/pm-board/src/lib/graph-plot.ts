@@ -14,13 +14,46 @@ export const DEFAULT_PLOT_VIEW: PlotView = {
   yMax: 6,
 };
 
+export const STANDARD_PLOT_VIEW: PlotView = {
+  xMin: -10,
+  xMax: 10,
+  yMin: -10,
+  yMax: 10,
+};
+
+export function safePlotView(view: PlotView): PlotView {
+  let { xMin, xMax, yMin, yMax } = view;
+  if (!Number.isFinite(xMin) || !Number.isFinite(xMax) || !(xMax > xMin)) {
+    xMin = DEFAULT_PLOT_VIEW.xMin;
+    xMax = DEFAULT_PLOT_VIEW.xMax;
+  }
+  if (!Number.isFinite(yMin) || !Number.isFinite(yMax) || !(yMax > yMin)) {
+    yMin = DEFAULT_PLOT_VIEW.yMin;
+    yMax = DEFAULT_PLOT_VIEW.yMax;
+  }
+  return { xMin, xMax, yMin, yMax };
+}
+
+/** Nice step that lands near `range / 8` (legacy plot helper). */
 export function niceStep(range: number): number {
+  if (!(range > 0) || !Number.isFinite(range)) return 1;
   const rough = range / 8;
   const pow = Math.pow(10, Math.floor(Math.log10(rough)));
   const base = rough / pow;
   if (base < 1.5) return pow;
   if (base < 3.5) return 2 * pow;
   if (base < 7.5) return 5 * pow;
+  return 10 * pow;
+}
+
+/** Smallest 1-2-5×10^n step that is ≥ minStep. */
+export function niceCeilStep(minStep: number): number {
+  if (!(minStep > 0) || !Number.isFinite(minStep)) return 1;
+  const pow = Math.pow(10, Math.floor(Math.log10(minStep)));
+  const base = minStep / pow;
+  if (base <= 1) return pow;
+  if (base <= 2) return 2 * pow;
+  if (base <= 5) return 5 * pow;
   return 10 * pow;
 }
 
@@ -33,27 +66,92 @@ export function plotTicks(min: number, max: number): number[] {
   return out;
 }
 
-/** Prefer unit steps when the visible span is modest (classroom default). */
-export function axisTicks(min: number, max: number): number[] {
+function snapTick(value: number, step: number): number {
+  if (Math.abs(value) < step / 1e6) return 0;
+  if (Math.abs(value - Math.round(value)) < Math.min(step, 1) * 1e-6) {
+    return Math.round(value);
+  }
+  return parseFloat(value.toPrecision(10));
+}
+
+/**
+ * Tick positions for one axis.
+ * `scale` 0 / omitted → auto: unit steps on modest spans, otherwise a nice step.
+ */
+export function axisTicks(
+  min: number,
+  max: number,
+  scale?: number,
+  maxTicks = 120,
+): number[] {
   const span = max - min;
-  const step = span <= 24 ? 1 : niceStep(span);
+  if (!(span > 0) || !Number.isFinite(span)) return [];
+  let step =
+    typeof scale === "number" && scale > 0
+      ? scale
+      : span <= 24
+        ? 1
+        : niceStep(span);
+  if (span / step > maxTicks) {
+    step = niceCeilStep(span / maxTicks);
+  }
   const out: number[] = [];
-  const start = Math.ceil(min / step) * step;
-  for (let v = start; v <= max + step * 0.001; v += step) {
-    const n = Math.abs(v) < step / 1e6 ? 0 : v;
-    out.push(
-      Math.abs(n - Math.round(n)) < 1e-6
-        ? Math.round(n)
-        : parseFloat(n.toFixed(2)),
-    );
+  const start = Math.ceil(min / step - 1e-9) * step;
+  for (let i = 0; ; i++) {
+    const v = snapTick(start + i * step, step);
+    if (v > max + step * 1e-6) break;
+    out.push(v);
+    if (out.length > maxTicks + 2) break;
   }
   return out;
+}
+
+/** How many ticks to skip between labels so digits do not collide. */
+export function axisLabelStride(
+  step: number,
+  pxPerUnit: number,
+  minGapPx = 16,
+): number {
+  const px = step * pxPerUnit;
+  if (!(px > 0) || !Number.isFinite(px)) return 1;
+  return Math.max(1, Math.ceil(minGapPx / px - 1e-9));
+}
+
+/**
+ * Auto Xscl/Yscl from the visible pixel length.
+ * Prefers 1 on classroom-scale windows.
+ */
+export function autoAxisScale(
+  min: number,
+  max: number,
+  pixelLength: number,
+  minGapPx = 22,
+): number {
+  const span = max - min;
+  if (!(span > 0) || !(pixelLength > 0)) return 1;
+  const minStep = (minGapPx / pixelLength) * span;
+  if (minStep <= 1) return 1;
+  return niceCeilStep(minStep);
+}
+
+export function resolveAxisScale(
+  min: number,
+  max: number,
+  scale: number,
+  pixelLength: number,
+): number {
+  if (Number.isFinite(scale) && scale > 0) return scale;
+  return autoAxisScale(min, max, pixelLength);
 }
 
 export function formatAxisLabel(n: number): string {
   if (Math.abs(n) < 1e-9) return "0";
   if (Math.abs(n - Math.round(n)) < 1e-6) return String(Math.round(n));
-  return String(parseFloat(n.toFixed(2)));
+  const abs = Math.abs(n);
+  if (abs >= 1000 || (abs > 0 && abs < 0.01)) {
+    return n.toExponential(1).replace(/e\+?/, "e");
+  }
+  return String(parseFloat(n.toFixed(4)));
 }
 
 export function buildFunctionPath(

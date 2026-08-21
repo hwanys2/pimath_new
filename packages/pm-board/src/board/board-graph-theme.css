@@ -24,3 +24,10 @@
     "Helvetica Neue", Arial, sans-serif;
   font-weight: 500;
 }
+
+.pm-board-graph .pm-graph-axis-name,
+.pm-board-graph .MafsView text.pm-graph-axis-name {
+  font-family: "Times New Roman", Times, "Noto Serif", serif;
+  font-style: italic;
+  font-weight: 600;
+}
