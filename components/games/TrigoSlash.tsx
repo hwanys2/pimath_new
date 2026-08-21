@@ -444,7 +444,7 @@ export default function TrigoSlash() {
       feverUntilRef.current = 0;
       setFeverLeft(0);
       setStatusMsg(
-        `순서가 반대예요! ${r.fn} ${r.refAt} = ${ROLE_LABEL[numRole]} → ${ROLE_LABEL[denRole]}`,
+        `순서가 반대예요! ${r.fn} ${r.refAt} = ${ROLE_LABEL[denRole]} → ${ROLE_LABEL[numRole]}`,
       );
       reverseCountRef.current += 1;
       pushLog("reverse");
@@ -463,7 +463,7 @@ export default function TrigoSlash() {
       setFlash("miss");
       setBurst("땡!");
       setStatusMsg(
-        `다른 변이에요. ${r.fn} ${r.refAt} 은 ${ROLE_LABEL[numRole]} 다음 ${ROLE_LABEL[denRole]}!`,
+        `다른 변이에요. ${r.fn} ${r.refAt} 은 ${ROLE_LABEL[denRole]} 다음 ${ROLE_LABEL[numRole]}!`,
       );
       const over = loseLife("miss");
       if (!over) scheduleNext(720);
@@ -660,7 +660,7 @@ export default function TrigoSlash() {
         </h1>
         <p className="mt-3 max-w-2xl text-sm leading-relaxed text-foreground/75 sm:text-base">
           돌아가거나 뒤집힌 직각삼각형에서 기준각의{" "}
-          <strong>높이 · 밑변 · 빗변</strong>을 찾아, 삼각비의 분자→분모 순서로
+          <strong>높이 · 밑변 · 빗변</strong>을 찾아, 삼각비의 분모→분자 순서로
           한 획에 베세요. 화면의 아래쪽이 항상 밑변이 아니에요!
         </p>
       </section>
@@ -683,8 +683,9 @@ export default function TrigoSlash() {
                 2
               </span>
               <span>
-                <Latex latex="\sin A" /> 이면 <strong>높이 → 빗변</strong> 순서로
-                두 변을 이어서 베요. 순서가 반대면 다시 그을 수 있어요.
+                <Latex latex="\sin A" /> 이면 <strong>빗변 → 높이</strong> 순서로
+                두 변을 이어서 베요. (분모분에 분자!) 순서가 반대면 다시 그을 수
+                있어요.
               </span>
             </li>
             <li className="flex gap-3">
@@ -804,23 +805,6 @@ export default function TrigoSlash() {
                     피버 ×2 {feverLeft.toFixed(0)}초
                   </span>
                 ) : null}
-              </div>
-            </div>
-
-            <div className="flex items-center justify-between gap-3 border-b border-wood/10 bg-cream/70 px-4 py-2 sm:px-5">
-              <p
-                key={`${cleared}-${round.fn}-${round.refAt}-${round.isBoss ? "b" : "n"}`}
-                className="font-display text-3xl text-wood trigo-slash-mission sm:text-4xl"
-                aria-live="polite"
-              >
-                <Latex latex={missionLatex(round.fn, round.refAt)} />
-                {round.isBoss ? (
-                  <span className="ml-2 align-middle text-sm font-bold text-[#a63a1a]">
-                    BOSS
-                  </span>
-                ) : null}
-              </p>
-              <div className="flex items-center gap-2">
                 <button
                   type="button"
                   onClick={useHint}
@@ -872,6 +856,21 @@ export default function TrigoSlash() {
                   style={{ width: `${timePct}%` }}
                 />
               </div>
+            </div>
+
+            <div className="px-4 pt-3 pb-1 text-center sm:px-5">
+              <p
+                key={`${cleared}-${round.fn}-${round.refAt}-${round.isBoss ? "b" : "n"}`}
+                className="font-display text-3xl text-wood trigo-slash-mission sm:text-4xl"
+                aria-live="polite"
+              >
+                <Latex latex={missionLatex(round.fn, round.refAt)} />
+                {round.isBoss ? (
+                  <span className="ml-2 align-middle text-sm font-bold text-[#a63a1a]">
+                    BOSS
+                  </span>
+                ) : null}
+              </p>
             </div>
 
             <div

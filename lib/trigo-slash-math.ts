@@ -56,10 +56,11 @@ export const ROLE_COLOR: Record<SideRole, string> = {
   hyp: "#d4a017",
 };
 
+/** Slash order: denominator → numerator (「분모분에 분자」). */
 export const FN_FORMULA: Record<TrigFn, string> = {
-  sin: "높이 / 빗변",
-  cos: "밑변 / 빗변",
-  tan: "높이 / 밑변",
+  sin: "빗변 → 높이",
+  cos: "빗변 → 밑변",
+  tan: "밑변 → 높이",
 };
 
 export const FN_LATEX: Record<TrigFn, string> = {
@@ -110,7 +111,7 @@ export function sideByRole(
   return "c";
 }
 
-/** Numerator then denominator, matching the ratio the student slashes. */
+/** Denominator then numerator — Korean 「분모분에 분자」 slash order. */
 export function sidesForRatio(
   fn: TrigFn,
   rightAt: VertexId,
@@ -121,11 +122,11 @@ export function sidesForRatio(
   const hyp = sideByRole("hyp", rightAt, refAt);
   switch (fn) {
     case "sin":
-      return [opp, hyp];
+      return [hyp, opp];
     case "cos":
-      return [adj, hyp];
+      return [hyp, adj];
     case "tan":
-      return [opp, adj];
+      return [adj, opp];
   }
 }
 
@@ -652,7 +653,8 @@ export function angleArc(
   const ua = { x: p.x + (da.x / la) * radius, y: p.y + (da.y / la) * radius };
   const ub = { x: p.x + (db.x / lb) * radius, y: p.y + (db.y / lb) * radius };
   const cross = da.x * db.y - da.y * db.x;
-  const sweep = cross < 0 ? 1 : 0;
+  // SVG Y-down: positive cross ⇒ clockwise from a→b ⇒ sweep=1 keeps center at the vertex.
+  const sweep = cross > 0 ? 1 : 0;
   return `M ${ua.x.toFixed(2)} ${ua.y.toFixed(2)} A ${radius} ${radius} 0 0 ${sweep} ${ub.x.toFixed(2)} ${ub.y.toFixed(2)}`;
 }
 
