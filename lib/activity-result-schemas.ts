@@ -53,7 +53,6 @@ export const SUMMARY_LABELS: Record<string, Record<string, string>> = {
     maxCombo: "최대 콤보",
     feverCount: "피버",
     accuracy: "정확도(%)",
-    hintsUsed: "힌트 사용",
     reverseCount: "순서 반대",
   },
   "g1-u2-2-linear-equation-balance": {

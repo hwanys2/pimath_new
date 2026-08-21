@@ -8,8 +8,6 @@ export const START_LIVES = 3;
 export const MAX_LIVES = 3;
 export const FEVER_COMBO = 10;
 export const FEVER_SEC = 8;
-export const HINT_MAX = 3;
-export const HINT_SEC = 2.4;
 
 /** viewBox is 0..100. */
 export const VIEW = 100;

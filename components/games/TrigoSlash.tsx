@@ -26,8 +26,6 @@ import {
   FEVER_COMBO,
   FEVER_SEC,
   FN_FORMULA,
-  HINT_MAX,
-  HINT_SEC,
   MAX_LIVES,
   ROLE_LABEL,
   START_LIVES,
@@ -190,12 +188,10 @@ export default function TrigoSlash() {
   const [cleared, setCleared] = useState(0);
   const [maxCombo, setMaxCombo] = useState(0);
   const [feverCount, setFeverCount] = useState(0);
-  const [hintsLeft, setHintsLeft] = useState(HINT_MAX);
   const [round, setRound] = useState<Round | null>(null);
   const [verts, setVerts] = useState<VertexMap | null>(null);
   const [timeLeft, setTimeLeft] = useState(0);
   const [feverLeft, setFeverLeft] = useState(0);
-  const [hintLeft, setHintLeft] = useState(0);
   const [flash, setFlash] = useState<Flash>(null);
   const [shards, setShards] = useState<Shard[] | null>(null);
   const [burst, setBurst] = useState<string | null>(null);
@@ -228,7 +224,6 @@ export default function TrigoSlash() {
   const clearedRef = useRef(cleared);
   const maxComboRef = useRef(0);
   const feverCountRef = useRef(0);
-  const hintsUsedRef = useRef(0);
   const missesRef = useRef(0);
   const reverseCountRef = useRef(0);
   const roundRef = useRef<Round | null>(null);
@@ -239,7 +234,6 @@ export default function TrigoSlash() {
   const endingRef = useRef(false);
   const timeLeftRef = useRef(0);
   const feverUntilRef = useRef(0);
-  const hintUntilRef = useRef(0);
   const logsRef = useRef<RoundLog[]>([]);
   const mutedRef = useRef(false);
   const reducedMotionRef = useRef(false);
@@ -342,7 +336,6 @@ export default function TrigoSlash() {
             maxCombo: maxComboRef.current,
             feverCount: feverCountRef.current,
             accuracy,
-            hintsUsed: hintsUsedRef.current,
             reverseCount: reverseCountRef.current,
           },
           logsRef.current.slice(-16).map((row) => ({
@@ -514,22 +507,10 @@ export default function TrigoSlash() {
     setShards(reducedMotionRef.current ? null : makeShards(v, pts));
     const extra = evald.startedNearRef ? " 기준각에서 출발 보너스!" : "";
     setStatusMsg(
-      `${ROLE_LABEL[numRole]} → ${ROLE_LABEL[denRole]}  · +${gained}점${extra}`,
+      `${ROLE_LABEL[denRole]} → ${ROLE_LABEL[numRole]}  · +${gained}점${extra}`,
     );
     scheduleNext(justFever ? 900 : 680);
   }, [loseLife, scheduleNext]);
-
-  const useHint = () => {
-    if (phase !== "playing" || resolvingRef.current) return;
-    if (hintsLeft <= 0) return;
-    if (performance.now() < hintUntilRef.current) return;
-    const left = hintsLeft - 1;
-    setHintsLeft(left);
-    hintsUsedRef.current += 1;
-    hintUntilRef.current = performance.now() + HINT_SEC * 1000;
-    setHintLeft(HINT_SEC);
-    setStatusMsg("높이(맞은편) · 밑변(맞닿은 변) · 빗변(직각 맞은편)을 색으로 봤어요.");
-  };
 
   const startGame = () => {
     endingRef.current = false;
@@ -541,22 +522,18 @@ export default function TrigoSlash() {
     clearedRef.current = 0;
     maxComboRef.current = 0;
     feverCountRef.current = 0;
-    hintsUsedRef.current = 0;
     missesRef.current = 0;
     reverseCountRef.current = 0;
     logsRef.current = [];
     feverUntilRef.current = 0;
-    hintUntilRef.current = 0;
     setLives(START_LIVES);
     setScore(0);
     setStreak(0);
     setCleared(0);
     setMaxCombo(0);
     setFeverCount(0);
-    setHintsLeft(HINT_MAX);
     setLogs([]);
     setFeverLeft(0);
-    setHintLeft(0);
     setSubmitResult(null);
     setRanking([]);
     setRankingScope("class");
@@ -608,11 +585,6 @@ export default function TrigoSlash() {
         setFeverLeft(feverRemain);
         if (feverRemain <= 0) feverUntilRef.current = 0;
       }
-      const hintRemain = Math.max(0, (hintUntilRef.current - ts) / 1000);
-      if (hintUntilRef.current > 0) {
-        setHintLeft(hintRemain);
-        if (hintRemain <= 0) hintUntilRef.current = 0;
-      }
       rafRef.current = requestAnimationFrame(tick);
     };
     rafRef.current = requestAnimationFrame(tick);
@@ -643,9 +615,6 @@ export default function TrigoSlash() {
   };
 
   const fever = feverLeft > 0;
-  const showRoles = Boolean(
-    round?.showOrderHints || hintLeft > 0,
-  );
   const timePct =
     round && round.timeLimitSec > 0
       ? Math.max(0, Math.min(100, (timeLeft / round.timeLimitSec) * 100))
@@ -807,14 +776,6 @@ export default function TrigoSlash() {
                 ) : null}
                 <button
                   type="button"
-                  onClick={useHint}
-                  disabled={hintsLeft <= 0 || hintLeft > 0}
-                  className="rounded-lg bg-lavender/50 px-3 py-1.5 text-xs font-bold text-wood disabled:opacity-40"
-                >
-                  색 힌트 {hintsLeft}
-                </button>
-                <button
-                  type="button"
                   onClick={toggleMute}
                   className="rounded-lg bg-wood/8 px-3 py-1.5 text-xs font-bold text-wood"
                   aria-pressed={muted}
@@ -884,7 +845,7 @@ export default function TrigoSlash() {
                 verts={verts}
                 round={round}
                 shards={shards}
-                showRoles={showRoles}
+                showRoles={Boolean(round.showOrderHints)}
                 flash={flash}
                 fever={fever}
                 disabled={locked}
