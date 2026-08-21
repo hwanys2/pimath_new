@@ -14,6 +14,7 @@ import {
   contentTypeLabel,
   type ContentMeta,
 } from "@/lib/contents";
+import { GRADES } from "@/lib/grades";
 import { getUnit, getUnitLabel } from "@/lib/curriculum";
 import type { ClassContentAssignment } from "@/lib/class-contents";
 
@@ -193,6 +194,29 @@ function ContentRow({
   );
 }
 
+function ContentGrid({
+  classId,
+  contents,
+  byKey,
+}: {
+  classId: string;
+  contents: ContentMeta[];
+  byKey: Map<string, ClassContentAssignment>;
+}) {
+  return (
+    <ul className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+      {contents.map((content) => (
+        <ContentRow
+          key={content.key}
+          classId={classId}
+          content={content}
+          assignment={byKey.get(content.key)}
+        />
+      ))}
+    </ul>
+  );
+}
+
 export default function ClassContentManager({ classId, assignments }: Props) {
   const byKey = useMemo(() => {
     const map = new Map<string, ClassContentAssignment>();
@@ -200,47 +224,96 @@ export default function ClassContentManager({ classId, assignments }: Props) {
     return map;
   }, [assignments]);
 
-  const { primary, inactive } = useMemo(() => {
-    const primaryList: ContentMeta[] = [];
+  const { active, inactive, unassignedByGrade } = useMemo(() => {
+    const activeList: ContentMeta[] = [];
     const inactiveList: ContentMeta[] = [];
+    const unassigned: ContentMeta[] = [];
     for (const content of CONTENTS) {
       const assignment = byKey.get(content.key);
-      if (assignment && !assignment.isActive) {
-        inactiveList.push(content);
-      } else {
-        primaryList.push(content);
-      }
+      if (!assignment) unassigned.push(content);
+      else if (assignment.isActive) activeList.push(content);
+      else inactiveList.push(content);
     }
-    return { primary: primaryList, inactive: inactiveList };
+    return {
+      active: activeList,
+      inactive: inactiveList,
+      unassignedByGrade: GRADES.map((grade) => ({
+        grade,
+        items: unassigned.filter(
+          (content) => getUnit(content.unitId)?.grade === grade.id,
+        ),
+      })).filter((group) => group.items.length > 0),
+    };
   }, [byKey]);
+
+  const assignedCount = active.length + inactive.length;
+  const unassignedCount = unassignedByGrade.reduce(
+    (sum, group) => sum + group.items.length,
+    0,
+  );
 
   return (
     <div className="flex flex-col gap-4">
       <p className="text-sm text-foreground/65">
-        담아두면 학생 목록에 보이고, 활성화해야 목록에서 플레이할 수 있어요.
-        공개 링크는 배정과 관계없이 항상 열립니다.
+        새 학급은 비어 있어요. 수업에 쓸 콘텐츠만 담아 두고, 활성화해야 학생
+        목록에서 플레이할 수 있어요. 공개 링크는 배정과 관계없이 항상 열립니다.
       </p>
 
       {CONTENTS.length === 0 ? (
         <p className="text-sm text-foreground/50">등록된 콘텐츠가 아직 없어요.</p>
       ) : (
         <div className="flex flex-col gap-3">
-          {primary.length > 0 ? (
-            <ul className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-              {primary.map((content) => (
-                <ContentRow
-                  key={content.key}
+          {assignedCount === 0 ? (
+            <p className="coming-soon-slot px-5 py-8 text-center text-sm text-foreground/55">
+              아직 담아 둔 콘텐츠가 없어요. 아래 「콘텐츠 담기」에서 수업에 쓸
+              것만 골라 주세요.
+            </p>
+          ) : (
+            <>
+              {active.length > 0 ? (
+                <ContentGrid
                   classId={classId}
-                  content={content}
-                  assignment={byKey.get(content.key)}
+                  contents={active}
+                  byKey={byKey}
                 />
-              ))}
-            </ul>
-          ) : null}
+              ) : (
+                <p className="rounded-2xl bg-wood/5 px-4 py-3 text-sm text-foreground/55">
+                  담아 둔 콘텐츠는 모두 비활성이에요. 활성화해야 학생 목록에서
+                  플레이할 수 있어요.
+                </p>
+              )}
 
-          {inactive.length > 0 ? (
-            <details className="group rounded-2xl bg-wood/5 open:bg-wood/[0.07]">
-              <summary className="cursor-pointer list-none px-4 py-3 text-sm font-bold text-foreground/65 marker:content-none [&::-webkit-details-marker]:hidden">
+              {inactive.length > 0 ? (
+                <details className="group rounded-2xl bg-wood/5 open:bg-wood/[0.07]">
+                  <summary className="cursor-pointer list-none px-4 py-3 text-sm font-bold text-foreground/65 marker:content-none [&::-webkit-details-marker]:hidden">
+                    <span className="inline-flex items-center gap-2">
+                      <span
+                        aria-hidden
+                        className="inline-block text-xs transition group-open:rotate-90"
+                      >
+                        ▸
+                      </span>
+                      비활성 {inactive.length}개
+                    </span>
+                  </summary>
+                  <div className="px-3 pb-3">
+                    <ContentGrid
+                      classId={classId}
+                      contents={inactive}
+                      byKey={byKey}
+                    />
+                  </div>
+                </details>
+              ) : null}
+            </>
+          )}
+
+          {unassignedCount > 0 ? (
+            <details
+              className="group rounded-2xl border-2 border-dashed border-wood/20 bg-white/60 open:bg-white/80"
+              open={assignedCount === 0}
+            >
+              <summary className="cursor-pointer list-none px-4 py-3 text-sm font-bold text-wood marker:content-none [&::-webkit-details-marker]:hidden">
                 <span className="inline-flex items-center gap-2">
                   <span
                     aria-hidden
@@ -248,19 +321,23 @@ export default function ClassContentManager({ classId, assignments }: Props) {
                   >
                     ▸
                   </span>
-                  비활성 {inactive.length}개
+                  콘텐츠 담기 · {unassignedCount}개
                 </span>
               </summary>
-              <ul className="grid grid-cols-1 gap-2 px-3 pb-3 sm:grid-cols-2">
-                {inactive.map((content) => (
-                  <ContentRow
-                    key={content.key}
-                    classId={classId}
-                    content={content}
-                    assignment={byKey.get(content.key)}
-                  />
+              <div className="flex flex-col gap-4 px-3 pb-3">
+                {unassignedByGrade.map(({ grade, items }) => (
+                  <div key={grade.id} className="flex flex-col gap-2">
+                    <h3 className="px-1 text-xs font-bold uppercase tracking-wide text-wood/70">
+                      {grade.label}
+                    </h3>
+                    <ContentGrid
+                      classId={classId}
+                      contents={items}
+                      byKey={byKey}
+                    />
+                  </div>
                 ))}
-              </ul>
+              </div>
             </details>
           ) : null}
         </div>
