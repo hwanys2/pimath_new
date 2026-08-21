@@ -3,6 +3,7 @@ import Link from "next/link";
 import { requireTeacher } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import CreateClassForm from "@/components/teacher/CreateClassForm";
+import ClassQuickNav from "@/components/teacher/ClassQuickNav";
 import DeleteClassButton from "@/components/teacher/DeleteClassButton";
 import { fetchClassTodayActivityCounts } from "@/lib/activity-results";
 
@@ -102,12 +103,7 @@ export default async function TeacherPage() {
                     studentCount={counts[c.id] ?? 0}
                   />
                 </div>
-                <Link
-                  href={`/teacher/classes/${c.id}`}
-                  className="block-btn block-btn-mint font-display self-start px-4 py-2 text-sm"
-                >
-                  명단 관리
-                </Link>
+                <ClassQuickNav classId={c.id} />
               </li>
             ))}
           </ul>
