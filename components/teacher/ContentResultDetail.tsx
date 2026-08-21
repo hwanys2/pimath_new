@@ -161,6 +161,51 @@ function GenericItemsDetail({ items }: { items: ActivityDetailsV1["items"] }) {
   );
 }
 
+function TrigoSlashDetail({ items }: { items: ActivityDetailsV1["items"] }) {
+  if (!items?.length) return null;
+  const resultLabel: Record<string, string> = {
+    hit: "맞춤",
+    reverse: "순서 반대",
+    miss: "오답",
+    timeout: "시간 초과",
+  };
+  const shapeLabel: Record<string, string> = {
+    normal: "보통",
+    flat: "납작",
+    skinny: "뾰족",
+  };
+  return (
+    <div className="mt-2 overflow-x-auto">
+      <table className="w-full min-w-[280px] text-left text-xs">
+        <thead>
+          <tr className="border-b border-wood/15 text-foreground/55">
+            <th className="py-1 pr-3 font-semibold">#</th>
+            <th className="py-1 pr-3 font-semibold">미션</th>
+            <th className="py-1 pr-3 font-semibold">결과</th>
+            <th className="py-1 font-semibold">모양</th>
+          </tr>
+        </thead>
+        <tbody>
+          {items.map((item, i) => (
+            <tr key={i} className="border-b border-wood/8">
+              <td className="py-1 pr-3">{String(item.i ?? i + 1)}</td>
+              <td className="py-1 pr-3">{String(item.mission ?? "—")}</td>
+              <td className="py-1 pr-3">
+                {resultLabel[String(item.result)] ?? String(item.result ?? "—")}
+                {item.boss ? " · 보스" : ""}
+                {item.spin ? " · 회전" : ""}
+              </td>
+              <td className="py-1">
+                {shapeLabel[String(item.shape)] ?? String(item.shape ?? "—")}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
 export function ContentResultDetail({
   contentKey,
   details,
@@ -180,6 +225,10 @@ export function ContentResultDetail({
 
   if (contentKey === "g3-u3-1-sincos-intro") {
     return <SincosIntroDetail items={details.items} />;
+  }
+
+  if (contentKey === "g3-u3-1-trigo-slash") {
+    return <TrigoSlashDetail items={details.items} />;
   }
 
   return <GenericItemsDetail items={details.items} />;

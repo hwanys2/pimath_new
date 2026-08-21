@@ -260,6 +260,16 @@ export const CONTENTS: ContentMeta[] = [
     description:
       "끊어진 다리 길이를 길이×삼각비(각도)로 직접 입력해 잇는 게임입니다. 계산 대신 수식 표현력을 길러요. 학급 배정·활성 시 XP와 랭킹이 쌓여요.",
   },
+  {
+    key: "g3-u3-1-trigo-slash",
+    unitId: "g3-3-1",
+    type: "game",
+    title: "삼각비 슬래시",
+    href: "/play/g3-u3-1-trigo-slash",
+    awardsXp: true,
+    description:
+      "돌아가거나 뒤집힌 직각삼각형에서 기준각의 높이·밑변·빗변을 스와이프로 베어 삼각비를 익히는 게임입니다. 학급 배정·활성 시 XP와 랭킹이 쌓여요.",
+  },
 ];
 
 export function getContent(key: string): ContentMeta | undefined {

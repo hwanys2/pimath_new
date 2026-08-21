@@ -48,6 +48,14 @@ export const SUMMARY_LABELS: Record<string, Record<string, string>> = {
     wrongAttempts: "오답 시도",
     hintsUsed: "힌트 사용",
   },
+  "g3-u3-1-trigo-slash": {
+    cleared: "맞힌 삼각비",
+    maxCombo: "최대 콤보",
+    feverCount: "피버",
+    accuracy: "정확도(%)",
+    hintsUsed: "힌트 사용",
+    reverseCount: "순서 반대",
+  },
   "g1-u2-2-linear-equation-balance": {
     correctCount: "정답",
     problemCount: "문제 수",

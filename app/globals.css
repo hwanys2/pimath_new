@@ -430,3 +430,100 @@ body {
     0 8px 0 rgba(139, 94, 60, 0.12),
     0 16px 32px rgba(61, 44, 30, 0.08);
 }
+
+/* 삼각비 슬래시 */
+@keyframes trigo-slash-shake {
+  0%,
+  100% {
+    transform: translateX(0);
+  }
+  25% {
+    transform: translateX(-2.5px);
+  }
+  75% {
+    transform: translateX(2.5px);
+  }
+}
+
+.trigo-slash-shake {
+  animation: trigo-slash-shake 0.28s ease-in-out;
+}
+
+@keyframes trigo-slash-shard {
+  0% {
+    transform: translate(0, 0) rotate(0deg);
+    opacity: 1;
+  }
+  100% {
+    transform: translate(calc(var(--shard-dx, 8) * 1px), calc(var(--shard-dy, -6) * 1px))
+      rotate(var(--shard-rot, 12deg));
+    opacity: 0.15;
+  }
+}
+
+.trigo-slash-shard {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: trigo-slash-shard 0.62s ease-out forwards;
+}
+
+@keyframes trigo-slash-ring {
+  0% {
+    r: 6;
+    opacity: 0.9;
+  }
+  100% {
+    r: 28;
+    opacity: 0;
+  }
+}
+
+.trigo-slash-ring {
+  animation: trigo-slash-ring 0.45s ease-out forwards;
+}
+
+@keyframes trigo-slash-burst {
+  0% {
+    transform: translateX(-50%) scale(0.7);
+    opacity: 0;
+  }
+  35% {
+    transform: translateX(-50%) scale(1.12);
+    opacity: 1;
+  }
+  100% {
+    transform: translateX(-50%) scale(1);
+    opacity: 1;
+  }
+}
+
+.trigo-slash-burst {
+  animation: trigo-slash-burst 0.28s ease-out;
+}
+
+@keyframes trigo-slash-mission {
+  0% {
+    transform: scale(0.86);
+    opacity: 0.35;
+  }
+  55% {
+    transform: scale(1.08);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+.trigo-slash-mission {
+  animation: trigo-slash-mission 0.45s ease-out;
+}
+
+.trigo-slash-fever {
+  background-image: radial-gradient(
+    ellipse at 50% 0%,
+    rgba(255, 215, 106, 0.35),
+    transparent 55%
+  );
+}
