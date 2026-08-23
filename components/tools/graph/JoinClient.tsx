@@ -424,7 +424,7 @@ export default function JoinClient({ initialCode }: { initialCode: string }) {
         </div>
       ) : null}
 
-      <div className="overflow-hidden rounded-2xl border-2 border-wood/15 bg-white">
+      <div className="overflow-hidden rounded-2xl border-2 border-wood/15 bg-cream">
         <p className="border-b border-wood/10 px-4 py-2 text-xs font-semibold text-foreground/60">
           {state.settings.shareBoardWithStudents
             ? "우리 반 좌표평면 (실시간)"

@@ -1,34 +1,33 @@
-/* 그래프 탐구 좌표평면 — 기존 SVG(GraphPlane)와 동일한 밝은 스타일 */
+/* 그래프 탐구 좌표평면 — 사이트 cream/wood 톤 (기존 GraphPlane SVG 느낌) */
 .pm-graph-plane {
-  background: #ffffff;
+  background: var(--cream, #fff8eb);
 }
 
 .pm-graph-plane .MafsView {
-  --mafs-bg: #ffffff;
-  --mafs-fg: #64748b;
-  --mafs-origin-color: #334155;
-  --mafs-line-color: #e2e8f0;
+  --mafs-bg: var(--cream, #fff8eb);
+  --mafs-fg: #8b7355;
+  --mafs-origin-color: var(--wood-dark, #6b4423);
+  --mafs-line-color: #e8dcc8;
   --grid-line-subdivision-color: transparent;
   --mafs-line-stroke-dash-style: none;
   --mafs-axis-stroke-width: 2px;
-  background: #ffffff;
+  background: var(--cream, #fff8eb);
 }
 
 .pm-graph-plane .MafsView text {
-  font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto,
-    "Helvetica Neue", Arial, sans-serif;
+  font-family: var(--font-noto-sans-kr), ui-sans-serif, system-ui, sans-serif;
   font-size: 13px;
   font-weight: 500;
-  fill: #64748b;
+  fill: #8b7355;
 }
 
 .pm-graph-plane .MafsView .mafs-axis text {
-  fill: #64748b;
+  fill: #8b7355;
 }
 
 .pm-graph-plane .pm-graph-axis-name {
   font-family: "Times New Roman", Times, "Noto Serif", serif;
   font-style: italic;
   font-weight: 600;
-  fill: #334155 !important;
+  fill: var(--wood-dark, #6b4423) !important;
 }

@@ -3,7 +3,7 @@
 import { useMemo } from "react";
 import { Line, Polygon, Text, usePaneContext, useTransformContext, vec } from "mafs";
 
-const AXIS_COLOR = "#334155";
+const AXIS_COLOR = "#6b4423";
 const AXIS_WEIGHT = 2;
 const EDGE_PAD_PX = 14;
 const ARROW_PAD_PX = 10;

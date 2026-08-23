@@ -385,7 +385,7 @@ export default function HostDashboard({
 
       {/* body */}
       <div className="flex min-h-0 flex-1 flex-col lg:flex-row">
-        <div className="relative min-h-0 min-w-0 flex-1 bg-white">
+        <div className="relative min-h-0 min-w-0 flex-1 bg-cream">
           <InteractiveGraphPlane
             xMin={state.settings.xMin}
             xMax={state.settings.xMax}

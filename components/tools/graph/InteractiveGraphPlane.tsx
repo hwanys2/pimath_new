@@ -11,10 +11,10 @@ import GraphPlaneAxisDecor from "@/components/tools/graph/GraphPlaneAxisDecor";
 
 export type { PlanePoint };
 
-const POINT_RADIUS: Record<GraphPointSize, number> = {
-  sm: 0.12,
-  md: 0.18,
-  lg: 0.26,
+const POINT_RADIUS_PX: Record<GraphPointSize, number> = {
+  sm: 6,
+  md: 9,
+  lg: 13,
 };
 
 type Props = {
@@ -62,7 +62,7 @@ export default function InteractiveGraphPlane({
 
   const formatLabel = useCallback((v: number) => formatCoord(v), []);
 
-  const r = POINT_RADIUS[pointSize];
+  const rPx = POINT_RADIUS_PX[pointSize];
   const containerRef = useRef<HTMLDivElement>(null);
   const [size, setSize] = useState({ width: 0, height: 0 });
 
@@ -89,7 +89,7 @@ export default function InteractiveGraphPlane({
   return (
     <div
       ref={containerRef}
-      className={`pm-graph-plane h-full w-full min-h-0 overflow-hidden bg-white ${className ?? ""}`}
+      className={`pm-graph-plane h-full w-full min-h-0 overflow-hidden bg-cream ${className ?? ""}`}
     >
       {size.width > 0 && size.height > 0 ? (
         <Mafs
@@ -108,7 +108,9 @@ export default function InteractiveGraphPlane({
           {curveFn ? (
             <Plot.OfX y={curveFn} color={curveColor} weight={3} />
           ) : null}
-          {points.map((p) => (
+          {points.map((p) => {
+            const dotR = p.emphasized ? rPx + 2 : rPx;
+            return (
             <g key={p.id}>
               <Point
                 x={p.x}
@@ -116,8 +118,8 @@ export default function InteractiveGraphPlane({
                 color={p.color}
                 opacity={p.isCorrect ? 1 : 0.55}
                 svgCircleProps={{
-                  r: p.emphasized ? r * 1.2 : r,
-                  stroke: "#ffffff",
+                  r: dotR,
+                  stroke: "#fff8eb",
                   strokeWidth: 2,
                 }}
               />
@@ -125,7 +127,7 @@ export default function InteractiveGraphPlane({
                 <Text
                   x={p.x}
                   y={p.y}
-                  size={14}
+                  size={Math.round(dotR * 1.4)}
                   color="#ffffff"
                   svgTextProps={{
                     textAnchor: "middle",
@@ -141,15 +143,17 @@ export default function InteractiveGraphPlane({
                   x={p.x}
                   y={p.y}
                   attach="n"
-                  attachDistance={12}
+                  attachDistance={dotR + 6}
                   size={14}
                   color={p.color}
+                  svgTextProps={{ fontWeight: 600 }}
                 >
                   {p.label}
                 </Text>
               ) : null}
             </g>
-          ))}
+            );
+          })}
         </Mafs>
       ) : null}
     </div>
