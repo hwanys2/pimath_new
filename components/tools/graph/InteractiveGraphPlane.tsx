@@ -12,9 +12,9 @@ import GraphPlaneAxisDecor from "@/components/tools/graph/GraphPlaneAxisDecor";
 export type { PlanePoint };
 
 const POINT_RADIUS_PX: Record<GraphPointSize, number> = {
-  sm: 6,
-  md: 9,
-  lg: 13,
+  sm: 4,
+  md: 6,
+  lg: 9,
 };
 
 type Props = {
@@ -109,7 +109,7 @@ export default function InteractiveGraphPlane({
             <Plot.OfX y={curveFn} color={curveColor} weight={3} />
           ) : null}
           {points.map((p) => {
-            const dotR = p.emphasized ? rPx + 2 : rPx;
+            const dotR = p.emphasized ? rPx + 1 : rPx;
             return (
             <g key={p.id}>
               <Point
