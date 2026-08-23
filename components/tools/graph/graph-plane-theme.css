@@ -1,0 +1,34 @@
+/* 그래프 탐구 좌표평면 — 기존 SVG(GraphPlane)와 동일한 밝은 스타일 */
+.pm-graph-plane {
+  background: #ffffff;
+}
+
+.pm-graph-plane .MafsView {
+  --mafs-bg: #ffffff;
+  --mafs-fg: #64748b;
+  --mafs-origin-color: #334155;
+  --mafs-line-color: #e2e8f0;
+  --grid-line-subdivision-color: transparent;
+  --mafs-line-stroke-dash-style: none;
+  --mafs-axis-stroke-width: 2px;
+  background: #ffffff;
+}
+
+.pm-graph-plane .MafsView text {
+  font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto,
+    "Helvetica Neue", Arial, sans-serif;
+  font-size: 13px;
+  font-weight: 500;
+  fill: #64748b;
+}
+
+.pm-graph-plane .MafsView .mafs-axis text {
+  fill: #64748b;
+}
+
+.pm-graph-plane .pm-graph-axis-name {
+  font-family: "Times New Roman", Times, "Noto Serif", serif;
+  font-style: italic;
+  font-weight: 600;
+  fill: #334155 !important;
+}

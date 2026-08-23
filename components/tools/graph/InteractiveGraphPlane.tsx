@@ -1,11 +1,13 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Mafs, Coordinates, Plot, Point, Text } from "mafs";
 import "mafs/core.css";
-import { compileExpression } from "@/lib/graph-explorer-math";
+import "./graph-plane-theme.css";
+import { compileExpression, formatCoord } from "@/lib/graph-explorer-math";
 import type { GraphPointSize } from "@/lib/graph-explorer-types";
 import type { PlanePoint } from "@/components/tools/graph/GraphPlane";
+import GraphPlaneAxisDecor from "@/components/tools/graph/GraphPlaneAxisDecor";
 
 export type { PlanePoint };
 
@@ -58,6 +60,8 @@ export default function InteractiveGraphPlane({
     return compileExpression(curveExpression);
   }, [curveExpression]);
 
+  const formatLabel = useCallback((v: number) => formatCoord(v), []);
+
   const r = POINT_RADIUS[pointSize];
   const containerRef = useRef<HTMLDivElement>(null);
   const [size, setSize] = useState({ width: 0, height: 0 });
@@ -76,50 +80,77 @@ export default function InteractiveGraphPlane({
   }, []);
 
   const gridStep = step > 0 ? step : 1;
-  const gridAxis = {
+  const axisOpts = {
     axis: false as const,
     lines: gridStep,
-    labels: false as const,
+    labels: formatLabel,
   };
 
   return (
     <div
       ref={containerRef}
-      className={`h-full w-full min-h-0 ${className ?? ""}`}
+      className={`pm-graph-plane h-full w-full min-h-0 overflow-hidden bg-white ${className ?? ""}`}
     >
       {size.width > 0 && size.height > 0 ? (
-      <Mafs
-        width={size.width}
-        height={size.height}
-        pan={interactive}
-        zoom={interactive}
-        viewBox={viewBox}
-      >
-        <Coordinates.Cartesian
-          subdivisions={false}
-          xAxis={gridAxis}
-          yAxis={gridAxis}
-        />
-        {curveFn ? (
-          <Plot.OfX y={curveFn} color={curveColor} weight={3} />
-        ) : null}
-        {points.map((p) => (
-          <g key={p.id}>
-            <Point
-              x={p.x}
-              y={p.y}
-              color={p.color}
-              opacity={p.isCorrect ? 1 : 0.55}
-              svgCircleProps={{ r: p.emphasized ? r * 1.2 : r }}
-            />
-            {showNames && p.label ? (
-              <Text x={p.x} y={p.y} attach="n" attachDistance={12} size={14} color={p.color}>
-                {p.label}
-              </Text>
-            ) : null}
-          </g>
-        ))}
-      </Mafs>
+        <Mafs
+          width={size.width}
+          height={size.height}
+          pan={interactive}
+          zoom={interactive}
+          viewBox={viewBox}
+        >
+          <Coordinates.Cartesian
+            subdivisions={false}
+            xAxis={axisOpts}
+            yAxis={axisOpts}
+          />
+          <GraphPlaneAxisDecor />
+          {curveFn ? (
+            <Plot.OfX y={curveFn} color={curveColor} weight={3} />
+          ) : null}
+          {points.map((p) => (
+            <g key={p.id}>
+              <Point
+                x={p.x}
+                y={p.y}
+                color={p.color}
+                opacity={p.isCorrect ? 1 : 0.55}
+                svgCircleProps={{
+                  r: p.emphasized ? r * 1.2 : r,
+                  stroke: "#ffffff",
+                  strokeWidth: 2,
+                }}
+              />
+              {!p.isCorrect ? (
+                <Text
+                  x={p.x}
+                  y={p.y}
+                  size={14}
+                  color="#ffffff"
+                  svgTextProps={{
+                    textAnchor: "middle",
+                    dominantBaseline: "central",
+                    fontWeight: 700,
+                  }}
+                >
+                  ×
+                </Text>
+              ) : null}
+              {showNames && p.label ? (
+                <Text
+                  x={p.x}
+                  y={p.y}
+                  attach="n"
+                  attachDistance={12}
+                  size={14}
+                  color={p.color}
+                >
+                  {p.label}
+                </Text>
+              ) : null}
+            </g>
+          ))}
+        </Mafs>
       ) : null}
     </div>
   );
