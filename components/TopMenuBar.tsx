@@ -3,10 +3,86 @@
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useEffect, useRef, useState } from "react";
 import { GRADES } from "@/lib/grades";
+import { TOOLS } from "@/lib/tools";
 import { signOut } from "@/app/auth/actions";
 import NicknameEditor from "@/components/NicknameEditor";
 import type { TeacherActor } from "@/lib/auth";
+
+function ToolsMenu({ pathname }: { pathname: string }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  const active =
+    pathname === "/board" ||
+    pathname === "/tools" ||
+    pathname.startsWith("/tools/");
+
+  useEffect(() => {
+    if (!open) return;
+    const onPointerDown = (e: PointerEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) {
+        setOpen(false);
+      }
+    };
+    document.addEventListener("pointerdown", onPointerDown);
+    return () => document.removeEventListener("pointerdown", onPointerDown);
+  }, [open]);
+
+  return (
+    <div ref={ref} className="relative">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        aria-expanded={open}
+        className={`font-display flex items-center gap-1 rounded-xl px-3 py-2 text-sm transition sm:px-5 sm:text-base ${
+          active
+            ? "bg-cream text-wood-dark shadow-[0_3px_0_rgba(0,0,0,0.25)]"
+            : "bg-black/15 text-cream hover:bg-black/25"
+        }`}
+      >
+        도구
+        <span
+          className={`text-[10px] transition-transform ${open ? "rotate-180" : ""}`}
+          aria-hidden
+        >
+          ▼
+        </span>
+      </button>
+      {open ? (
+        <div className="absolute left-1/2 top-full z-50 mt-2 w-52 -translate-x-1/2 rounded-2xl border-2 border-wood/20 bg-cream p-1.5 shadow-xl">
+          {TOOLS.map((tool) => {
+            const toolActive =
+              pathname === tool.href || pathname.startsWith(`${tool.href}/`);
+            return (
+              <Link
+                key={tool.key}
+                href={tool.href}
+                onClick={() => setOpen(false)}
+                className={`font-display flex items-center gap-2 rounded-xl px-3 py-2.5 text-sm transition ${
+                  toolActive
+                    ? "bg-wood/15 text-wood-dark"
+                    : "text-wood-dark hover:bg-wood/10"
+                }`}
+              >
+                <span aria-hidden>{tool.emoji}</span>
+                {tool.label}
+              </Link>
+            );
+          })}
+          <Link
+            href="/tools"
+            onClick={() => setOpen(false)}
+            className="mt-0.5 block rounded-xl border-t border-wood/10 px-3 py-2 text-center text-xs font-semibold text-wood/70 transition hover:bg-wood/10"
+          >
+            모든 도구 보기
+          </Link>
+        </div>
+      ) : null}
+    </div>
+  );
+}
 
 export default function TopMenuBar({
   actor,
@@ -59,16 +135,7 @@ export default function TopMenuBar({
               </Link>
             );
           })}
-          <Link
-            href="/board"
-            className={`font-display rounded-xl px-3 py-2 text-sm transition sm:px-5 sm:text-base ${
-              pathname === "/board"
-                ? "bg-cream text-wood-dark shadow-[0_3px_0_rgba(0,0,0,0.25)]"
-                : "bg-black/15 text-cream hover:bg-black/25"
-            }`}
-          >
-            전자칠판
-          </Link>
+          <ToolsMenu pathname={pathname} />
         </div>
 
         {actor ? (
