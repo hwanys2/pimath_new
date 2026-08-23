@@ -1,6 +1,7 @@
 import "server-only";
 
 import { createClient } from "@/lib/supabase/server";
+import { expressionDisplayToLatex } from "@/lib/graph-expression-latex";
 import {
   checkPoint,
   compileExpression,
@@ -11,6 +12,7 @@ import {
   parseGraphSettings,
   type GraphParticipant,
   type GraphPoint,
+  type GraphSessionSummary,
   type GraphSettings,
   type GraphStudentState,
   type GraphSubmitResult,
@@ -35,6 +37,7 @@ function parseStatus(s: string | null | undefined): "live" | "closed" {
 export function prepareExpression(raw: string): {
   expression: string;
   display: string;
+  latex: string;
 } | null {
   const trimmed = raw.trim();
   if (!trimmed || trimmed.length > 120) return null;
@@ -45,14 +48,26 @@ export function prepareExpression(raw: string): {
   const display = /^(y\s*=|f\s*\(\s*x\s*\)\s*=)/i.test(trimmed)
     ? trimmed
     : `y = ${normalized}`;
-  return { expression: normalized, display };
+  return {
+    expression: normalized,
+    display,
+    latex: expressionDisplayToLatex(display),
+  };
+}
+
+type OwnerOpts = { guestTeacherKey?: string | null };
+
+function ownerArg(opts?: OwnerOpts): string | null {
+  const k = opts?.guestTeacherKey?.trim();
+  return k && k.length >= 8 ? k : null;
 }
 
 // ---------------------------------------------------------------------------
-// 교사
+// 교사 — 방 생성
 // ---------------------------------------------------------------------------
 
 export async function graphCreateSession(input: {
+  title: string;
   expressionRaw: string;
   settings: Partial<GraphSettings>;
 }) {
@@ -61,11 +76,14 @@ export async function graphCreateSession(input: {
     return { error: "함수식을 이해하지 못했어요. 예: y = 2x + 1" };
   }
 
+  const title = input.title.trim() || "그래프 탐구";
   const settings = parseGraphSettings(input.settings);
   const supabase = await createClient();
   const { data, error } = await supabase.rpc("pm_graph_create_session", {
+    p_title: title,
     p_expression: prepared.expression,
     p_expression_display: prepared.display,
+    p_expression_latex: prepared.latex,
     p_settings: settings,
   });
 
@@ -77,10 +95,38 @@ export async function graphCreateSession(input: {
     return { error: "방을 만들지 못했어요." };
   }
 
-  const row = firstRow(data) as {
-    session_id: string;
-    join_code: string;
-  } | null;
+  const row = firstRow(data) as { session_id: string; join_code: string } | null;
+  if (!row) return { error: "방 정보가 없어요." };
+
+  return { sessionId: row.session_id, joinCode: row.join_code };
+}
+
+export async function graphCreateAnonSession(input: {
+  guestTeacherKey: string;
+  expressionRaw: string;
+  settings: Partial<GraphSettings>;
+}) {
+  const prepared = prepareExpression(input.expressionRaw);
+  if (!prepared) {
+    return { error: "함수식을 이해하지 못했어요. 예: y = 2x + 1" };
+  }
+
+  const settings = parseGraphSettings(input.settings);
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("pm_graph_create_anon_session", {
+    p_guest_teacher_key: input.guestTeacherKey,
+    p_expression: prepared.expression,
+    p_expression_display: prepared.display,
+    p_expression_latex: prepared.latex,
+    p_settings: settings,
+  });
+
+  if (error) {
+    console.error("[pm] pm_graph_create_anon_session failed:", error.message);
+    return { error: "방을 만들지 못했어요." };
+  }
+
+  const row = firstRow(data) as { session_id: string; join_code: string } | null;
   if (!row) return { error: "방 정보가 없어요." };
 
   return { sessionId: row.session_id, joinCode: row.join_code };
@@ -98,15 +144,77 @@ export async function graphFindMyActive() {
   return { sessionId: (data as string | null) ?? null };
 }
 
+export async function graphAnonFindActive(input: { guestTeacherKey: string }) {
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("pm_graph_anon_find_active", {
+    p_guest_teacher_key: input.guestTeacherKey,
+  });
+
+  if (error) {
+    console.error("[pm] pm_graph_anon_find_active failed:", error.message);
+    return { sessionId: null as string | null };
+  }
+
+  return { sessionId: (data as string | null) ?? null };
+}
+
+export async function graphListTeacherSessions(): Promise<
+  GraphSessionSummary[] | { error: string }
+> {
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("pm_graph_list_teacher_sessions");
+
+  if (error) {
+    console.error("[pm] pm_graph_list_teacher_sessions failed:", error.message);
+    if (error.message.includes("not authenticated")) {
+      return { error: "교사 로그인이 필요해요." };
+    }
+    return { error: "방 목록을 불러오지 못했어요." };
+  }
+
+  return firstRows(data).map((r) => {
+    const row = r as {
+      session_id: string;
+      title: string;
+      status: string;
+      join_code: string | null;
+      expression_display: string;
+      expression_latex: string | null;
+      reveal: boolean;
+      participant_count: number;
+      point_count: number;
+      correct_count: number;
+      created_at: string;
+      updated_at: string;
+    };
+    return {
+      sessionId: row.session_id,
+      title: row.title,
+      status: parseStatus(row.status),
+      joinCode: row.join_code,
+      expressionDisplay: row.expression_display,
+      expressionLatex: row.expression_latex,
+      reveal: Boolean(row.reveal),
+      participantCount: Number(row.participant_count) || 0,
+      pointCount: Number(row.point_count) || 0,
+      correctCount: Number(row.correct_count) || 0,
+      createdAt: row.created_at,
+      updatedAt: row.updated_at,
+    };
+  });
+}
+
 export async function graphUpdateSettings(input: {
   sessionId: string;
   settings: Partial<GraphSettings>;
+  guestTeacherKey?: string | null;
 }) {
   const settings = parseGraphSettings(input.settings);
   const supabase = await createClient();
   const { error } = await supabase.rpc("pm_graph_update_settings", {
     p_session_id: input.sessionId,
     p_settings: settings,
+    p_guest_teacher_key: ownerArg(input),
   });
 
   if (error) {
@@ -120,6 +228,7 @@ export async function graphUpdateSettings(input: {
 export async function graphUpdateExpression(input: {
   sessionId: string;
   expressionRaw: string;
+  guestTeacherKey?: string | null;
 }) {
   const prepared = prepareExpression(input.expressionRaw);
   if (!prepared) {
@@ -131,6 +240,8 @@ export async function graphUpdateExpression(input: {
     p_session_id: input.sessionId,
     p_expression: prepared.expression,
     p_expression_display: prepared.display,
+    p_expression_latex: prepared.latex,
+    p_guest_teacher_key: ownerArg(input),
   });
 
   if (error) {
@@ -144,11 +255,13 @@ export async function graphUpdateExpression(input: {
 export async function graphSetReveal(input: {
   sessionId: string;
   reveal: boolean;
+  guestTeacherKey?: string | null;
 }) {
   const supabase = await createClient();
   const { error } = await supabase.rpc("pm_graph_set_reveal", {
     p_session_id: input.sessionId,
     p_reveal: input.reveal,
+    p_guest_teacher_key: ownerArg(input),
   });
 
   if (error) {
@@ -159,10 +272,14 @@ export async function graphSetReveal(input: {
   return { ok: true as const };
 }
 
-export async function graphClearPoints(input: { sessionId: string }) {
+export async function graphClearPoints(input: {
+  sessionId: string;
+  guestTeacherKey?: string | null;
+}) {
   const supabase = await createClient();
   const { error } = await supabase.rpc("pm_graph_clear_points", {
     p_session_id: input.sessionId,
+    p_guest_teacher_key: ownerArg(input),
   });
 
   if (error) {
@@ -176,11 +293,13 @@ export async function graphClearPoints(input: { sessionId: string }) {
 export async function graphRemovePoint(input: {
   sessionId: string;
   pointId: string;
+  guestTeacherKey?: string | null;
 }) {
   const supabase = await createClient();
   const { error } = await supabase.rpc("pm_graph_remove_point", {
     p_session_id: input.sessionId,
     p_point_id: input.pointId,
+    p_guest_teacher_key: ownerArg(input),
   });
 
   if (error) {
@@ -191,10 +310,14 @@ export async function graphRemovePoint(input: {
   return { ok: true as const };
 }
 
-export async function graphClose(input: { sessionId: string }) {
+export async function graphClose(input: {
+  sessionId: string;
+  guestTeacherKey?: string | null;
+}) {
   const supabase = await createClient();
   const { error } = await supabase.rpc("pm_graph_close", {
     p_session_id: input.sessionId,
+    p_guest_teacher_key: ownerArg(input),
   });
 
   if (error) {
@@ -207,10 +330,12 @@ export async function graphClose(input: { sessionId: string }) {
 
 type TeacherPollRow = {
   session_id: string;
+  title: string;
   status: string;
   join_code: string | null;
   expression: string;
   expression_display: string;
+  expression_latex: string | null;
   reveal: boolean;
   settings: unknown;
   participant_id: string | null;
@@ -223,36 +348,15 @@ type TeacherPollRow = {
   point_created_at: string | null;
 };
 
-export async function graphTeacherPoll(input: {
-  sessionId: string;
-}): Promise<GraphTeacherState | { error: string }> {
-  const supabase = await createClient();
-  const { data, error } = await supabase.rpc("pm_graph_teacher_poll", {
-    p_session_id: input.sessionId,
-  });
-
-  if (error) {
-    console.error("[pm] pm_graph_teacher_poll failed:", error.message);
-    if (
-      error.message.includes("not authenticated") ||
-      error.message.includes("not session owner")
-    ) {
-      return { error: "교사 권한이 필요해요." };
-    }
-    return { error: "상태를 불러오지 못했어요." };
-  }
-
-  const rows = firstRows(data) as TeacherPollRow[];
-  if (rows.length === 0) return { error: "방을 찾을 수 없어요." };
-
+function mapTeacherPollRows(rows: TeacherPollRow[]): GraphTeacherState | null {
+  if (rows.length === 0) return null;
   const head = rows[0]!;
   const participantMap = new Map<string, GraphParticipant>();
   const points: GraphPoint[] = [];
 
   for (const r of rows) {
     if (r.participant_id) {
-      const existing = participantMap.get(r.participant_id);
-      if (!existing) {
+      if (!participantMap.has(r.participant_id)) {
         participantMap.set(r.participant_id, {
           id: r.participant_id,
           name: r.participant_name ?? "탐험가",
@@ -279,21 +383,44 @@ export async function graphTeacherPoll(input: {
     }
   }
 
-  points.sort((a, b) =>
-    (a.createdAt ?? "").localeCompare(b.createdAt ?? ""),
-  );
+  points.sort((a, b) => (a.createdAt ?? "").localeCompare(b.createdAt ?? ""));
 
   return {
     sessionId: head.session_id,
+    title: head.title ?? "그래프 탐구",
     status: parseStatus(head.status),
     joinCode: head.join_code,
     expression: head.expression,
     expressionDisplay: head.expression_display,
+    expressionLatex: head.expression_latex,
     reveal: Boolean(head.reveal),
     settings: parseGraphSettings(head.settings),
     participants: [...participantMap.values()],
     points,
   };
+}
+
+export async function graphTeacherPoll(input: {
+  sessionId: string;
+  guestTeacherKey?: string | null;
+}): Promise<GraphTeacherState | { error: string }> {
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("pm_graph_teacher_poll", {
+    p_session_id: input.sessionId,
+    p_guest_teacher_key: ownerArg(input),
+  });
+
+  if (error) {
+    console.error("[pm] pm_graph_teacher_poll failed:", error.message);
+    if (error.message.includes("not session owner")) {
+      return { error: "이 방에 접근할 권한이 없어요." };
+    }
+    return { error: "상태를 불러오지 못했어요." };
+  }
+
+  const mapped = mapTeacherPollRows(firstRows(data) as TeacherPollRow[]);
+  if (!mapped) return { error: "방을 찾을 수 없어요." };
+  return mapped;
 }
 
 // ---------------------------------------------------------------------------
@@ -392,7 +519,6 @@ export async function graphSubmitPoint(input: {
   const verdict = checkPoint(fn, x, y, settings.tolerance);
   const isCorrect = verdict.status === "correct";
 
-  // 오답 비표시 모드: 저장하지 않고 피드백만 (제출 기회를 쓰지 않음)
   if (!isCorrect && !settings.showWrongOnBoard) {
     return { ok: true, stored: false, verdict: verdict.status };
   }
@@ -446,6 +572,7 @@ type GuestPollRow = {
   settings: unknown;
   expression: string | null;
   expression_display: string | null;
+  expression_latex: string | null;
   participant_count: number;
   my_name: string | null;
   point_id: string | null;
@@ -496,6 +623,7 @@ export async function graphGuestPoll(input: {
     settings: parseGraphSettings(head.settings),
     expression: head.expression,
     expressionDisplay: head.expression_display,
+    expressionLatex: head.expression_latex,
     participantCount: head.participant_count ?? 0,
     myName: head.my_name,
     points,

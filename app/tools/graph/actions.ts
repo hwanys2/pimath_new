@@ -1,14 +1,17 @@
 "use server";
 
 import {
+  graphAnonFindActive,
   graphClearPoints,
   graphClose,
+  graphCreateAnonSession,
   graphCreateSession,
   graphDeleteOwnPoint,
   graphFindByCode,
   graphFindMyActive,
   graphGuestJoin,
   graphGuestPoll,
+  graphListTeacherSessions,
   graphRemovePoint,
   graphSetReveal,
   graphSubmitPoint,
@@ -18,13 +21,18 @@ import {
 } from "@/lib/graph-explorer";
 import type { GraphSettings } from "@/lib/graph-explorer-types";
 
-// 교사 --------------------------------------------------------------------
+// 로그인 교사 ----------------------------------------------------------------
 
 export async function graphCreateSessionAction(input: {
+  title: string;
   expressionRaw: string;
   settings: Partial<GraphSettings>;
 }) {
   return graphCreateSession(input);
+}
+
+export async function graphListTeacherSessionsAction() {
+  return graphListTeacherSessions();
 }
 
 export async function graphFindMyActiveAction() {
@@ -34,6 +42,7 @@ export async function graphFindMyActiveAction() {
 export async function graphUpdateSettingsAction(input: {
   sessionId: string;
   settings: Partial<GraphSettings>;
+  guestTeacherKey?: string | null;
 }) {
   return graphUpdateSettings(input);
 }
@@ -41,6 +50,7 @@ export async function graphUpdateSettingsAction(input: {
 export async function graphUpdateExpressionAction(input: {
   sessionId: string;
   expressionRaw: string;
+  guestTeacherKey?: string | null;
 }) {
   return graphUpdateExpression(input);
 }
@@ -48,27 +58,54 @@ export async function graphUpdateExpressionAction(input: {
 export async function graphSetRevealAction(input: {
   sessionId: string;
   reveal: boolean;
+  guestTeacherKey?: string | null;
 }) {
   return graphSetReveal(input);
 }
 
-export async function graphClearPointsAction(input: { sessionId: string }) {
+export async function graphClearPointsAction(input: {
+  sessionId: string;
+  guestTeacherKey?: string | null;
+}) {
   return graphClearPoints(input);
 }
 
 export async function graphRemovePointAction(input: {
   sessionId: string;
   pointId: string;
+  guestTeacherKey?: string | null;
 }) {
   return graphRemovePoint(input);
 }
 
-export async function graphCloseAction(input: { sessionId: string }) {
+export async function graphCloseAction(input: {
+  sessionId: string;
+  guestTeacherKey?: string | null;
+}) {
   return graphClose(input);
 }
 
-export async function graphTeacherPollAction(input: { sessionId: string }) {
+export async function graphTeacherPollAction(input: {
+  sessionId: string;
+  guestTeacherKey?: string | null;
+}) {
   return graphTeacherPoll(input);
+}
+
+// 익명 교사 ------------------------------------------------------------------
+
+export async function graphCreateAnonSessionAction(input: {
+  guestTeacherKey: string;
+  expressionRaw: string;
+  settings: Partial<GraphSettings>;
+}) {
+  return graphCreateAnonSession(input);
+}
+
+export async function graphAnonFindActiveAction(input: {
+  guestTeacherKey: string;
+}) {
+  return graphAnonFindActive(input);
 }
 
 // 학생 (익명) ----------------------------------------------------------------

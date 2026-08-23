@@ -1,28 +1,21 @@
 export type GraphPointSize = "sm" | "md" | "lg";
 
 export type GraphSettings = {
-  /** 좌표평면 표시 범위 */
   xMin: number;
   xMax: number;
   yMin: number;
   yMax: number;
-  /** 눈금(격자) 간격 */
   step: number;
-  /** 정수 순서쌍만 허용 (중1 순서쌍 도입 단계) */
   integersOnly: boolean;
-  /** 학생당 제출 가능한 점 개수 */
+  /** 학생당 제출 가능한 점 개수 (unlimitedPoints=true이면 무시) */
   maxPointsPerStudent: number;
-  /** 정오 판정 허용오차 |f(x) - y| */
+  /** true면 학생당 점 개수 제한 없음 */
+  unlimitedPoints: boolean;
   tolerance: number;
-  /** 오답 점도 칠판에 (회색으로) 표시할지. false면 오답은 저장하지 않고 학생만 재도전 */
   showWrongOnBoard: boolean;
-  /** 점 옆에 학생 이름 표시 */
   showNames: boolean;
-  /** 점 크기 (투사 환경 대응) */
   pointSize: GraphPointSize;
-  /** 학생 화면에도 전체 점을 공개 */
   shareBoardWithStudents: boolean;
-  /** 학생에게 함수식 숨기기 (역탐구 모드) */
   hideExpression: boolean;
 };
 
@@ -34,6 +27,7 @@ export const DEFAULT_GRAPH_SETTINGS: GraphSettings = {
   step: 1,
   integersOnly: false,
   maxPointsPerStudent: 3,
+  unlimitedPoints: false,
   tolerance: 0.01,
   showWrongOnBoard: true,
   showNames: true,
@@ -51,7 +45,6 @@ function bool(v: unknown, fallback: boolean): boolean {
   return typeof v === "boolean" ? v : fallback;
 }
 
-/** DB jsonb → 안전한 설정 객체 (범위 보정 포함) */
 export function parseGraphSettings(raw: unknown): GraphSettings {
   const d = DEFAULT_GRAPH_SETTINGS;
   const o = (raw && typeof raw === "object" ? raw : {}) as Record<
@@ -78,6 +71,8 @@ export function parseGraphSettings(raw: unknown): GraphSettings {
   const pointSize: GraphPointSize =
     o.pointSize === "sm" || o.pointSize === "lg" ? o.pointSize : "md";
 
+  const unlimitedPoints = bool(o.unlimitedPoints, d.unlimitedPoints);
+
   return {
     xMin,
     xMax,
@@ -85,10 +80,16 @@ export function parseGraphSettings(raw: unknown): GraphSettings {
     yMax,
     step,
     integersOnly: bool(o.integersOnly, d.integersOnly),
-    maxPointsPerStudent: Math.max(
-      1,
-      Math.min(20, Math.round(num(o.maxPointsPerStudent, d.maxPointsPerStudent))),
-    ),
+    unlimitedPoints,
+    maxPointsPerStudent: unlimitedPoints
+      ? d.maxPointsPerStudent
+      : Math.max(
+          1,
+          Math.min(
+            20,
+            Math.round(num(o.maxPointsPerStudent, d.maxPointsPerStudent)),
+          ),
+        ),
     tolerance: Math.max(0, Math.min(1, num(o.tolerance, d.tolerance))),
     showWrongOnBoard: bool(o.showWrongOnBoard, d.showWrongOnBoard),
     showNames: bool(o.showNames, d.showNames),
@@ -122,10 +123,12 @@ export type GraphParticipant = {
 
 export type GraphTeacherState = {
   sessionId: string;
+  title: string;
   status: "live" | "closed";
   joinCode: string | null;
   expression: string;
   expressionDisplay: string;
+  expressionLatex: string | null;
   reveal: boolean;
   settings: GraphSettings;
   participants: GraphParticipant[];
@@ -137,13 +140,27 @@ export type GraphStudentState = {
   status: "live" | "closed";
   reveal: boolean;
   settings: GraphSettings;
-  /** 개형 공개 시에만 채워짐 (곡선 그리기용) */
   expression: string | null;
-  /** 식 숨기기 모드에서 미공개면 null */
   expressionDisplay: string | null;
+  expressionLatex: string | null;
   participantCount: number;
   myName: string | null;
   points: GraphPoint[];
+};
+
+export type GraphSessionSummary = {
+  sessionId: string;
+  title: string;
+  status: "live" | "closed";
+  joinCode: string | null;
+  expressionDisplay: string;
+  expressionLatex: string | null;
+  reveal: boolean;
+  participantCount: number;
+  pointCount: number;
+  correctCount: number;
+  createdAt: string;
+  updatedAt: string;
 };
 
 export type GraphSubmitResult =

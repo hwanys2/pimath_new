@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { requireTeacher } from "@/lib/auth";
+import { getActor } from "@/lib/auth";
 import HostDashboard from "@/components/tools/graph/HostDashboard";
 
 export const metadata: Metadata = {
@@ -11,8 +11,13 @@ export default async function GraphHostPage({
 }: {
   params: Promise<{ sessionId: string }>;
 }) {
-  await requireTeacher();
+  const actor = await getActor();
   const { sessionId } = await params;
 
-  return <HostDashboard sessionId={sessionId} />;
+  return (
+    <HostDashboard
+      sessionId={sessionId}
+      isLoggedInTeacher={actor?.type === "teacher"}
+    />
+  );
 }

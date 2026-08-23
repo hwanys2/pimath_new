@@ -9,9 +9,10 @@ import {
 } from "@/app/tools/graph/actions";
 import { formatCoord } from "@/lib/graph-explorer-math";
 import type { GraphStudentState } from "@/lib/graph-explorer-types";
-import GraphPlane, {
+import InteractiveGraphPlane, {
   type PlanePoint,
-} from "@/components/tools/graph/GraphPlane";
+} from "@/components/tools/graph/InteractiveGraphPlane";
+import MathExpression from "@/components/tools/graph/MathExpression";
 import {
   colorForParticipant,
   WRONG_POINT_COLOR,
@@ -120,9 +121,13 @@ export default function JoinClient({ initialCode }: { initialCode: string }) {
     () => state?.points.filter((p) => p.isMe) ?? [],
     [state],
   );
-  const remaining = state
+  const unlimited = state?.settings.unlimitedPoints ?? false;
+  const remaining = state && !unlimited
     ? Math.max(0, state.settings.maxPointsPerStudent - myPoints.length)
-    : 0;
+    : unlimited
+      ? Infinity
+      : 0;
+  const canSubmit = unlimited || remaining > 0;
 
   const planePoints: PlanePoint[] = useMemo(() => {
     if (!state) return [];
@@ -272,9 +277,13 @@ export default function JoinClient({ initialCode }: { initialCode: string }) {
           {state.myName ?? name} · 함께 탐구 중 {state.participantCount}명
         </p>
         {state.expressionDisplay ? (
-          <p className="font-display mt-1 text-2xl text-wood-dark">
-            {state.expressionDisplay}
-          </p>
+          <div className="mt-1 flex justify-center">
+            <MathExpression
+              display={state.expressionDisplay}
+              latex={state.expressionLatex}
+              className="text-2xl"
+            />
+          </div>
         ) : (
           <p className="font-display mt-1 text-xl text-wood-dark">
             y = ❓{" "}
@@ -307,7 +316,13 @@ export default function JoinClient({ initialCode }: { initialCode: string }) {
           <div className="flex items-center justify-between">
             <p className="font-display text-sm text-wood-dark">순서쌍 제출</p>
             <p className="text-xs text-foreground/60">
-              남은 기회 <b className="text-wood-dark">{remaining}</b>개
+              {unlimited ? (
+                <>제출 <b className="text-wood-dark">무제한</b></>
+              ) : (
+                <>
+                  남은 기회 <b className="text-wood-dark">{remaining}</b>개
+                </>
+              )}
             </p>
           </div>
 
@@ -357,12 +372,12 @@ export default function JoinClient({ initialCode }: { initialCode: string }) {
           <button
             type="button"
             onClick={submit}
-            disabled={submitting || remaining <= 0}
+            disabled={submitting || !canSubmit}
             className="font-display w-full rounded-2xl bg-gold px-4 py-3 text-lg text-[#6b4a00] shadow-[0_4px_0_rgba(107,74,0,0.3)] transition hover:brightness-105 active:translate-y-0.5 disabled:opacity-50"
           >
             {submitting
               ? "확인 중…"
-              : remaining <= 0
+              : !canSubmit
                 ? "제출 기회를 모두 사용했어요"
                 : "점 제출하기"}
           </button>
@@ -416,18 +431,21 @@ export default function JoinClient({ initialCode }: { initialCode: string }) {
             : "내 점만 보여요"}
           {state.reveal ? " · ✨ 그래프 개형 공개!" : ""}
         </p>
-        <GraphPlane
-          xMin={state.settings.xMin}
-          xMax={state.settings.xMax}
-          yMin={state.settings.yMin}
-          yMax={state.settings.yMax}
-          step={state.settings.step}
-          points={planePoints}
-          curveExpression={state.reveal ? state.expression : null}
-          pointSize="sm"
-          showNames={false}
-          className="block w-full"
-        />
+        <div className="h-64">
+          <InteractiveGraphPlane
+            xMin={state.settings.xMin}
+            xMax={state.settings.xMax}
+            yMin={state.settings.yMin}
+            yMax={state.settings.yMax}
+            step={state.settings.step}
+            points={planePoints}
+            curveExpression={state.reveal ? state.expression : null}
+            pointSize="sm"
+            showNames={false}
+            interactive
+            className="h-full w-full"
+          />
+        </div>
       </div>
     </div>
   );
