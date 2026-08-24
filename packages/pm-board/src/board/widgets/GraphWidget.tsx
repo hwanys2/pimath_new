@@ -3,12 +3,21 @@
 import { useMemo, useState } from "react";
 import { parseInequality } from "../../lib/graph-inequality";
 import { classifyMathInput } from "../../lib/math-classify";
-import { normalizeGraphExpression } from "../../lib/board-math";
-import { compileExpression } from "../../lib/board-math";
+import {
+  compileExpression,
+  defaultParamValues,
+  listParameters,
+  normalizeGraphExpression,
+} from "../../lib/board-math";
+import { snapParamValues } from "../../lib/graph-param-slider";
+import type { GraphAnnotations } from "../../lib/graph-annotate";
 import BoardGraph from "../BoardGraph";
 import GraphSettingsPanel from "../GraphSettingsPanel";
+import GraphParamSliders from "../GraphParamSliders";
+import GraphAnnotateHost from "../GraphAnnotateOverlay";
 import { mergeGraphSettings, type GraphSettings } from "../graph-types";
 import { CloseIcon } from "../icons";
+import type { BoardPoint, Stroke } from "../types";
 
 type Props = {
   state: Record<string, unknown>;
@@ -36,10 +45,37 @@ export default function GraphWidget({ state, setState }: Props) {
     () => (state.paramValues as Record<string, number>) ?? {},
     [state.paramValues],
   );
+  const integerParams = state.integerParams === true;
+  const annotations = useMemo<GraphAnnotations>(
+    () => ({
+      strokes: Array.isArray(state.graphStrokes)
+        ? (state.graphStrokes as Stroke[])
+        : [],
+      points: Array.isArray(state.graphPoints)
+        ? (state.graphPoints as BoardPoint[])
+        : [],
+    }),
+    [state.graphStrokes, state.graphPoints],
+  );
 
   const [input, setInput] = useState("");
   const [inputError, setInputError] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
+
+  const paramNames = useMemo(() => {
+    const found = new Set<string>();
+    for (const item of exprs) {
+      for (const name of listParameters(normalizeGraphExpression(item.text))) {
+        found.add(name);
+      }
+    }
+    return [...found].sort();
+  }, [exprs]);
+
+  const mergedParams = useMemo(() => {
+    const base = { ...defaultParamValues(paramNames), ...paramValues };
+    return snapParamValues(base, integerParams);
+  }, [paramNames, paramValues, integerParams]);
 
   const series = useMemo(() => {
     return exprs.map((e) => {
@@ -62,8 +98,11 @@ export default function GraphWidget({ state, setState }: Props) {
   const addExpr = () => {
     const text = input.trim();
     if (!text) return;
+    const normalized = normalizeGraphExpression(text);
+    const names = listParameters(normalized);
+    const trial = { ...defaultParamValues(names), ...mergedParams };
     const ok =
-      compileExpression(normalizeGraphExpression(text)) ||
+      compileExpression(normalized, names.length > 0 ? trial : undefined) ||
       parseInequality(text);
     if (!ok) {
       setInputError(true);
@@ -71,7 +110,10 @@ export default function GraphWidget({ state, setState }: Props) {
     }
     setInputError(false);
     const color = COLORS[exprs.length % COLORS.length];
-    setState({ exprs: [...exprs, { text, color }] });
+    setState({
+      exprs: [...exprs, { text, color }],
+      paramValues: { ...trial },
+    });
     setInput("");
   };
 
@@ -88,7 +130,7 @@ export default function GraphWidget({ state, setState }: Props) {
           onKeyDown={(e) => {
             if (e.key === "Enter") addExpr();
           }}
-          placeholder="f(x) 또는 부등식 · 예) x^2, y>2x+1"
+          placeholder="f(x) 또는 부등식 · 예) a x^2 + b x + c, y>2x+1"
           className={`min-w-0 flex-1 rounded-lg border-2 bg-white px-3 py-1.5 font-mono text-sm ${
             inputError ? "border-red-400" : "border-black/10"
           }`}
@@ -126,27 +168,63 @@ export default function GraphWidget({ state, setState }: Props) {
         </div>
       ) : null}
 
-      <div className="relative min-h-0 flex-1">
-        <button
-          type="button"
-          className="absolute top-2 left-2 z-10 rounded-lg border border-black/10 bg-white/90 px-2 py-1 text-[11px] font-semibold text-wood shadow"
-          onClick={() => setSettingsOpen((v) => !v)}
-        >
-          설정
-        </button>
-        {settingsOpen ? (
-          <GraphSettingsPanel
-            settings={graphSettings}
-            onChange={setGraphSettings}
-            onClose={() => setSettingsOpen(false)}
-          />
-        ) : null}
-        <BoardGraph
-          series={series}
-          settings={graphSettings}
-          paramValues={paramValues}
-          className="h-full"
+      {paramNames.length > 0 ? (
+        <GraphParamSliders
+          names={paramNames}
+          values={mergedParams}
+          integerOnly={integerParams}
+          onIntegerOnlyChange={(next) =>
+            setState({
+              integerParams: next,
+              paramValues: snapParamValues(mergedParams, next),
+            })
+          }
+          onChange={(name, value) =>
+            setState({
+              paramValues: { ...mergedParams, [name]: value },
+            })
+          }
         />
+      ) : null}
+
+      <div className="min-h-0 flex-1">
+        <GraphAnnotateHost
+          annotations={annotations}
+          onChange={(next) =>
+            setState({ graphStrokes: next.strokes, graphPoints: next.points })
+          }
+          view={graphSettings.view}
+          xScale={graphSettings.xScale}
+          yScale={graphSettings.yScale}
+        >
+          {({ allowPanZoom }) => (
+            <>
+              <button
+                type="button"
+                className="absolute top-2 left-2 z-20 rounded-lg border border-black/10 bg-white/90 px-2 py-1 text-[11px] font-semibold text-wood shadow"
+                onClick={() => setSettingsOpen((v) => !v)}
+              >
+                설정
+              </button>
+              {settingsOpen ? (
+                <GraphSettingsPanel
+                  settings={graphSettings}
+                  onChange={setGraphSettings}
+                  onClose={() => setSettingsOpen(false)}
+                />
+              ) : null}
+              <BoardGraph
+                series={series}
+                settings={{
+                  ...graphSettings,
+                  panZoom: graphSettings.panZoom && allowPanZoom,
+                }}
+                paramValues={mergedParams}
+                className="h-full"
+              />
+            </>
+          )}
+        </GraphAnnotateHost>
       </div>
     </div>
   );

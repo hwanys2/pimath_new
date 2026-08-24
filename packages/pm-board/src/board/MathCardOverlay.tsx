@@ -13,6 +13,9 @@ import BoardGraph from "./BoardGraph";
 import GraphSettingsPanel from "./GraphSettingsPanel";
 import MathRichText from "./MathRichText";
 import { mergeGraphSettings } from "./graph-types";
+import { snapParamValues } from "../lib/graph-param-slider";
+import GraphParamSliders from "./GraphParamSliders";
+import GraphAnnotateHost from "./GraphAnnotateOverlay";
 
 const MIN_W = 180;
 const MIN_H = 100;
@@ -178,52 +181,76 @@ export default function MathCardOverlay({
             </ol>
           ) : null}
           {params.length > 0 ? (
-            <div className="mt-2 flex flex-col gap-1">
-              {params.map((p) => (
-                <label
-                  key={p}
-                  className="flex items-center gap-2 text-[10px] font-semibold text-wood"
-                >
-                  {p}
-                  <input
-                    type="range"
-                    min={-10}
-                    max={10}
-                    step={0.1}
-                    value={paramValues[p] ?? 0}
-                    onChange={(e) => setParam(p, Number(e.target.value))}
-                    className="flex-1"
-                  />
-                </label>
-              ))}
+            <div className="mt-2">
+              <GraphParamSliders
+                compact
+                names={params}
+                values={paramValues}
+                integerOnly={card.integerParams === true}
+                onIntegerOnlyChange={(next) =>
+                  onChange({
+                    ...card,
+                    integerParams: next,
+                    paramValues: snapParamValues(paramValues, next),
+                  })
+                }
+                onChange={setParam}
+              />
             </div>
           ) : null}
           {card.showGraph ? (
-            <div
-              className="relative mt-2 overflow-hidden rounded-lg border border-black/10 bg-white"
-              style={{ height: plotH }}
-            >
-              <button
-                type="button"
-                className="absolute top-1 left-1 z-10 rounded bg-white/90 px-1.5 py-0.5 text-[10px] text-wood shadow"
-                onClick={() => setSettingsOpen((v) => !v)}
+            <div className="mt-2" style={{ height: Math.max(plotH, 160) }}>
+              <GraphAnnotateHost
+                annotations={{
+                  strokes: card.graphStrokes ?? [],
+                  points: card.graphPoints ?? [],
+                }}
+                onChange={(next) =>
+                  onChange({
+                    ...card,
+                    graphStrokes: next.strokes,
+                    graphPoints: next.points,
+                  })
+                }
+                view={graphSettings.view}
+                xScale={graphSettings.xScale}
+                yScale={graphSettings.yScale}
               >
-                설정
-              </button>
-              {settingsOpen ? (
-                <GraphSettingsPanel
-                  compact
-                  settings={graphSettings}
-                  onChange={(g) => onChange({ ...card, graphSettings: g })}
-                  onClose={() => setSettingsOpen(false)}
-                />
-              ) : null}
-              <BoardGraph
-                series={series}
-                settings={graphSettings}
-                paramValues={paramValues}
-                className="h-full"
-              />
+                {({ allowPanZoom }) => (
+                  <>
+                    <button
+                      type="button"
+                      className="absolute top-1 left-1 z-20 rounded bg-white/90 px-1.5 py-0.5 text-[10px] text-wood shadow"
+                      onClick={() => setSettingsOpen((v) => !v)}
+                    >
+                      설정
+                    </button>
+                    {settingsOpen ? (
+                      <GraphSettingsPanel
+                        compact
+                        settings={graphSettings}
+                        onChange={(g) =>
+                          onChange({ ...card, graphSettings: g })
+                        }
+                        onClose={() => setSettingsOpen(false)}
+                      />
+                    ) : null}
+                    <BoardGraph
+                      series={series}
+                      settings={{
+                        ...graphSettings,
+                        panZoom: graphSettings.panZoom && allowPanZoom,
+                      }}
+                      paramValues={
+                        card.integerParams
+                          ? snapParamValues(paramValues, true)
+                          : paramValues
+                      }
+                      className="h-full"
+                    />
+                  </>
+                )}
+              </GraphAnnotateHost>
             </div>
           ) : null}
         </div>

@@ -24,6 +24,11 @@ export type MathCard = {
   solutionSteps?: string[];
   answerLatex?: string;
   graphSettings?: GraphSettings;
+  /** When true, parameter sliders move in whole numbers only. */
+  integerParams?: boolean;
+  /** Drawings on top of the graph pane (normalized 0–1 coordinates). */
+  graphStrokes?: Stroke[];
+  graphPoints?: BoardPoint[];
   zIndex: number;
 };
 

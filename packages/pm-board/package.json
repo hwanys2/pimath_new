@@ -1,6 +1,6 @@
 {
   "name": "@hwanys2/pm-board",
-  "version": "0.1.42",
+  "version": "0.1.43",
   "description": "Shared interactive whiteboard for pimath and foreducator",
   "type": "module",
   "license": "UNLICENSED",
@@ -34,7 +34,7 @@
     "build": "npx tsup",
     "prepack": "npm run build",
     "test:fold-net": "npx tsx --test src/lib/fold-net/solid-match.test.ts",
-    "test:graph": "npx tsx --test src/lib/graph-plot.test.ts"
+    "test:graph": "npx tsx --test src/lib/graph-plot.test.ts src/lib/graph-param-slider.test.ts src/lib/graph-annotate.test.ts"
   },
   "sideEffects": [
     "**/*.css"

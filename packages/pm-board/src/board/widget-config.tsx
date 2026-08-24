@@ -110,10 +110,10 @@ export const WIDGET_DEFS: Record<WidgetKind, WidgetDef> = {
   graph: {
     label: "함수 그래프",
     icon: GraphIcon,
-    w: 440,
-    h: 460,
-    minW: 330,
-    minH: 350,
+    w: 500,
+    h: 480,
+    minW: 380,
+    minH: 360,
     accent: "#a8d8ff",
   },
   calculator: {
