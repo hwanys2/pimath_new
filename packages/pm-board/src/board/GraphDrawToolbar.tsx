@@ -76,8 +76,16 @@ export default function GraphDrawToolbar({
           <button
             key={t.id}
             type="button"
-            title={t.label}
-            aria-label={t.label}
+            title={
+              t.id === "point"
+                ? "점 — 짧게 누르면 자유점, 길게 누르면 격자에 붙음"
+                : t.label
+            }
+            aria-label={
+              t.id === "point"
+                ? "점. 짧게 누르면 자유점, 길게 누르면 격자에 붙습니다."
+                : t.label
+            }
             onClick={() => onToolChange(t.id)}
             className={`flex h-8 w-8 items-center justify-center rounded-lg transition ${
               active

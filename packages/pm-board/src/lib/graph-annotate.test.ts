@@ -6,8 +6,10 @@ import {
   clientToNormalized,
   EMPTY_GRAPH_ANNOTATIONS,
   formatGraphCoord,
+  GRAPH_POINT_SNAP_HOLD_MS,
   mathToNormalized,
   normalizedToMath,
+  placeGraphPoint,
   scaleNormalizedPoints,
   snapNormalizedToGrid,
 } from "./graph-annotate";
@@ -69,6 +71,28 @@ describe("snapNormalizedToGrid", () => {
   });
 });
 
+describe("placeGraphPoint", () => {
+  it("keeps a short tap free, and snaps a long press to the lattice", () => {
+    const view = { xMin: -8, xMax: 8, yMin: -6, yMax: 6 };
+    const near = mathToNormalized(1.4, 2.6, view);
+    const free = placeGraphPoint(near.nx, near.ny, view, 1, 1, 80);
+    assert.equal(free.snap, false);
+    assert.ok(Math.abs(free.nx - near.nx) < 1e-12);
+    const magnet = placeGraphPoint(
+      near.nx,
+      near.ny,
+      view,
+      1,
+      1,
+      GRAPH_POINT_SNAP_HOLD_MS,
+    );
+    assert.equal(magnet.snap, true);
+    const math = normalizedToMath(magnet.nx, magnet.ny, view);
+    assert.equal(math.x, 1);
+    assert.equal(math.y, 3);
+  });
+});
+
 describe("formatGraphCoord", () => {
   it("prints integers without decimals", () => {
     assert.equal(formatGraphCoord(2), "2");
@@ -98,7 +122,7 @@ describe("applyGraphStroke / applyGraphPoint", () => {
     );
   });
 
-  it("appends a labeled point", () => {
+  it("appends a point", () => {
     const next = applyGraphPoint(EMPTY_GRAPH_ANNOTATIONS, {
       id: "a",
       x: 0.5,
