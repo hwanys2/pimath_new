@@ -351,3 +351,51 @@ export function angleDialPoint(
 export const ANGLE_DIAL_RADIUS = 2.8;
 export const ANGLE_DIAL_MAX = 90;
 export const ANGLE_MARK_RADIUS = 1.55;
+
+export type LabelOffset = { dx: number; dy: number };
+
+/** Default grid position for a measured-length label (before drag offset). */
+export function measureLabelGridPos(
+  part: { a: Vec2; b: Vec2 },
+  offset: LabelOffset = { dx: 0, dy: 0 },
+): Vec2 {
+  return {
+    x: (part.a.x + part.b.x) / 2 + offset.dx,
+    y: (part.a.y + part.b.y) / 2 + 0.25 + offset.dy,
+  };
+}
+
+export function chunkKey(segId: string, index: number): string {
+  return `${segId}:${index}`;
+}
+
+export type MeasureLabelHit = {
+  key: string;
+  segId: string;
+  chunkIndex: number;
+};
+
+/** Find the nearest visible length label under the pointer (move tool). */
+export function nearestMeasureLabel(
+  p: Vec2,
+  segs: SketchSeg[],
+  measuredKeys: Set<string>,
+  offsets: Record<string, LabelOffset>,
+  hitRadius = 0.55,
+): MeasureLabelHit | null {
+  let best: (MeasureLabelHit & { d: number }) | null = null;
+  for (const seg of segs) {
+    const parts = subSegments(seg, segs);
+    for (let i = 0; i < parts.length; i++) {
+      const key = chunkKey(seg.id, i);
+      if (!measuredKeys.has(key)) continue;
+      const pos = measureLabelGridPos(parts[i]!, offsets[key] ?? { dx: 0, dy: 0 });
+      const d = dist(p, pos);
+      if (d <= hitRadius && (!best || d < best.d)) {
+        best = { key, segId: seg.id, chunkIndex: i, d };
+      }
+    }
+  }
+  if (!best) return null;
+  return { key: best.key, segId: best.segId, chunkIndex: best.chunkIndex };
+}

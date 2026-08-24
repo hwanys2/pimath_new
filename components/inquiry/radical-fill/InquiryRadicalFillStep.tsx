@@ -362,7 +362,7 @@ export default function InquiryRadicalFillStep({
   };
 
   const interactive = hostPreview || !readOnly;
-  const locked = !interactive || disabled || submitted;
+  const locked = !interactive || disabled;
   const projected = scoreForAttempts(wrongAttempts);
 
   return (
@@ -383,11 +383,9 @@ export default function InquiryRadicalFillStep({
             </span>
             <span className="rounded-xl bg-sky/40 px-3 py-1 tabular-nums">
               오답 {wrongAttempts}회
-              {!submitted ? (
-                <span className="ml-1 font-semibold text-wood/55">
-                  · 맞히면 {projected}점
-                </span>
-              ) : null}
+              <span className="ml-1 font-semibold text-wood/55">
+                · 맞히면 {projected}점
+              </span>
             </span>
           </>
         ) : null}
@@ -456,7 +454,7 @@ export default function InquiryRadicalFillStep({
         </p>
       ) : null}
 
-      {softNotice && !submitted && !readOnly && !hostPreview ? (
+      {softNotice && !readOnly && !hostPreview ? (
         <p className="mt-4 text-center text-sm font-bold text-[#a63a1a]" role="status">
           {softMessage(softNotice.reason)}
           {softNotice.reason === "wrong" ? (
@@ -483,13 +481,13 @@ export default function InquiryRadicalFillStep({
           </p>
           <p className="mt-1 text-sm font-bold">
             {submitFeedback === "correct"
-              ? "제출 완료! 선생님이 다음 문제로 넘길 때까지 기다려 주세요."
-              : "포기했어요. 선생님이 다음 문제로 넘길 때까지 기다려 주세요."}
+              ? "제출 완료! 답을 고칠 수 있어요. 선생님이 다음 문제로 넘길 때까지 기다려 주세요."
+              : "다시 생각해 보세요. 답을 고친 뒤 다시 확인할 수 있어요."}
           </p>
         </div>
       ) : null}
 
-      {!readOnly && !hostPreview && !submitted && onSubmit && onGiveUp ? (
+      {!readOnly && !hostPreview && onSubmit ? (
         <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
           <button
             type="button"
@@ -497,16 +495,18 @@ export default function InquiryRadicalFillStep({
             disabled={disabled}
             className="rounded-xl bg-wood px-8 py-3 text-base font-bold text-cream disabled:opacity-50"
           >
-            확인
+            {submitted ? "다시 확인" : "확인"}
           </button>
-          <button
-            type="button"
-            onClick={onGiveUp}
-            disabled={disabled}
-            className="rounded-xl border-2 border-wood/20 bg-cream px-5 py-3 text-sm font-bold text-wood/70 hover:bg-wood/5 disabled:opacity-50"
-          >
-            포기
-          </button>
+          {onGiveUp ? (
+            <button
+              type="button"
+              onClick={onGiveUp}
+              disabled={disabled}
+              className="rounded-xl border-2 border-wood/20 bg-cream px-5 py-3 text-sm font-bold text-wood/70 hover:bg-wood/5 disabled:opacity-50"
+            >
+              포기
+            </button>
+          ) : null}
         </div>
       ) : null}
     </section>

@@ -49,6 +49,7 @@ const IDLE: InquiryPollState = {
   stepCount: 0,
   participants: [],
   myStepResult: null,
+  myStepResponse: null,
 };
 
 type Props = {

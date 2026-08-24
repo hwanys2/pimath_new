@@ -22,6 +22,8 @@ export type InquiryPollState = {
   stepCount: number;
   participants: InquiryParticipantRow[];
   myStepResult: InquiryResult | null;
+  /** Saved response jsonb for the current student + step (for refresh restore). */
+  myStepResponse: Record<string, unknown> | null;
 };
 
 export type InquiryResponseRow = {

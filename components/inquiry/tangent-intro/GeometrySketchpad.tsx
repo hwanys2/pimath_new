@@ -13,6 +13,8 @@ import {
   GRID_H,
   GRID_W,
   leftVertex,
+  measureLabelGridPos,
+  nearestMeasureLabel,
   nearestSeg,
   nearestSubSegment,
   nearEndpoint,
@@ -21,12 +23,14 @@ import {
   rayEndpoint,
   snapPoint,
   subSegments,
+  chunkKey,
+  type LabelOffset,
   type SketchSeg,
   type Vec2,
 } from "@/lib/inquiry-tangent-sketch";
 import { RulerOverlay, RULER_DEFAULT, AngleDegreeMark, type OverlayPose } from "./SketchOverlays";
 
-type Tool = "segment" | "perp" | "angle" | "measure" | "erase";
+type Tool = "segment" | "perp" | "angle" | "measure" | "move" | "erase";
 
 const PAD_X = 0.85;
 const PAD_Y = 0.95;
@@ -39,10 +43,6 @@ function toSvg(p: Vec2): { x: number; y: number } {
 
 function fromSvg(x: number, y: number): Vec2 {
   return { x, y: GRID_H - y };
-}
-
-function chunkKey(segId: string, index: number): string {
-  return `${segId}:${index}`;
 }
 
 const TOOLS: { id: Tool; label: string; hint: string }[] = [
@@ -61,6 +61,11 @@ const TOOLS: { id: Tool; label: string; hint: string }[] = [
     id: "measure",
     label: "길이",
     hint: "길이를 볼 선분 조각을 누르세요. 누른 부분만 길이가 표시돼요.",
+  },
+  {
+    id: "move",
+    label: "이동",
+    hint: "길이 숫자를 드래그해 겹치지 않게 옮길 수 있어요.",
   },
   { id: "erase", label: "지우개", hint: "지울 선분을 누르세요." },
 ];
@@ -103,6 +108,11 @@ export default function GeometrySketchpad({ locked = false }: Props) {
   const wrapRef = useRef<HTMLDivElement | null>(null);
   const idRef = useRef(1);
   const draggingAngle = useRef(false);
+  const draggingLabel = useRef<{
+    key: string;
+    pointerStart: Vec2;
+    offsetStart: LabelOffset;
+  } | null>(null);
 
   const [tool, setTool] = useState<Tool>("segment");
   const [segs, setSegs] = useState<SketchSeg[]>([]);
@@ -111,6 +121,9 @@ export default function GeometrySketchpad({ locked = false }: Props) {
   const [perpTarget, setPerpTarget] = useState<string | null>(null);
   const [angleSession, setAngleSession] = useState<AngleSession | null>(null);
   const [measuredChunks, setMeasuredChunks] = useState<Set<string>>(new Set());
+  const [labelOffsets, setLabelOffsets] = useState<Record<string, LabelOffset>>(
+    {},
+  );
   const [hover, setHover] = useState<Vec2 | null>(null);
   const [ruler, setRuler] = useState<OverlayPose | null>(null);
 
@@ -143,6 +156,7 @@ export default function GeometrySketchpad({ locked = false }: Props) {
     setPerpTarget(null);
     setAngleSession(null);
     draggingAngle.current = false;
+    draggingLabel.current = null;
   };
 
   const addSeg = (a: Vec2, b: Vec2, extra?: Pick<SketchSeg, "angle">) => {
@@ -268,6 +282,18 @@ export default function GeometrySketchpad({ locked = false }: Props) {
       return;
     }
 
+    if (tool === "move") {
+      const hit = nearestMeasureLabel(raw, segs, measuredChunks, labelOffsets);
+      if (!hit) return;
+      e.currentTarget.setPointerCapture(e.pointerId);
+      draggingLabel.current = {
+        key: hit.key,
+        pointerStart: raw,
+        offsetStart: labelOffsets[hit.key] ?? { dx: 0, dy: 0 },
+      };
+      return;
+    }
+
     if (tool === "erase") {
       const hit = nearestSeg(p, segs);
       if (!hit) return;
@@ -277,6 +303,13 @@ export default function GeometrySketchpad({ locked = false }: Props) {
         const next = new Set(prev);
         for (const k of prev) {
           if (k.startsWith(`${hit.id}:`)) next.delete(k);
+        }
+        return next;
+      });
+      setLabelOffsets((prev) => {
+        const next = { ...prev };
+        for (const k of Object.keys(prev)) {
+          if (k.startsWith(`${hit.id}:`)) delete next[k];
         }
         return next;
       });
@@ -295,6 +328,18 @@ export default function GeometrySketchpad({ locked = false }: Props) {
       return;
     }
 
+    if (tool === "move" && draggingLabel.current) {
+      const drag = draggingLabel.current;
+      setLabelOffsets((prev) => ({
+        ...prev,
+        [drag.key]: {
+          dx: drag.offsetStart.dx + (raw.x - drag.pointerStart.x),
+          dy: drag.offsetStart.dy + (raw.y - drag.pointerStart.y),
+        },
+      }));
+      return;
+    }
+
     if (tool === "angle" && angleSession) {
       setAngleSession(updateAngleFromPointer(angleSession, raw));
       return;
@@ -304,6 +349,14 @@ export default function GeometrySketchpad({ locked = false }: Props) {
   };
 
   const onUp = (e: React.PointerEvent<SVGSVGElement>) => {
+    if (tool === "move" && draggingLabel.current) {
+      draggingLabel.current = null;
+      try {
+        e.currentTarget.releasePointerCapture(e.pointerId);
+      } catch {
+        /* ignore */
+      }
+    }
     if (tool === "angle" && draggingAngle.current && angleSession) {
       commitAngleSession(angleSession);
       try {
@@ -321,6 +374,7 @@ export default function GeometrySketchpad({ locked = false }: Props) {
       setSegs(prev);
       resetToolState();
       setMeasuredChunks(new Set());
+      setLabelOffsets({});
       return h.slice(0, -1);
     });
   };
@@ -331,6 +385,7 @@ export default function GeometrySketchpad({ locked = false }: Props) {
     setSegs([]);
     resetToolState();
     setMeasuredChunks(new Set());
+    setLabelOffsets({});
   };
 
   const toggleRuler = () => {
@@ -343,7 +398,9 @@ export default function GeometrySketchpad({ locked = false }: Props) {
   };
 
   const hint =
-    tool === "angle" && angleSession
+    tool === "move"
+      ? "길이 숫자를 드래그해 보이는 위치로 옮기세요."
+      : tool === "angle" && angleSession
       ? draggingAngle.current
         ? `${angleSession.deg}° — 손을 떼면 반직선이 그려져요.`
         : "단위원을 드래그해 각을 1° 단위로 맞추세요."
@@ -507,19 +564,24 @@ export default function GeometrySketchpad({ locked = false }: Props) {
                 {parts.map((part, i) => {
                   const key = chunkKey(s.id, i);
                   if (!measuredChunks.has(key)) return null;
-                  const mid = toSvg({
-                    x: (part.a.x + part.b.x) / 2,
-                    y: (part.a.y + part.b.y) / 2,
-                  });
+                  const labelGrid = measureLabelGridPos(
+                    part,
+                    labelOffsets[key] ?? { dx: 0, dy: 0 },
+                  );
+                  const pos = toSvg(labelGrid);
+                  const activeMove =
+                    tool === "move" && draggingLabel.current?.key === key;
                   return (
                     <text
                       key={key}
-                      x={mid.x}
-                      y={mid.y - 0.25}
+                      x={pos.x}
+                      y={pos.y}
                       textAnchor="middle"
                       fontSize={0.44}
                       fontWeight={800}
                       fill="#a63a1a"
+                      style={{ pointerEvents: "none" }}
+                      opacity={activeMove ? 0.85 : 1}
                     >
                       {formatLength(dist(part.a, part.b))}
                     </text>

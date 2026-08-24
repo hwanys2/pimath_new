@@ -95,6 +95,7 @@ export type SceneResponsePayload = {
   hyp: number;
   unit: "m" | "cm";
   angleDeg: number;
+  baseT: number;
   adj: string;
   opp: string;
   methodText: string;
@@ -348,6 +349,7 @@ export function gradeSincosStep(
     hyp: scene.hyp,
     unit: scene.unit,
     angleDeg,
+    baseT: clampBaseT(workspace.baseT),
     adj: workspace.adjText,
     opp: workspace.oppText,
     methodText: workspace.methodText.trim(),

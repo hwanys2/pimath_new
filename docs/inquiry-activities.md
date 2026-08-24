@@ -39,7 +39,7 @@ setup → live → closed
 | 단계 | 교사 | 학생 |
 |------|------|------|
 | `setup` | 수업 준비 · 수업 시작 | 대기 화면 (세션 있을 때만 접속) |
-| `live` | 이전/다음으로 step 이동 | 현재 step만 · 제출 후 대기 · **포기 없음** |
+| `live` | 이전/다음으로 step 이동 | 현재 step만 · **제출 후에도 수정·재제출 가능** · 다음 step은 교사 이동까지 대기 · **포기 없음** |
 | `closed` | 수업 종료 · (선택) 점수 집계 | 종료 안내 |
 
 ---
@@ -89,7 +89,7 @@ setup → live → closed
 | `pm_inquiry_close` | `closed` |
 | `pm_inquiry_join` | 학생 참가 |
 | `pm_inquiry_submit_response` | step 응답 저장 |
-| `pm_inquiry_poll` / `teacher_poll` | 1.2s 폴링 |
+| `pm_inquiry_poll` / `teacher_poll` | 1.2s 폴링 (학생 poll은 `step_response` 포함) |
 | `pm_inquiry_list_responses` | 교사: 전체 응답 |
 | `pm_inquiry_record_session_runs` | 세션 종료 시 `pm_game_runs` 일괄 기록 |
 
@@ -108,6 +108,18 @@ setup → live → closed
 
 채점은 서버 액션에서 [`lib/radical-fill-math.ts`](../lib/radical-fill-math.ts) `checkAnswer` 호출 후 RPC에 `result` 전달. 수업 중 학생 UI에는 **포기 버튼 없음**.
 
+### 학생 workspace 복원 (새로고침·재접속)
+
+학생 폴링(`pm_inquiry_poll`)은 현재 step의 **`myStepResult` + `myStepResponse`** 를 함께 반환한다. 클라이언트 [`InquiryStudentView`](../components/inquiry/InquiryStudentView.tsx)는 step 진입·새로고침 시:
+
+1. 저장된 `response` jsonb가 있으면 [`lib/inquiry-workspace-restore.ts`](../lib/inquiry-workspace-restore.ts)로 입력값(workspace)을 복원한다.
+2. step이 **실제로 바뀔 때만** 빈 상태로 초기화한다 (같은 step에서 새로고침하면 초기화하지 않음).
+3. **제출 후에도** 입력·작도판 조작과 **재제출**이 가능하다 (`pm_inquiry_submit_response`는 upsert).
+
+작도판(선분·길이 표시 등)은 세션 DB에 저장하지 않는다 — 새로고침 시 그려진 도형은 사라진다. 길이 라벨은 **이동** 도구로 겹침을 피할 수 있다.
+
+새 탐구 콘텐츠 추가 시: `response` → workspace 역변환 함수를 `inquiry-workspace-restore.ts`에 등록하고, 제출 payload에 복원에 필요한 필드를 모두 포함할 것.
+
 ---
 
 ## 8. 점수 (`inquiry.scoring`)
@@ -123,7 +135,8 @@ setup → live → closed
 3. 서버 액션 채점 분기 + `pm_inquiry_submit_response`
 4. [`InquiryResponsePanel`](../components/inquiry/InquiryResponsePanel.tsx) 렌더러 등록
 5. play page: 교사=대시보드, 학생=세션 대기/참여, 비로그인=미리보기
-6. [`activity-results.md`](activity-results.md) — 세션 종료 집계 경로 문서화
+6. `inquiry-workspace-restore.ts`에 response→workspace 복원 등록
+7. [`activity-results.md`](activity-results.md) — 세션 종료 집계 경로 문서화
 
 ---
 
@@ -135,3 +148,4 @@ setup → live → closed
 | 2026-07-30 | 하이브리드 제거 — 학생 세션 전용, 비로그인 미리보기, 포기 버튼 제거 |
 | 2026-08-17 | `g3-u3-1-tangent-intro` — 높이 재기 작도 탐구(3장면 + 탄젠트 표) |
 | 2026-08-18 | `g3-u3-1-sincos-intro` — 빗변 작도 탐구(연·사다리·거치대 + 사인·코사인 표) |
+| 2026-08-24 | 학생 workspace 새로고침 복원 · 제출 후 수정·재제출 · 작도판 길이 라벨 이동 도구 |
