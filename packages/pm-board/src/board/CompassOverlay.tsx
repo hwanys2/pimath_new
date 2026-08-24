@@ -600,7 +600,7 @@ export default function CompassOverlay({
       <button
         type="button"
         aria-label="컴퍼스 닫기"
-        className={`absolute z-10 rounded-full border-2 border-wood/40 bg-white/95 p-1.5 text-wood shadow transition hover:bg-red-50 hover:text-red-600 ${
+        className={`absolute rounded-full border-2 border-wood/40 bg-white/95 p-1.5 text-wood shadow transition hover:bg-red-50 hover:text-red-600 ${
           nonInteractive ? "pointer-events-none" : "pointer-events-auto"
         }`}
         style={{

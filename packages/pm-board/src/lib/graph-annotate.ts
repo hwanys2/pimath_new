@@ -1,6 +1,22 @@
 import type { BoardPoint, Stroke } from "../board/types";
 import type { PlotView } from "./graph-plot";
-import { resolveAxisScale, safePlotView } from "./graph-plot";
+import {
+  effectiveMafsView,
+  resolveAxisScale,
+  safePlotView,
+} from "./graph-plot";
+
+function panePlotView(
+  view: PlotView,
+  pixelW: number,
+  pixelH: number,
+  equalAxes: boolean,
+): PlotView {
+  if (pixelW > 0 && pixelH > 0) {
+    return effectiveMafsView(view, pixelW, pixelH, equalAxes);
+  }
+  return safePlotView(view);
+}
 
 export type GraphAnnotations = {
   strokes: Stroke[];
@@ -89,12 +105,20 @@ export function snapNormalizedToGrid(
   yScale = 1,
   pixelW = 0,
   pixelH = 0,
+  equalAxes = true,
 ): { nx: number; ny: number; mathX: number; mathY: number } {
-  const v = safePlotView(view);
-  const math = normalizedToMath(nx, ny, v);
-  const mathX = snapToScale(math.x, gridStep(v.xMin, v.xMax, xScale, pixelW));
-  const mathY = snapToScale(math.y, gridStep(v.yMin, v.yMax, yScale, pixelH));
-  const n = mathToNormalized(mathX, mathY, v);
+  const gridView = safePlotView(view);
+  const paneView = panePlotView(gridView, pixelW, pixelH, equalAxes);
+  const math = normalizedToMath(nx, ny, paneView);
+  const mathX = snapToScale(
+    math.x,
+    gridStep(gridView.xMin, gridView.xMax, xScale, pixelW),
+  );
+  const mathY = snapToScale(
+    math.y,
+    gridStep(gridView.yMin, gridView.yMax, yScale, pixelH),
+  );
+  const n = mathToNormalized(mathX, mathY, paneView);
   return { nx: n.nx, ny: n.ny, mathX, mathY };
 }
 
@@ -111,6 +135,7 @@ export function placeGraphPoint(
   holdMs: number,
   pixelW = 0,
   pixelH = 0,
+  equalAxes = true,
 ): { nx: number; ny: number; snap: boolean } {
   if (holdMs >= GRAPH_POINT_SNAP_HOLD_MS) {
     const snapped = snapNormalizedToGrid(
@@ -121,6 +146,7 @@ export function placeGraphPoint(
       yScale,
       pixelW,
       pixelH,
+      equalAxes,
     );
     return { nx: snapped.nx, ny: snapped.ny, snap: true };
   }

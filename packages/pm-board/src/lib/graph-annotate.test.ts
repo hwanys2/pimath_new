@@ -13,7 +13,7 @@ import {
   scaleNormalizedPoints,
   snapNormalizedToGrid,
 } from "./graph-annotate";
-import { DEFAULT_PLOT_VIEW } from "./graph-plot";
+import { DEFAULT_PLOT_VIEW, effectiveMafsView } from "./graph-plot";
 
 describe("clientToNormalized", () => {
   it("maps the pane origin and far corner", () => {
@@ -60,6 +60,28 @@ describe("snapNormalizedToGrid", () => {
     const snapped = snapNormalizedToGrid(near.nx, near.ny, view);
     assert.equal(snapped.mathX, 1);
     assert.equal(snapped.mathY, 3);
+  });
+
+  it("aligns snapped points with the mafs pane mapping", () => {
+    const view = { xMin: -8, xMax: 8, yMin: -6, yMax: 6 };
+    const w = 400;
+    const h = 200;
+    const pane = effectiveMafsView(view, w, h, true);
+    const target = { x: -3, y: 1 };
+    const exact = mathToNormalized(target.x, target.y, pane);
+    const near = { nx: exact.nx + 0.008, ny: exact.ny + 0.008 };
+    const snapped = snapNormalizedToGrid(
+      near.nx,
+      near.ny,
+      view,
+      1,
+      1,
+      w,
+      h,
+      true,
+    );
+    assert.equal(snapped.mathX, target.x);
+    assert.equal(snapped.mathY, target.y);
   });
 
   it("honors a non-unit scale", () => {

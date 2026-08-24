@@ -144,6 +144,45 @@ export function resolveAxisScale(
   return autoAxisScale(min, max, pixelLength);
 }
 
+/** Matches BoardGraphInner → Mafs viewBox padding. */
+export const MAFS_VIEW_PADDING = 0.2;
+
+/**
+ * Effective math bounds Mafs uses to map the pane pixels (padding + equalAxes contain).
+ * Graph annotation must use this for pointer ↔ math conversion so points land on grid lines.
+ */
+export function effectiveMafsView(
+  view: PlotView,
+  width: number,
+  height: number,
+  equalAxes: boolean,
+  padding = MAFS_VIEW_PADDING,
+): PlotView {
+  const v = safePlotView(view);
+  let xMin = v.xMin - padding;
+  let xMax = v.xMax + padding;
+  let yMin = v.yMin - padding;
+  let yMax = v.yMax + padding;
+
+  if (equalAxes && width > 0 && height > 0) {
+    const aspect = width / height;
+    const aoiAspect = (xMax - xMin) / (yMax - yMin);
+    if (aoiAspect > aspect) {
+      const yCenter = (yMax + yMin) / 2;
+      const ySpan = (xMax - xMin) / aspect / 2;
+      yMin = yCenter - ySpan;
+      yMax = yCenter + ySpan;
+    } else {
+      const xCenter = (xMax + xMin) / 2;
+      const xSpan = ((yMax - yMin) * aspect) / 2;
+      xMin = xCenter - xSpan;
+      xMax = xCenter + xSpan;
+    }
+  }
+
+  return { xMin, xMax, yMin, yMax };
+}
+
 export function formatAxisLabel(n: number): string {
   if (Math.abs(n) < 1e-9) return "0";
   if (Math.abs(n - Math.round(n)) < 1e-6) return String(Math.round(n));
