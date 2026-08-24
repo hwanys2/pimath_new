@@ -16,11 +16,10 @@ import {
   applyGraphStroke,
   clientToNormalized,
   EMPTY_GRAPH_ANNOTATIONS,
-  formatGraphCoord,
+  GRAPH_POINT_SNAP_HOLD_MS,
   type GraphAnnotations,
-  normalizedToMath,
+  placeGraphPoint,
   scaleNormalizedPoints,
-  snapNormalizedToGrid,
 } from "../lib/graph-annotate";
 import GraphDrawToolbar, { type GraphDrawTool } from "./GraphDrawToolbar";
 
@@ -59,6 +58,53 @@ function liveToStroke(
   return { tool: live.tool, color, size: live.size, points: pts };
 }
 
+function GraphPointMark({
+  cx,
+  cy,
+  r,
+  color,
+  snap,
+  preview = false,
+}: {
+  cx: number;
+  cy: number;
+  r: number;
+  color: string;
+  snap?: boolean;
+  preview?: boolean;
+}) {
+  return (
+    <g opacity={preview ? 0.75 : 1}>
+      <circle
+        cx={cx}
+        cy={cy}
+        r={r}
+        fill={color}
+        stroke="#fff"
+        strokeWidth={1.2}
+      />
+      {snap ? (
+        <>
+          <circle
+            cx={cx}
+            cy={cy}
+            r={r + 3.5}
+            fill="none"
+            stroke={color}
+            strokeWidth={1.4}
+          />
+          <path
+            d={`M ${cx - r - 3} ${cy} L ${cx + r + 3} ${cy} M ${cx} ${cy - r - 3} L ${cx} ${cy + r + 3}`}
+            stroke="#fff"
+            strokeWidth={1.2}
+            strokeLinecap="round"
+          />
+        </>
+      ) : null}
+    </g>
+  );
+}
+
 function GraphAnnotateOverlay({
   tool,
   color,
@@ -85,6 +131,19 @@ function GraphAnnotateOverlay({
   const liveRef = useRef<HTMLCanvasElement>(null);
   const liveStroke = useRef<LiveStroke | null>(null);
   const eraserHits = useRef<Set<string>>(new Set());
+  const pendingPoint = useRef<{
+    pointerId: number;
+    nx: number;
+    ny: number;
+    snap: boolean;
+    startedAt: number;
+  } | null>(null);
+  const snapTimer = useRef<number | null>(null);
+  const [preview, setPreview] = useState<{
+    nx: number;
+    ny: number;
+    snap: boolean;
+  } | null>(null);
   const [dims, setDims] = useState({ w: 0, h: 0 });
   const active = tool !== "cursor";
 
@@ -160,6 +219,36 @@ function GraphAnnotateOverlay({
     y: p.y * dims.h,
   }));
 
+  const clearSnapTimer = () => {
+    if (snapTimer.current != null) {
+      window.clearTimeout(snapTimer.current);
+      snapTimer.current = null;
+    }
+  };
+
+  const abortPendingPoint = () => {
+    clearSnapTimer();
+    pendingPoint.current = null;
+    setPreview(null);
+  };
+
+  const commitPendingPoint = () => {
+    const pending = pendingPoint.current;
+    clearSnapTimer();
+    pendingPoint.current = null;
+    setPreview(null);
+    if (!pending) return;
+    onPoint({
+      id: nid("gp"),
+      x: pending.nx,
+      y: pending.ny,
+      r: Math.max(3, size),
+      snap: pending.snap || undefined,
+    });
+  };
+
+  useEffect(() => () => clearSnapTimer(), []);
+
   const onPointerDown = (e: React.PointerEvent) => {
     if (!active || e.button !== 0) return;
     e.preventDefault();
@@ -172,13 +261,36 @@ function GraphAnnotateOverlay({
       if (!el) return;
       const r = el.getBoundingClientRect();
       const n = clientToNormalized(e.clientX, e.clientY, r);
-      const snapped = snapNormalizedToGrid(n.nx, n.ny, view, xScale, yScale);
-      onPoint({
-        id: nid("gp"),
-        x: snapped.nx,
-        y: snapped.ny,
-        r: Math.max(3, size),
-      });
+      pendingPoint.current = {
+        pointerId: e.pointerId,
+        nx: n.nx,
+        ny: n.ny,
+        snap: false,
+        startedAt: performance.now(),
+      };
+      setPreview({ nx: n.nx, ny: n.ny, snap: false });
+      clearSnapTimer();
+      snapTimer.current = window.setTimeout(() => {
+        const pending = pendingPoint.current;
+        if (!pending) return;
+        const placed = placeGraphPoint(
+          pending.nx,
+          pending.ny,
+          view,
+          xScale,
+          yScale,
+          GRAPH_POINT_SNAP_HOLD_MS,
+          dims.w,
+          dims.h,
+        );
+        pendingPoint.current = {
+          ...pending,
+          nx: placed.nx,
+          ny: placed.ny,
+          snap: true,
+        };
+        setPreview({ nx: placed.nx, ny: placed.ny, snap: true });
+      }, GRAPH_POINT_SNAP_HOLD_MS);
       return;
     }
 
@@ -201,6 +313,34 @@ function GraphAnnotateOverlay({
   };
 
   const onPointerMove = (e: React.PointerEvent) => {
+    const pending = pendingPoint.current;
+    if (pending && e.pointerId === pending.pointerId) {
+      const el = wrapRef.current;
+      if (!el) return;
+      const r = el.getBoundingClientRect();
+      const n = clientToNormalized(e.clientX, e.clientY, r);
+      const hold = performance.now() - pending.startedAt;
+      const snap = pending.snap || hold >= GRAPH_POINT_SNAP_HOLD_MS;
+      const placed = placeGraphPoint(
+        n.nx,
+        n.ny,
+        view,
+        xScale,
+        yScale,
+        snap ? GRAPH_POINT_SNAP_HOLD_MS : 0,
+        dims.w,
+        dims.h,
+      );
+      pendingPoint.current = {
+        ...pending,
+        nx: placed.nx,
+        ny: placed.ny,
+        snap: placed.snap,
+      };
+      setPreview({ nx: placed.nx, ny: placed.ny, snap: placed.snap });
+      return;
+    }
+
     const live = liveStroke.current;
     if (!live) return;
     const { x, y } = localXY(e);
@@ -270,6 +410,30 @@ function GraphAnnotateOverlay({
   };
 
   const onPointerUp = () => {
+    if (pendingPoint.current) {
+      const pending = pendingPoint.current;
+      const hold = performance.now() - pending.startedAt;
+      if (hold >= GRAPH_POINT_SNAP_HOLD_MS) {
+        const placed = placeGraphPoint(
+          pending.nx,
+          pending.ny,
+          view,
+          xScale,
+          yScale,
+          GRAPH_POINT_SNAP_HOLD_MS,
+          dims.w,
+          dims.h,
+        );
+        pendingPoint.current = {
+          ...pending,
+          nx: placed.nx,
+          ny: placed.ny,
+          snap: true,
+        };
+      }
+      commitPendingPoint();
+      return;
+    }
     const live = liveStroke.current;
     if (!live) return;
     liveStroke.current = null;
@@ -299,30 +463,36 @@ function GraphAnnotateOverlay({
       onPointerDown={onPointerDown}
       onPointerMove={onPointerMove}
       onPointerUp={onPointerUp}
-      onPointerCancel={onPointerUp}
+      onPointerCancel={() => {
+        if (pendingPoint.current) abortPendingPoint();
+        else onPointerUp();
+      }}
+      onContextMenu={(e) => e.preventDefault()}
     >
       <canvas ref={committedRef} className="absolute inset-0 h-full w-full" />
       <canvas ref={liveRef} className="absolute inset-0 h-full w-full" />
-      {annotations.points.length > 0 ? (
+      {annotations.points.length > 0 || preview ? (
         <svg className="pointer-events-none absolute inset-0 h-full w-full overflow-visible">
-          {annotations.points.map((pt) => {
-            const math = normalizedToMath(pt.x, pt.y, view);
-            const cx = pt.x * dims.w;
-            const cy = pt.y * dims.h;
-            const r = pt.r ?? 4;
-            return (
-              <g key={pt.id}>
-                <circle cx={cx} cy={cy} r={r} fill={color} stroke="#fff" strokeWidth={1} />
-                <text
-                  x={cx + r + 3}
-                  y={cy - 4}
-                  className="fill-wood text-[10px] font-semibold"
-                >
-                  ({formatGraphCoord(math.x)}, {formatGraphCoord(math.y)})
-                </text>
-              </g>
-            );
-          })}
+          {annotations.points.map((pt) => (
+            <GraphPointMark
+              key={pt.id}
+              cx={pt.x * dims.w}
+              cy={pt.y * dims.h}
+              r={pt.r ?? 4}
+              color={color}
+              snap={pt.snap}
+            />
+          ))}
+          {preview ? (
+            <GraphPointMark
+              cx={preview.nx * dims.w}
+              cy={preview.ny * dims.h}
+              r={Math.max(3, size)}
+              color={color}
+              snap={preview.snap}
+              preview
+            />
+          ) : null}
         </svg>
       ) : null}
     </div>

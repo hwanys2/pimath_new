@@ -1,6 +1,6 @@
 import type { BoardPoint, Stroke } from "../board/types";
 import type { PlotView } from "./graph-plot";
-import { safePlotView } from "./graph-plot";
+import { resolveAxisScale, safePlotView } from "./graph-plot";
 
 export type GraphAnnotations = {
   strokes: Stroke[];
@@ -70,6 +70,16 @@ function snapToScale(value: number, scale: number): number {
   return Math.round(value / step) * step;
 }
 
+function gridStep(
+  min: number,
+  max: number,
+  scale: number,
+  pixelLength: number,
+): number {
+  if (pixelLength > 0) return resolveAxisScale(min, max, scale, pixelLength);
+  return scale > 0 ? scale : 1;
+}
+
 /** Snap a pane location onto the graph's major grid (default: integers). */
 export function snapNormalizedToGrid(
   nx: number,
@@ -77,12 +87,44 @@ export function snapNormalizedToGrid(
   view: PlotView,
   xScale = 1,
   yScale = 1,
+  pixelW = 0,
+  pixelH = 0,
 ): { nx: number; ny: number; mathX: number; mathY: number } {
-  const math = normalizedToMath(nx, ny, view);
-  const mathX = snapToScale(math.x, xScale);
-  const mathY = snapToScale(math.y, yScale);
-  const n = mathToNormalized(mathX, mathY, view);
+  const v = safePlotView(view);
+  const math = normalizedToMath(nx, ny, v);
+  const mathX = snapToScale(math.x, gridStep(v.xMin, v.xMax, xScale, pixelW));
+  const mathY = snapToScale(math.y, gridStep(v.yMin, v.yMax, yScale, pixelH));
+  const n = mathToNormalized(mathX, mathY, v);
   return { nx: n.nx, ny: n.ny, mathX, mathY };
+}
+
+/** Hold this long to magnet-snap a graph point onto the visible grid. */
+export const GRAPH_POINT_SNAP_HOLD_MS = 450;
+
+/** Tap = free point. Long-press = snap to the graph grid. Never labels coords. */
+export function placeGraphPoint(
+  nx: number,
+  ny: number,
+  view: PlotView,
+  xScale: number,
+  yScale: number,
+  holdMs: number,
+  pixelW = 0,
+  pixelH = 0,
+): { nx: number; ny: number; snap: boolean } {
+  if (holdMs >= GRAPH_POINT_SNAP_HOLD_MS) {
+    const snapped = snapNormalizedToGrid(
+      nx,
+      ny,
+      view,
+      xScale,
+      yScale,
+      pixelW,
+      pixelH,
+    );
+    return { nx: snapped.nx, ny: snapped.ny, snap: true };
+  }
+  return { nx, ny, snap: false };
 }
 
 export function formatGraphCoord(n: number): string {

@@ -155,6 +155,8 @@ export type BoardPoint = {
   y: number;
   /** Visual radius (default 4) */
   r?: number;
+  /** True when the point was magnet-snapped onto the graph grid. */
+  snap?: boolean;
 };
 
 export type BoardPersisted = {
