@@ -54,7 +54,7 @@ export default function InquiryLinearEquationBalanceStep({
 }: Props) {
   const [hintIndex, setHintIndex] = useState(-1);
   const interactive = hostPreview || !readOnly;
-  const locked = !interactive || disabled || submitted;
+  const locked = !interactive || disabled;
   const projected = scoreForAttempts(wrongAttempts);
 
   return (
@@ -68,7 +68,7 @@ export default function InquiryLinearEquationBalanceStep({
             시연 모드 — 저울을 조작하며 설명할 수 있어요
           </span>
         ) : null}
-        {!readOnly && !hostPreview && !submitted ? (
+        {!readOnly && !hostPreview ? (
           <span className="rounded-xl bg-sky/40 px-3 py-1 tabular-nums">
             오답 {wrongAttempts}회
             <span className="ml-1 font-semibold text-wood/55">
@@ -99,7 +99,7 @@ export default function InquiryLinearEquationBalanceStep({
         />
       </div>
 
-      {softNotice && !submitted && !readOnly && !hostPreview ? (
+      {softNotice && !readOnly && !hostPreview ? (
         <p
           className="mt-4 text-center text-sm font-bold text-[#a63a1a]"
           role="status"
@@ -129,13 +129,13 @@ export default function InquiryLinearEquationBalanceStep({
           </p>
           <p className="mt-1 text-sm font-bold">
             {submitFeedback === "correct"
-              ? "제출 완료! 선생님이 다음 문제로 넘길 때까지 기다려 주세요."
-              : "다시 확인해 보세요. 선생님이 다음 문제로 넘길 때까지 기다려 주세요."}
+              ? "제출 완료! 답을 고칠 수 있어요. 선생님이 다음 문제로 넘길 때까지 기다려 주세요."
+              : "다시 확인해 보세요. 답을 고친 뒤 다시 확인할 수 있어요."}
           </p>
         </div>
       ) : null}
 
-      {!readOnly && !hostPreview && !submitted && onSubmit ? (
+      {!readOnly && !hostPreview && onSubmit ? (
         <div className="mt-6 flex justify-center">
           <button
             type="button"
@@ -143,7 +143,7 @@ export default function InquiryLinearEquationBalanceStep({
             disabled={disabled}
             className="rounded-xl bg-wood px-8 py-3 text-base font-bold text-cream disabled:opacity-50"
           >
-            확인
+            {submitted ? "다시 확인" : "확인"}
           </button>
         </div>
       ) : null}

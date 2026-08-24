@@ -70,14 +70,14 @@ export default function EquationOpsStep({
   }, [stepIndex, stepStartedAt]);
 
   useEffect(() => {
-    if (submitted || hostPreview) return;
+    if (hostPreview) return;
     const id = window.setInterval(() => {
       setElapsedMs(Date.now() - startedRef.current);
     }, 100);
     return () => window.clearInterval(id);
-  }, [submitted, hostPreview, stepIndex]);
+  }, [hostPreview, stepIndex]);
 
-  const locked = disabled || submitted;
+  const locked = disabled;
   const balanced = isStateBalanced(state, problem.xValue);
   const solved = isStateSolved(state, problem.xValue);
   const targetHtml = renderLatex(problem.targetLatex);
@@ -104,8 +104,10 @@ export default function EquationOpsStep({
 
   const statusMessage = !balanced
     ? "저울이 기울었어요. 양변에 똑같이 해야 등식이 유지돼요."
-    : solved && !submitted
-      ? "x를 구했어요! 확인을 눌러 점수를 받으세요."
+    : solved
+      ? submitted
+        ? "x를 구했어요! 답을 고친 뒤 다시 확인할 수 있어요."
+        : "x를 구했어요! 확인을 눌러 점수를 받으세요."
       : null;
 
   return (
@@ -115,7 +117,7 @@ export default function EquationOpsStep({
         <span className="rounded-xl bg-gold/45 px-3 py-1 tabular-nums">
           문제 {stepIndex + 1}/{stepCount}
         </span>
-        {!hostPreview && !submitted ? (
+        {!hostPreview ? (
           <>
             <span className="rounded-xl bg-sky/40 px-3 py-1 tabular-nums">
               ⏱ {formatElapsed(elapsedMs)}초
@@ -201,13 +203,13 @@ export default function EquationOpsStep({
           </p>
           <p className="mt-1 text-sm font-bold">
             {submitFeedback === "correct"
-              ? `+${earnedScore ?? previewScore}점! 선생님이 다음 문제로 넘길 때까지 기다려 주세요.`
+              ? `+${earnedScore ?? previewScore}점! 답을 고친 뒤 다시 확인할 수 있어요.`
               : "다시 확인해 보세요."}
           </p>
         </div>
       ) : null}
 
-      {!hostPreview && !submitted && onSubmit ? (
+      {!hostPreview && onSubmit ? (
         <div className="flex justify-center">
           <button
             type="button"
@@ -215,7 +217,7 @@ export default function EquationOpsStep({
             disabled={locked}
             className="rounded-xl bg-wood px-8 py-3 text-base font-bold text-cream disabled:opacity-50"
           >
-            확인
+            {submitted ? "다시 확인" : "확인"}
           </button>
         </div>
       ) : null}

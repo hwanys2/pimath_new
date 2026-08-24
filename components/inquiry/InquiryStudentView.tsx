@@ -44,10 +44,12 @@ import * as raceActions from "@/app/play/g1-u2-2-linear-equation-race/actions";
 import * as tangentActions from "@/app/play/g3-u3-1-tangent-intro/actions";
 import * as sincosActions from "@/app/play/g3-u3-1-sincos-intro/actions";
 import { effectiveInquiryStepCount } from "@/lib/inquiry-step-counts";
+import { restoreInquiryStep } from "@/lib/inquiry-workspace-restore";
 import {
   INQUIRY_POLL_MS,
   type InquiryPhase,
   type InquiryPollState,
+  type InquiryResult,
 } from "@/lib/inquiry-types";
 
 const IDLE: InquiryPollState = {
@@ -60,6 +62,7 @@ const IDLE: InquiryPollState = {
   stepCount: 0,
   participants: [],
   myStepResult: null,
+  myStepResponse: null,
 };
 
 type Props = {
@@ -157,6 +160,25 @@ export default function InquiryStudentView({
     submittedRef.current = submitted;
   }, [submitted]);
 
+  const applySubmitMeta = useCallback(
+    (result: InquiryResult | null, wrongs: number) => {
+      if (result) {
+        setSubmitted(true);
+        submittedRef.current = true;
+        setSubmitFeedback(
+          result === "correct" || result === "neutral" ? "correct" : "wrong",
+        );
+      } else {
+        setSubmitted(false);
+        submittedRef.current = false;
+        setSubmitFeedback(null);
+      }
+      setWrongAttempts(wrongs);
+      wrongRef.current = wrongs;
+    },
+    [],
+  );
+
   const resetStep = useCallback(
     (stepIndex: number) => {
       if (!validKey) return;
@@ -186,6 +208,50 @@ export default function InquiryStudentView({
       prevStepRef.current = stepIndex;
     },
     [validKey],
+  );
+
+  const hydrateStep = useCallback(
+    (
+      stepIndex: number,
+      response: Record<string, unknown>,
+      result: InquiryResult | null,
+    ) => {
+      if (!validKey) return;
+      const restored = restoreInquiryStep(validKey, stepIndex, response);
+      if (!restored) {
+        resetStep(stepIndex);
+        return;
+      }
+
+      switch (restored.kind) {
+        case "radical":
+          setTexts(restored.texts);
+          break;
+        case "balance":
+          setBalanceWorkspace(restored.workspace);
+          setBalanceMoves(restored.moves);
+          break;
+        case "race":
+          setRaceState(restored.state);
+          setStepStartedAt(Date.now());
+          setEarnedScore(null);
+          break;
+        case "tangent":
+          setTangentWorkspace(restored.workspace);
+          break;
+        case "sincos":
+          setSincosWorkspace(restored.workspace);
+          break;
+      }
+
+      applySubmitMeta(result, restored.meta.wrongAttempts);
+      setRadicalNotice(null);
+      setBalanceNotice(null);
+      setTangentNotice(null);
+      setSincosNotice(null);
+      prevStepRef.current = stepIndex;
+    },
+    [validKey, applySubmitMeta, resetStep],
   );
 
   useEffect(() => {
@@ -234,23 +300,19 @@ export default function InquiryStudentView({
       setState(poll);
 
       const prevPhase = prevPhaseRef.current;
-      if (
-        poll.phase === "live" &&
-        (prevPhase !== "live" || prevStepRef.current !== poll.stepIndex)
-      ) {
-        resetStep(poll.stepIndex);
+      const stepChanged = prevStepRef.current !== poll.stepIndex;
+      const enteredLive = poll.phase === "live" && prevPhase !== "live";
+
+      if (poll.phase === "live" && (enteredLive || stepChanged)) {
+        if (poll.myStepResponse) {
+          hydrateStep(poll.stepIndex, poll.myStepResponse, poll.myStepResult);
+        } else {
+          resetStep(poll.stepIndex);
+        }
+      } else if (poll.myStepResult && !submittedRef.current) {
+        applySubmitMeta(poll.myStepResult, wrongRef.current);
       }
       prevPhaseRef.current = poll.phase;
-
-      if (poll.myStepResult && !submittedRef.current) {
-        setSubmitted(true);
-        submittedRef.current = true;
-        setSubmitFeedback(
-          poll.myStepResult === "correct" || poll.myStepResult === "neutral"
-            ? "correct"
-            : "wrong",
-        );
-      }
     };
 
     void tick();
@@ -258,10 +320,10 @@ export default function InquiryStudentView({
       void tick();
     }, INQUIRY_POLL_MS);
     return () => window.clearInterval(id);
-  }, [studentClassId, canParticipate, validKey, resetStep]);
+  }, [studentClassId, canParticipate, validKey, resetStep, hydrateStep, applySubmitMeta]);
 
   const onSubmitRadical = () => {
-    if (!sessionId || submitted || state.phase !== "live" || !validKey) return;
+    if (!sessionId || state.phase !== "live" || !validKey) return;
     const problem = radicalFillProblem(state.stepIndex);
     const notice = validateRadicalFill(state.stepIndex, texts);
     if (notice) {
@@ -294,7 +356,7 @@ export default function InquiryStudentView({
   };
 
   const onSubmitBalance = () => {
-    if (!sessionId || submitted || state.phase !== "live" || !validKey) return;
+    if (!sessionId || state.phase !== "live" || !validKey) return;
     const notice = validateBalanceSubmit(state.stepIndex, balanceWorkspace);
     if (notice) {
       const next = wrongRef.current + 1;
@@ -325,7 +387,7 @@ export default function InquiryStudentView({
   };
 
   const onSubmitRace = () => {
-    if (!sessionId || submitted || state.phase !== "live" || !validKey) return;
+    if (!sessionId || state.phase !== "live" || !validKey) return;
     const problem = equationOpsProblem(state.stepIndex);
     const elapsedMs = stepStartedAt ? Date.now() - stepStartedAt : 0;
 
@@ -354,7 +416,7 @@ export default function InquiryStudentView({
   };
 
   const onSubmitTangent = () => {
-    if (!sessionId || submitted || state.phase !== "live" || !validKey) return;
+    if (!sessionId || state.phase !== "live" || !validKey) return;
     const notice = validateTangent(state.stepIndex, tangentWorkspace);
     if (notice) {
       if (notice.reason === "wrong") {
@@ -385,7 +447,7 @@ export default function InquiryStudentView({
   };
 
   const onSubmitSincos = () => {
-    if (!sessionId || submitted || state.phase !== "live" || !validKey) return;
+    if (!sessionId || state.phase !== "live" || !validKey) return;
     const notice = validateSincos(state.stepIndex, sincosWorkspace);
     if (notice) {
       if (notice.reason === "wrong") {
@@ -481,8 +543,8 @@ export default function InquiryStudentView({
             {contentTitle}
           </h1>
           <p className="mt-2 text-sm text-foreground/70">
-            선생님 속도에 맞춰 진행돼요. 제출 후 다음 문제는 선생님이 넘길 때까지
-            기다려 주세요.
+            선생님 속도에 맞춰 진행돼요. 제출한 뒤에도 답을 고칠 수 있어요. 다음
+            문제는 선생님이 넘길 때까지 기다려 주세요.
           </p>
         </section>
 

@@ -62,7 +62,7 @@ export default function InquiryTangentIntroStep({
 }: Props) {
   const table = isTableStep(stepIndex);
   const interactive = hostPreview || !readOnly;
-  const locked = !interactive || disabled || submitted;
+  const locked = !interactive || disabled;
   const projected = scoreForAttempts(wrongAttempts);
   const showScoreBar = !readOnly && !hostPreview;
   const wrongSet = new Set(softNotice?.wrongAngles ?? []);
@@ -79,7 +79,7 @@ export default function InquiryTangentIntroStep({
             시연 모드 — 장면과 작도판을 조작하며 설명할 수 있어요
           </span>
         ) : null}
-        {showScoreBar && !submitted ? (
+        {showScoreBar ? (
           <span className="rounded-xl bg-sky/40 px-3 py-1 tabular-nums">
             오답 {wrongAttempts}회
             <span className="ml-1 font-semibold text-wood/55">
@@ -212,11 +212,11 @@ export default function InquiryTangentIntroStep({
         </div>
 
         <div className="min-h-[22rem] min-w-0">
-          <GeometrySketchpad key={stepIndex} locked={locked && !hostPreview} />
+          <GeometrySketchpad key={stepIndex} locked={disabled && !hostPreview} />
         </div>
       </div>
 
-      {softNotice && !submitted && !readOnly && !hostPreview ? (
+      {softNotice && !readOnly && !hostPreview ? (
         <p className="mt-4 text-center text-sm font-bold text-[#a63a1a]" role="status">
           {softMessage(softNotice, table)}
           {softNotice.reason === "wrong" ? (
@@ -250,14 +250,14 @@ export default function InquiryTangentIntroStep({
           ) : (
             <p className="mt-1 text-sm font-bold">
               {submitFeedback === "correct"
-                ? "제출 완료! 선생님이 다음 문제로 넘길 때까지 기다려 주세요."
-                : "다시 생각해 보세요. 선생님이 다음 문제로 넘길 때까지 기다려 주세요."}
+                ? "제출 완료! 답을 고칠 수 있어요. 선생님이 다음 문제로 넘길 때까지 기다려 주세요."
+                : "다시 생각해 보세요. 답을 고친 뒤 다시 확인할 수 있어요."}
             </p>
           )}
         </div>
       ) : null}
 
-      {!readOnly && !hostPreview && !submitted && onSubmit ? (
+      {!readOnly && !hostPreview && onSubmit ? (
         <div className="mt-6 flex justify-center">
           <button
             type="button"
@@ -265,7 +265,7 @@ export default function InquiryTangentIntroStep({
             disabled={disabled}
             className="rounded-xl bg-wood px-8 py-3 text-base font-bold text-cream disabled:opacity-50"
           >
-            확인
+            {submitted ? "다시 확인" : "확인"}
           </button>
         </div>
       ) : null}

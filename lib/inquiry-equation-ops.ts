@@ -5,6 +5,7 @@ import {
   type EquationOpsState,
   type TrailEntry,
 } from "@/lib/equation-ops-math";
+import type { BalanceState } from "@/lib/linear-equation-balance-math";
 import type { InquiryResult } from "@/lib/inquiry-types";
 
 export const CONTENT_KEY = "g1-u2-2-linear-equation-race";
@@ -18,6 +19,8 @@ export type EquationOpsResponsePayload = {
   opCount: number;
   elapsedMs: number;
   wrongs: number;
+  /** Balance after last submit — used to restore workspace on refresh. */
+  balance: BalanceState;
 };
 
 export type EquationOpsStepResult = {
@@ -38,6 +41,10 @@ export function gradeEquationOpsStep(
     opCount: state.opCount,
     elapsedMs,
     wrongs,
+    balance: {
+      left: { ...state.balance.left },
+      right: { ...state.balance.right },
+    },
   };
 
   if (isStateSolved(state, problem.xValue)) {

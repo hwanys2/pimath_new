@@ -40,6 +40,7 @@ type PollRow = {
   display_name: string | null;
   last_seen_at: string | null;
   step_result: string | null;
+  step_response: Record<string, unknown> | null;
   is_me: boolean;
 };
 
@@ -53,6 +54,7 @@ const IDLE: InquiryPollState = {
   stepCount: 0,
   participants: [],
   myStepResult: null,
+  myStepResponse: null,
 };
 
 function mapPollRows(rows: PollRow[]): InquiryPollState {
@@ -69,7 +71,7 @@ function mapPollRows(rows: PollRow[]): InquiryPollState {
       isMe: Boolean(r.is_me),
     }));
 
-  const me = participants.find((p) => p.isMe);
+  const meRow = rows.find((r) => r.is_me);
 
   return {
     sessionId: head.session_id,
@@ -80,7 +82,8 @@ function mapPollRows(rows: PollRow[]): InquiryPollState {
     stepIndex: head.step_index,
     stepCount: head.step_count,
     participants,
-    myStepResult: me?.stepResult ?? null,
+    myStepResult: parseResult(meRow?.step_result),
+    myStepResponse: meRow?.step_response ?? null,
   };
 }
 
