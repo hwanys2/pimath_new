@@ -299,7 +299,7 @@ export default function InquiryTangentIntroStep({
           <div className="flex min-w-0 flex-col justify-center rounded-2xl border-2 border-wood/10 bg-lavender/20 px-4 py-5 text-sm font-semibold leading-relaxed text-foreground/80">
             <p>
               앞선 활동에서 밑변 × □로 높이를 구했고, 표의 그 수가 바로 탄젠트입니다.
-              각 C에서 높이 쪽 변은 <span className="font-bold text-wood">선분 AB</span>
+              각 A에서 높이 쪽 변은 <span className="font-bold text-wood">선분 BC</span>
               , 밑변은 <span className="font-bold text-wood">선분 AC</span>입니다.
             </p>
             <p className="mt-3">
