@@ -12,6 +12,8 @@ import { latexToExpr } from "../lib/math-latex-to-expr";
 import type { MathKind } from "./types";
 import BoardGraph from "./BoardGraph";
 import { DEFAULT_GRAPH_SETTINGS } from "./graph-types";
+import { snapParamValues } from "../lib/graph-param-slider";
+import GraphParamSliders from "./GraphParamSliders";
 
 export type MathApplyPayload = {
   latex: string;
@@ -22,6 +24,7 @@ export type MathApplyPayload = {
   showSolution: boolean;
   solutionSteps?: string[];
   answerLatex?: string;
+  integerParams?: boolean;
 };
 
 type Props = {
@@ -51,6 +54,7 @@ export default function MathRecognizePanel({
   const [error, setError] = useState<string | null>(null);
   const [includeGraph, setIncludeGraph] = useState(true);
   const [includeSolution, setIncludeSolution] = useState(true);
+  const [integerParams, setIntegerParams] = useState(false);
 
   const syncIncludeFlags = useCallback((nextLatex: string, nextExpr: string) => {
     const c = classifyMathInput(
@@ -116,9 +120,9 @@ export default function MathRecognizePanel({
 
   const params = useMemo(() => listParameters(expr), [expr]);
   const mergedParams = useMemo(() => {
-    const base = defaultParamValues(params);
-    return { ...base, ...paramValues };
-  }, [params, paramValues]);
+    const base = { ...defaultParamValues(params), ...paramValues };
+    return snapParamValues(base, integerParams);
+  }, [params, paramValues, integerParams]);
 
   const latexHtml = useMemo(() => {
     const src = latex.trim() || expr;
@@ -143,6 +147,7 @@ export default function MathRecognizePanel({
       latex: latex.trim() || expr,
       expr,
       paramValues: mergedParams,
+      integerParams,
       kind: classified.kind,
       showGraph:
         includeGraph &&
@@ -297,30 +302,18 @@ export default function MathRecognizePanel({
         </div>
 
         {params.length > 0 ? (
-          <div className="flex flex-col gap-2">
-            {params.map((p) => (
-              <label
-                key={p}
-                className="flex items-center gap-2 text-xs font-semibold text-wood"
-              >
-                <span className="w-6">{p}</span>
-                <input
-                  type="range"
-                  min={-10}
-                  max={10}
-                  step={0.1}
-                  value={mergedParams[p] ?? 0}
-                  onChange={(e) =>
-                    setParamValues((prev) => ({
-                      ...prev,
-                      [p]: Number(e.target.value),
-                    }))
-                  }
-                  className="flex-1"
-                />
-              </label>
-            ))}
-          </div>
+          <GraphParamSliders
+            names={params}
+            values={mergedParams}
+            integerOnly={integerParams}
+            onIntegerOnlyChange={(next) => {
+              setIntegerParams(next);
+              setParamValues((prev) => snapParamValues(prev, next));
+            }}
+            onChange={(name, value) =>
+              setParamValues((prev) => ({ ...prev, [name]: value }))
+            }
+          />
         ) : null}
 
         {graphPreview}

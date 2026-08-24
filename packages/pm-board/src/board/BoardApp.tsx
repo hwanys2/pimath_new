@@ -555,6 +555,7 @@ export default function BoardApp({
         showSolution: payload.showSolution,
         solutionSteps: payload.solutionSteps,
         answerLatex: payload.answerLatex,
+        integerParams: payload.integerParams,
         zIndex: maxZ + 1,
       };
       setMathCards((prev) => [...prev, card]);
