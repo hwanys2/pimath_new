@@ -56,6 +56,20 @@ describe("inquiry workspace restore", () => {
     assert.equal(meta.submitted, true);
   });
 
+  it("restores sincos define names", () => {
+    const ws = emptySincosWorkspace(4);
+    ws.sinNameText = "sin";
+    ws.cosNameText = "cosine";
+    const graded = gradeSincosStep(4, ws, 1);
+    const { workspace, meta } = sincosWorkspaceFromResponse(
+      4,
+      graded.response as unknown as Record<string, unknown>,
+    );
+    assert.equal(workspace.sinNameText, "sin");
+    assert.equal(workspace.cosNameText, "cosine");
+    assert.equal(meta.wrongAttempts, 1);
+  });
+
   it("restores sincos scene with baseT", () => {
     const ws = emptySincosWorkspace(0);
     ws.adjText = "23";

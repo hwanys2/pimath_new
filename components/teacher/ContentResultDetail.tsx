@@ -131,9 +131,11 @@ function SincosIntroDetail({ items }: { items: ActivityDetailsV1["items"] }) {
             <tr key={i} className="border-b border-wood/8">
               <td className="py-1 pr-3">{(item.index as number) + 1}</td>
               <td className="py-1 pr-3">
-                {item.kind === "table"
-                  ? `표 ${String(item.filled ?? "—")}칸`
-                  : `거리 ${String(item.adj ?? "—")} · 높이 ${String(item.opp ?? "—")} ${String(item.unit ?? "")}`}
+                {item.kind === "define"
+                  ? `사인 ${String(item.sinNameText || "—")} · 코사인 ${String(item.cosNameText || "—")}`
+                  : item.kind === "table"
+                    ? `표 ${String(item.filled ?? "—")}칸`
+                    : `거리 ${String(item.adj ?? "—")} · 높이 ${String(item.opp ?? "—")} ${String(item.unit ?? "")}`}
                 {typeof item.methodText === "string" && item.methodText.trim() ? (
                   <span className="mt-0.5 block max-w-[14rem] truncate text-foreground/55">
                     {item.methodText}

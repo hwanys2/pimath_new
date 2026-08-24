@@ -30,6 +30,11 @@ export default function InquirySincosIntroResponseDetail({
             높이 {response.opp || "—"} {response.unit}
           </li>
         </ul>
+      ) : response.kind === "define" ? (
+        <ul className="mt-2 space-y-1 font-mono text-xs text-foreground/80">
+          <li>높이 수 이름 {response.sinNameText || "—"}</li>
+          <li>수평거리 수 이름 {response.cosNameText || "—"}</li>
+        </ul>
       ) : (
         <ul className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1 font-mono text-xs text-foreground/80">
           {TABLE_ANGLES.map((a) => (
@@ -40,7 +45,7 @@ export default function InquirySincosIntroResponseDetail({
           ))}
         </ul>
       )}
-      {response.methodText ? (
+      {response.kind !== "define" && response.methodText ? (
         <p className="mt-2 rounded-lg bg-wood/5 px-2 py-1.5 text-xs leading-relaxed text-foreground/75">
           <span className="font-bold text-wood">계산 방법: </span>
           {response.methodText}

@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
+  DEFINE_STEP_INDEX,
   HYP_SCENES,
   PROBLEM_COUNT,
   TABLE_ANGLES,
@@ -8,17 +9,22 @@ import {
   aggregateSincosScore,
   clampAngle,
   cosDeg,
+  cosNameIsCorrect,
   cosRatioIsCorrect,
   emptySincosWorkspace,
   expectedAdj,
   expectedOpp,
   gradeSincosStep,
   hypSceneAt,
+  initialAngleDeg,
+  isDefineStep,
   isTableStep,
   lengthIsCorrect,
   parseStudentNumber,
   scoreForAttempts,
+  seededAngleDeg,
   sinDeg,
+  sinNameIsCorrect,
   sinRatioIsCorrect,
   validateSincosSubmit,
 } from "@/lib/inquiry-sincos-intro";
@@ -42,16 +48,40 @@ import {
 } from "@/lib/inquiry-sincos-sketch";
 
 describe("sincos intro scenes", () => {
-  it("has 3 hypotenuse scenes and a table step", () => {
+  it("has 3 hypotenuse scenes, a table step, and a define step", () => {
     assert.equal(HYP_SCENES.length, 3);
-    assert.equal(PROBLEM_COUNT, 4);
+    assert.equal(PROBLEM_COUNT, 5);
     assert.equal(TABLE_STEP_INDEX, 3);
+    assert.equal(DEFINE_STEP_INDEX, 4);
     assert.equal(isTableStep(2), false);
     assert.equal(isTableStep(3), true);
+    assert.equal(isTableStep(4), false);
+    assert.equal(isDefineStep(4), true);
     assert.equal(hypSceneAt(0)?.id, "kite");
     assert.equal(hypSceneAt(1)?.id, "ladder");
     assert.equal(hypSceneAt(2)?.id, "tablet");
     assert.equal(hypSceneAt(3), null);
+    assert.ok(TABLE_ANGLES.includes(45));
+  });
+
+  it("uses updated hypotenuse lengths and fixed angles for kite and ladder", () => {
+    assert.equal(HYP_SCENES[0]!.hyp, 31);
+    assert.equal(HYP_SCENES[0]!.angleAdjustable, false);
+    assert.equal(HYP_SCENES[1]!.hyp, 4.7);
+    assert.equal(HYP_SCENES[1]!.defaultAngleDeg, 60);
+    assert.equal(HYP_SCENES[2]!.hyp, 37);
+    assert.equal(HYP_SCENES[2]!.randomizeInitialAngle, true);
+  });
+
+  it("assigns a stable random tablet angle per student seed", () => {
+    const tablet = HYP_SCENES[2]!;
+    const a = initialAngleDeg(tablet, "student-42");
+    const b = initialAngleDeg(tablet, "student-42");
+    const c = initialAngleDeg(tablet, "student-99");
+    assert.equal(a, b);
+    assert.ok(a >= 30 && a <= 70);
+    assert.ok(c >= 30 && c <= 70);
+    assert.equal(seededAngleDeg("fixed", 30, 70), seededAngleDeg("fixed", 30, 70));
   });
 
   it("clamps elevation angle to 1 degree within the scene range", () => {
@@ -77,15 +107,15 @@ describe("parseStudentNumber", () => {
 describe("scene length grading", () => {
   const kite = HYP_SCENES[0]!;
 
-  it("accepts 30 m kite height and distance at 40°", () => {
+  it("accepts 31 m kite height and distance at 40°", () => {
     const ang = 40;
     assert.equal(lengthIsCorrect(kite, ang, expectedOpp(kite, ang), "opp"), true);
     assert.equal(lengthIsCorrect(kite, ang, expectedAdj(kite, ang), "adj"), true);
   });
 
-  it("accepts 30 * sin/cos within 12%", () => {
-    assert.equal(lengthIsCorrect(kite, 40, 30 * sinDeg(40), "opp"), true);
-    assert.equal(lengthIsCorrect(kite, 40, 30 * cosDeg(40), "adj"), true);
+  it("accepts 31 * sin/cos within 12%", () => {
+    assert.equal(lengthIsCorrect(kite, 40, 31 * sinDeg(40), "opp"), true);
+    assert.equal(lengthIsCorrect(kite, 40, 31 * cosDeg(40), "adj"), true);
     assert.equal(lengthIsCorrect(kite, 40, 5, "opp"), false);
     assert.equal(lengthIsCorrect(kite, 40, 80, "adj"), false);
   });
@@ -137,7 +167,7 @@ describe("validate and grade", () => {
     const ws = emptySincosWorkspace(0);
     ws.adjText = String(expectedAdj(kite, 40));
     ws.oppText = String(expectedOpp(kite, 40));
-    ws.methodText = "빗변을 그리고 원과 수선으로 비를 구한 뒤 30m에 곱했어요.";
+    ws.methodText = "빗변을 그리고 원과 수선으로 비를 구한 뒤 31m에 곱했어요.";
     assert.equal(validateSincosSubmit(0, ws), null);
     const graded = gradeSincosStep(0, ws, 1);
     assert.equal(graded.result, "correct");
@@ -146,7 +176,7 @@ describe("validate and grade", () => {
     assert.equal(graded.response.wrongs, 1);
   });
 
-  it("requires all sixteen table cells", () => {
+  it("requires all eighteen table cells", () => {
     const ws = emptySincosWorkspace(TABLE_STEP_INDEX);
     ws.sinRatios["10"] = "0.17";
     const notice = validateSincosSubmit(TABLE_STEP_INDEX, ws);
@@ -159,7 +189,7 @@ describe("validate and grade", () => {
       ws.sinRatios[String(a)] = String(sinDeg(a));
       ws.cosRatios[String(a)] = String(cosDeg(a));
     }
-    ws.methodText = "빗변 10칸 직각삼각형을 그려 높이÷빗변, 밑변÷빗변을 적었어요.";
+    ws.methodText = "빗변 10칸 직각삼각형을 그려, 빗변에 곱하면 높이·수평거리가 되는 수를 적었어요.";
     assert.equal(validateSincosSubmit(TABLE_STEP_INDEX, ws), null);
     const graded = gradeSincosStep(TABLE_STEP_INDEX, ws, 0);
     assert.equal(graded.result, "correct");
@@ -175,6 +205,35 @@ describe("validate and grade", () => {
     assert.equal(notice?.reason, "wrong");
     assert.ok(notice?.wrongKeys?.includes("sin:10"));
     assert.ok(!notice?.wrongKeys?.includes("cos:60"));
+  });
+
+  it("flags missing define names as incomplete", () => {
+    const ws = emptySincosWorkspace(DEFINE_STEP_INDEX);
+    const notice = validateSincosSubmit(DEFINE_STEP_INDEX, ws);
+    assert.equal(notice?.reason, "incomplete");
+    assert.ok(notice?.wrongKeys?.includes("sinName"));
+    assert.ok(notice?.wrongKeys?.includes("cosName"));
+  });
+
+  it("accepts sin and cos naming answers", () => {
+    assert.equal(sinNameIsCorrect("사인"), true);
+    assert.equal(sinNameIsCorrect("sine"), true);
+    assert.equal(cosNameIsCorrect("코사인"), true);
+    assert.equal(cosNameIsCorrect("cos"), true);
+    assert.equal(sinNameIsCorrect("코사인"), false);
+    assert.equal(cosNameIsCorrect("탄젠트"), false);
+  });
+
+  it("grades a correct define step", () => {
+    const ws = emptySincosWorkspace(DEFINE_STEP_INDEX);
+    ws.sinNameText = "사인";
+    ws.cosNameText = "코사인";
+    assert.equal(validateSincosSubmit(DEFINE_STEP_INDEX, ws), null);
+    const graded = gradeSincosStep(DEFINE_STEP_INDEX, ws, 0);
+    assert.equal(graded.result, "correct");
+    if (graded.response.kind !== "define") throw new Error("expected define");
+    assert.equal(graded.response.sinNameText, "사인");
+    assert.equal(graded.response.cosNameText, "코사인");
   });
 });
 

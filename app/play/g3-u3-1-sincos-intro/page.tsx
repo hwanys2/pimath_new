@@ -70,6 +70,7 @@ export default async function SincosIntroPage({
           studentClassId={actor.classId}
           studentClassName={actor.className}
           studentName={actor.name}
+          studentId={actor.id}
           canParticipate={studentCanParticipate}
           contentTitle={content?.title ?? "사인·코사인 탐구"}
         />

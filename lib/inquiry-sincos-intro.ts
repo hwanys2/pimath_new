@@ -6,9 +6,10 @@
 import type { InquiryResult } from "@/lib/inquiry-types";
 
 export const CONTENT_KEY = "g3-u3-1-sincos-intro";
-export const PROBLEM_COUNT = 4;
+export const PROBLEM_COUNT = 5;
 export const TABLE_STEP_INDEX = 3;
-export const TABLE_ANGLES = [10, 20, 30, 40, 50, 60, 70, 80] as const;
+export const DEFINE_STEP_INDEX = 4;
+export const TABLE_ANGLES = [10, 20, 30, 40, 45, 50, 60, 70, 80] as const;
 export type TableAngle = (typeof TABLE_ANGLES)[number];
 
 export const WRONG_PENALTY = 15;
@@ -30,6 +31,10 @@ export type HypScene = {
   minAngleDeg: number;
   maxAngleDeg: number;
   defaultAngleDeg: number;
+  /** When false, the scene angle is fixed at defaultAngleDeg. */
+  angleAdjustable: boolean;
+  /** When true, each student starts at a random angle in [min, max]. */
+  randomizeInitialAngle: boolean;
   defaultBaseT: number;
   absFloor: number;
 };
@@ -40,12 +45,14 @@ export const HYP_SCENES: HypScene[] = [
     title: "연날리기",
     objectLabel: "연",
     prompt:
-      "풀린 연실의 길이가 30m입니다. 연실의 양 끝점을 움직여 각을 바꾼 뒤, 연과의 수평거리와 높이를 구해 보세요. 오른쪽에서 빗변을 먼저 그리면 점선 원이 생깁니다. 각과 수선으로 비슷한 직각삼각형을 그려 비를 구하세요.",
-    hyp: 30,
+      "풀린 연실의 길이가 31m이고, 각은 40°로 고정되어 있습니다. 연과의 수평거리와 높이를 구해 보세요. 오른쪽에서 빗변을 먼저 그리면 점선 원이 생깁니다. 각과 수선으로 비슷한 직각삼각형을 그려 비를 구하세요.",
+    hyp: 31,
     unit: "m",
-    minAngleDeg: 15,
-    maxAngleDeg: 75,
+    minAngleDeg: 40,
+    maxAngleDeg: 40,
     defaultAngleDeg: 40,
+    angleAdjustable: false,
+    randomizeInitialAngle: false,
     defaultBaseT: 0.42,
     absFloor: 1,
   },
@@ -54,12 +61,14 @@ export const HYP_SCENES: HypScene[] = [
     title: "사다리 안전거리",
     objectLabel: "사다리",
     prompt:
-      "5m 길이의 사다리를 벽에 기대 놓습니다. 사다리 끝이 벽에 닿으려면 밑동을 벽에서 얼마나 떼어야 할까요? 그때 높이는 얼마일까요? 끝점을 움직여 각을 바꾼 뒤, 오른쪽에서 같은 모양의 직각삼각형을 그려 구해 보세요.",
-    hyp: 5,
+      "4.7m 길이의 사다리를 벽에 60° 각으로 기대 놓습니다. 사다리 끝이 벽에 닿으려면 밑동을 벽에서 얼마나 떼어야 할까요? 그때 높이는 얼마일까요? 오른쪽에서 같은 모양의 직각삼각형을 그려 구해 보세요.",
+    hyp: 4.7,
     unit: "m",
-    minAngleDeg: 15,
-    maxAngleDeg: 75,
+    minAngleDeg: 60,
+    maxAngleDeg: 60,
     defaultAngleDeg: 60,
+    angleAdjustable: false,
+    randomizeInitialAngle: false,
     defaultBaseT: 0.5,
     absFloor: 0.3,
   },
@@ -68,12 +77,14 @@ export const HYP_SCENES: HypScene[] = [
     title: "태블릿 거치대",
     objectLabel: "거치대",
     prompt:
-      "길이가 30cm인 태블릿 거치대의 각도를 바꾸며 세웁니다. 지금 각에서 거치대가 만드는 높이와 책상 위의 거리는 얼마일까요? 오른쪽에서 빗변을 반지름으로 원을 그리고 직각삼각형을 작도해 보세요.",
-    hyp: 30,
+      "길이가 37cm인 태블릿 거치대의 각도를 바꾸며 세웁니다. 지금 각에서 거치대가 만드는 높이와 책상 위의 거리는 얼마일까요? 끝점을 움직여 각을 바꾼 뒤, 오른쪽에서 빗변을 반지름으로 원을 그리고 직각삼각형을 작도해 보세요.",
+    hyp: 37,
     unit: "cm",
-    minAngleDeg: 15,
-    maxAngleDeg: 75,
+    minAngleDeg: 30,
+    maxAngleDeg: 70,
     defaultAngleDeg: 50,
+    angleAdjustable: true,
+    randomizeInitialAngle: true,
     defaultBaseT: 0.38,
     absFloor: 1,
   },
@@ -87,6 +98,9 @@ export type SincosWorkspace = {
   sinRatios: Record<string, string>;
   cosRatios: Record<string, string>;
   methodText: string;
+  /** Page 5: names for the height and distance magic numbers. */
+  sinNameText: string;
+  cosNameText: string;
 };
 
 export type SceneResponsePayload = {
@@ -110,7 +124,17 @@ export type TableResponsePayload = {
   wrongs: number;
 };
 
-export type SincosResponsePayload = SceneResponsePayload | TableResponsePayload;
+export type DefineResponsePayload = {
+  kind: "define";
+  sinNameText: string;
+  cosNameText: string;
+  wrongs: number;
+};
+
+export type SincosResponsePayload =
+  | SceneResponsePayload
+  | TableResponsePayload
+  | DefineResponsePayload;
 
 export type SincosStepResult = {
   result: InquiryResult;
@@ -123,7 +147,11 @@ export type SoftNotice = {
 };
 
 export function isTableStep(stepIndex: number): boolean {
-  return stepIndex >= HYP_SCENES.length;
+  return stepIndex === TABLE_STEP_INDEX;
+}
+
+export function isDefineStep(stepIndex: number): boolean {
+  return stepIndex === DEFINE_STEP_INDEX;
 }
 
 export function hypSceneAt(stepIndex: number): HypScene | null {
@@ -134,16 +162,53 @@ function emptyRatios(): Record<string, string> {
   return Object.fromEntries(TABLE_ANGLES.map((a) => [String(a), ""]));
 }
 
-export function emptySincosWorkspace(stepIndex: number): SincosWorkspace {
+/** Stable integer in [min, max] from a string seed (FNV-1a). */
+export function seededAngleDeg(
+  seed: string,
+  minDeg: number,
+  maxDeg: number,
+): number {
+  const min = Math.round(minDeg);
+  const max = Math.round(maxDeg);
+  if (max <= min) return min;
+  let h = 2166136261;
+  for (let i = 0; i < seed.length; i++) {
+    h ^= seed.charCodeAt(i);
+    h = Math.imul(h, 16777619);
+  }
+  return min + ((h >>> 0) % (max - min + 1));
+}
+
+export function initialAngleDeg(
+  scene: HypScene,
+  seed?: string | null,
+): number {
+  if (!scene.randomizeInitialAngle) return scene.defaultAngleDeg;
+  if (seed) {
+    return seededAngleDeg(seed, scene.minAngleDeg, scene.maxAngleDeg);
+  }
+  const span = scene.maxAngleDeg - scene.minAngleDeg;
+  if (span <= 0) return scene.minAngleDeg;
+  return (
+    scene.minAngleDeg + Math.floor(Math.random() * (span + 1))
+  );
+}
+
+export function emptySincosWorkspace(
+  stepIndex: number,
+  opts?: { seed?: string | null },
+): SincosWorkspace {
   const scene = hypSceneAt(stepIndex);
   return {
-    angleDeg: scene?.defaultAngleDeg ?? 45,
+    angleDeg: scene ? initialAngleDeg(scene, opts?.seed) : 45,
     baseT: scene?.defaultBaseT ?? 0.4,
     adjText: "",
     oppText: "",
     sinRatios: emptyRatios(),
     cosRatios: emptyRatios(),
     methodText: "",
+    sinNameText: "",
+    cosNameText: "",
   };
 }
 
@@ -236,6 +301,48 @@ export function cosRatioIsCorrect(angleDeg: number, submitted: number): boolean 
   );
 }
 
+/** Accept 사인, sine, or sin (case-insensitive, ignore spaces/punctuation). */
+export function sinNameIsCorrect(raw: string): boolean {
+  const letters = raw
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z가-힣]/g, "");
+  if (!letters) return false;
+  if (letters === "사인" || letters === "sine" || letters === "sin") {
+    return true;
+  }
+  const withoutHangul = letters.replace("사인", "");
+  if (
+    letters.includes("사인") &&
+    (withoutHangul === "" || withoutHangul === "sine" || withoutHangul === "sin")
+  ) {
+    return true;
+  }
+  return false;
+}
+
+/** Accept 코사인, cosine, or cos (case-insensitive, ignore spaces/punctuation). */
+export function cosNameIsCorrect(raw: string): boolean {
+  const letters = raw
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z가-힣]/g, "");
+  if (!letters) return false;
+  if (letters === "코사인" || letters === "cosine" || letters === "cos") {
+    return true;
+  }
+  const withoutHangul = letters.replace("코사인", "");
+  if (
+    letters.includes("코사인") &&
+    (withoutHangul === "" ||
+      withoutHangul === "cosine" ||
+      withoutHangul === "cos")
+  ) {
+    return true;
+  }
+  return false;
+}
+
 export function scoreForAttempts(wrongCount: number): number {
   const w = Math.max(0, Math.floor(wrongCount));
   return Math.max(MIN_CORRECT_SCORE, MAX_CORRECT_SCORE - w * WRONG_PENALTY);
@@ -258,6 +365,17 @@ export function validateSincosSubmit(
   stepIndex: number,
   workspace: SincosWorkspace,
 ): SoftNotice | null {
+  if (isDefineStep(stepIndex)) {
+    const wrongKeys: string[] = [];
+    if (!workspace.sinNameText.trim()) wrongKeys.push("sinName");
+    if (!workspace.cosNameText.trim()) wrongKeys.push("cosName");
+    if (wrongKeys.length > 0) return { reason: "incomplete", wrongKeys };
+    if (!sinNameIsCorrect(workspace.sinNameText)) wrongKeys.push("sinName");
+    if (!cosNameIsCorrect(workspace.cosNameText)) wrongKeys.push("cosName");
+    if (wrongKeys.length > 0) return { reason: "wrong", wrongKeys };
+    return null;
+  }
+
   if (isTableStep(stepIndex)) {
     const wrongKeys: string[] = [];
     let empty = false;
@@ -326,6 +444,19 @@ export function gradeSincosStep(
   wrongs: number,
 ): SincosStepResult {
   const notice = validateSincosSubmit(stepIndex, workspace);
+
+  if (isDefineStep(stepIndex)) {
+    const response: DefineResponsePayload = {
+      kind: "define",
+      sinNameText: workspace.sinNameText.trim(),
+      cosNameText: workspace.cosNameText.trim(),
+      wrongs,
+    };
+    return {
+      result: notice ? "wrong" : "correct",
+      response,
+    };
+  }
 
   if (isTableStep(stepIndex)) {
     const response: TableResponsePayload = {

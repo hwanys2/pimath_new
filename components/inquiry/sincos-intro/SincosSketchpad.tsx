@@ -237,6 +237,8 @@ export default function SincosSketchpad({ locked = false }: Props) {
     if (!raw) return;
 
     if (tool === "angle") {
+      e.preventDefault();
+      window.getSelection()?.removeAllRanges();
       if (angleSession) {
         e.currentTarget.setPointerCapture(e.pointerId);
         draggingAngle.current = true;
@@ -345,6 +347,7 @@ export default function SincosSketchpad({ locked = false }: Props) {
     if (!raw) return;
 
     if (tool === "angle" && draggingAngle.current && angleSession) {
+      e.preventDefault();
       setAngleSession(updateAngleFromPointer(angleSession, raw));
       return;
     }
@@ -447,7 +450,7 @@ export default function SincosSketchpad({ locked = false }: Props) {
   const circleSvg = circle ? toSvg(circle.center) : null;
 
   return (
-    <div className="flex h-full min-h-[22rem] flex-col overflow-hidden rounded-2xl border-2 border-wood/15 bg-[#fbf7ef]">
+    <div className="flex h-full min-h-[22rem] flex-col overflow-hidden rounded-2xl border-2 border-wood/15 bg-[#fbf7ef] select-none">
       <div className="flex flex-wrap items-center gap-1.5 border-b border-wood/10 bg-cream px-2 py-2">
         {TOOLS.map((t) => (
           <button
@@ -503,11 +506,12 @@ export default function SincosSketchpad({ locked = false }: Props) {
 
       <p className="px-3 py-1.5 text-[11px] font-semibold text-foreground/55">{hint}</p>
 
-      <div ref={wrapRef} className="relative min-h-0 flex-1">
+      <div ref={wrapRef} className="relative min-h-0 flex-1 select-none">
         <svg
           ref={svgRef}
           viewBox={`${-PAD_X} ${-PAD_Y} ${VIEW_W} ${VIEW_H}`}
-          className="h-full w-full touch-none"
+          className="h-full w-full touch-none select-none"
+          style={{ userSelect: "none" }}
           onPointerDown={onCanvasDown}
           onPointerMove={onMove}
           onPointerUp={onUp}
@@ -553,6 +557,7 @@ export default function SincosSketchpad({ locked = false }: Props) {
                 fontSize={0.42}
                 fill="#8B5E3C"
                 fontWeight={700}
+                className="pointer-events-none select-none"
               >
                 {i}
               </text>
@@ -568,6 +573,7 @@ export default function SincosSketchpad({ locked = false }: Props) {
                 fontSize={0.42}
                 fill="#8B5E3C"
                 fontWeight={700}
+                className="pointer-events-none select-none"
               >
                 {i}
               </text>
@@ -726,6 +732,7 @@ export default function SincosSketchpad({ locked = false }: Props) {
                       fontWeight={700}
                       fill="#6b4423"
                       opacity={0.75}
+                      className="pointer-events-none select-none"
                     >
                       {d}
                     </text>,
@@ -811,6 +818,7 @@ export default function SincosSketchpad({ locked = false }: Props) {
                     fontSize={0.58}
                     fontWeight={800}
                     fill="#a63a1a"
+                    className="pointer-events-none select-none"
                   >
                     {deg}°
                   </text>

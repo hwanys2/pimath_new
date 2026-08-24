@@ -70,6 +70,7 @@ type Props = {
   studentClassId: string | null;
   studentClassName: string | null;
   studentName: string | null;
+  studentId?: string | null;
   canParticipate: boolean;
   contentTitle: string;
 };
@@ -103,6 +104,7 @@ export default function InquiryStudentView({
   studentClassId,
   studentClassName,
   studentName,
+  studentId = null,
   canParticipate,
   contentTitle,
 }: Props) {
@@ -126,8 +128,14 @@ export default function InquiryStudentView({
   const [tangentWorkspace, setTangentWorkspace] = useState<TangentWorkspace>(
     () => emptyTangentWorkspace(0),
   );
+  const sincosSeed =
+    studentId ??
+    (studentName && studentClassId
+      ? `${studentClassId}:${studentName}`
+      : null);
+
   const [sincosWorkspace, setSincosWorkspace] = useState<SincosWorkspace>(
-    () => emptySincosWorkspace(0),
+    () => emptySincosWorkspace(0, { seed: sincosSeed }),
   );
   const [stepStartedAt, setStepStartedAt] = useState<number | null>(null);
   const [earnedScore, setEarnedScore] = useState<number | null>(null);
@@ -191,7 +199,7 @@ export default function InquiryStudentView({
       } else if (validKey === "g3-u3-1-tangent-intro") {
         setTangentWorkspace(tangentInitialState(stepIndex));
       } else if (validKey === "g3-u3-1-sincos-intro") {
-        setSincosWorkspace(sincosInitialState(stepIndex));
+        setSincosWorkspace(sincosInitialState(stepIndex, { seed: sincosSeed }));
       } else {
         setBalanceWorkspace(balanceInitialState(stepIndex));
         setBalanceMoves(0);
@@ -207,7 +215,7 @@ export default function InquiryStudentView({
       submittedRef.current = false;
       prevStepRef.current = stepIndex;
     },
-    [validKey],
+    [validKey, sincosSeed],
   );
 
   const hydrateStep = useCallback(

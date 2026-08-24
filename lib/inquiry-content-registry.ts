@@ -130,7 +130,7 @@ export const INQUIRY_CONTENTS: Record<InquiryContentKey, InquiryContentDef> = {
     title: "사인·코사인 탐구",
     stepCount: SINCOS_COUNT,
     hostSubtitle:
-      "빗변과 각만 보여 주고, 학생이 작도판에서 비슷한 직각삼각형을 그려 수평거리와 높이를 구합니다. 마지막 페이지에서 사인·코사인 표를 채웁니다.",
+      "빗변과 각만 보여 주고, 학생이 작도판에서 비슷한 직각삼각형을 그려 수평거리와 높이를 구합니다. 네 번째 페이지에서 표를 채우고, 마지막 페이지에서 그 수에 사인·코사인이라는 이름을 붙입니다.",
     spectatorSubtitle:
       "장면과 작도판을 직접 조작해 볼 수 있어요. 학생은 선생님이 수업을 시작할 때만 참여할 수 있습니다.",
     headerGradient: "from-sky/45 via-lavender/25 to-mint/30",
@@ -207,8 +207,11 @@ export function validateTangent(
 
 // --- Sincos intro helpers ---
 
-export function sincosInitialState(stepIndex: number) {
-  return emptySincosWorkspace(stepIndex);
+export function sincosInitialState(
+  stepIndex: number,
+  opts?: { seed?: string | null },
+) {
+  return emptySincosWorkspace(stepIndex, opts);
 }
 
 export function sincosScene(stepIndex: number) {

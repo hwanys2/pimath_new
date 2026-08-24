@@ -294,9 +294,15 @@ export default function HypotenuseSceneView({
   const midHypX = (baseX + tipX) / 2;
   const midHypY = (baseY + tipY) / 2;
 
+  const baseMovable =
+    !locked && scene.id !== "ladder" && scene.id !== "tablet";
+  const angleMovable = !locked && scene.angleAdjustable;
+  const interactive = baseMovable || angleMovable;
+
   const applyPointer = useCallback(
     (kind: DragKind, x: number, y: number) => {
       if (scene.id === "ladder") {
+        if (!scene.angleAdjustable) return;
         if (kind === "base") {
           const run = Math.min(visR * 0.97, Math.max(visR * 0.26, wallX - x));
           const deg = (Math.acos(run / visR) * 180) / Math.PI;
@@ -309,16 +315,16 @@ export default function HypotenuseSceneView({
         return;
       }
       if (kind === "base") {
+        if (scene.id === "tablet") return;
         const minX = LEFT_X;
         const maxX =
-          scene.id === "tablet"
-            ? 210
-            : RIGHT_X - visR * Math.cos((scene.minAngleDeg * Math.PI) / 180) - 24;
+          RIGHT_X - visR * Math.cos((scene.minAngleDeg * Math.PI) / 180) - 24;
         const span = maxX - minX;
         const nextT = span <= 0 ? t : (x - minX) / span;
         onChange({ angleDeg: angle, baseT: clampBaseT(nextT) });
         return;
       }
+      if (!scene.angleAdjustable) return;
       const dx = x - baseX;
       const dy = GROUND_Y - y;
       if (dx * dx + dy * dy < 16) return;
@@ -328,20 +334,28 @@ export default function HypotenuseSceneView({
     [angle, baseX, onChange, scene, t, visR, wallX],
   );
 
-  const pickKind = (x: number, y: number): DragKind => {
+  const pickKind = (x: number, y: number): DragKind | null => {
     const dBase = Math.hypot(x - baseX, y - baseY);
     const dTip = Math.hypot(x - tipX, y - tipY);
-    return dTip < dBase ? "tip" : "base";
+    const kind: DragKind = dTip < dBase ? "tip" : "base";
+    if (kind === "tip" && !angleMovable) return null;
+    if (kind === "base" && scene.id === "ladder" && !angleMovable) return null;
+    if (kind === "base" && scene.id === "tablet") {
+      return angleMovable ? "tip" : null;
+    }
+    if (kind === "base" && !baseMovable && !angleMovable) return null;
+    return kind;
   };
 
   const onPointerDown = (e: React.PointerEvent<SVGSVGElement>) => {
-    if (locked) return;
+    if (!interactive) return;
     const svg = svgRef.current;
     if (!svg) return;
     e.preventDefault();
     window.getSelection()?.removeAllRanges();
     const p = clientToVb(svg, e.clientX, e.clientY);
     const kind = pickKind(p.x, p.y);
+    if (!kind) return;
     dragRef.current = kind;
     e.currentTarget.setPointerCapture(e.pointerId);
     applyPointer(kind, p.x, p.y);
@@ -381,7 +395,7 @@ export default function HypotenuseSceneView({
       <svg
         ref={svgRef}
         viewBox={`0 0 ${VB_W} ${VB_H}`}
-        className={`block h-auto w-full touch-none select-none ${locked ? "cursor-default" : "cursor-grab active:cursor-grabbing"}`}
+        className={`block h-auto w-full touch-none select-none ${interactive ? "cursor-grab active:cursor-grabbing" : "cursor-default"}`}
         role="img"
         aria-label={`${scene.title}. 빗변 ${scene.hyp}${scene.unit}, 각 ${angle}도`}
         onPointerDown={onPointerDown}
@@ -525,9 +539,13 @@ export default function HypotenuseSceneView({
         <span className="rounded-xl bg-[#e85d4c]/15 px-3 py-1 text-sm font-bold tabular-nums text-[#a63a1a]">
           각 {angle}°
         </span>
-        {!locked ? (
+        {angleMovable ? (
           <span className="text-xs font-semibold text-foreground/55">
             빗변의 양 끝점을 끌어 각을 바꾸세요
+          </span>
+        ) : !locked ? (
+          <span className="text-xs font-semibold text-foreground/55">
+            각은 {angle}°로 고정되어 있어요
           </span>
         ) : null}
       </div>

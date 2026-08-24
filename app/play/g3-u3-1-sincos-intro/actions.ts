@@ -131,6 +131,16 @@ export async function inquiryCloseAndScoreAction(input: { sessionId: string }) {
     );
 
     const items = studentResponses.map((r) => {
+      if (r.response.kind === "define") {
+        return {
+          index: r.stepIndex,
+          kind: "define",
+          sinNameText: r.response.sinNameText,
+          cosNameText: r.response.cosNameText,
+          score: r.result === "correct" ? scoreForAttempts(r.response.wrongs) : 0,
+          wrongs: r.response.wrongs,
+        };
+      }
       if (r.response.kind === "table") {
         const filled =
           Object.values(r.response.sinRatios).filter((v) => v.trim()).length +

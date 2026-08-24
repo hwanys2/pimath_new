@@ -136,6 +136,19 @@ export function sincosWorkspaceFromResponse(
     };
   }
 
+  if (response.kind === "define") {
+    return {
+      workspace: {
+        ...base,
+        sinNameText:
+          typeof response.sinNameText === "string" ? response.sinNameText : "",
+        cosNameText:
+          typeof response.cosNameText === "string" ? response.cosNameText : "",
+      },
+      meta,
+    };
+  }
+
   return { workspace: base, meta: { wrongAttempts: 0, submitted: false } };
 }
 
