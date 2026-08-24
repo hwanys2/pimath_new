@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  clampDistance,
   isTableStep,
   scoreForAttempts,
   TABLE_ANGLES,
@@ -155,7 +156,7 @@ export default function InquiryTangentIntroStep({
           ) : scene ? (
             <HeightSceneView
               scene={scene}
-              distanceM={workspace.distanceM}
+              distanceM={clampDistance(scene, workspace.distanceM)}
               onDistanceChange={(distanceM) =>
                 onWorkspaceChange({ ...workspace, distanceM })
               }
