@@ -93,7 +93,7 @@ function TangentIntroDetail({ items }: { items: ActivityDetailsV1["items"] }) {
               <td className="py-1 pr-3">{(item.index as number) + 1}</td>
               <td className="py-1 pr-3">
                 {item.kind === "define"
-                  ? `이름 ${String(item.nameText || "—")}`
+                  ? "내용 확인"
                   : item.kind === "table"
                     ? `표 ${String(item.filled ?? "—")}칸`
                     : `높이 ${String(item.height ?? "—")} m`}

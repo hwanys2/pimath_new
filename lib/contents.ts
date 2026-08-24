@@ -237,7 +237,7 @@ export const CONTENTS: ContentMeta[] = [
     awardsXp: true,
     inquiry: { stepCount: 5, grading: "auto", scoring: true },
     description:
-      "건물·나무·등대 높이를 거리와 각만으로 구하고, 표를 만든 뒤 그 수에 탄젠트라는 이름을 붙이는 탐구 활동. 학생은 선생님이 수업을 시작할 때만 참여해요.",
+      "건물·나무·등대 높이를 거리와 각만으로 구하고, 표를 만든 뒤 그 수를 탄젠트라고 부르는 탐구 활동. 학생은 선생님이 수업을 시작할 때만 참여해요.",
   },
   {
     key: "g3-u3-1-sincos-intro",

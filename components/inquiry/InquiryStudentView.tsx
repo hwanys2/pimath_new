@@ -34,7 +34,10 @@ import type { TermTexts } from "@/components/inquiry/radical-fill/InquiryRadical
 import type { TileWorkspace } from "@/lib/linear-equation-balance-math";
 import type { EquationOpsState } from "@/lib/equation-ops-math";
 import type { TangentWorkspace } from "@/lib/inquiry-tangent-intro";
-import { emptyTangentWorkspace } from "@/lib/inquiry-tangent-intro";
+import {
+  emptyTangentWorkspace,
+  isDefineStep,
+} from "@/lib/inquiry-tangent-intro";
 import type { SincosWorkspace } from "@/lib/inquiry-sincos-intro";
 import { emptySincosWorkspace } from "@/lib/inquiry-sincos-intro";
 import { isStateSolved, scoreForTime } from "@/lib/equation-ops-math";
@@ -603,7 +606,9 @@ export default function InquiryStudentView({
             softNotice={tangentNotice}
             submitted={submitted}
             submitFeedback={submitFeedback}
-            onSubmit={onSubmitTangent}
+            onSubmit={
+              isDefineStep(state.stepIndex) ? undefined : onSubmitTangent
+            }
           />
         ) : validKey === "g3-u3-1-sincos-intro" ? (
           <InquirySincosIntroStep

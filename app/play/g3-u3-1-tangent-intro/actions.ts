@@ -3,6 +3,7 @@
 import { activityDetailsV1 } from "@/lib/activity-result-schemas";
 import {
   CONTENT_KEY,
+  GRADED_STEP_COUNT,
   PROBLEM_COUNT,
   aggregateTangentScore,
   gradeTangentStep,
@@ -135,8 +136,7 @@ export async function inquiryCloseAndScoreAction(input: { sessionId: string }) {
           index: r.stepIndex,
           kind: "define",
           nameText: r.response.nameText,
-          score:
-            r.result === "correct" ? scoreForStep(r.response.wrongs) : 0,
+          score: 0,
           wrongs: r.response.wrongs,
         };
       }
@@ -172,7 +172,7 @@ export async function inquiryCloseAndScoreAction(input: { sessionId: string }) {
       details: activityDetailsV1(
         {
           correctCount,
-          problemCount: STEP_COUNT,
+          problemCount: GRADED_STEP_COUNT,
           totalWrongs,
           inquirySession: true,
         },

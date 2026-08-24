@@ -6,7 +6,10 @@
 import type { InquiryResult } from "@/lib/inquiry-types";
 
 export const CONTENT_KEY = "g3-u3-1-tangent-intro";
+/** Pages in the activity (3 height scenes + table + view-only tangent page). */
 export const PROBLEM_COUNT = 5;
+/** Scored items: 3 heights + table. Page 5 is content only. */
+export const GRADED_STEP_COUNT = 4;
 export const TABLE_STEP_INDEX = 3;
 export const DEFINE_STEP_INDEX = 4;
 export const TABLE_ANGLES = [10, 20, 30, 40, 45, 50, 60, 70, 80] as const;
@@ -80,7 +83,7 @@ export type TangentWorkspace = {
   ratios: Record<string, string>;
   /** Student explanation of how they calculated the answer. */
   methodText: string;
-  /** Page 5: the name of the ratio (탄젠트 / tangent / tan). */
+  /** Kept for older saved responses; page 5 no longer collects a name. */
   nameText: string;
 };
 
@@ -128,6 +131,10 @@ export function isTableStep(stepIndex: number): boolean {
 
 export function isDefineStep(stepIndex: number): boolean {
   return stepIndex === DEFINE_STEP_INDEX;
+}
+
+export function isGradedTangentStep(stepIndex: number): boolean {
+  return !isDefineStep(stepIndex);
 }
 
 export function heightSceneAt(stepIndex: number): HeightScene | null {
@@ -325,8 +332,6 @@ export function validateTangentSubmit(
   workspace: TangentWorkspace,
 ): SoftNotice | null {
   if (isDefineStep(stepIndex)) {
-    if (!workspace.nameText.trim()) return { reason: "incomplete" };
-    if (!tangentNameIsCorrect(workspace.nameText)) return { reason: "wrong" };
     return null;
   }
 
@@ -382,7 +387,7 @@ export function gradeTangentStep(
       wrongs,
     };
     return {
-      result: notice ? "wrong" : "correct",
+      result: "neutral",
       response,
     };
   }
@@ -430,6 +435,7 @@ export function aggregateTangentScore(
   let totalWrongs = 0;
 
   for (let i = 0; i < stepCount; i++) {
+    if (!isGradedTangentStep(i)) continue;
     const row = responses.find((r) => r.stepIndex === i);
     if (!row) continue;
     const wrongs = row.response.wrongs ?? 0;

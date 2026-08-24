@@ -19,7 +19,6 @@ function softMessage(notice: SoftNotice, kind: "table" | "define" | "height"): s
   switch (notice.reason) {
     case "incomplete":
       if (kind === "table") return "아홉 칸을 모두 채워 주세요.";
-      if (kind === "define") return "이 수의 이름을 적어 주세요.";
       return "높이를 입력해 주세요.";
     case "incomplete_method":
       return "어떻게 계산했는지 적어 주세요.";
@@ -27,8 +26,6 @@ function softMessage(notice: SoftNotice, kind: "table" | "define" | "height"): s
       return "양의 수를 입력해 주세요. (예: 24 또는 1.73)";
     case "wrong":
       if (kind === "table") return "색이 표시된 칸을 다시 재어 보세요.";
-      if (kind === "define")
-        return "이 페이지에서 붙인 이름을 적어 보세요.";
       return "다시 재어 보세요. 그린 삼각형의 비를 실제 거리에 곱하면 돼요.";
   }
 }
@@ -74,15 +71,12 @@ export default function InquiryTangentIntroStep({
   const interactive = hostPreview || !readOnly;
   const locked = !interactive || disabled;
   const projected = scoreForAttempts(wrongAttempts);
-  const showScoreBar = !readOnly && !hostPreview;
+  const showScoreBar = !readOnly && !hostPreview && kind !== "define";
   const wrongSet = new Set(softNotice?.wrongAngles ?? []);
   const methodMarked = softNotice?.reason === "incomplete_method";
-  const nameMarked =
-    kind === "define" &&
-    (softNotice?.reason === "incomplete" || softNotice?.reason === "wrong");
 
   const badge =
-    kind === "define" ? "이름 붙이기" : kind === "table" ? "표로 정리" : scene?.title;
+    kind === "define" ? "탄젠트" : kind === "table" ? "표로 정리" : scene?.title;
 
   return (
     <section className="quest-card-static p-4 sm:p-6">
@@ -243,32 +237,7 @@ export default function InquiryTangentIntroStep({
             </label>
           ) : null}
 
-          {kind === "define" ? (
-            <label className="mt-4 block">
-              <span className="text-sm font-bold text-wood">이 수의 이름은?</span>
-              <input
-                type="text"
-                autoComplete="off"
-                spellCheck={false}
-                disabled={locked}
-                aria-label="탄젠트라는 수의 이름"
-                placeholder="예: 탄젠트"
-                value={workspace.nameText}
-                onChange={(e) =>
-                  onWorkspaceChange({ ...workspace, nameText: e.target.value })
-                }
-                onKeyDown={(e) => {
-                  if (e.key === "Enter" && onSubmit && !locked) onSubmit();
-                }}
-                className={[
-                  "mt-1.5 w-full max-w-xs rounded-xl border-2 bg-white px-3 py-2 text-sm font-semibold outline-none placeholder:text-foreground/40",
-                  nameMarked
-                    ? "border-[#e85d4c] bg-[#e85d4c]/8"
-                    : "border-wood/20 focus:border-wood/45",
-                ].join(" ")}
-              />
-            </label>
-          ) : (
+          {kind !== "define" ? (
             <label className="mt-4 block">
               <span className="text-sm font-bold text-wood">어떻게 계산했나요?</span>
               <textarea
@@ -292,7 +261,7 @@ export default function InquiryTangentIntroStep({
                 ].join(" ")}
               />
             </label>
-          )}
+          ) : null}
         </div>
 
         {kind === "define" ? (
@@ -342,12 +311,7 @@ export default function InquiryTangentIntroStep({
           {kind === "table" && submitFeedback === "correct" ? (
             <p className="mt-2 text-sm font-bold leading-relaxed">
               각마다 정해 둔 수가 있으면, 밑변만 재어도 높이를 바로 곱해서 구할 수
-              있어요. 다음 장에서 이 수에 이름을 붙입니다.
-            </p>
-          ) : kind === "define" && submitFeedback === "correct" ? (
-            <p className="mt-2 text-sm font-bold leading-relaxed">
-              탄젠트는 각마다 정해진 비입니다. 높이 = 밑변 × tan(각)으로 높이를
-              구할 수 있어요.
+              있어요. 다음 장에서 이 수를 탄젠트라고 부릅니다.
             </p>
           ) : (
             <p className="mt-1 text-sm font-bold">

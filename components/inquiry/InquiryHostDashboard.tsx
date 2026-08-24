@@ -457,6 +457,9 @@ export default function InquiryHostDashboard({
             <section className="quest-card p-4 sm:p-5">
               <p className="mb-4 text-sm font-semibold text-foreground/70">
                 O = 정답 · X = 오답 · · = 제출 · 빈칸 = 미제출
+                {validKey === "g3-u3-1-tangent-intro"
+                  ? " · 5페이지는 내용 확인(제출 없음)"
+                  : null}
               </p>
               <InquiryStatusGrid
                 participants={state.participants}
