@@ -137,6 +137,80 @@ export function elevationAngleDeg(heightM: number, distanceM: number): number {
   return Math.round(deg);
 }
 
+/**
+ * SVG layout for the height-measuring scene.
+ * Distance (adjacent) and object height (opposite) share one px/m so the
+ * on-screen right triangle is similar to the mathematical one. The angle
+ * vertex stays on the ground — not at a former observer's eye height.
+ */
+export const HEIGHT_SCENE_VB_W = 440;
+export const HEIGHT_SCENE_VB_H = 268;
+export const HEIGHT_SCENE_GROUND_Y = 214;
+export const HEIGHT_SCENE_PAD_LEFT = 36;
+export const HEIGHT_SCENE_PAD_TOP = 32;
+export const HEIGHT_SCENE_GROUND_LINE_END = 424;
+export const HEIGHT_SCENE_OBJECT_FACE_X = 346;
+
+export type HeightSceneLayout = {
+  distanceM: number;
+  heightM: number;
+  pxPerM: number;
+  observerX: number;
+  faceX: number;
+  topX: number;
+  topY: number;
+  groundY: number;
+  heightPx: number;
+  distancePx: number;
+  /** Exact on-screen elevation angle (degrees). */
+  visualAngleDeg: number;
+  /** Rounded angle shown on the figure. */
+  displayedAngleDeg: number;
+};
+
+export function heightScenePxPerM(scene: HeightScene): number {
+  const availableW =
+    HEIGHT_SCENE_OBJECT_FACE_X - HEIGHT_SCENE_PAD_LEFT;
+  const availableH = HEIGHT_SCENE_GROUND_Y - HEIGHT_SCENE_PAD_TOP;
+  if (scene.maxDistanceM <= 0 || scene.heightM <= 0) return 1;
+  return Math.min(
+    availableW / scene.maxDistanceM,
+    availableH / scene.heightM,
+  );
+}
+
+export function getHeightSceneLayout(
+  scene: HeightScene,
+  distanceM: number,
+): HeightSceneLayout {
+  const d = clampDistance(scene, distanceM);
+  const pxPerM = heightScenePxPerM(scene);
+  const distancePx = d * pxPerM;
+  const heightPx = scene.heightM * pxPerM;
+  const faceX = HEIGHT_SCENE_OBJECT_FACE_X;
+  const groundY = HEIGHT_SCENE_GROUND_Y;
+  return {
+    distanceM: d,
+    heightM: scene.heightM,
+    pxPerM,
+    observerX: faceX - distancePx,
+    faceX,
+    topX: faceX,
+    topY: groundY - heightPx,
+    groundY,
+    heightPx,
+    distancePx,
+    visualAngleDeg: (Math.atan2(heightPx, distancePx) * 180) / Math.PI,
+    displayedAngleDeg: elevationAngleDeg(scene.heightM, d),
+  };
+}
+
+export function distanceFromSceneX(scene: HeightScene, x: number): number {
+  const pxPerM = heightScenePxPerM(scene);
+  if (pxPerM <= 0) return clampDistance(scene, scene.defaultDistanceM);
+  return clampDistance(scene, (HEIGHT_SCENE_OBJECT_FACE_X - x) / pxPerM);
+}
+
 export function tanDeg(deg: number): number {
   return Math.tan((deg * Math.PI) / 180);
 }

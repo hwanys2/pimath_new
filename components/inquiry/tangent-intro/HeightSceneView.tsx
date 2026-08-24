@@ -1,33 +1,25 @@
 "use client";
 
-import { useCallback, useRef } from "react";
+import { useCallback, useRef, type ReactNode } from "react";
 import {
-  clampDistance,
-  elevationAngleDeg,
+  HEIGHT_SCENE_GROUND_LINE_END,
+  HEIGHT_SCENE_GROUND_Y,
+  HEIGHT_SCENE_OBJECT_FACE_X,
+  HEIGHT_SCENE_VB_H,
+  HEIGHT_SCENE_VB_W,
+  distanceFromSceneX,
+  getHeightSceneLayout,
   type HeightScene,
 } from "@/lib/inquiry-tangent-intro";
 
-const VB_W = 440;
-const VB_H = 268;
-const GROUND_Y = 214;
-const OBJ_BASE_X = 352;
-const LEFT_X = 40;
-const CLOSE_GAP = 42;
-const GROUND_LINE_END = 424;
 const BUILDING_W = 78;
 const BUILDING_ROOF_H = 14;
-/** Left wall of the school — line of sight and distance meet here. */
-const BUILDING_FACE_X = GROUND_LINE_END - BUILDING_W;
-
-const VISUAL_H: Record<HeightScene["id"], number> = {
-  building: 148,
+/** Unscaled art height (ground to roof/peak). Scaled to match heightPx. */
+const DESIGN_H: Record<HeightScene["id"], number> = {
+  building: 148 + BUILDING_ROOF_H,
   tree: 118,
   lighthouse: 162,
 };
-
-function objectAnchorX(scene: HeightScene): number {
-  return scene.id === "building" ? BUILDING_FACE_X : OBJ_BASE_X;
-}
 
 type Props = {
   scene: HeightScene;
@@ -35,22 +27,6 @@ type Props = {
   onDistanceChange: (d: number) => void;
   locked?: boolean;
 };
-
-function observerXFor(scene: HeightScene, distanceM: number): number {
-  const d = clampDistance(scene, distanceM);
-  const closestX = objectAnchorX(scene) - CLOSE_GAP;
-  const span = scene.maxDistanceM - scene.minDistanceM;
-  const t = span <= 0 ? 0 : (d - scene.minDistanceM) / span;
-  return closestX - t * (closestX - LEFT_X);
-}
-
-function distanceForX(scene: HeightScene, x: number): number {
-  const closestX = objectAnchorX(scene) - CLOSE_GAP;
-  const spanPx = closestX - LEFT_X;
-  const t = spanPx <= 0 ? 0 : (closestX - x) / spanPx;
-  const d = scene.minDistanceM + t * (scene.maxDistanceM - scene.minDistanceM);
-  return clampDistance(scene, d);
-}
 
 function Building({ faceX, groundY, bodyH }: { faceX: number; groundY: number; bodyH: number }) {
   const bodyTop = groundY - bodyH;
@@ -105,7 +81,6 @@ function Lighthouse({ baseX, groundY, h }: { baseX: number; groundY: number; h: 
   const top = groundY - h;
   return (
     <g>
-      <path d={`M ${baseX - 36} ${groundY} Q ${baseX - 10} ${groundY + 8} ${baseX + 28} ${groundY}`} fill="#7ec8e8" opacity={0.55} />
       <polygon
         points={`${baseX - 22},${groundY} ${baseX + 18},${groundY} ${baseX + 12},${top + 28} ${baseX - 16},${top + 28}`}
         fill="#f4efe4"
@@ -127,6 +102,27 @@ function Lighthouse({ baseX, groundY, h }: { baseX: number; groundY: number; h: 
   );
 }
 
+function ScaledObject({
+  faceX,
+  groundY,
+  designH,
+  heightPx,
+  children,
+}: {
+  faceX: number;
+  groundY: number;
+  designH: number;
+  heightPx: number;
+  children: ReactNode;
+}) {
+  const s = designH <= 0 ? 1 : heightPx / designH;
+  return (
+    <g transform={`translate(${faceX} ${groundY}) scale(${s}) translate(${-faceX} ${-groundY})`}>
+      {children}
+    </g>
+  );
+}
+
 export default function HeightSceneView({
   scene,
   distanceM,
@@ -136,22 +132,29 @@ export default function HeightSceneView({
   const svgRef = useRef<SVGSVGElement | null>(null);
   const dragging = useRef(false);
 
-  const d = clampDistance(scene, distanceM);
-  const angle = elevationAngleDeg(scene.heightM, d);
-  const groundX = observerXFor(scene, d);
-  const visualH = VISUAL_H[scene.id];
-  const anchorX = objectAnchorX(scene);
-  const topX = scene.id === "building" ? BUILDING_FACE_X : OBJ_BASE_X - 8;
-  const topY = GROUND_Y - visualH - (scene.id === "building" ? BUILDING_ROOF_H : 0);
-  const mid = groundX + (anchorX - groundX) / 2;
+  const layout = getHeightSceneLayout(scene, distanceM);
+  const {
+    observerX,
+    faceX,
+    topX,
+    topY,
+    groundY,
+    heightPx,
+    distancePx,
+    visualAngleDeg,
+    displayedAngleDeg,
+    distanceM: d,
+  } = layout;
+  const mid = observerX + distancePx / 2;
+  const designH = DESIGN_H[scene.id];
 
   const setFromClientX = useCallback(
     (clientX: number) => {
       const svg = svgRef.current;
       if (!svg) return;
       const rect = svg.getBoundingClientRect();
-      const x = ((clientX - rect.left) / rect.width) * VB_W;
-      onDistanceChange(distanceForX(scene, x));
+      const x = ((clientX - rect.left) / rect.width) * HEIGHT_SCENE_VB_W;
+      onDistanceChange(distanceFromSceneX(scene, x));
     },
     [onDistanceChange, scene],
   );
@@ -175,63 +178,109 @@ export default function HeightSceneView({
     dragging.current = false;
   };
 
-  const losLen = Math.hypot(topX - groundX, topY - GROUND_Y);
-  const arcR = Math.min(46, losLen * 0.28);
-  const angRad = (angle * Math.PI) / 180;
-  const arcEndX = groundX + arcR * Math.cos(angRad);
-  const arcEndY = GROUND_Y - arcR * Math.sin(angRad);
+  const losLen = Math.hypot(distancePx, heightPx);
+  const angRad = (visualAngleDeg * Math.PI) / 180;
+  const arcR = Math.min(54, Math.max(28, losLen * 0.3));
+  const arcEndX = observerX + arcR * Math.cos(angRad);
+  const arcEndY = groundY - arcR * Math.sin(angRad);
   const halfAngRad = angRad / 2;
-  const labelR = arcR + 14;
-  const labelX = groundX + labelR * Math.cos(halfAngRad);
-  const labelY = GROUND_Y - labelR * Math.sin(halfAngRad);
+  const labelR = arcR + 16;
+  const labelX = observerX + labelR * Math.cos(halfAngRad);
+  const labelY = groundY - labelR * Math.sin(halfAngRad);
+  const ra = Math.min(14, heightPx * 0.14, distancePx * 0.12);
 
   return (
     <div className="select-none overflow-hidden rounded-2xl border-2 border-wood/15 bg-gradient-to-b from-[#d7efff] to-[#fef9f0]">
       <svg
         ref={svgRef}
-        viewBox={`0 0 ${VB_W} ${VB_H}`}
+        viewBox={`0 0 ${HEIGHT_SCENE_VB_W} ${HEIGHT_SCENE_VB_H}`}
         className={`block h-auto w-full touch-none select-none ${locked ? "cursor-default" : "cursor-ew-resize"}`}
         role="img"
-        aria-label={`${scene.title} 높이 재기. 거리 ${d}미터, 각 ${angle}도`}
+        aria-label={`${scene.title} 높이 재기. 거리 ${d}미터, 각 ${displayedAngleDeg}도`}
         onPointerDown={onPointerDown}
         onPointerMove={onPointerMove}
         onPointerUp={onPointerUp}
         onPointerCancel={onPointerUp}
       >
-        <rect width={VB_W} height={VB_H} fill="transparent" />
+        <rect width={HEIGHT_SCENE_VB_W} height={HEIGHT_SCENE_VB_H} fill="transparent" />
         <circle cx={70} cy={42} r={18} fill="#ffe08a" opacity={0.9} />
         <ellipse cx={120} cy={50} rx={28} ry={12} fill="white" opacity={0.7} />
         <ellipse cx={138} cy={54} rx={18} ry={10} fill="white" opacity={0.65} />
 
         {scene.id === "lighthouse" ? (
-          <rect x={0} y={GROUND_Y} width={VB_W} height={VB_H - GROUND_Y} fill="#b8dff0" />
+          <rect x={0} y={groundY} width={HEIGHT_SCENE_VB_W} height={HEIGHT_SCENE_VB_H - groundY} fill="#b8dff0" />
         ) : (
-          <rect x={0} y={GROUND_Y} width={VB_W} height={VB_H - GROUND_Y} fill="#c8e6b0" />
+          <rect x={0} y={groundY} width={HEIGHT_SCENE_VB_W} height={HEIGHT_SCENE_VB_H - groundY} fill="#c8e6b0" />
         )}
-        <line x1={16} y1={GROUND_Y} x2={GROUND_LINE_END} y2={GROUND_Y} stroke="#8B5E3C" strokeWidth={3} />
-
-        {scene.id === "building" ? (
-          <Building faceX={BUILDING_FACE_X} groundY={GROUND_Y} bodyH={visualH} />
-        ) : scene.id === "tree" ? (
-          <Tree baseX={OBJ_BASE_X} groundY={GROUND_Y} h={visualH} />
-        ) : (
-          <Lighthouse baseX={OBJ_BASE_X} groundY={GROUND_Y} h={visualH} />
-        )}
-
+        {scene.id === "lighthouse" ? (
+          <path
+            d={`M ${faceX - 36} ${groundY} Q ${faceX + 12} ${groundY + 8} ${faceX + 50} ${groundY}`}
+            fill="#7ec8e8"
+            opacity={0.55}
+          />
+        ) : null}
         <line
-          x1={groundX}
-          y1={GROUND_Y}
+          x1={16}
+          y1={groundY}
+          x2={HEIGHT_SCENE_GROUND_LINE_END}
+          y2={groundY}
+          stroke="#8B5E3C"
+          strokeWidth={3}
+        />
+
+        <ScaledObject faceX={faceX} groundY={groundY} designH={designH} heightPx={heightPx}>
+          {scene.id === "building" ? (
+            <Building faceX={HEIGHT_SCENE_OBJECT_FACE_X} groundY={HEIGHT_SCENE_GROUND_Y} bodyH={148} />
+          ) : scene.id === "tree" ? (
+            <Tree baseX={HEIGHT_SCENE_OBJECT_FACE_X} groundY={HEIGHT_SCENE_GROUND_Y} h={DESIGN_H.tree} />
+          ) : (
+            <Lighthouse
+              baseX={HEIGHT_SCENE_OBJECT_FACE_X + 22}
+              groundY={HEIGHT_SCENE_GROUND_Y}
+              h={DESIGN_H.lighthouse}
+            />
+          )}
+        </ScaledObject>
+
+        <polygon
+          points={`${observerX},${groundY} ${faceX},${groundY} ${topX},${topY}`}
+          fill="#5a3d8a"
+          opacity={0.08}
+        />
+        <line
+          x1={faceX}
+          y1={groundY}
           x2={topX}
           y2={topY}
           stroke="#5a3d8a"
-          strokeWidth={2}
+          strokeWidth={1.8}
+        />
+        <path
+          d={`M ${faceX - ra} ${groundY} L ${faceX - ra} ${groundY - ra} L ${faceX} ${groundY - ra}`}
+          fill="none"
+          stroke="#5a3d8a"
+          strokeWidth={1.6}
+        />
+
+        <line
+          x1={observerX}
+          y1={groundY}
+          x2={topX}
+          y2={topY}
+          stroke="#5a3d8a"
+          strokeWidth={2.2}
           strokeDasharray="6 5"
         />
         <path
-          d={`M ${groundX + arcR} ${GROUND_Y} A ${arcR} ${arcR} 0 0 0 ${arcEndX} ${arcEndY}`}
+          d={`M ${observerX} ${groundY} L ${observerX + arcR} ${groundY} A ${arcR} ${arcR} 0 0 0 ${arcEndX} ${arcEndY} Z`}
+          fill="#e85d4c"
+          opacity={0.18}
+        />
+        <path
+          d={`M ${observerX + arcR} ${groundY} A ${arcR} ${arcR} 0 0 0 ${arcEndX} ${arcEndY}`}
           fill="none"
           stroke="#e85d4c"
-          strokeWidth={2.2}
+          strokeWidth={2.4}
           strokeLinecap="round"
         />
         <text
@@ -244,15 +293,30 @@ export default function HeightSceneView({
           fontWeight={800}
           className="pointer-events-none select-none"
         >
-          {angle}°
+          {displayedAngleDeg}°
         </text>
 
-        <line x1={groundX} y1={GROUND_Y + 10} x2={anchorX} y2={GROUND_Y + 10} stroke="#8B5E3C" strokeWidth={1.6} />
-        <polyline points={`${groundX},${GROUND_Y + 6} ${groundX},${GROUND_Y + 14}`} stroke="#8B5E3C" strokeWidth={1.6} />
-        <polyline points={`${anchorX},${GROUND_Y + 6} ${anchorX},${GROUND_Y + 14}`} stroke="#8B5E3C" strokeWidth={1.6} />
+        <line
+          x1={observerX}
+          y1={groundY + 10}
+          x2={faceX}
+          y2={groundY + 10}
+          stroke="#8B5E3C"
+          strokeWidth={1.6}
+        />
+        <polyline
+          points={`${observerX},${groundY + 6} ${observerX},${groundY + 14}`}
+          stroke="#8B5E3C"
+          strokeWidth={1.6}
+        />
+        <polyline
+          points={`${faceX},${groundY + 6} ${faceX},${groundY + 14}`}
+          stroke="#8B5E3C"
+          strokeWidth={1.6}
+        />
         <text
           x={mid}
-          y={GROUND_Y + 28}
+          y={groundY + 28}
           textAnchor="middle"
           fill="#6b4423"
           fontSize={14}
@@ -262,7 +326,7 @@ export default function HeightSceneView({
           {d} m
         </text>
 
-        <circle cx={groundX} cy={GROUND_Y} r={5} fill="#e85d4c" stroke="#fff" strokeWidth={1.5} />
+        <circle cx={observerX} cy={groundY} r={5} fill="#e85d4c" stroke="#fff" strokeWidth={1.5} />
         <circle cx={topX} cy={topY} r={4} fill="#5a3d8a" stroke="#fff" strokeWidth={1.4} />
       </svg>
 
@@ -271,7 +335,7 @@ export default function HeightSceneView({
           거리 {d} m
         </span>
         <span className="rounded-xl bg-[#e85d4c]/15 px-3 py-1 text-sm font-bold tabular-nums text-[#a63a1a]">
-          각 {angle}°
+          각 {displayedAngleDeg}°
         </span>
         {!locked ? (
           <span className="text-xs font-semibold text-foreground/55">
