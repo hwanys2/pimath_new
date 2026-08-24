@@ -4,6 +4,7 @@ import {
   isInquiryContentKey,
 } from "@/lib/inquiry-content-registry";
 import type { InquiryResponsePayload } from "@/lib/inquiry-content-registry";
+import { isDefineStep } from "@/lib/inquiry-tangent-intro";
 
 type Props = {
   responses: InquiryResponseRow[];
@@ -26,6 +27,8 @@ export default function InquiryResponsePanel({
   const ResponseDetail = config?.ResponseDetail;
 
   const stepResponses = responses.filter((r) => r.stepIndex === selectedStep);
+  const viewOnlyTangentPage =
+    contentKey === "g3-u3-1-tangent-intro" && isDefineStep(selectedStep);
 
   return (
     <div className="space-y-4">
@@ -49,7 +52,9 @@ export default function InquiryResponsePanel({
 
       {stepResponses.length === 0 ? (
         <p className="text-sm font-semibold text-foreground/60">
-          이 문제에 대한 제출이 아직 없어요.
+          {viewOnlyTangentPage
+            ? "이 페이지는 내용을 보는 장입니다. 제출할 문제가 없어요."
+            : "이 문제에 대한 제출이 아직 없어요."}
         </p>
       ) : (
         <div className="overflow-x-auto">

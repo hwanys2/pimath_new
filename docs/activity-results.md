@@ -122,3 +122,4 @@ await submitActivity({
 | 2026-08-17 | `g3-u3-1-tangent-intro` 세션 종료 집계 · SUMMARY_LABELS |
 | 2026-08-18 | `g3-u3-1-sincos-intro` 세션 종료 집계 · SUMMARY_LABELS |
 | 2026-08-24 | `g3-u3-1-tangent-intro` 5페이지 이름 붙이기 문항 집계 |
+| 2026-08-24 | `g3-u3-1-tangent-intro` 채점 문항 4개(3장면+표). 5페이지는 내용 확인 |

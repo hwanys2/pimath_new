@@ -14,7 +14,13 @@ export default function InquiryTangentIntroResponseDetail({
   return (
     <div className="text-sm">
       <p className="font-semibold text-wood">
-        {result === "correct" ? "정답" : result === "wrong" ? "오답" : "제출"}
+        {response.kind === "define"
+          ? "내용 확인"
+          : result === "correct"
+            ? "정답"
+            : result === "wrong"
+              ? "오답"
+              : "제출"}
         {response.wrongs > 0 ? ` · 오답 ${response.wrongs}회` : null}
       </p>
       {response.kind === "height" ? (
@@ -24,8 +30,9 @@ export default function InquiryTangentIntroResponseDetail({
           <li>높이 {response.heightM || "—"} m</li>
         </ul>
       ) : response.kind === "define" ? (
-        <p className="mt-2 font-mono text-xs text-foreground/80">
-          이름 {response.nameText || "—"}
+        <p className="mt-2 text-xs font-semibold text-foreground/70">
+          내용 확인 페이지
+          {response.nameText ? ` · 이름 ${response.nameText}` : null}
         </p>
       ) : (
         <ul className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1 font-mono text-xs text-foreground/80">

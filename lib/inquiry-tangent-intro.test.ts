@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
   DEFINE_STEP_INDEX,
+  GRADED_STEP_COUNT,
   HEIGHT_SCENES,
   PROBLEM_COUNT,
   TABLE_ANGLES,
@@ -44,9 +45,10 @@ import {
 } from "@/lib/inquiry-tangent-sketch";
 
 describe("tangent intro scenes", () => {
-  it("has 3 height scenes, a table step, and a naming step", () => {
+  it("has 3 height scenes, a table step, and a view-only tangent page", () => {
     assert.equal(HEIGHT_SCENES.length, 3);
     assert.equal(PROBLEM_COUNT, 5);
+    assert.equal(GRADED_STEP_COUNT, 4);
     assert.equal(TABLE_STEP_INDEX, 3);
     assert.equal(DEFINE_STEP_INDEX, 4);
     assert.equal(isTableStep(2), false);
@@ -279,40 +281,21 @@ describe("validate and grade", () => {
     assert.ok(!notice?.wrongAngles?.includes(45));
   });
 
-  it("flags an empty tangent name as incomplete", () => {
+  it("does not require a name on the view-only tangent page", () => {
     const ws = emptyTangentWorkspace(DEFINE_STEP_INDEX);
-    const notice = validateTangentSubmit(DEFINE_STEP_INDEX, ws);
-    assert.equal(notice?.reason, "incomplete");
+    assert.equal(validateTangentSubmit(DEFINE_STEP_INDEX, ws), null);
+    const graded = gradeTangentStep(DEFINE_STEP_INDEX, ws, 0);
+    assert.equal(graded.result, "neutral");
+    if (graded.response.kind !== "define") throw new Error("expected define");
   });
 
-  it("accepts 탄젠트, tangent, and tan as the name", () => {
+  it("still recognizes 탄젠트, tangent, and tan as names", () => {
     assert.equal(tangentNameIsCorrect("탄젠트"), true);
     assert.equal(tangentNameIsCorrect(" Tangent "), true);
     assert.equal(tangentNameIsCorrect("tan"), true);
     assert.equal(tangentNameIsCorrect("탄젠트(tangent)"), true);
     assert.equal(tangentNameIsCorrect("사인"), false);
     assert.equal(tangentNameIsCorrect(""), false);
-  });
-
-  it("grades the naming step without requiring method text", () => {
-    const ws = emptyTangentWorkspace(DEFINE_STEP_INDEX);
-    ws.nameText = "탄젠트";
-    assert.equal(validateTangentSubmit(DEFINE_STEP_INDEX, ws), null);
-    const graded = gradeTangentStep(DEFINE_STEP_INDEX, ws, 0);
-    assert.equal(graded.result, "correct");
-    if (graded.response.kind !== "define") throw new Error("expected define");
-    assert.equal(graded.response.nameText, "탄젠트");
-  });
-
-  it("rejects a wrong tangent name", () => {
-    const ws = emptyTangentWorkspace(DEFINE_STEP_INDEX);
-    ws.nameText = "사인";
-    const notice = validateTangentSubmit(DEFINE_STEP_INDEX, ws);
-    assert.equal(notice?.reason, "wrong");
-    const graded = gradeTangentStep(DEFINE_STEP_INDEX, ws, 2);
-    assert.equal(graded.result, "wrong");
-    if (graded.response.kind !== "define") throw new Error("expected define");
-    assert.equal(graded.response.wrongs, 2);
   });
 });
 
@@ -334,6 +317,20 @@ describe("score", () => {
     );
     assert.equal(agg.correctCount, 1);
     assert.equal(agg.score, 100);
+  });
+
+  it("does not count the view-only tangent page in the score", () => {
+    const define = gradeTangentStep(
+      DEFINE_STEP_INDEX,
+      emptyTangentWorkspace(DEFINE_STEP_INDEX),
+      0,
+    );
+    const agg = aggregateTangentScore(
+      [{ stepIndex: DEFINE_STEP_INDEX, result: define.result, response: define.response }],
+      PROBLEM_COUNT,
+    );
+    assert.equal(agg.correctCount, 0);
+    assert.equal(agg.score, 0);
   });
 });
 
