@@ -30,6 +30,8 @@ export type HeightScene = {
   minDistanceM: number;
   maxDistanceM: number;
   defaultDistanceM: number;
+  /** Building only: observer may drag. Tree/lighthouse use a fixed base. */
+  distanceAdjustable: boolean;
 };
 
 export const HEIGHT_SCENES: HeightScene[] = [
@@ -43,28 +45,31 @@ export const HEIGHT_SCENES: HeightScene[] = [
     minDistanceM: 20,
     maxDistanceM: 70,
     defaultDistanceM: 32,
+    distanceAdjustable: true,
   },
   {
     id: "tree",
     title: "큰 나무",
     objectLabel: "나무",
     prompt:
-      "공원에서 큰 나무 꼭대기를 바라봅니다. 땅 위를 눌러 설 자리를 고르세요. 거리와 각만 보고, 오른쪽에서 비슷한 직각삼각형을 그려 높이를 구해 보세요.",
+      "공원에서 큰 나무 꼭대기를 바라봅니다. 밑변(거리)은 23m로 정해져 있습니다. 각만 보고, 오른쪽에서 비슷한 직각삼각형을 그려 높이를 구해 보세요.",
     heightM: 12,
-    minDistanceM: 10,
-    maxDistanceM: 40,
-    defaultDistanceM: 20,
+    minDistanceM: 23,
+    maxDistanceM: 23,
+    defaultDistanceM: 23,
+    distanceAdjustable: false,
   },
   {
     id: "lighthouse",
     title: "등대",
     objectLabel: "등대",
     prompt:
-      "해변에서 등대 꼭대기를 바라봅니다. 지평선 위를 눌러 설 자리를 고르세요. 거리와 각만 보고, 오른쪽에서 비슷한 직각삼각형을 그려 높이를 구해 보세요.",
+      "해변에서 등대 꼭대기를 바라봅니다. 밑변(거리)은 67m로 정해져 있습니다. 각만 보고, 오른쪽에서 비슷한 직각삼각형을 그려 높이를 구해 보세요.",
     heightM: 36,
-    minDistanceM: 25,
-    maxDistanceM: 80,
-    defaultDistanceM: 45,
+    minDistanceM: 67,
+    maxDistanceM: 67,
+    defaultDistanceM: 67,
+    distanceAdjustable: false,
   },
 ];
 
@@ -126,6 +131,7 @@ export function emptyTangentWorkspace(stepIndex: number): TangentWorkspace {
 }
 
 export function clampDistance(scene: HeightScene, distanceM: number): number {
+  if (!scene.distanceAdjustable) return scene.defaultDistanceM;
   const n = Math.round(distanceM);
   return Math.min(scene.maxDistanceM, Math.max(scene.minDistanceM, n));
 }

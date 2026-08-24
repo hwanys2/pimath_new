@@ -61,10 +61,26 @@ describe("tangent intro scenes", () => {
   });
 
   it("clamps observer distance to the scene range", () => {
+    const building = HEIGHT_SCENES[0]!;
+    assert.equal(clampDistance(building, 3), building.minDistanceM);
+    assert.equal(clampDistance(building, 99), building.maxDistanceM);
+    assert.equal(clampDistance(building, 20.4), 20);
+  });
+
+  it("locks tree and lighthouse to a fixed base length", () => {
     const tree = HEIGHT_SCENES[1]!;
-    assert.equal(clampDistance(tree, 3), tree.minDistanceM);
-    assert.equal(clampDistance(tree, 99), tree.maxDistanceM);
-    assert.equal(clampDistance(tree, 20.4), 20);
+    const lighthouse = HEIGHT_SCENES[2]!;
+    assert.equal(tree.distanceAdjustable, false);
+    assert.equal(lighthouse.distanceAdjustable, false);
+    assert.equal(HEIGHT_SCENES[0]!.distanceAdjustable, true);
+    assert.equal(tree.defaultDistanceM, 23);
+    assert.equal(lighthouse.defaultDistanceM, 67);
+    assert.equal(clampDistance(tree, 10), 23);
+    assert.equal(clampDistance(tree, 40), 23);
+    assert.equal(clampDistance(lighthouse, 25), 67);
+    assert.equal(clampDistance(lighthouse, 80), 67);
+    assert.equal(emptyTangentWorkspace(1).distanceM, 23);
+    assert.equal(emptyTangentWorkspace(2).distanceM, 67);
   });
 });
 
@@ -117,6 +133,18 @@ describe("height scene layout", () => {
       Math.PI;
     assert.ok(Math.abs(pixelDeg - layout.visualAngleDeg) < 1e-9);
   });
+
+  it("draws the tree at 23 m and the lighthouse at 67 m", () => {
+    const tree = getHeightSceneLayout(HEIGHT_SCENES[1]!, 10);
+    assert.equal(tree.distanceM, 23);
+    assert.equal(tree.displayedAngleDeg, Math.round((Math.atan(12 / 23) * 180) / Math.PI));
+    const lighthouse = getHeightSceneLayout(HEIGHT_SCENES[2]!, 99);
+    assert.equal(lighthouse.distanceM, 67);
+    assert.equal(
+      lighthouse.displayedAngleDeg,
+      Math.round((Math.atan(36 / 67) * 180) / Math.PI),
+    );
+  });
 });
 
 describe("parseStudentNumber", () => {
@@ -151,9 +179,9 @@ describe("heightIsCorrect", () => {
 
   it("uses a 1 m floor for the short tree", () => {
     const tree = HEIGHT_SCENES[1]!;
-    assert.equal(heightIsCorrect(tree, 20, 12), true);
-    assert.equal(heightIsCorrect(tree, 20, 11.2), true);
-    assert.equal(heightIsCorrect(tree, 20, 6), false);
+    assert.equal(heightIsCorrect(tree, 23, 12), true);
+    assert.equal(heightIsCorrect(tree, 23, 11.2), true);
+    assert.equal(heightIsCorrect(tree, 23, 6), false);
   });
 });
 
