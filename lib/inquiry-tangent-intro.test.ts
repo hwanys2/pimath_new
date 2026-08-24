@@ -10,6 +10,9 @@ import {
   elevationAngleDeg,
   emptyTangentWorkspace,
   gradeTangentStep,
+  distanceFromSceneX,
+  getHeightSceneLayout,
+  HEIGHT_SCENE_OBJECT_FACE_X,
   heightIsCorrect,
   heightSceneAt,
   isTableStep,
@@ -62,6 +65,57 @@ describe("tangent intro scenes", () => {
     assert.equal(clampDistance(tree, 3), tree.minDistanceM);
     assert.equal(clampDistance(tree, 99), tree.maxDistanceM);
     assert.equal(clampDistance(tree, 20.4), 20);
+  });
+});
+
+describe("height scene layout", () => {
+  it("uses one px/m so the drawn angle equals atan(height/distance)", () => {
+    for (const scene of HEIGHT_SCENES) {
+      const samples = [
+        scene.minDistanceM,
+        scene.defaultDistanceM,
+        scene.maxDistanceM,
+        53,
+      ];
+      for (const raw of samples) {
+        if (raw < scene.minDistanceM || raw > scene.maxDistanceM) continue;
+        const layout = getHeightSceneLayout(scene, raw);
+        const expectedDeg =
+          (Math.atan(scene.heightM / layout.distanceM) * 180) / Math.PI;
+        assert.ok(
+          Math.abs(layout.visualAngleDeg - expectedDeg) < 1e-9,
+          `${scene.id} @ ${layout.distanceM}m: visual ${layout.visualAngleDeg} vs ${expectedDeg}`,
+        );
+        assert.equal(
+          Math.round(layout.visualAngleDeg),
+          layout.displayedAngleDeg,
+        );
+        assert.ok(
+          Math.abs(
+            layout.heightPx / layout.distancePx -
+              scene.heightM / layout.distanceM,
+          ) < 1e-9,
+        );
+        assert.equal(
+          distanceFromSceneX(scene, layout.observerX),
+          layout.distanceM,
+        );
+        assert.equal(layout.topX, HEIGHT_SCENE_OBJECT_FACE_X);
+        assert.equal(layout.observerX + layout.distancePx, layout.faceX);
+      }
+    }
+  });
+
+  it("keeps the school scene at 53 m near 24° both in math and on screen", () => {
+    const building = HEIGHT_SCENES[0]!;
+    const layout = getHeightSceneLayout(building, 53);
+    assert.equal(layout.displayedAngleDeg, 24);
+    assert.ok(layout.visualAngleDeg > 23.5 && layout.visualAngleDeg < 25);
+    const pixelDeg =
+      (Math.atan2(layout.groundY - layout.topY, layout.faceX - layout.observerX) *
+        180) /
+      Math.PI;
+    assert.ok(Math.abs(pixelDeg - layout.visualAngleDeg) < 1e-9);
   });
 });
 
