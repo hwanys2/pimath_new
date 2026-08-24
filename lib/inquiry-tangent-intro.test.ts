@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
+  DEFINE_STEP_INDEX,
   HEIGHT_SCENES,
   PROBLEM_COUNT,
   TABLE_ANGLES,
@@ -15,11 +16,13 @@ import {
   HEIGHT_SCENE_OBJECT_FACE_X,
   heightIsCorrect,
   heightSceneAt,
+  isDefineStep,
   isTableStep,
   parseStudentNumber,
   ratioIsCorrect,
   scoreForAttempts,
   tanDeg,
+  tangentNameIsCorrect,
   validateTangentSubmit,
 } from "@/lib/inquiry-tangent-intro";
 import {
@@ -41,14 +44,20 @@ import {
 } from "@/lib/inquiry-tangent-sketch";
 
 describe("tangent intro scenes", () => {
-  it("has 3 height scenes and a table step", () => {
+  it("has 3 height scenes, a table step, and a naming step", () => {
     assert.equal(HEIGHT_SCENES.length, 3);
-    assert.equal(PROBLEM_COUNT, 4);
+    assert.equal(PROBLEM_COUNT, 5);
     assert.equal(TABLE_STEP_INDEX, 3);
+    assert.equal(DEFINE_STEP_INDEX, 4);
     assert.equal(isTableStep(2), false);
     assert.equal(isTableStep(3), true);
+    assert.equal(isTableStep(4), false);
+    assert.equal(isDefineStep(3), false);
+    assert.equal(isDefineStep(4), true);
     assert.equal(heightSceneAt(0)?.id, "building");
     assert.equal(heightSceneAt(3), null);
+    assert.equal(heightSceneAt(4), null);
+    assert.deepEqual([...TABLE_ANGLES], [10, 20, 30, 40, 45, 50, 60, 70, 80]);
   });
 
   it("rounds elevation angle to 1 degree", () => {
@@ -230,11 +239,12 @@ describe("validate and grade", () => {
     assert.ok(graded.response.methodText.includes("직각삼각형"));
   });
 
-  it("requires all eight table cells", () => {
+  it("requires all nine table cells", () => {
     const ws = emptyTangentWorkspace(TABLE_STEP_INDEX);
     ws.ratios["10"] = "0.18";
     const notice = validateTangentSubmit(TABLE_STEP_INDEX, ws);
     assert.equal(notice?.reason, "incomplete");
+    assert.equal(TABLE_ANGLES.length, 9);
   });
 
   it("flags missing method text after a full tangent table", () => {
@@ -257,7 +267,7 @@ describe("validate and grade", () => {
     assert.equal(graded.result, "correct");
   });
 
-  it("lists wrong table rows", () => {
+  it("lists wrong table rows and treats 45° = 1 as correct", () => {
     const ws = emptyTangentWorkspace(TABLE_STEP_INDEX);
     for (const a of TABLE_ANGLES) {
       ws.ratios[String(a)] = "1";
@@ -265,7 +275,44 @@ describe("validate and grade", () => {
     const notice = validateTangentSubmit(TABLE_STEP_INDEX, ws);
     assert.equal(notice?.reason, "wrong");
     assert.ok(notice?.wrongAngles?.includes(10));
+    assert.ok(TABLE_ANGLES.includes(45));
     assert.ok(!notice?.wrongAngles?.includes(45));
+  });
+
+  it("flags an empty tangent name as incomplete", () => {
+    const ws = emptyTangentWorkspace(DEFINE_STEP_INDEX);
+    const notice = validateTangentSubmit(DEFINE_STEP_INDEX, ws);
+    assert.equal(notice?.reason, "incomplete");
+  });
+
+  it("accepts 탄젠트, tangent, and tan as the name", () => {
+    assert.equal(tangentNameIsCorrect("탄젠트"), true);
+    assert.equal(tangentNameIsCorrect(" Tangent "), true);
+    assert.equal(tangentNameIsCorrect("tan"), true);
+    assert.equal(tangentNameIsCorrect("탄젠트(tangent)"), true);
+    assert.equal(tangentNameIsCorrect("사인"), false);
+    assert.equal(tangentNameIsCorrect(""), false);
+  });
+
+  it("grades the naming step without requiring method text", () => {
+    const ws = emptyTangentWorkspace(DEFINE_STEP_INDEX);
+    ws.nameText = "탄젠트";
+    assert.equal(validateTangentSubmit(DEFINE_STEP_INDEX, ws), null);
+    const graded = gradeTangentStep(DEFINE_STEP_INDEX, ws, 0);
+    assert.equal(graded.result, "correct");
+    if (graded.response.kind !== "define") throw new Error("expected define");
+    assert.equal(graded.response.nameText, "탄젠트");
+  });
+
+  it("rejects a wrong tangent name", () => {
+    const ws = emptyTangentWorkspace(DEFINE_STEP_INDEX);
+    ws.nameText = "사인";
+    const notice = validateTangentSubmit(DEFINE_STEP_INDEX, ws);
+    assert.equal(notice?.reason, "wrong");
+    const graded = gradeTangentStep(DEFINE_STEP_INDEX, ws, 2);
+    assert.equal(graded.result, "wrong");
+    if (graded.response.kind !== "define") throw new Error("expected define");
+    assert.equal(graded.response.wrongs, 2);
   });
 });
 

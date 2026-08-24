@@ -121,3 +121,4 @@ await submitActivity({
 | 2026-07-30 | 탐구 세션 종료 집계 — `pm_inquiry_record_session_runs` |
 | 2026-08-17 | `g3-u3-1-tangent-intro` 세션 종료 집계 · SUMMARY_LABELS |
 | 2026-08-18 | `g3-u3-1-sincos-intro` 세션 종료 집계 · SUMMARY_LABELS |
+| 2026-08-24 | `g3-u3-1-tangent-intro` 5페이지 이름 붙이기 문항 집계 |

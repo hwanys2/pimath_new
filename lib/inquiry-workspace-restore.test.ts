@@ -42,6 +42,20 @@ describe("inquiry workspace restore", () => {
     assert.equal(workspace.methodText, "표 작성");
   });
 
+  it("restores tangent naming step", () => {
+    const ws = emptyTangentWorkspace(4);
+    ws.nameText = "tangent";
+    const graded = gradeTangentStep(4, ws, 1);
+    assert.equal(hasRestorableResponse(graded.response as unknown as Record<string, unknown>), true);
+    const { workspace, meta } = tangentWorkspaceFromResponse(
+      4,
+      graded.response as unknown as Record<string, unknown>,
+    );
+    assert.equal(workspace.nameText, "tangent");
+    assert.equal(meta.wrongAttempts, 1);
+    assert.equal(meta.submitted, true);
+  });
+
   it("restores sincos scene with baseT", () => {
     const ws = emptySincosWorkspace(0);
     ws.adjText = "23";

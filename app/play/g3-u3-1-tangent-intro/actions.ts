@@ -130,6 +130,16 @@ export async function inquiryCloseAndScoreAction(input: { sessionId: string }) {
     );
 
     const items = studentResponses.map((r) => {
+      if (r.response.kind === "define") {
+        return {
+          index: r.stepIndex,
+          kind: "define",
+          nameText: r.response.nameText,
+          score:
+            r.result === "correct" ? scoreForStep(r.response.wrongs) : 0,
+          wrongs: r.response.wrongs,
+        };
+      }
       if (r.response.kind === "table") {
         const filled = Object.values(r.response.ratios).filter((v) =>
           v.trim(),

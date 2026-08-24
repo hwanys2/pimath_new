@@ -6,9 +6,10 @@
 import type { InquiryResult } from "@/lib/inquiry-types";
 
 export const CONTENT_KEY = "g3-u3-1-tangent-intro";
-export const PROBLEM_COUNT = 4;
+export const PROBLEM_COUNT = 5;
 export const TABLE_STEP_INDEX = 3;
-export const TABLE_ANGLES = [10, 20, 30, 40, 50, 60, 70, 80] as const;
+export const DEFINE_STEP_INDEX = 4;
+export const TABLE_ANGLES = [10, 20, 30, 40, 45, 50, 60, 70, 80] as const;
 export type TableAngle = (typeof TABLE_ANGLES)[number];
 
 export const WRONG_PENALTY = 15;
@@ -79,6 +80,8 @@ export type TangentWorkspace = {
   ratios: Record<string, string>;
   /** Student explanation of how they calculated the answer. */
   methodText: string;
+  /** Page 5: the name of the ratio (탄젠트 / tangent / tan). */
+  nameText: string;
 };
 
 export type HeightResponsePayload = {
@@ -98,9 +101,16 @@ export type TableResponsePayload = {
   wrongs: number;
 };
 
+export type DefineResponsePayload = {
+  kind: "define";
+  nameText: string;
+  wrongs: number;
+};
+
 export type TangentResponsePayload =
   | HeightResponsePayload
-  | TableResponsePayload;
+  | TableResponsePayload
+  | DefineResponsePayload;
 
 export type TangentStepResult = {
   result: InquiryResult;
@@ -113,7 +123,11 @@ export type SoftNotice = {
 };
 
 export function isTableStep(stepIndex: number): boolean {
-  return stepIndex >= HEIGHT_SCENES.length;
+  return stepIndex === TABLE_STEP_INDEX;
+}
+
+export function isDefineStep(stepIndex: number): boolean {
+  return stepIndex === DEFINE_STEP_INDEX;
 }
 
 export function heightSceneAt(stepIndex: number): HeightScene | null {
@@ -127,6 +141,7 @@ export function emptyTangentWorkspace(stepIndex: number): TangentWorkspace {
     heightText: "",
     ratios: Object.fromEntries(TABLE_ANGLES.map((a) => [String(a), ""])),
     methodText: "",
+    nameText: "",
   };
 }
 
@@ -221,6 +236,27 @@ export function tanDeg(deg: number): number {
   return Math.tan((deg * Math.PI) / 180);
 }
 
+/** Accept 탄젠트, tangent, or tan (case-insensitive, ignore spaces/punctuation). */
+export function tangentNameIsCorrect(raw: string): boolean {
+  const letters = raw
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z가-힣]/g, "");
+  if (!letters) return false;
+  if (letters === "탄젠트" || letters === "tangent" || letters === "tan") {
+    return true;
+  }
+  // "탄젠트(tangent)" / "tangent(탄젠트)" after stripping punctuation
+  const withoutHangul = letters.replace("탄젠트", "");
+  if (
+    letters.includes("탄젠트") &&
+    (withoutHangul === "" || withoutHangul === "tangent" || withoutHangul === "tan")
+  ) {
+    return true;
+  }
+  return false;
+}
+
 export function parseStudentNumber(raw: string): number | null {
   const t = raw.trim().replace(/m$/i, "").replace(",", ".").trim();
   if (!t) return null;
@@ -288,6 +324,12 @@ export function validateTangentSubmit(
   stepIndex: number,
   workspace: TangentWorkspace,
 ): SoftNotice | null {
+  if (isDefineStep(stepIndex)) {
+    if (!workspace.nameText.trim()) return { reason: "incomplete" };
+    if (!tangentNameIsCorrect(workspace.nameText)) return { reason: "wrong" };
+    return null;
+  }
+
   if (isTableStep(stepIndex)) {
     const wrongAngles: number[] = [];
     let empty = false;
@@ -332,6 +374,18 @@ export function gradeTangentStep(
   wrongs: number,
 ): TangentStepResult {
   const notice = validateTangentSubmit(stepIndex, workspace);
+
+  if (isDefineStep(stepIndex)) {
+    const response: DefineResponsePayload = {
+      kind: "define",
+      nameText: workspace.nameText.trim(),
+      wrongs,
+    };
+    return {
+      result: notice ? "wrong" : "correct",
+      response,
+    };
+  }
 
   if (isTableStep(stepIndex)) {
     const response: TableResponsePayload = {

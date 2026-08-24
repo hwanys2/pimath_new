@@ -23,6 +23,10 @@ export default function InquiryTangentIntroResponseDetail({
           <li>각 {response.angleDeg}°</li>
           <li>높이 {response.heightM || "—"} m</li>
         </ul>
+      ) : response.kind === "define" ? (
+        <p className="mt-2 font-mono text-xs text-foreground/80">
+          이름 {response.nameText || "—"}
+        </p>
       ) : (
         <ul className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1 font-mono text-xs text-foreground/80">
           {TABLE_ANGLES.map((a) => (
@@ -32,7 +36,7 @@ export default function InquiryTangentIntroResponseDetail({
           ))}
         </ul>
       )}
-      {response.methodText ? (
+      {response.kind !== "define" && response.methodText ? (
         <p className="mt-2 rounded-lg bg-wood/5 px-2 py-1.5 text-xs leading-relaxed text-foreground/75">
           <span className="font-bold text-wood">계산 방법: </span>
           {response.methodText}
