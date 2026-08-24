@@ -79,6 +79,17 @@ export function tangentWorkspaceFromResponse(
     };
   }
 
+  if (response.kind === "define") {
+    return {
+      workspace: {
+        ...base,
+        nameText:
+          typeof response.nameText === "string" ? response.nameText : "",
+      },
+      meta,
+    };
+  }
+
   return { workspace: base, meta: { wrongAttempts: 0, submitted: false } };
 }
 
@@ -228,7 +239,13 @@ export function hasRestorableResponse(raw: Record<string, unknown> | null): bool
   if ("fills" in raw && Array.isArray(raw.fills)) return true;
   if ("left" in raw && "right" in raw) return true;
   if ("trail" in raw && Array.isArray(raw.trail)) return true;
-  if ("kind" in raw && (raw.kind === "height" || raw.kind === "table" || raw.kind === "scene")) {
+  if (
+    "kind" in raw &&
+    (raw.kind === "height" ||
+      raw.kind === "table" ||
+      raw.kind === "scene" ||
+      raw.kind === "define")
+  ) {
     return true;
   }
   return false;

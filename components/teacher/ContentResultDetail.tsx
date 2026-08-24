@@ -92,9 +92,11 @@ function TangentIntroDetail({ items }: { items: ActivityDetailsV1["items"] }) {
             <tr key={i} className="border-b border-wood/8">
               <td className="py-1 pr-3">{(item.index as number) + 1}</td>
               <td className="py-1 pr-3">
-                {item.kind === "table"
-                  ? `표 ${String(item.filled ?? "—")}칸`
-                  : `높이 ${String(item.height ?? "—")} m`}
+                {item.kind === "define"
+                  ? `이름 ${String(item.nameText || "—")}`
+                  : item.kind === "table"
+                    ? `표 ${String(item.filled ?? "—")}칸`
+                    : `높이 ${String(item.height ?? "—")} m`}
                 {typeof item.methodText === "string" && item.methodText.trim() ? (
                   <span className="mt-0.5 block max-w-[14rem] truncate text-foreground/55">
                     {item.methodText}
