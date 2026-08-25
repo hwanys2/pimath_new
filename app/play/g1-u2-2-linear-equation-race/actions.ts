@@ -1,38 +1,46 @@
 "use server";
 
-import { activityDetailsV1 } from "@/lib/activity-result-schemas";
 import { PROBLEM_COUNT } from "@/lib/equation-ops-math";
 import type { EquationOpsState } from "@/lib/equation-ops-math";
 import {
-  aggregateEquationOpsScore,
   CONTENT_KEY,
   gradeEquationOpsStep,
-  type EquationOpsResponsePayload,
 } from "@/lib/inquiry-equation-ops";
 import {
+  inquiryFinalizeActiveSessionForClass,
+  inquiryFinalizeSession,
+} from "@/lib/inquiry-finalize";
+import {
   inquiryAdvanceStep,
-  inquiryClose,
   inquiryCreateSession,
   inquiryFindActiveForStudent,
   inquiryFindActiveForTeacher,
   inquiryJoin,
   inquiryListResponses,
-  inquiryRecordSessionRuns,
   inquiryStart,
   inquiryStudentPoll,
   inquirySubmitResponse,
   inquiryTeacherPoll,
 } from "@/lib/inquiry-session";
-import { scoreForTime } from "@/lib/equation-ops-math";
 
 const STEP_COUNT = PROBLEM_COUNT;
 
 export async function inquiryCreateSessionAction(input: { classId: string }) {
-  return inquiryCreateSession({
+  const prior = await inquiryFinalizeActiveSessionForClass({
+    classId: input.classId,
+  });
+  if ("error" in prior) return prior;
+
+  const created = await inquiryCreateSession({
     classId: input.classId,
     contentKey: CONTENT_KEY,
     stepCount: STEP_COUNT,
   });
+  if ("error" in created) return created;
+  return {
+    sessionId: created.sessionId,
+    recorded: prior.recorded ?? 0,
+  };
 }
 
 export async function inquiryStartAction(input: { sessionId: string }) {
@@ -47,7 +55,7 @@ export async function inquiryAdvanceStepAction(input: {
 }
 
 export async function inquiryCloseAction(input: { sessionId: string }) {
-  return inquiryClose(input);
+  return inquiryFinalizeSession({ ...input, contentKey: CONTENT_KEY });
 }
 
 export async function inquiryJoinAction(input: { classId: string }) {
@@ -101,68 +109,5 @@ export async function inquirySubmitEquationOpsAction(input: {
 }
 
 export async function inquiryCloseAndScoreAction(input: { sessionId: string }) {
-  const closeResult = await inquiryClose(input);
-  if ("error" in closeResult) return closeResult;
-
-  const { responses } = await inquiryListResponses(input);
-
-  const byStudent = new Map<
-    string,
-    Array<{
-      stepIndex: number;
-      result: "correct" | "wrong" | "neutral" | null;
-      response: EquationOpsResponsePayload;
-    }>
-  >();
-
-  for (const r of responses) {
-    if (!byStudent.has(r.studentId)) {
-      byStudent.set(r.studentId, []);
-    }
-    byStudent.get(r.studentId)!.push({
-      stepIndex: r.stepIndex,
-      result: r.result,
-      response: r.response as EquationOpsResponsePayload,
-    });
-  }
-
-  const runs = [...byStudent.entries()].map(([studentId, studentResponses]) => {
-    const { score, correctCount, totalTimeMs, avgScorePerProblem } =
-      aggregateEquationOpsScore(studentResponses, STEP_COUNT);
-
-    const items = studentResponses.map((r) => ({
-      index: r.stepIndex,
-      score:
-        r.result === "correct"
-          ? scoreForTime(r.response.elapsedMs ?? 0)
-          : 0,
-      elapsedMs: r.response.elapsedMs,
-      opCount: r.response.opCount,
-      wrongs: r.response.wrongs,
-    }));
-
-    return {
-      studentId,
-      score,
-      details: activityDetailsV1(
-        {
-          correctCount,
-          problemCount: STEP_COUNT,
-          totalTimeMs,
-          avgScorePerProblem,
-          inquirySession: true,
-        },
-        items,
-      ),
-    };
-  });
-
-  if (runs.length === 0) {
-    return { ok: true as const, recorded: 0 };
-  }
-
-  return inquiryRecordSessionRuns({
-    sessionId: input.sessionId,
-    runs,
-  });
+  return inquiryFinalizeSession({ ...input, contentKey: CONTENT_KEY });
 }

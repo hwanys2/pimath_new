@@ -189,23 +189,6 @@ export default function InquiryHostDashboard({
     return () => window.clearInterval(id);
   }, [sessionId, poll]);
 
-  const createSession = () => {
-    if (!selectedClassId || !validKey) return;
-    setMessage(null);
-    const actions = getActions(validKey);
-    startTransition(async () => {
-      const result = await actions.inquiryCreateSessionAction({
-        classId: selectedClassId,
-      });
-      if ("error" in result) {
-        setMessage(result.error ?? "오류가 발생했어요.");
-        return;
-      }
-      setSessionId(result.sessionId);
-      await poll(result.sessionId);
-    });
-  };
-
   const startSession = () => {
     if (!sessionId || !validKey) return;
     setMessage(null);
@@ -255,6 +238,28 @@ export default function InquiryHostDashboard({
       setSessionId(null);
       setState(IDLE);
       setResponses([]);
+    });
+  };
+
+  const createSession = () => {
+    if (!selectedClassId || !validKey) return;
+    setMessage(null);
+    const actions = getActions(validKey);
+    startTransition(async () => {
+      const result = await actions.inquiryCreateSessionAction({
+        classId: selectedClassId,
+      });
+      if ("error" in result) {
+        setMessage(result.error ?? "오류가 발생했어요.");
+        return;
+      }
+      setSessionId(result.sessionId);
+      if ("recorded" in result && result.recorded > 0) {
+        setMessage(
+          `이전 수업 결과 ${result.recorded}명을 저장한 뒤 새 수업을 준비했어요.`,
+        );
+      }
+      await poll(result.sessionId);
     });
   };
 

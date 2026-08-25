@@ -375,3 +375,54 @@ export async function inquiryRecordSessionRuns(input: {
 
   return { recorded: (data as number) ?? 0 };
 }
+
+export type InquiryClassSessionRow = {
+  sessionId: string;
+  phase: InquiryPhase | "idle";
+  stepCount: number;
+  startedAt: string | null;
+  closedAt: string | null;
+  createdAt: string;
+  responseCount: number;
+  participantCount: number;
+};
+
+export async function inquiryListClassSessions(input: {
+  classId: string;
+  contentKey: string;
+}): Promise<{ sessions: InquiryClassSessionRow[]; error?: string }> {
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("pm_inquiry_list_class_sessions", {
+    p_class_id: input.classId,
+    p_content_key: input.contentKey,
+  });
+
+  if (error) {
+    console.error("[pm] pm_inquiry_list_class_sessions failed:", error.message);
+    return { sessions: [], error: error.message };
+  }
+
+  const rows = firstRows(data as {
+    session_id: string;
+    phase: string;
+    step_count: number;
+    started_at: string | null;
+    closed_at: string | null;
+    created_at: string;
+    response_count: number | string;
+    participant_count: number | string;
+  }[]);
+
+  return {
+    sessions: rows.map((r) => ({
+      sessionId: r.session_id,
+      phase: parsePhase(r.phase),
+      stepCount: r.step_count,
+      startedAt: r.started_at,
+      closedAt: r.closed_at,
+      createdAt: r.created_at,
+      responseCount: Number(r.response_count) || 0,
+      participantCount: Number(r.participant_count) || 0,
+    })),
+  };
+}

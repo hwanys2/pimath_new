@@ -58,8 +58,60 @@ export default async function ContentResultsPage({ params }: Props) {
   const result = await fetchResults(classId, contentKey);
   if (!result) notFound();
 
-  const { content, view, kind } = result;
+  // Inquiry: recover scores that were lost when a live session was
+  // auto-closed by "수업 준비" without finalize (needs DB migration).
+  if (result.content.type === "inquiry") {
+    const { backfillMissingInquiryGameRuns } = await import(
+      "@/lib/inquiry-results-recover"
+    );
+    const recovered = await backfillMissingInquiryGameRuns(classId, contentKey);
+    if (recovered.recorded > 0) {
+      const refreshed = await fetchResults(classId, contentKey);
+      if (refreshed) {
+        const students = await fetchClassStudents(classId);
+        return (
+          <ResultsPageBody
+            klass={klass}
+            classId={classId}
+            contentKey={contentKey}
+            result={refreshed}
+            students={students}
+            recoveryNote={`${recovered.recorded}명의 탐구 결과를 복구했어요.`}
+          />
+        );
+      }
+    }
+  }
+
   const students = await fetchClassStudents(classId);
+
+  return (
+    <ResultsPageBody
+      klass={klass}
+      classId={classId}
+      contentKey={contentKey}
+      result={result}
+      students={students}
+    />
+  );
+}
+
+function ResultsPageBody({
+  klass,
+  classId,
+  contentKey,
+  result,
+  students,
+  recoveryNote,
+}: {
+  klass: { id: string; name: string };
+  classId: string;
+  contentKey: string;
+  result: NonNullable<Awaited<ReturnType<typeof fetchResults>>>;
+  students: Awaited<ReturnType<typeof fetchClassStudents>>;
+  recoveryNote?: string;
+}) {
+  const { content, view, kind } = result;
 
   return (
     <div className="flex flex-col gap-6">
@@ -74,6 +126,11 @@ export default async function ContentResultsPage({ params }: Props) {
           {content.title}
         </h1>
         <p className="mt-1 text-sm text-foreground/60">학습 결과</p>
+        {recoveryNote ? (
+          <p className="mt-2 text-sm font-bold text-wood" role="status">
+            {recoveryNote}
+          </p>
+        ) : null}
       </div>
 
       <section className="quest-card p-5 sm:p-6">
