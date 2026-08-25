@@ -212,6 +212,30 @@ export function emptySincosWorkspace(
   };
 }
 
+/** Fill missing fields from partial/legacy drafts so UI never reads undefined maps. */
+export function normalizeSincosWorkspace(
+  stepIndex: number,
+  partial: Partial<SincosWorkspace> | null | undefined,
+  opts?: { seed?: string | null },
+): SincosWorkspace {
+  const base = emptySincosWorkspace(stepIndex, opts);
+  if (!partial) return base;
+  return {
+    ...base,
+    ...partial,
+    sinRatios: { ...base.sinRatios, ...(partial.sinRatios ?? {}) },
+    cosRatios: { ...base.cosRatios, ...(partial.cosRatios ?? {}) },
+    sinNameText:
+      typeof partial.sinNameText === "string" ? partial.sinNameText : base.sinNameText,
+    cosNameText:
+      typeof partial.cosNameText === "string" ? partial.cosNameText : base.cosNameText,
+    methodText:
+      typeof partial.methodText === "string" ? partial.methodText : base.methodText,
+    adjText: typeof partial.adjText === "string" ? partial.adjText : base.adjText,
+    oppText: typeof partial.oppText === "string" ? partial.oppText : base.oppText,
+  };
+}
+
 export function clampAngle(scene: HypScene, deg: number): number {
   const n = Math.round(deg);
   return Math.min(scene.maxAngleDeg, Math.max(scene.minAngleDeg, n));
@@ -367,11 +391,11 @@ export function validateSincosSubmit(
 ): SoftNotice | null {
   if (isDefineStep(stepIndex)) {
     const wrongKeys: string[] = [];
-    if (!workspace.sinNameText.trim()) wrongKeys.push("sinName");
-    if (!workspace.cosNameText.trim()) wrongKeys.push("cosName");
+    if (!(workspace.sinNameText ?? "").trim()) wrongKeys.push("sinName");
+    if (!(workspace.cosNameText ?? "").trim()) wrongKeys.push("cosName");
     if (wrongKeys.length > 0) return { reason: "incomplete", wrongKeys };
-    if (!sinNameIsCorrect(workspace.sinNameText)) wrongKeys.push("sinName");
-    if (!cosNameIsCorrect(workspace.cosNameText)) wrongKeys.push("cosName");
+    if (!sinNameIsCorrect(workspace.sinNameText ?? "")) wrongKeys.push("sinName");
+    if (!cosNameIsCorrect(workspace.cosNameText ?? "")) wrongKeys.push("cosName");
     if (wrongKeys.length > 0) return { reason: "wrong", wrongKeys };
     return null;
   }
@@ -385,8 +409,8 @@ export function validateSincosSubmit(
       for (const kind of ["sin", "cos"] as const) {
         const text =
           kind === "sin"
-            ? (workspace.sinRatios[key] ?? "")
-            : (workspace.cosRatios[key] ?? "");
+            ? (workspace.sinRatios?.[key] ?? "")
+            : (workspace.cosRatios?.[key] ?? "");
         const status = checkRatioCell(text, angle, kind);
         if (status === "empty") empty = true;
         else if (status === "invalid") {
@@ -448,8 +472,8 @@ export function gradeSincosStep(
   if (isDefineStep(stepIndex)) {
     const response: DefineResponsePayload = {
       kind: "define",
-      sinNameText: workspace.sinNameText.trim(),
-      cosNameText: workspace.cosNameText.trim(),
+      sinNameText: (workspace.sinNameText ?? "").trim(),
+      cosNameText: (workspace.cosNameText ?? "").trim(),
       wrongs,
     };
     return {
@@ -461,9 +485,9 @@ export function gradeSincosStep(
   if (isTableStep(stepIndex)) {
     const response: TableResponsePayload = {
       kind: "table",
-      sinRatios: { ...workspace.sinRatios },
-      cosRatios: { ...workspace.cosRatios },
-      methodText: workspace.methodText.trim(),
+      sinRatios: { ...(workspace.sinRatios ?? {}) },
+      cosRatios: { ...(workspace.cosRatios ?? {}) },
+      methodText: (workspace.methodText ?? "").trim(),
       wrongs,
     };
     return {

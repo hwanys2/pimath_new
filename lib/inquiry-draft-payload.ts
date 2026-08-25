@@ -125,8 +125,8 @@ export function buildSincosDraftPayload(
     return {
       draft: true,
       kind: "define",
-      sinNameText: workspace.sinNameText.trim(),
-      cosNameText: workspace.cosNameText.trim(),
+      sinNameText: (workspace.sinNameText ?? "").trim(),
+      cosNameText: (workspace.cosNameText ?? "").trim(),
       wrongs,
       ...(sketch ? { sketch } : {}),
     };
@@ -136,9 +136,9 @@ export function buildSincosDraftPayload(
     return {
       draft: true,
       kind: "table",
-      sinRatios: { ...workspace.sinRatios },
-      cosRatios: { ...workspace.cosRatios },
-      methodText: workspace.methodText.trim(),
+      sinRatios: { ...(workspace.sinRatios ?? {}) },
+      cosRatios: { ...(workspace.cosRatios ?? {}) },
+      methodText: (workspace.methodText ?? "").trim(),
       wrongs,
       ...(sketch ? { sketch } : {}),
     };
@@ -155,7 +155,7 @@ export function buildSincosDraftPayload(
     baseT: workspace.baseT,
     adj: workspace.adjText,
     opp: workspace.oppText,
-    methodText: workspace.methodText.trim(),
+    methodText: (workspace.methodText ?? "").trim(),
     wrongs,
     ...(sketch ? { sketch } : {}),
   };

@@ -36,7 +36,10 @@ import type { EquationOpsState } from "@/lib/equation-ops-math";
 import type { TangentWorkspace } from "@/lib/inquiry-tangent-intro";
 import { emptyTangentWorkspace } from "@/lib/inquiry-tangent-intro";
 import type { SincosWorkspace } from "@/lib/inquiry-sincos-intro";
-import { emptySincosWorkspace } from "@/lib/inquiry-sincos-intro";
+import {
+  emptySincosWorkspace,
+  normalizeSincosWorkspace,
+} from "@/lib/inquiry-sincos-intro";
 import { isStateSolved, scoreForTime } from "@/lib/equation-ops-math";
 import * as radicalFillActions from "@/app/play/g3-u1-radical-fill/actions";
 import * as balanceActions from "@/app/play/g1-u2-2-linear-equation-balance/actions";
@@ -312,7 +315,13 @@ export default function InquiryStudentView({
       } else if (validKey === "g3-u3-1-tangent-intro") {
         if (draft.tangentWorkspace) setTangentWorkspace(draft.tangentWorkspace);
       } else if (validKey === "g3-u3-1-sincos-intro") {
-        if (draft.sincosWorkspace) setSincosWorkspace(draft.sincosWorkspace);
+        if (draft.sincosWorkspace) {
+          setSincosWorkspace(
+            normalizeSincosWorkspace(stepIndex, draft.sincosWorkspace, {
+              seed: sincosSeed,
+            }),
+          );
+        }
       }
 
       setRadicalNotice(null);
@@ -322,7 +331,7 @@ export default function InquiryStudentView({
       prevStepRef.current = stepIndex;
       return true;
     },
-    [validKey],
+    [validKey, sincosSeed],
   );
 
   useEffect(() => {

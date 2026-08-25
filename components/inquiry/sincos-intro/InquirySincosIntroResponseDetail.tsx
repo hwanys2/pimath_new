@@ -7,17 +7,29 @@ type Props = {
   result: InquiryResult | null;
 };
 
+function cell(
+  ratios: Record<string, string> | null | undefined,
+  angle: number,
+): string {
+  const raw = ratios?.[String(angle)];
+  return typeof raw === "string" && raw.trim() ? raw : "—";
+}
+
 export default function InquirySincosIntroResponseDetail({
   response,
   result,
 }: Props) {
+  const wrongs =
+    response && typeof response.wrongs === "number" ? response.wrongs : 0;
+  const kind = response?.kind;
+
   return (
     <div className="text-sm">
       <p className="font-semibold text-wood">
         {result === "correct" ? "정답" : result === "wrong" ? "오답" : "제출"}
-        {response.wrongs > 0 ? ` · 오답 ${response.wrongs}회` : null}
+        {wrongs > 0 ? ` · 오답 ${wrongs}회` : null}
       </p>
-      {response.kind === "scene" ? (
+      {kind === "scene" ? (
         <ul className="mt-2 space-y-1 font-mono text-xs text-foreground/80">
           <li>
             빗변 {response.hyp} {response.unit}
@@ -30,22 +42,30 @@ export default function InquirySincosIntroResponseDetail({
             높이 {response.opp || "—"} {response.unit}
           </li>
         </ul>
-      ) : response.kind === "define" ? (
+      ) : kind === "define" ? (
         <ul className="mt-2 space-y-1 font-mono text-xs text-foreground/80">
           <li>높이 수 이름 {response.sinNameText || "—"}</li>
           <li>수평거리 수 이름 {response.cosNameText || "—"}</li>
         </ul>
-      ) : (
+      ) : kind === "table" ? (
         <ul className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1 font-mono text-xs text-foreground/80">
           {TABLE_ANGLES.map((a) => (
             <li key={a}>
-              {a}° sin {response.sinRatios[String(a)] || "—"} · cos{" "}
-              {response.cosRatios[String(a)] || "—"}
+              {a}° sin {cell(response.sinRatios, a)} · cos{" "}
+              {cell(response.cosRatios, a)}
             </li>
           ))}
         </ul>
+      ) : (
+        <pre className="mt-2 max-w-xs overflow-x-auto text-xs text-foreground/70">
+          {JSON.stringify(response ?? {}, null, 2)}
+        </pre>
       )}
-      {response.kind !== "define" && response.methodText ? (
+      {kind !== "define" &&
+      kind != null &&
+      "methodText" in response &&
+      typeof response.methodText === "string" &&
+      response.methodText ? (
         <p className="mt-2 rounded-lg bg-wood/5 px-2 py-1.5 text-xs leading-relaxed text-foreground/75">
           <span className="font-bold text-wood">계산 방법: </span>
           {response.methodText}

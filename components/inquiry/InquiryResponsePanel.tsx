@@ -77,9 +77,13 @@ export default function InquiryResponsePanel({
                           : "—"}
                   </td>
                   <td className="px-3 py-3">
-                    {ResponseDetail ? (
+      {ResponseDetail ? (
                       <ResponseDetail
-                        response={r.response as InquiryResponsePayload}
+                        response={
+                          (r.response && typeof r.response === "object"
+                            ? r.response
+                            : {}) as InquiryResponsePayload
+                        }
                         result={r.result}
                       />
                     ) : (

@@ -80,20 +80,20 @@ export default function InquirySincosIntroStep({
   const showScoreBar = !readOnly && !hostPreview;
   const wrongSet = new Set(softNotice?.wrongKeys ?? []);
   const methodMarked = softNotice?.reason === "incomplete_method";
+  const sinNameText = workspace.sinNameText ?? "";
+  const cosNameText = workspace.cosNameText ?? "";
   const sinNameMarked =
     kind === "define" &&
     (softNotice?.reason === "incomplete" ||
       softNotice?.reason === "wrong") &&
     (wrongSet.has("sinName") ||
-      (softNotice?.reason === "incomplete" &&
-        !workspace.sinNameText.trim()));
+      (softNotice?.reason === "incomplete" && !sinNameText.trim()));
   const cosNameMarked =
     kind === "define" &&
     (softNotice?.reason === "incomplete" ||
       softNotice?.reason === "wrong") &&
     (wrongSet.has("cosName") ||
-      (softNotice?.reason === "incomplete" &&
-        !workspace.cosNameText.trim()));
+      (softNotice?.reason === "incomplete" && !cosNameText.trim()));
   const unit = scene?.unit ?? "m";
 
   const badge =
@@ -195,13 +195,15 @@ export default function InquirySincosIntroStep({
                 </thead>
                 <tbody>
                   {TABLE_ANGLES.map((angle) => {
+                    const sinVal = workspace.sinRatios?.[String(angle)] ?? "";
+                    const cosVal = workspace.cosRatios?.[String(angle)] ?? "";
                     const sinMarked =
                       (softNotice?.reason === "incomplete" &&
-                        !(workspace.sinRatios[String(angle)] ?? "").trim()) ||
+                        !sinVal.trim()) ||
                       wrongSet.has(`sin:${angle}`);
                     const cosMarked =
                       (softNotice?.reason === "incomplete" &&
-                        !(workspace.cosRatios[String(angle)] ?? "").trim()) ||
+                        !cosVal.trim()) ||
                       wrongSet.has(`cos:${angle}`);
                     return (
                       <tr key={angle} className="border-b border-wood/8">
@@ -221,12 +223,12 @@ export default function InquirySincosIntroStep({
                             spellCheck={false}
                             disabled={locked}
                             aria-label={`${angle}도에서 빗변에 곱해 높이를 구하는 수`}
-                            value={workspace.sinRatios[String(angle)] ?? ""}
+                            value={sinVal}
                             onChange={(e) =>
                               onWorkspaceChange({
                                 ...workspace,
                                 sinRatios: {
-                                  ...workspace.sinRatios,
+                                  ...(workspace.sinRatios ?? {}),
                                   [String(angle)]: e.target.value,
                                 },
                               })
@@ -247,12 +249,12 @@ export default function InquirySincosIntroStep({
                             spellCheck={false}
                             disabled={locked}
                             aria-label={`${angle}도에서 빗변에 곱해 수평거리를 구하는 수`}
-                            value={workspace.cosRatios[String(angle)] ?? ""}
+                            value={cosVal}
                             onChange={(e) =>
                               onWorkspaceChange({
                                 ...workspace,
                                 cosRatios: {
-                                  ...workspace.cosRatios,
+                                  ...(workspace.cosRatios ?? {}),
                                   [String(angle)]: e.target.value,
                                 },
                               })
@@ -350,7 +352,7 @@ export default function InquirySincosIntroStep({
                   disabled={locked}
                   aria-label="높이를 구하는 수의 이름"
                   placeholder="예: 사인"
-                  value={workspace.sinNameText}
+                  value={sinNameText}
                   onChange={(e) =>
                     onWorkspaceChange({
                       ...workspace,
@@ -376,7 +378,7 @@ export default function InquirySincosIntroStep({
                   disabled={locked}
                   aria-label="수평거리를 구하는 수의 이름"
                   placeholder="예: 코사인"
-                  value={workspace.cosNameText}
+                  value={cosNameText}
                   onChange={(e) =>
                     onWorkspaceChange({
                       ...workspace,
