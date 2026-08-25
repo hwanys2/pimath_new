@@ -12,6 +12,7 @@ import {
   cosNameIsCorrect,
   cosRatioIsCorrect,
   emptySincosWorkspace,
+  normalizeSincosWorkspace,
   expectedAdj,
   expectedOpp,
   gradeSincosStep,
@@ -181,6 +182,24 @@ describe("validate and grade", () => {
     ws.sinRatios["10"] = "0.17";
     const notice = validateSincosSubmit(TABLE_STEP_INDEX, ws);
     assert.equal(notice?.reason, "incomplete");
+  });
+
+  it("normalizes legacy partial workspaces missing ratio maps", () => {
+    const normalized = normalizeSincosWorkspace(TABLE_STEP_INDEX, {
+      methodText: "old draft",
+    } as Partial<ReturnType<typeof emptySincosWorkspace>>);
+    assert.equal(normalized.methodText, "old draft");
+    assert.equal(normalized.sinRatios["10"], "");
+    assert.equal(normalized.cosRatios["45"], "");
+    assert.equal(normalized.sinNameText, "");
+    assert.equal(normalized.cosNameText, "");
+    assert.doesNotThrow(() =>
+      validateSincosSubmit(TABLE_STEP_INDEX, {
+        ...normalized,
+        sinRatios: undefined as unknown as Record<string, string>,
+        cosRatios: undefined as unknown as Record<string, string>,
+      }),
+    );
   });
 
   it("grades a full sin/cos table", () => {
