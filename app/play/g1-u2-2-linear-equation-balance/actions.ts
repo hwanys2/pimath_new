@@ -4,7 +4,7 @@ import {
   inquiryFinalizeActiveSessionForClass,
   inquiryFinalizeSession,
 } from "@/lib/inquiry-finalize";
-import { gradeBalanceStep } from "@/lib/inquiry-linear-equation-balance";
+import { buildBalanceDraftPayload } from "@/lib/inquiry-draft-payload";
 import {
   inquiryAdvanceStep,
   inquiryCreateSession,
@@ -17,6 +17,7 @@ import {
   inquirySubmitResponse,
   inquiryTeacherPoll,
 } from "@/lib/inquiry-session";
+import { gradeBalanceStep } from "@/lib/inquiry-linear-equation-balance";
 import { PROBLEM_COUNT } from "@/lib/linear-equation-balance-math";
 import type { TileWorkspace } from "@/lib/linear-equation-balance-math";
 
@@ -105,6 +106,27 @@ export async function inquirySubmitBalanceAction(input: {
     stepIndex: input.stepIndex,
     response: graded.response,
     result: graded.result,
+  });
+}
+
+export async function inquirySaveBalanceDraftAction(input: {
+  sessionId: string;
+  stepIndex: number;
+  workspace: TileWorkspace;
+  wrongs: number;
+  moves: number;
+}) {
+  const response = buildBalanceDraftPayload(
+    input.stepIndex,
+    input.workspace,
+    input.wrongs,
+    input.moves,
+  );
+  return inquirySubmitResponse({
+    sessionId: input.sessionId,
+    stepIndex: input.stepIndex,
+    response,
+    result: null,
   });
 }
 

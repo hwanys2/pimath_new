@@ -54,6 +54,7 @@ type Props = {
   submitted?: boolean;
   submitFeedback?: "correct" | "wrong" | null;
   onSubmit?: () => void;
+  sketchPersistKey?: string | null;
 };
 
 export default function InquirySincosIntroStep({
@@ -70,6 +71,7 @@ export default function InquirySincosIntroStep({
   submitted = false,
   submitFeedback = null,
   onSubmit,
+  sketchPersistKey = null,
 }: Props) {
   const kind = stepKind(stepIndex);
   const interactive = hostPreview || !readOnly;
@@ -438,7 +440,11 @@ export default function InquirySincosIntroStep({
           </div>
         ) : (
           <div className="min-h-[22rem] min-w-0">
-            <SincosSketchpad key={stepIndex} locked={disabled && !hostPreview} />
+            <SincosSketchpad
+              key={stepIndex}
+              locked={disabled && !hostPreview}
+              persistKey={sketchPersistKey}
+            />
           </div>
         )}
       </div>

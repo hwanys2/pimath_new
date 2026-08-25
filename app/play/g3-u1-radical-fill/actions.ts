@@ -1,6 +1,6 @@
 "use server";
 
-import { gradeRadicalFillStep } from "@/lib/inquiry-radical-fill";
+import { buildRadicalDraftPayload } from "@/lib/inquiry-draft-payload";
 import {
   inquiryFinalizeActiveSessionForClass,
   inquiryFinalizeSession,
@@ -17,6 +17,7 @@ import {
   inquirySubmitResponse,
   inquiryTeacherPoll,
 } from "@/lib/inquiry-session";
+import { gradeRadicalFillStep } from "@/lib/inquiry-radical-fill";
 import { PROBLEM_COUNT } from "@/lib/radical-fill-math";
 
 const CONTENT_KEY = "g3-u1-radical-fill";
@@ -102,6 +103,25 @@ export async function inquirySubmitRadicalFillAction(input: {
     stepIndex: input.stepIndex,
     response: graded.response,
     result: graded.result,
+  });
+}
+
+export async function inquirySaveRadicalDraftAction(input: {
+  sessionId: string;
+  stepIndex: number;
+  texts: Array<{ coeff: string; radicand: string }>;
+  wrongs: number;
+}) {
+  const response = buildRadicalDraftPayload(
+    input.stepIndex,
+    input.texts,
+    input.wrongs,
+  );
+  return inquirySubmitResponse({
+    sessionId: input.sessionId,
+    stepIndex: input.stepIndex,
+    response,
+    result: null,
   });
 }
 

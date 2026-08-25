@@ -53,6 +53,8 @@ type Props = {
   submitted?: boolean;
   submitFeedback?: "correct" | "wrong" | null;
   onSubmit?: () => void;
+  /** localStorage key for sketchpad persistence (student refresh recovery). */
+  sketchPersistKey?: string | null;
 };
 
 export default function InquiryTangentIntroStep({
@@ -69,6 +71,7 @@ export default function InquiryTangentIntroStep({
   submitted = false,
   submitFeedback = null,
   onSubmit,
+  sketchPersistKey = null,
 }: Props) {
   const kind = stepKind(stepIndex);
   const interactive = hostPreview || !readOnly;
@@ -309,7 +312,11 @@ export default function InquiryTangentIntroStep({
           </div>
         ) : (
           <div className="min-h-[22rem] min-w-0">
-            <GeometrySketchpad key={stepIndex} locked={disabled && !hostPreview} />
+            <GeometrySketchpad
+              key={stepIndex}
+              locked={disabled && !hostPreview}
+              persistKey={sketchPersistKey}
+            />
           </div>
         )}
       </div>

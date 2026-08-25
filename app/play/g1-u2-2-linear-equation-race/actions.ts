@@ -2,6 +2,7 @@
 
 import { PROBLEM_COUNT } from "@/lib/equation-ops-math";
 import type { EquationOpsState } from "@/lib/equation-ops-math";
+import { buildRaceDraftPayload } from "@/lib/inquiry-draft-payload";
 import {
   CONTENT_KEY,
   gradeEquationOpsStep,
@@ -105,6 +106,26 @@ export async function inquirySubmitEquationOpsAction(input: {
     stepIndex: input.stepIndex,
     response: graded.response,
     result: graded.result,
+  });
+}
+
+export async function inquirySaveRaceDraftAction(input: {
+  sessionId: string;
+  stepIndex: number;
+  state: EquationOpsState;
+  wrongs: number;
+  elapsedMs: number;
+}) {
+  const response = buildRaceDraftPayload(
+    input.state,
+    input.wrongs,
+    input.elapsedMs,
+  );
+  return inquirySubmitResponse({
+    sessionId: input.sessionId,
+    stepIndex: input.stepIndex,
+    response,
+    result: null,
   });
 }
 

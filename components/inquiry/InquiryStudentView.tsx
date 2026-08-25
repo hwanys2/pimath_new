@@ -44,7 +44,21 @@ import * as raceActions from "@/app/play/g1-u2-2-linear-equation-race/actions";
 import * as tangentActions from "@/app/play/g3-u3-1-tangent-intro/actions";
 import * as sincosActions from "@/app/play/g3-u3-1-sincos-intro/actions";
 import { effectiveInquiryStepCount } from "@/lib/inquiry-step-counts";
-import { restoreInquiryStep } from "@/lib/inquiry-workspace-restore";
+import { extractSketchFromResponse } from "@/lib/inquiry-draft-payload";
+import {
+  readInquiryLocalDraft,
+  writeInquiryLocalDraft,
+  type InquiryStepLocalDraft,
+} from "@/lib/inquiry-local-draft";
+import {
+  readSketchDraft,
+  sketchPersistKey,
+  writeSketchDraft,
+} from "@/lib/inquiry-sketch-persist";
+import {
+  hasRestorableResponse,
+  restoreInquiryStep,
+} from "@/lib/inquiry-workspace-restore";
 import {
   INQUIRY_POLL_MS,
   type InquiryPhase,
@@ -223,8 +237,18 @@ export default function InquiryStudentView({
       stepIndex: number,
       response: Record<string, unknown>,
       result: InquiryResult | null,
+      sid: string | null,
     ) => {
       if (!validKey) return;
+
+      const sketch = extractSketchFromResponse(response);
+      if (sketch && sid) {
+        writeSketchDraft(
+          sketchPersistKey(validKey, sid, stepIndex),
+          sketch,
+        );
+      }
+
       const restored = restoreInquiryStep(validKey, stepIndex, response);
       if (!restored) {
         resetStep(stepIndex);
@@ -260,6 +284,45 @@ export default function InquiryStudentView({
       prevStepRef.current = stepIndex;
     },
     [validKey, applySubmitMeta, resetStep],
+  );
+
+  const applyLocalDraft = useCallback(
+    (stepIndex: number, sid: string): boolean => {
+      if (!validKey) return false;
+      const draft = readInquiryLocalDraft(validKey, sid, stepIndex);
+      if (!draft) return false;
+
+      wrongRef.current = draft.wrongAttempts;
+      setWrongAttempts(draft.wrongAttempts);
+      setSubmitted(draft.submitted);
+      submittedRef.current = draft.submitted;
+      setSubmitFeedback(draft.submitFeedback);
+
+      if (validKey === "g3-u1-radical-fill" && draft.texts) {
+        setTexts(draft.texts);
+      } else if (validKey === "g1-u2-2-linear-equation-balance") {
+        if (draft.balanceWorkspace) setBalanceWorkspace(draft.balanceWorkspace);
+        if (typeof draft.balanceMoves === "number") {
+          setBalanceMoves(draft.balanceMoves);
+        }
+      } else if (validKey === "g1-u2-2-linear-equation-race") {
+        if (draft.raceState) setRaceState(draft.raceState);
+        setStepStartedAt(draft.stepStartedAt ?? Date.now());
+        setEarnedScore(draft.earnedScore ?? null);
+      } else if (validKey === "g3-u3-1-tangent-intro") {
+        if (draft.tangentWorkspace) setTangentWorkspace(draft.tangentWorkspace);
+      } else if (validKey === "g3-u3-1-sincos-intro") {
+        if (draft.sincosWorkspace) setSincosWorkspace(draft.sincosWorkspace);
+      }
+
+      setRadicalNotice(null);
+      setBalanceNotice(null);
+      setTangentNotice(null);
+      setSincosNotice(null);
+      prevStepRef.current = stepIndex;
+      return true;
+    },
+    [validKey],
   );
 
   useEffect(() => {
@@ -312,8 +375,18 @@ export default function InquiryStudentView({
       const enteredLive = poll.phase === "live" && prevPhase !== "live";
 
       if (poll.phase === "live" && (enteredLive || stepChanged)) {
-        if (poll.myStepResponse) {
-          hydrateStep(poll.stepIndex, poll.myStepResponse, poll.myStepResult);
+        if (
+          poll.myStepResponse &&
+          hasRestorableResponse(poll.myStepResponse)
+        ) {
+          hydrateStep(
+            poll.stepIndex,
+            poll.myStepResponse,
+            poll.myStepResult,
+            join.sessionId,
+          );
+        } else if (applyLocalDraft(poll.stepIndex, join.sessionId)) {
+          // Restored from browser cache.
         } else {
           resetStep(poll.stepIndex);
         }
@@ -328,7 +401,112 @@ export default function InquiryStudentView({
       void tick();
     }, INQUIRY_POLL_MS);
     return () => window.clearInterval(id);
-  }, [studentClassId, canParticipate, validKey, resetStep, hydrateStep, applySubmitMeta]);
+  }, [
+    studentClassId,
+    canParticipate,
+    validKey,
+    resetStep,
+    hydrateStep,
+    applyLocalDraft,
+    applySubmitMeta,
+  ]);
+
+  const currentSketchKey =
+    sessionId && validKey
+      ? sketchPersistKey(validKey, sessionId, state.stepIndex)
+      : null;
+
+  useEffect(() => {
+    if (!sessionId || !validKey || state.phase !== "live") return;
+
+    const timer = window.setTimeout(() => {
+      const draft: InquiryStepLocalDraft = {
+        v: 1,
+        wrongAttempts: wrongRef.current,
+        submitted,
+        submitFeedback,
+      };
+
+      if (validKey === "g3-u1-radical-fill") {
+        draft.texts = texts;
+      } else if (validKey === "g1-u2-2-linear-equation-balance") {
+        draft.balanceWorkspace = balanceWorkspace;
+        draft.balanceMoves = balanceMoves;
+      } else if (validKey === "g1-u2-2-linear-equation-race") {
+        draft.raceState = raceState;
+        draft.stepStartedAt = stepStartedAt;
+        draft.earnedScore = earnedScore;
+      } else if (validKey === "g3-u3-1-tangent-intro") {
+        draft.tangentWorkspace = tangentWorkspace;
+      } else if (validKey === "g3-u3-1-sincos-intro") {
+        draft.sincosWorkspace = sincosWorkspace;
+      }
+
+      writeInquiryLocalDraft(validKey, sessionId, state.stepIndex, draft);
+
+      const sketch = currentSketchKey ? readSketchDraft(currentSketchKey) : null;
+
+      if (validKey === "g3-u1-radical-fill") {
+        void radicalFillActions.inquirySaveRadicalDraftAction({
+          sessionId,
+          stepIndex: state.stepIndex,
+          texts,
+          wrongs: wrongRef.current,
+        });
+      } else if (validKey === "g1-u2-2-linear-equation-balance") {
+        void balanceActions.inquirySaveBalanceDraftAction({
+          sessionId,
+          stepIndex: state.stepIndex,
+          workspace: balanceWorkspace,
+          wrongs: wrongRef.current,
+          moves: balanceMoves,
+        });
+      } else if (validKey === "g1-u2-2-linear-equation-race") {
+        const elapsedMs = stepStartedAt ? Date.now() - stepStartedAt : 0;
+        void raceActions.inquirySaveRaceDraftAction({
+          sessionId,
+          stepIndex: state.stepIndex,
+          state: raceState,
+          wrongs: wrongRef.current,
+          elapsedMs,
+        });
+      } else if (validKey === "g3-u3-1-tangent-intro") {
+        void tangentActions.inquirySaveTangentDraftAction({
+          sessionId,
+          stepIndex: state.stepIndex,
+          workspace: tangentWorkspace,
+          wrongs: wrongRef.current,
+          sketch,
+        });
+      } else if (validKey === "g3-u3-1-sincos-intro") {
+        void sincosActions.inquirySaveSincosDraftAction({
+          sessionId,
+          stepIndex: state.stepIndex,
+          workspace: sincosWorkspace,
+          wrongs: wrongRef.current,
+          sketch,
+        });
+      }
+    }, 900);
+
+    return () => window.clearTimeout(timer);
+  }, [
+    sessionId,
+    validKey,
+    state.phase,
+    state.stepIndex,
+    texts,
+    balanceWorkspace,
+    balanceMoves,
+    raceState,
+    stepStartedAt,
+    earnedScore,
+    tangentWorkspace,
+    sincosWorkspace,
+    submitted,
+    submitFeedback,
+    currentSketchKey,
+  ]);
 
   const onSubmitRadical = () => {
     if (!sessionId || state.phase !== "live" || !validKey) return;
@@ -612,6 +790,7 @@ export default function InquiryStudentView({
             submitted={submitted}
             submitFeedback={submitFeedback}
             onSubmit={onSubmitTangent}
+            sketchPersistKey={currentSketchKey}
           />
         ) : validKey === "g3-u3-1-sincos-intro" ? (
           <InquirySincosIntroStep
@@ -629,6 +808,7 @@ export default function InquiryStudentView({
             submitted={submitted}
             submitFeedback={submitFeedback}
             onSubmit={onSubmitSincos}
+            sketchPersistKey={currentSketchKey}
           />
         ) : (
           <InquiryLinearEquationBalanceStep

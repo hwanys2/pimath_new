@@ -4,6 +4,8 @@ import {
   inquiryFinalizeActiveSessionForClass,
   inquiryFinalizeSession,
 } from "@/lib/inquiry-finalize";
+import { buildSincosDraftPayload } from "@/lib/inquiry-draft-payload";
+import type { SketchpadPersisted } from "@/lib/inquiry-sketch-persist";
 import {
   CONTENT_KEY,
   PROBLEM_COUNT,
@@ -103,6 +105,27 @@ export async function inquirySubmitSincosAction(input: {
     stepIndex: input.stepIndex,
     response: graded.response,
     result: graded.result,
+  });
+}
+
+export async function inquirySaveSincosDraftAction(input: {
+  sessionId: string;
+  stepIndex: number;
+  workspace: SincosWorkspace;
+  wrongs: number;
+  sketch?: SketchpadPersisted | null;
+}) {
+  const response = buildSincosDraftPayload(
+    input.stepIndex,
+    input.workspace,
+    input.wrongs,
+    input.sketch,
+  );
+  return inquirySubmitResponse({
+    sessionId: input.sessionId,
+    stepIndex: input.stepIndex,
+    response,
+    result: null,
   });
 }
 

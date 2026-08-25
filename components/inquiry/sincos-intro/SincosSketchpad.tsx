@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   allIntersections,
   ANGLE_DIAL_MAX,
@@ -32,11 +32,11 @@ import {
   type HypCircle,
 } from "@/lib/inquiry-sincos-sketch";
 import {
-  RulerOverlay,
-  RULER_DEFAULT,
-  AngleDegreeMark,
-  type OverlayPose,
-} from "@/components/inquiry/tangent-intro/SketchOverlays";
+  readSketchDraft,
+  writeSketchDraft,
+  type SketchpadPersisted,
+} from "@/lib/inquiry-sketch-persist";
+import { AngleDegreeMark } from "@/components/inquiry/tangent-intro/SketchOverlays";
 
 type Tool = "segment" | "perp" | "angle" | "measure" | "move" | "erase";
 
@@ -84,6 +84,7 @@ const TOOLS: { id: Tool; label: string; hint: string }[] = [
 
 type Props = {
   locked?: boolean;
+  persistKey?: string | null;
 };
 
 type AngleSession = {
@@ -114,7 +115,10 @@ function belowSemicirclePath(
   return `M ${first.x} ${first.y} L ${rest}`;
 }
 
-export default function SincosSketchpad({ locked = false }: Props) {
+export default function SincosSketchpad({
+  locked = false,
+  persistKey = null,
+}: Props) {
   const svgRef = useRef<SVGSVGElement | null>(null);
   const wrapRef = useRef<HTMLDivElement | null>(null);
   const idRef = useRef(1);
@@ -137,7 +141,6 @@ export default function SincosSketchpad({ locked = false }: Props) {
     {},
   );
   const [hover, setHover] = useState<Vec2 | null>(null);
-  const [ruler, setRuler] = useState<OverlayPose | null>(null);
 
   const intersections = useMemo(() => allIntersections(segs), [segs]);
   const hypSeg = segs.find((s) => s.id === hypSegId) ?? null;
@@ -175,6 +178,33 @@ export default function SincosSketchpad({ locked = false }: Props) {
     draggingAngle.current = false;
     draggingLabel.current = null;
   };
+
+  useEffect(() => {
+    if (!persistKey) return;
+    const saved = readSketchDraft(persistKey);
+    if (!saved) return;
+    setSegs(saved.segs);
+    setHypSegId(saved.hypSegId ?? null);
+    setMeasuredChunks(new Set(saved.measuredChunks));
+    setLabelOffsets(saved.labelOffsets);
+    idRef.current = Math.max(1, saved.nextId);
+    setHistory([]);
+    resetToolState();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- load once per persistKey
+  }, [persistKey]);
+
+  useEffect(() => {
+    if (!persistKey) return;
+    const payload: SketchpadPersisted = {
+      v: 1,
+      segs,
+      measuredChunks: [...measuredChunks],
+      labelOffsets,
+      nextId: idRef.current,
+      hypSegId,
+    };
+    writeSketchDraft(persistKey, payload);
+  }, [persistKey, segs, measuredChunks, labelOffsets, hypSegId]);
 
   const addSeg = (a: Vec2, b: Vec2, extra?: Pick<SketchSeg, "angle">) => {
     if (Math.hypot(a.x - b.x, a.y - b.y) < 0.2) return;
@@ -413,15 +443,6 @@ export default function SincosSketchpad({ locked = false }: Props) {
     setLabelOffsets({});
   };
 
-  const toggleRuler = () => {
-    const wrap = wrapRef.current;
-    const cx = wrap ? wrap.clientWidth / 2 : 180;
-    const cy = wrap ? wrap.clientHeight / 2 : 160;
-    setRuler((r) =>
-      r ? null : { x: cx, y: cy + 40, angle: 0, length: RULER_DEFAULT },
-    );
-  };
-
   const hint =
     tool === "move"
       ? "길이 숫자를 드래그해 보이는 위치로 옮기세요."
@@ -472,18 +493,6 @@ export default function SincosSketchpad({ locked = false }: Props) {
             {t.label}
           </button>
         ))}
-        <span className="mx-1 h-4 w-px bg-wood/20" />
-        <button
-          type="button"
-          disabled={locked}
-          onClick={toggleRuler}
-          className={[
-            "rounded-lg px-2.5 py-1 text-xs font-bold",
-            ruler ? "bg-gold/80 text-wood" : "bg-wood/10 text-wood hover:bg-wood/15",
-          ].join(" ")}
-        >
-          자
-        </button>
         <span className="ml-auto flex gap-1">
           <button
             type="button"
@@ -854,10 +863,6 @@ export default function SincosSketchpad({ locked = false }: Props) {
             />
           ) : null}
         </svg>
-
-        {ruler && !locked ? (
-          <RulerOverlay pose={ruler} onChange={setRuler} onClose={() => setRuler(null)} />
-        ) : null}
       </div>
     </div>
   );

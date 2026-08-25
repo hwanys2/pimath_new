@@ -16,6 +16,8 @@ import {
   inquiryFinalizeActiveSessionForClass,
   inquiryFinalizeSession,
 } from "@/lib/inquiry-finalize";
+import { buildTangentDraftPayload } from "@/lib/inquiry-draft-payload";
+import type { SketchpadPersisted } from "@/lib/inquiry-sketch-persist";
 import {
   CONTENT_KEY,
   PROBLEM_COUNT,
@@ -103,6 +105,27 @@ export async function inquirySubmitTangentAction(input: {
     stepIndex: input.stepIndex,
     response: graded.response,
     result: graded.result,
+  });
+}
+
+export async function inquirySaveTangentDraftAction(input: {
+  sessionId: string;
+  stepIndex: number;
+  workspace: TangentWorkspace;
+  wrongs: number;
+  sketch?: SketchpadPersisted | null;
+}) {
+  const response = buildTangentDraftPayload(
+    input.stepIndex,
+    input.workspace,
+    input.wrongs,
+    input.sketch,
+  );
+  return inquirySubmitResponse({
+    sessionId: input.sessionId,
+    stepIndex: input.stepIndex,
+    response,
+    result: null,
   });
 }
 

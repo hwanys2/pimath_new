@@ -11,6 +11,7 @@ import {
 import type { BalanceFillResponsePayload } from "@/lib/inquiry-linear-equation-balance";
 import type { EquationOpsResponsePayload } from "@/lib/inquiry-equation-ops";
 import type { InquiryContentKey } from "@/lib/inquiry-content-registry";
+import type { InquiryResult } from "@/lib/inquiry-types";
 import type { RadicalFillResponsePayload } from "@/lib/inquiry-radical-fill";
 import {
   emptyTangentWorkspace,
@@ -39,16 +40,28 @@ function wrongsFromResponse(response: Record<string, unknown>): number {
   return typeof w === "number" && Number.isFinite(w) ? Math.max(0, Math.floor(w)) : 0;
 }
 
+function isDraftResponse(raw: Record<string, unknown>): boolean {
+  return raw.draft === true;
+}
+
+function metaFromResponse(
+  raw: Record<string, unknown>,
+  result: InquiryResult | null,
+): RestoredInquiryStep {
+  const submitted = !isDraftResponse(raw) && result != null;
+  return {
+    wrongAttempts: wrongsFromResponse(raw),
+    submitted,
+  };
+}
+
 export function tangentWorkspaceFromResponse(
   stepIndex: number,
   raw: Record<string, unknown>,
 ): { workspace: TangentWorkspace; meta: RestoredInquiryStep } {
   const base = emptyTangentWorkspace(stepIndex);
-  const response = raw as TangentResponsePayload;
-  const meta: RestoredInquiryStep = {
-    wrongAttempts: wrongsFromResponse(raw),
-    submitted: true,
-  };
+  const response = raw as TangentResponsePayload & { draft?: boolean; sketch?: unknown };
+  const meta = metaFromResponse(raw, null);
 
   if (response.kind === "height") {
     return {
@@ -98,11 +111,8 @@ export function sincosWorkspaceFromResponse(
   raw: Record<string, unknown>,
 ): { workspace: SincosWorkspace; meta: RestoredInquiryStep } {
   const base = emptySincosWorkspace(stepIndex);
-  const response = raw as SincosResponsePayload & { baseT?: number };
-  const meta: RestoredInquiryStep = {
-    wrongAttempts: wrongsFromResponse(raw),
-    submitted: true,
-  };
+  const response = raw as SincosResponsePayload & { draft?: boolean; sketch?: unknown };
+  const meta = metaFromResponse(raw, null);
 
   if (response.kind === "scene") {
     return {
@@ -156,11 +166,8 @@ export function radicalTextsFromResponse(
   stepIndex: number,
   raw: Record<string, unknown>,
 ): { texts: TermTexts[]; meta: RestoredInquiryStep } {
-  const response = raw as RadicalFillResponsePayload;
-  const meta: RestoredInquiryStep = {
-    wrongAttempts: wrongsFromResponse(raw),
-    submitted: true,
-  };
+  const response = raw as RadicalFillResponsePayload & { draft?: boolean };
+  const meta = metaFromResponse(raw, null);
   if (!Array.isArray(response.fills)) {
     return { texts: [], meta: { wrongAttempts: 0, submitted: false } };
   }
@@ -175,11 +182,8 @@ export function balanceWorkspaceFromResponse(
   stepIndex: number,
   raw: Record<string, unknown>,
 ): { workspace: TileWorkspace; moves: number; meta: RestoredInquiryStep } {
-  const response = raw as BalanceFillResponsePayload;
-  const meta: RestoredInquiryStep = {
-    wrongAttempts: wrongsFromResponse(raw),
-    submitted: true,
-  };
+  const response = raw as BalanceFillResponsePayload & { draft?: boolean };
+  const meta = metaFromResponse(raw, null);
   if (
     response.left &&
     response.right &&
@@ -208,11 +212,8 @@ export function equationOpsStateFromResponse(
   stepIndex: number,
   raw: Record<string, unknown>,
 ): { state: EquationOpsState; meta: RestoredInquiryStep } {
-  const response = raw as EquationOpsResponsePayload;
-  const meta: RestoredInquiryStep = {
-    wrongAttempts: wrongsFromResponse(raw),
-    submitted: true,
-  };
+  const response = raw as EquationOpsResponsePayload & { draft?: boolean };
+  const meta = metaFromResponse(raw, null);
   const base = equationOpsInitialState(stepIndex);
 
   if (
@@ -249,6 +250,7 @@ export function equationOpsStateFromResponse(
 
 export function hasRestorableResponse(raw: Record<string, unknown> | null): boolean {
   if (!raw || Object.keys(raw).length === 0) return false;
+  if (raw.draft === true) return true;
   if ("fills" in raw && Array.isArray(raw.fills)) return true;
   if ("left" in raw && "right" in raw) return true;
   if ("trail" in raw && Array.isArray(raw.trail)) return true;
