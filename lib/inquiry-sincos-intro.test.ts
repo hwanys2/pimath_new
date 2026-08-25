@@ -71,6 +71,7 @@ describe("sincos intro scenes", () => {
     assert.equal(HYP_SCENES[1]!.hyp, 4.7);
     assert.equal(HYP_SCENES[1]!.defaultAngleDeg, 60);
     assert.equal(HYP_SCENES[2]!.hyp, 37);
+    assert.equal(HYP_SCENES[2]!.angleAdjustable, false);
     assert.equal(HYP_SCENES[2]!.randomizeInitialAngle, true);
   });
 
@@ -83,6 +84,19 @@ describe("sincos intro scenes", () => {
     assert.ok(a >= 30 && a <= 70);
     assert.ok(c >= 30 && c <= 70);
     assert.equal(seededAngleDeg("fixed", 30, 70), seededAngleDeg("fixed", 30, 70));
+  });
+
+  it("keeps seeded tablet angle when normalizing drafts", () => {
+    const seed = "student-42";
+    const expected = initialAngleDeg(HYP_SCENES[2]!, seed);
+    const ws = normalizeSincosWorkspace(
+      2,
+      { angleDeg: 55, adjText: "10", oppText: "20" },
+      { seed },
+    );
+    assert.equal(ws.angleDeg, expected);
+    assert.equal(ws.adjText, "10");
+    assert.equal(ws.oppText, "20");
   });
 
   it("clamps elevation angle to 1 degree within the scene range", () => {

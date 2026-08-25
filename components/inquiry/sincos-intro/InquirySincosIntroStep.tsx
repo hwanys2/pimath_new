@@ -95,6 +95,11 @@ export default function InquirySincosIntroStep({
     (wrongSet.has("cosName") ||
       (softNotice?.reason === "incomplete" && !cosNameText.trim()));
   const unit = scene?.unit ?? "m";
+  // Tablet: students get a fixed random angle; teacher demo can still drag.
+  const sceneForView =
+    scene && hostPreview && scene.randomizeInitialAngle
+      ? { ...scene, angleAdjustable: true }
+      : scene;
 
   const badge =
     kind === "define"
@@ -275,9 +280,9 @@ export default function InquirySincosIntroStep({
             </div>
           ) : kind === "define" ? (
             <SincosDefineFigure />
-          ) : scene ? (
+          ) : sceneForView ? (
             <HypotenuseSceneView
-              scene={scene}
+              scene={sceneForView}
               angleDeg={workspace.angleDeg}
               baseT={workspace.baseT}
               onChange={({ angleDeg, baseT }) =>

@@ -77,13 +77,14 @@ export const HYP_SCENES: HypScene[] = [
     title: "태블릿 거치대",
     objectLabel: "거치대",
     prompt:
-      "길이가 37cm인 태블릿 거치대의 각도를 바꾸며 세웁니다. 지금 각에서 거치대가 만드는 높이와 책상 위의 거리는 얼마일까요? 끝점을 움직여 각을 바꾼 뒤, 오른쪽에서 빗변을 반지름으로 원을 그리고 직각삼각형을 작도해 보세요.",
+      "길이가 37cm인 태블릿 거치대가 지금 각으로 세워져 있습니다. 거치대가 만드는 높이와 책상 위의 거리는 얼마일까요? 오른쪽에서 빗변을 반지름으로 원을 그리고 직각삼각형을 작도해 보세요.",
     hyp: 37,
     unit: "cm",
     minAngleDeg: 30,
     maxAngleDeg: 70,
     defaultAngleDeg: 50,
-    angleAdjustable: true,
+    /** Students get a fixed random angle; teachers can still drag in host preview. */
+    angleAdjustable: false,
     randomizeInitialAngle: true,
     defaultBaseT: 0.38,
     absFloor: 1,
@@ -220,9 +221,12 @@ export function normalizeSincosWorkspace(
 ): SincosWorkspace {
   const base = emptySincosWorkspace(stepIndex, opts);
   if (!partial) return base;
+  const scene = hypSceneAt(stepIndex);
   return {
     ...base,
     ...partial,
+    // Fixed-angle scenes keep the seeded/default angle (ignore stale drafts).
+    angleDeg: scene && !scene.angleAdjustable ? base.angleDeg : (partial.angleDeg ?? base.angleDeg),
     sinRatios: { ...base.sinRatios, ...(partial.sinRatios ?? {}) },
     cosRatios: { ...base.cosRatios, ...(partial.cosRatios ?? {}) },
     sinNameText:
