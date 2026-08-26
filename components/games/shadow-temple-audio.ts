@@ -76,12 +76,36 @@ export class TempleAudio {
     const cleaned = text.replace(/\s+/g, " ").trim();
     if (!cleaned) return;
     try {
+      // Some browsers keep speechSynthesis paused after cancel(); resume first.
+      try {
+        window.speechSynthesis.resume();
+      } catch {
+        /* ignore */
+      }
       const utter = new SpeechSynthesisUtterance(cleaned);
       utter.lang = "ko-KR";
       utter.rate = 1.02;
       const voice = pickKoreanVoice();
       if (voice) utter.voice = voice;
       window.speechSynthesis.speak(utter);
+    } catch {
+      /* ignore */
+    }
+  }
+
+  /**
+   * Call from a user gesture so later auto-narration is allowed
+   * (Chrome/Safari speechSynthesis autoplay quirk).
+   */
+  unlockSpeech() {
+    if (typeof window === "undefined" || !window.speechSynthesis) return;
+    try {
+      window.speechSynthesis.cancel();
+      const warm = new SpeechSynthesisUtterance("\u200b");
+      warm.volume = 0;
+      warm.lang = "ko-KR";
+      window.speechSynthesis.speak(warm);
+      window.speechSynthesis.cancel();
     } catch {
       /* ignore */
     }

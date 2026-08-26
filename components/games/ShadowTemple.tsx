@@ -748,34 +748,31 @@ export default function ShadowTemple() {
   const dangerTime = torchesLeft <= 2 && torchesLeft > 0;
 
   /**
-   * TTS only after the matching on-screen narration is fully visible
-   * (storyDone / unlocked prompt), and only reads those exact lines.
+   * Narrate as soon as the matching text appears (same moment as Typewriter),
+   * not after the typewriter finishes — and again when advancing screens.
    */
   useEffect(() => {
-    if (phase !== "prologue" || !storyDone || PROLOGUE.length === 0) {
-      return;
-    }
+    if (phase !== "prologue" || PROLOGUE.length === 0) return;
     const audio = getAudio();
-    const t = window.setTimeout(() => audio.speak(joinNarration(PROLOGUE)), 200);
+    const t = window.setTimeout(() => audio.speak(joinNarration(PROLOGUE)), 60);
     return () => {
       window.clearTimeout(t);
       audio.stopSpeak();
     };
-  }, [phase, storyDone, getAudio]);
+  }, [phase, getAudio]);
 
   useEffect(() => {
-    if (phase !== "playing" || stage !== "enter" || !room || !storyDone) return;
+    if (phase !== "playing" || stage !== "enter" || !room) return;
     const audio = getAudio();
-    // Same lines as the Typewriter body — title/objective stay as headings only.
     const t = window.setTimeout(
       () => audio.speak(joinNarration(room.enterStory)),
-      200,
+      60,
     );
     return () => {
       window.clearTimeout(t);
       audio.stopSpeak();
     };
-  }, [phase, stage, roomIndex, room, storyDone, getAudio]);
+  }, [phase, stage, roomIndex, room, getAudio]);
 
   useEffect(() => {
     if (phase !== "playing" || stage !== "solve" || !puzzle || !allCluesFound) {
@@ -786,7 +783,7 @@ export default function ShadowTemple() {
     const lines = [puzzle.prompt, puzzle.approxNote].filter(
       (line): line is string => Boolean(line),
     );
-    const t = window.setTimeout(() => audio.speak(joinNarration(lines)), 200);
+    const t = window.setTimeout(() => audio.speak(joinNarration(lines)), 60);
     return () => {
       window.clearTimeout(t);
       audio.stopSpeak();
@@ -801,6 +798,17 @@ export default function ShadowTemple() {
     solvedInfo,
     getAudio,
   ]);
+
+  useEffect(() => {
+    if (phase !== "cinematic") return;
+    const audio = getAudio();
+    const lines = outcome === "escaped" ? ESCAPE_STORY : TRAPPED_STORY;
+    const t = window.setTimeout(() => audio.speak(joinNarration(lines)), 60);
+    return () => {
+      window.clearTimeout(t);
+      audio.stopSpeak();
+    };
+  }, [phase, outcome, getAudio]);
 
   /* --------------------------------------------------------- ending */
 
@@ -839,6 +847,9 @@ export default function ShadowTemple() {
       setStoryDone(false);
       setPhase("cinematic");
       phaseRef.current = "cinematic";
+      const endingLines =
+        finalOutcome === "escaped" ? ESCAPE_STORY : TRAPPED_STORY;
+      audio.speak(joinNarration(endingLines));
 
       startTransition(async () => {
         const result = await submitGameRun({
@@ -936,8 +947,11 @@ export default function ShadowTemple() {
     heartbeatOnRef.current = false;
     torchesRef.current = TORCH_COUNT;
     const audio = getAudio();
+    audio.unlockSpeech();
     audio.startAmbience();
     audio.play("door");
+    // Start prologue narration in the same user gesture as the click.
+    audio.speak(joinNarration(PROLOGUE));
     setPhase("prologue");
     phaseRef.current = "prologue";
   };
@@ -946,7 +960,11 @@ export default function ShadowTemple() {
     deadlineRef.current = Date.now() + TOTAL_TIME_SEC * 1000;
     setTimeLeft(TOTAL_TIME_SEC);
     torchesRef.current = TORCH_COUNT;
-    sfx("door");
+    const first = run?.rooms[0];
+    const audio = getAudio();
+    audio.unlockSpeech();
+    audio.play("door");
+    if (first) audio.speak(joinNarration(first.enterStory));
     setStoryDone(false);
     setPhase("playing");
     phaseRef.current = "playing";
@@ -967,12 +985,17 @@ export default function ShadowTemple() {
     if (!clue || found.has(clueId)) return;
     sfx("clue");
     cluesTotalRef.current += 1;
-    setFound((prev) => {
-      const next = new Set(prev);
-      next.add(clueId);
-      return next;
-    });
+    const nextFound = new Set(found);
+    nextFound.add(clueId);
+    setFound(nextFound);
     setStatusMsg(`[${clue.label}] ${clue.text}`);
+    // Last clue unlocks the prompt — narrate in this click gesture.
+    if (puzzle.clues.every((c) => nextFound.has(c.id))) {
+      const lines = [puzzle.prompt, puzzle.approxNote].filter(
+        (line): line is string => Boolean(line),
+      );
+      getAudio().speak(joinNarration(lines));
+    }
   };
 
   const openHint = () => {
@@ -1106,6 +1129,7 @@ export default function ShadowTemple() {
       return;
     }
     sfx("door");
+    const nextRoom = run.rooms[roomIndex + 1];
     setRoomIndex((r) => r + 1);
     setPuzzleIndex(0);
     setStage("enter");
@@ -1118,6 +1142,9 @@ export default function ShadowTemple() {
     setStoryOpen(false);
     setHintOpen(false);
     setStatusMsg("");
+    if (nextRoom) {
+      getAudio().speak(joinNarration(nextRoom.enterStory));
+    }
   };
 
   const finishCinematic = () => {
