@@ -177,17 +177,17 @@ export function currentTorchSecondsLeft(timeLeftSec: number): number {
 }
 
 /**
- * Numeric answers are one-decimal cleans (√3 → 1.7 substituted at the end).
- * Accept ±0.25 so a student who substitutes the approximation early
- * (slightly different rounding path) is still counted as correct,
- * while every other pool variant stays clearly out of range.
+ * Numeric answers are curated to integers or one decimal place
+ * (√3 → 1.7, √2 → 1.4 substituted at the end).
+ * Require the same tenth — e.g. 5 is not accepted for 5.1, 7 not for 6.8.
  */
 export function checkNumericAnswer(raw: string, answer: number): boolean {
   const cleaned = raw.replace(/[^\d.\-]/g, "");
   if (!cleaned) return false;
   const value = Number.parseFloat(cleaned);
   if (!Number.isFinite(value)) return false;
-  return Math.abs(value - answer) <= 0.25;
+  const round1 = (n: number) => Math.round(n * 10) / 10;
+  return round1(value) === round1(answer);
 }
 
 export function formatClock(sec: number): string {
