@@ -16,6 +16,7 @@ import {
   useRef,
   useState,
   useTransition,
+  memo,
 } from "react";
 import type { RankingMode, RankingRow, RankingScope } from "@/lib/game-types";
 import GameRankingBoard from "@/components/games/GameRankingBoard";
@@ -55,6 +56,7 @@ import {
   type DialInput,
   type NumericInput,
   type Puzzle,
+  type Room,
   type TempleRun,
 } from "@/lib/shadow-temple-math";
 
@@ -72,75 +74,35 @@ type PuzzleLog = {
   hint: number;
 };
 
-/** Join lines for TTS — must match exactly what is shown on screen. */
-function joinNarration(lines: readonly string[]): string {
-  return lines
-    .map((line) => line.trim())
-    .filter(Boolean)
-    .join(" ");
-}
-
 /* ---------------------------------------------------- story reveal */
 
-/** Reveal narration lines one at a time — no click needed; tap to skip to the end. */
+/**
+ * Show every narration line at once. Previous typewriter / line-queue
+ * versions reset whenever the parent re-rendered (torch timer), so the
+ * text blinked and could not be read.
+ */
 function StoryReveal({
   lines,
   onDone,
-  linePause = 850,
 }: {
-  lines: string[];
+  lines: readonly string[];
   onDone: () => void;
-  linePause?: number;
 }) {
-  const [visibleCount, setVisibleCount] = useState(0);
-  const doneRef = useRef(false);
   const onDoneRef = useRef(onDone);
   onDoneRef.current = onDone;
 
   useEffect(() => {
-    setVisibleCount(0);
-    doneRef.current = false;
-  }, [lines]);
-
-  useEffect(() => {
-    if (lines.length === 0) {
-      if (!doneRef.current) {
-        doneRef.current = true;
-        onDoneRef.current();
-      }
-      return;
-    }
-    if (visibleCount >= lines.length) {
-      if (!doneRef.current) {
-        doneRef.current = true;
-        onDoneRef.current();
-      }
-      return;
-    }
-    const delay = visibleCount === 0 ? 120 : linePause;
-    const t = window.setTimeout(() => {
-      setVisibleCount((c) => c + 1);
-    }, delay);
+    const t = window.setTimeout(() => onDoneRef.current(), 280);
     return () => window.clearTimeout(t);
-  }, [lines.length, visibleCount, linePause]);
-
-  const skip = () => {
-    if (visibleCount < lines.length) {
-      setVisibleCount(lines.length);
-    }
-  };
+  }, []);
 
   return (
-    <div
-      className="cursor-pointer space-y-3 text-left"
-      onClick={skip}
-      role="presentation"
-    >
-      {lines.slice(0, visibleCount).map((line, i) => (
+    <div className="space-y-3 text-left">
+      {lines.map((line, i) => (
         <p
           key={i}
           className={[
-            "st-fade-in text-sm leading-relaxed sm:text-base",
+            "text-sm leading-relaxed sm:text-base",
             line.startsWith("「")
               ? "font-semibold text-wood"
               : "text-foreground/80",
@@ -152,6 +114,50 @@ function StoryReveal({
     </div>
   );
 }
+
+const RoomEnterBody = memo(function RoomEnterBody({
+  room,
+  storyDone,
+  onStoryDone,
+  onStart,
+}: {
+  room: Room;
+  storyDone: boolean;
+  onStoryDone: () => void;
+  onStart: () => void;
+}) {
+  return (
+    <div className="st-room-enter px-5 py-7 sm:px-8">
+      <p className="text-sm font-bold text-wood/55">{room.id}번째 방</p>
+      <h2 className="font-display mt-1 text-2xl text-wood sm:text-3xl">
+        {room.title}
+      </h2>
+      <p className="mt-1 text-xs font-bold text-wood/60">{room.objective}</p>
+      <div className="mt-5">
+        <StoryReveal
+          key={`story-${room.id}`}
+          lines={room.enterStory}
+          onDone={onStoryDone}
+        />
+      </div>
+      <div className="mt-6">
+        {storyDone ? (
+          <StoneButton
+            variant="gold"
+            onClick={onStart}
+            className="px-8 py-3 text-base"
+          >
+            방 조사 시작
+          </StoneButton>
+        ) : (
+          <p className="text-xs font-semibold text-wood/45">
+            이야기가 끝나면 조사를 시작할 수 있어요
+          </p>
+        )}
+      </div>
+    </div>
+  );
+});
 
 /* ------------------------------------------------------- torch rack */
 
@@ -713,12 +719,15 @@ export default function ShadowTemple() {
 
   const narrate = useCallback(
     (lines: readonly string[]) => {
-      const text = joinNarration(lines);
-      if (!text || mutedRef.current) return;
-      getAudio().speak(text);
+      if (mutedRef.current) return;
+      getAudio().speakLines(lines);
     },
     [getAudio],
   );
+
+  const markStoryDone = useCallback(() => {
+    setStoryDone(true);
+  }, []);
 
   useEffect(() => {
     warmSpeechVoices();
@@ -743,6 +752,9 @@ export default function ShadowTemple() {
       } catch {
         /* ignore */
       }
+      const audio = getAudio();
+      audio.setMuted(next);
+      if (!next) audio.unlockSpeech();
       return next;
     });
   };
@@ -917,14 +929,14 @@ export default function ShadowTemple() {
     phaseRef.current = "playing";
   };
 
-  const startInvestigation = () => {
+  const startInvestigation = useCallback(() => {
     sfx("click");
     setStage("solve");
     setStoryOpen(false);
     setStatusMsg(
       "방의 기록이 가방에 들어갔다. 필요할 때 「방의 기록」을 눌러 다시 읽을 수 있다.",
     );
-  };
+  }, [sfx]);
 
   const onFindClue = (clueId: string) => {
     if (!puzzle) return;
@@ -936,13 +948,12 @@ export default function ShadowTemple() {
     nextFound.add(clueId);
     setFound(nextFound);
     setStatusMsg(`[${clue.label}] ${clue.text}`);
-    // Last clue unlocks the prompt — narrate in this click gesture.
+    const spoken = [`${clue.label}. ${clue.text}`];
     if (puzzle.clues.every((c) => nextFound.has(c.id))) {
-      const lines = [puzzle.prompt, puzzle.approxNote].filter(
-        (line): line is string => Boolean(line),
-      );
-      narrate(lines);
+      spoken.push(puzzle.prompt);
+      if (puzzle.approxNote) spoken.push(puzzle.approxNote);
     }
+    narrate(spoken);
   };
 
   const openHint = () => {
@@ -1202,8 +1213,8 @@ export default function ShadowTemple() {
           <div className="mt-4">
             <StoryReveal
               key="prologue"
-              lines={[...PROLOGUE]}
-              onDone={() => setStoryDone(true)}
+              lines={PROLOGUE}
+              onDone={markStoryDone}
             />
           </div>
           {storyDone ? (
@@ -1270,36 +1281,12 @@ export default function ShadowTemple() {
           </div>
 
           {stage === "enter" ? (
-            <div className="st-room-enter px-5 py-7 sm:px-8" key={`enter-${roomIndex}`}>
-              <p className="text-sm font-bold text-wood/55">{room.id}번째 방</p>
-              <h2 className="font-display mt-1 text-2xl text-wood sm:text-3xl">
-                {room.title}
-              </h2>
-              <p className="mt-1 text-xs font-bold text-wood/60">{room.objective}</p>
-              <div className="mt-5">
-                <StoryReveal
-                  key={`story-${roomIndex}`}
-                  lines={[...room.enterStory]}
-                  onDone={() => setStoryDone(true)}
-                  linePause={780}
-                />
-              </div>
-              <div className="mt-6">
-                {storyDone ? (
-                  <StoneButton
-                    variant="gold"
-                    onClick={startInvestigation}
-                    className="px-8 py-3 text-base"
-                  >
-                    방 조사 시작
-                  </StoneButton>
-                ) : (
-                  <p className="text-xs font-semibold text-wood/45">
-                    이야기가 끝나면 조사를 시작할 수 있어요
-                  </p>
-                )}
-              </div>
-            </div>
+            <RoomEnterBody
+              room={room}
+              storyDone={storyDone}
+              onStoryDone={markStoryDone}
+              onStart={startInvestigation}
+            />
           ) : (
             <div className="st-room-enter" key={`solve-${roomIndex}-${puzzleIndex}`}>
               <div className="flex flex-wrap items-baseline justify-between gap-2 px-4 pt-3 sm:px-5">
@@ -1543,10 +1530,9 @@ export default function ShadowTemple() {
           </p>
           <div className="mt-4">
             <StoryReveal
-              lines={
-                outcome === "escaped" ? [...ESCAPE_STORY] : [...TRAPPED_STORY]
-              }
-              onDone={() => setStoryDone(true)}
+              key={outcome}
+              lines={outcome === "escaped" ? ESCAPE_STORY : TRAPPED_STORY}
+              onDone={markStoryDone}
             />
           </div>
           {storyDone ? (

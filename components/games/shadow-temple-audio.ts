@@ -36,7 +36,8 @@ export class TempleAudio {
   private master: GainNode | null = null;
   private droneNodes: { stop: () => void } | null = null;
   private heartbeatTimer: number | null = null;
-  private speakTimer: number | null = null;
+  private keepAliveTimer: number | null = null;
+  private speakGen = 0;
   private muted = false;
 
   private ensureCtx(): AC | null {
@@ -69,72 +70,110 @@ export class TempleAudio {
     }
   }
 
-  /** Korean TTS for story / puzzle prompts (Web Speech API). */
-  speak(text: string) {
-    if (typeof window === "undefined" || !window.speechSynthesis || this.muted) {
-      return;
-    }
-    const cleaned = sanitizeSpeechText(text);
-    if (!cleaned) return;
-
-    if (this.speakTimer != null) {
-      window.clearTimeout(this.speakTimer);
-      this.speakTimer = null;
-    }
-    try {
-      window.speechSynthesis.cancel();
-    } catch {
-      /* ignore */
-    }
-
-    // Chrome/Safari often drop speak() when it runs in the same tick as cancel().
-    this.speakTimer = window.setTimeout(() => {
-      this.speakTimer = null;
-      if (this.muted) return;
-      try {
-        window.speechSynthesis.resume();
-        const utter = new SpeechSynthesisUtterance(cleaned);
-        utter.lang = "ko-KR";
-        utter.rate = 1.02;
-        const voice = pickKoreanVoice();
-        if (voice) utter.voice = voice;
-        utter.onstart = () => {
-          try {
-            window.speechSynthesis.resume();
-          } catch {
-            /* ignore */
-          }
-        };
-        window.speechSynthesis.speak(utter);
-      } catch {
-        /* ignore */
-      }
-    }, 80);
-  }
-
   /**
-   * Call from a user gesture so later auto-narration is allowed
-   * (Chrome/Safari speechSynthesis autoplay quirk).
+   * Call from a click so Chrome/Safari allow later speechSynthesis.speak().
+   * Do not speak+cancel here — that consumes the gesture and drops narration.
    */
   unlockSpeech() {
     if (typeof window === "undefined" || !window.speechSynthesis) return;
     try {
-      window.speechSynthesis.cancel();
-      const warm = new SpeechSynthesisUtterance("\u200b");
-      warm.volume = 0;
-      warm.lang = "ko-KR";
-      window.speechSynthesis.speak(warm);
-      window.speechSynthesis.cancel();
+      window.speechSynthesis.resume();
+      void window.speechSynthesis.getVoices();
     } catch {
       /* ignore */
     }
   }
 
-  stopSpeak() {
-    if (this.speakTimer != null) {
-      window.clearTimeout(this.speakTimer);
-      this.speakTimer = null;
+  /** Korean TTS for story / puzzle prompts. Prefer calling from a user gesture. */
+  speak(text: string) {
+    const cleaned = sanitizeSpeechText(text);
+    if (!cleaned) return;
+    this.speakChunks(splitSpeechChunks(cleaned));
+  }
+
+  speakLines(lines: readonly string[]) {
+    const chunks = lines
+      .flatMap((line) => splitSpeechChunks(sanitizeSpeechText(line)))
+      .filter(Boolean);
+    if (chunks.length === 0) return;
+    this.speakChunks(chunks);
+  }
+
+  private speakChunks(chunks: string[]) {
+    if (typeof window === "undefined" || !window.speechSynthesis || this.muted) {
+      return;
     }
+    const synth = window.speechSynthesis;
+    const gen = ++this.speakGen;
+    try {
+      synth.resume();
+    } catch {
+      /* ignore */
+    }
+
+    const enqueue = () => {
+      if (this.muted || gen !== this.speakGen) return;
+      try {
+        for (const chunk of chunks) {
+          const utter = new SpeechSynthesisUtterance(chunk);
+          utter.rate = 1.02;
+          utter.lang = "ko-KR";
+          applyKoreanVoice(utter);
+          synth.speak(utter);
+        }
+        this.startKeepAlive();
+      } catch {
+        /* ignore */
+      }
+    };
+
+    const busy = synth.speaking || synth.pending;
+    if (busy) {
+      try {
+        synth.cancel();
+      } catch {
+        /* ignore */
+      }
+      enqueue();
+      // Chrome sometimes swallows speak() in the same turn as cancel().
+      window.setTimeout(() => {
+        if (this.muted || gen !== this.speakGen) return;
+        if (!synth.speaking && !synth.pending) enqueue();
+      }, 40);
+      return;
+    }
+    enqueue();
+  }
+
+  private startKeepAlive() {
+    this.stopKeepAlive();
+    this.keepAliveTimer = window.setInterval(() => {
+      if (typeof window === "undefined" || !window.speechSynthesis) {
+        this.stopKeepAlive();
+        return;
+      }
+      if (!window.speechSynthesis.speaking) {
+        this.stopKeepAlive();
+        return;
+      }
+      try {
+        window.speechSynthesis.resume();
+      } catch {
+        /* ignore */
+      }
+    }, 4000);
+  }
+
+  private stopKeepAlive() {
+    if (this.keepAliveTimer != null) {
+      window.clearInterval(this.keepAliveTimer);
+      this.keepAliveTimer = null;
+    }
+  }
+
+  stopSpeak() {
+    this.speakGen += 1;
+    this.stopKeepAlive();
     if (typeof window === "undefined" || !window.speechSynthesis) return;
     try {
       window.speechSynthesis.cancel();
@@ -412,6 +451,32 @@ export function sanitizeSpeechText(text: string): string {
     .trim();
 }
 
+function splitSpeechChunks(text: string): string[] {
+  const trimmed = text.trim();
+  if (!trimmed) return [];
+  const sentences = trimmed
+    .split(/(?<=[.!?。…])\s+/)
+    .map((part) => part.trim())
+    .filter(Boolean);
+  const source = sentences.length > 0 ? sentences : [trimmed];
+  const chunks: string[] = [];
+  for (const part of source) {
+    if (part.length <= 160) {
+      chunks.push(part);
+      continue;
+    }
+    let rest = part;
+    while (rest.length > 160) {
+      let cut = rest.lastIndexOf(" ", 160);
+      if (cut < 80) cut = 160;
+      chunks.push(rest.slice(0, cut).trim());
+      rest = rest.slice(cut).trim();
+    }
+    if (rest) chunks.push(rest);
+  }
+  return chunks;
+}
+
 function pickKoreanVoice(): SpeechSynthesisVoice | null {
   if (typeof window === "undefined" || !window.speechSynthesis) return null;
   const voices = window.speechSynthesis.getVoices();
@@ -422,11 +487,25 @@ function pickKoreanVoice(): SpeechSynthesisVoice | null {
   );
 }
 
+function applyKoreanVoice(utter: SpeechSynthesisUtterance) {
+  const voice = pickKoreanVoice();
+  if (!voice) {
+    utter.lang = "ko-KR";
+    return;
+  }
+  utter.voice = voice;
+  utter.lang = voice.lang || "ko-KR";
+}
+
 /** Warm the voice list early — some browsers populate it asynchronously. */
 export function warmSpeechVoices() {
   if (typeof window === "undefined" || !window.speechSynthesis) return;
   void window.speechSynthesis.getVoices();
-  window.speechSynthesis.addEventListener?.("voiceschanged", () => {
-    void window.speechSynthesis.getVoices();
-  }, { once: true });
+  window.speechSynthesis.addEventListener?.(
+    "voiceschanged",
+    () => {
+      void window.speechSynthesis.getVoices();
+    },
+    { once: true },
+  );
 }
