@@ -123,4 +123,5 @@ await submitActivity({
 | 2026-08-18 | `g3-u3-1-sincos-intro` 세션 종료 집계 · SUMMARY_LABELS |
 | 2026-08-24 | `g3-u3-1-tangent-intro` 5페이지 이름 붙이기 문항 집계 |
 | 2026-08-25 | 세션 재준비 시 미집계 종료 버그 수정 · 결과 복구 RPC · 종료 전 점수 저장 |
+| 2026-08-26 | `g3-u3-1-shadow-temple` 솔로 방탈출 게임 기록 · SUMMARY_LABELS · 상세 렌더러 |
 
