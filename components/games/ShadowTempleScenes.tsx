@@ -658,8 +658,8 @@ function SunAltarScene({ room, found, onFind, puzzleIndex, solvedCount }: SceneP
   const allLit = solvedCount >= 2;
 
   // Acute altar (puzzle 1): large triangle, included angle at top apex.
-  const s1 = Math.min(120 / Math.max(a1, b1), 95 / Math.max(a1, b1));
-  const acute = buildTri({ x: 118, y: 92 }, a1 * s1, b1 * s1, deg1, 90 - deg1 / 2);
+  const s1 = 125 / Math.max(a1, b1);
+  const acute = buildTri({ x: 120, y: 88 }, a1 * s1, b1 * s1, deg1, 90 - deg1 / 2);
   const acutePts = `${acute.apex.x},${acute.apex.y} ${acute.p1.x},${acute.p1.y} ${acute.p2.x},${acute.p2.y}`;
   const acuteArcR = Math.min(20, a1 * s1 * 0.22, b1 * s1 * 0.22);
   // Angle label ABOVE the apex (outside). Side labels offset outward from each leg.
