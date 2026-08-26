@@ -103,9 +103,32 @@ export type TempleRun = {
 /** Points deducted when the player reveals one notebook hint line. */
 export const HINT_LINE_PENALTY = 10;
 
+/** Page-title lines like 「박사의 수첩 1쪽 —」 are free to open. */
+export function isFreeHintLine(line: string): boolean {
+  return /^박사의 수첩/.test(line.trim());
+}
+
+/** All notebook lines for a puzzle (concept then solve walkthrough). */
+export function puzzleHintLines(puzzle: {
+  hintConcept: readonly string[];
+  hintSolve: readonly string[];
+}): string[] {
+  return [...puzzle.hintConcept, ...puzzle.hintSolve];
+}
+
+/** How many paid (non-title) lines are among the first `revealed` lines. */
+export function paidHintCount(
+  lines: readonly string[],
+  revealed: number,
+): number {
+  return lines
+    .slice(0, Math.max(0, revealed))
+    .filter((line) => !isFreeHintLine(line)).length;
+}
+
 /**
  * Award for solving one puzzle. Attempts reduce the award; hint cost is
- * deducted live (−HINT_LINE_PENALTY per line) when the notebook is used.
+ * deducted live (−HINT_LINE_PENALTY per paid line) when the notebook is used.
  * Six rooms: 5 rooms × 150 + room 5 (two altars × 75) = 900,
  * plus time bonus up to 100 → target ≈ 1000 (progression-system.md).
  */
@@ -114,7 +137,7 @@ export function puzzleAward(attempt: number, weight: number): number {
   return Math.max(20, Math.round(base * weight));
 }
 
-/** Live score loss when opening a notebook line (floor at 0). */
+/** Live score loss when opening a paid notebook line (floor at 0). */
 export function applyHintLinePenalty(current: number): number {
   return Math.max(0, Math.round(current) - HINT_LINE_PENALTY);
 }

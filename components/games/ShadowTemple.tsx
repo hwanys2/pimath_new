@@ -40,7 +40,10 @@ import {
   checkNumericAnswer,
   formatClock,
   generateRun,
+  isFreeHintLine,
+  paidHintCount,
   puzzleAward,
+  puzzleHintLines,
   timeBonus,
   type ChoiceInput,
   type DialInput,
@@ -712,19 +715,37 @@ export default function ShadowTemple() {
   const openHint = () => {
     sfx("hint");
     setHintOpen(true);
+    // Cover page title (「박사의 수첩 N쪽 —」) opens free with the notebook.
+    if (puzzle && hintRevealed === 0) {
+      const lines = puzzleHintLines(puzzle);
+      let n = 0;
+      while (n < lines.length && isFreeHintLine(lines[n]!)) n += 1;
+      if (n > 0) setHintRevealed(n);
+    }
   };
 
   const revealNextHintLine = () => {
     if (!puzzle) return;
-    const lines = [...puzzle.hintConcept, ...puzzle.hintSolve];
+    const lines = puzzleHintLines(puzzle);
     if (hintRevealed >= lines.length) return;
-    const nextScore = applyHintLinePenalty(scoreRef.current);
-    scoreRef.current = nextScore;
-    setScore(nextScore);
-    setHintRevealed((n) => n + 1);
-    hintTotalRef.current += 1;
+    const line = lines[hintRevealed]!;
+    const free = isFreeHintLine(line);
+    if (!free) {
+      const nextScore = applyHintLinePenalty(scoreRef.current);
+      scoreRef.current = nextScore;
+      setScore(nextScore);
+      hintTotalRef.current += 1;
+    }
+    const nextRevealed = hintRevealed + 1;
+    setHintRevealed(nextRevealed);
     sfx("hint");
-    setStatusMsg(`수첩에서 한 줄을 펼쳤다 (−${HINT_LINE_PENALTY}점).`);
+    if (free) {
+      setStatusMsg("수첩의 표지를 펼쳤다.");
+    } else {
+      const paid = paidHintCount(lines, nextRevealed);
+      const total = paid * HINT_LINE_PENALTY;
+      setStatusMsg(`수첩에서 한 줄을 펼쳤다 (누적 −${total}점).`);
+    }
   };
 
   const handleWrong = () => {
@@ -757,7 +778,7 @@ export default function ShadowTemple() {
       room: room.id,
       title: room.title,
       attempts: attempt,
-      hint: hintRevealed,
+      hint: paidHintCount(puzzleHintLines(puzzle), hintRevealed),
     });
     const isLastPuzzleOfRoom = puzzleIndex >= room.puzzles.length - 1;
     if (isLastPuzzleOfRoom) {
@@ -908,8 +929,8 @@ export default function ShadowTemple() {
                 깨어나요.
               </li>
               <li className="rounded-xl bg-white/55 px-4 py-2.5">
-                막히면 <strong>박사의 수첩</strong>을 펴고 한 줄씩 펼치세요 — 줄마다{" "}
-                −{HINT_LINE_PENALTY}점.
+                막히면 <strong>박사의 수첩</strong>을 펴고 한 줄씩 펼치세요 — 본문은
+                줄마다 −{HINT_LINE_PENALTY}점 (표지는 무료).
               </li>
               <li className="rounded-xl bg-white/55 px-4 py-2.5">
                 빠르고 정확할수록 높은 점수! 남은 횃불 시간은 보너스가 돼요.
@@ -1165,12 +1186,16 @@ export default function ShadowTemple() {
                 </StoneButton>
               </div>
               <p className="mt-1 text-xs font-semibold text-wood/55">
-                한 줄씩 펼칩니다. 줄마다 −{HINT_LINE_PENALTY}점.
+                표지(쪽 제목)는 무료, 본문 한 줄마다 −{HINT_LINE_PENALTY}점.
               </p>
               {(() => {
-                const lines = [...puzzle.hintConcept, ...puzzle.hintSolve];
+                const lines = puzzleHintLines(puzzle);
                 const shown = lines.slice(0, hintRevealed);
                 const conceptCount = puzzle.hintConcept.length;
+                const paid = paidHintCount(lines, hintRevealed);
+                const nextFree =
+                  hintRevealed < lines.length &&
+                  isFreeHintLine(lines[hintRevealed]!);
                 return (
                   <>
                     {shown.length === 0 ? (
@@ -1184,31 +1209,44 @@ export default function ShadowTemple() {
                             key={i}
                             className={[
                               "text-sm leading-relaxed",
-                              i >= conceptCount
-                                ? "rounded-lg bg-white/70 px-3 py-2 text-foreground"
-                                : "text-foreground/80",
+                              isFreeHintLine(line)
+                                ? "font-bold text-wood"
+                                : i >= conceptCount
+                                  ? "rounded-lg bg-white/70 px-3 py-2 text-foreground"
+                                  : "text-foreground/80",
                             ].join(" ")}
                           >
-                            {i >= conceptCount ? `${i - conceptCount + 1}. ` : ""}
+                            {i >= conceptCount && !isFreeHintLine(line)
+                              ? `${i - conceptCount + 1}. `
+                              : ""}
                             {line}
                           </p>
                         ))}
                       </div>
                     )}
+                    {paid > 0 ? (
+                      <p className="mt-2 text-xs font-bold text-wood/60">
+                        이 페이지 힌트 누적 −{paid * HINT_LINE_PENALTY}점
+                      </p>
+                    ) : null}
                     {hintRevealed < lines.length ? (
                       <StoneButton
                         variant="ghost"
                         onClick={revealNextHintLine}
                         className="mt-3 text-xs"
                       >
-                        다음 줄 펼치기 (−{HINT_LINE_PENALTY}점)
-                        {hintRevealed > 0
-                          ? ` · ${hintRevealed}/${lines.length}`
-                          : ""}
+                        {nextFree
+                          ? "표지 펼치기 (무료)"
+                          : `다음 줄 펼치기 (−${HINT_LINE_PENALTY}점)`}
+                        {` · ${hintRevealed}/${lines.length}`}
                       </StoneButton>
                     ) : (
                       <p className="mt-3 text-xs font-bold text-wood/50">
-                        수첩의 이 페이지를 모두 펼쳤습니다 ({lines.length}줄).
+                        수첩의 이 페이지를 모두 펼쳤습니다 ({lines.length}줄
+                        {paid > 0
+                          ? ` · 누적 −${paid * HINT_LINE_PENALTY}점`
+                          : ""}
+                        ).
                       </p>
                     )}
                   </>
