@@ -63,6 +63,14 @@ type PuzzleLog = {
   hint: number;
 };
 
+/** Join lines for TTS — must match exactly what is shown on screen. */
+function joinNarration(lines: readonly string[]): string {
+  return lines
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .join(" ");
+}
+
 /* ------------------------------------------------------- typewriter */
 
 function Typewriter({
@@ -495,29 +503,35 @@ export default function ShadowTemple() {
   const allCluesFound = puzzle ? cluesFound >= puzzle.clues.length : false;
   const dangerTime = timeLeft <= 60;
 
-  /* Narrate prologue, room enter story, then the unlocked puzzle prompt. */
+  /**
+   * TTS only after the matching on-screen narration is fully visible
+   * (storyDone / unlocked prompt), and only reads those exact lines.
+   */
   useEffect(() => {
-    if (phase === "prologue" && PROLOGUE.length > 0) {
-      const audio = getAudio();
-      const t = window.setTimeout(() => audio.speak(PROLOGUE.join(". ")), 400);
-      return () => {
-        window.clearTimeout(t);
-        audio.stopSpeak();
-      };
+    if (phase !== "prologue" || !storyDone || PROLOGUE.length === 0) {
+      return;
     }
-    return undefined;
-  }, [phase, getAudio]);
-
-  useEffect(() => {
-    if (phase !== "playing" || stage !== "enter" || !room) return;
     const audio = getAudio();
-    const script = [room.title, ...room.enterStory].join(". ");
-    const t = window.setTimeout(() => audio.speak(script), 350);
+    const t = window.setTimeout(() => audio.speak(joinNarration(PROLOGUE)), 200);
     return () => {
       window.clearTimeout(t);
       audio.stopSpeak();
     };
-  }, [phase, stage, roomIndex, room, getAudio]);
+  }, [phase, storyDone, getAudio]);
+
+  useEffect(() => {
+    if (phase !== "playing" || stage !== "enter" || !room || !storyDone) return;
+    const audio = getAudio();
+    // Same lines as the Typewriter body — title/objective stay as headings only.
+    const t = window.setTimeout(
+      () => audio.speak(joinNarration(room.enterStory)),
+      200,
+    );
+    return () => {
+      window.clearTimeout(t);
+      audio.stopSpeak();
+    };
+  }, [phase, stage, roomIndex, room, storyDone, getAudio]);
 
   useEffect(() => {
     if (phase !== "playing" || stage !== "solve" || !puzzle || !allCluesFound) {
@@ -525,7 +539,10 @@ export default function ShadowTemple() {
     }
     if (solvedInfo) return;
     const audio = getAudio();
-    const t = window.setTimeout(() => audio.speak(puzzle.prompt), 280);
+    const lines = [puzzle.prompt, puzzle.approxNote].filter(
+      (line): line is string => Boolean(line),
+    );
+    const t = window.setTimeout(() => audio.speak(joinNarration(lines)), 200);
     return () => {
       window.clearTimeout(t);
       audio.stopSpeak();
@@ -812,6 +829,7 @@ export default function ShadowTemple() {
     setAttempt(1);
     setHintRevealed(0);
     setSolvedInfo(null);
+    setStoryDone(false);
     setStatusMsg("");
   };
 
@@ -915,7 +933,11 @@ export default function ShadowTemple() {
         <section className="quest-card border-lavender/40 bg-gradient-to-br from-lavender/25 via-sky/15 to-gold/15 p-6 sm:p-10">
           <p className="font-display text-xl text-wood/60">— 프롤로그 —</p>
           <div className="mt-4">
-            <Typewriter lines={PROLOGUE} onDone={() => setStoryDone(true)} />
+            <Typewriter
+              key="prologue"
+              lines={PROLOGUE}
+              onDone={() => setStoryDone(true)}
+            />
           </div>
           {storyDone ? (
             <div className="mt-7 text-center">
@@ -1005,19 +1027,26 @@ export default function ShadowTemple() {
               <p className="mt-1 text-xs font-bold text-wood/60">{room.objective}</p>
               <div className="mt-5">
                 <Typewriter
+                  key={`story-${roomIndex}`}
                   lines={room.enterStory}
                   onDone={() => setStoryDone(true)}
                   speed={18}
                 />
               </div>
               <div className="mt-6">
-                <StoneButton
-                  variant="gold"
-                  onClick={startInvestigation}
-                  className="px-8 py-3 text-base"
-                >
-                  방 조사 시작
-                </StoneButton>
+                {storyDone ? (
+                  <StoneButton
+                    variant="gold"
+                    onClick={startInvestigation}
+                    className="px-8 py-3 text-base"
+                  >
+                    방 조사 시작
+                  </StoneButton>
+                ) : (
+                  <p className="text-xs font-semibold text-wood/45">
+                    이야기를 끝까지 읽어야 조사할 수 있어요 (누르면 빨리 감기)
+                  </p>
+                )}
               </div>
             </div>
           ) : (
