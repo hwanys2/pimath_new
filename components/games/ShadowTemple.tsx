@@ -80,47 +80,53 @@ function joinNarration(lines: readonly string[]): string {
     .join(" ");
 }
 
-/* ------------------------------------------------------- typewriter */
+/* ---------------------------------------------------- story reveal */
 
-function Typewriter({
+/** Reveal narration lines one at a time — no click needed; tap to skip to the end. */
+function StoryReveal({
   lines,
   onDone,
-  speed = 26,
+  linePause = 850,
 }: {
   lines: string[];
   onDone: () => void;
-  speed?: number;
+  linePause?: number;
 }) {
-  const [lineIdx, setLineIdx] = useState(0);
-  const [charIdx, setCharIdx] = useState(0);
+  const [visibleCount, setVisibleCount] = useState(0);
   const doneRef = useRef(false);
-  const lastLine = lines[lines.length - 1] ?? "";
-  const finished = lineIdx >= lines.length - 1 && charIdx >= lastLine.length;
+  const onDoneRef = useRef(onDone);
+  onDoneRef.current = onDone;
 
   useEffect(() => {
-    if (finished) {
+    setVisibleCount(0);
+    doneRef.current = false;
+  }, [lines]);
+
+  useEffect(() => {
+    if (lines.length === 0) {
       if (!doneRef.current) {
         doneRef.current = true;
-        onDone();
+        onDoneRef.current();
       }
       return;
     }
-    const line = lines[lineIdx] ?? "";
-    if (charIdx < line.length) {
-      const t = window.setTimeout(() => setCharIdx((c) => c + 1), speed);
-      return () => window.clearTimeout(t);
+    if (visibleCount >= lines.length) {
+      if (!doneRef.current) {
+        doneRef.current = true;
+        onDoneRef.current();
+      }
+      return;
     }
+    const delay = visibleCount === 0 ? 120 : linePause;
     const t = window.setTimeout(() => {
-      setLineIdx((l) => l + 1);
-      setCharIdx(0);
-    }, 520);
+      setVisibleCount((c) => c + 1);
+    }, delay);
     return () => window.clearTimeout(t);
-  }, [lines, lineIdx, charIdx, finished, speed, onDone]);
+  }, [lines.length, visibleCount, linePause]);
 
   const skip = () => {
-    if (!finished) {
-      setLineIdx(lines.length - 1);
-      setCharIdx(lastLine.length);
+    if (visibleCount < lines.length) {
+      setVisibleCount(lines.length);
     }
   };
 
@@ -130,25 +136,19 @@ function Typewriter({
       onClick={skip}
       role="presentation"
     >
-      {lines.slice(0, lineIdx + 1).map((line, i) => (
+      {lines.slice(0, visibleCount).map((line, i) => (
         <p
           key={i}
           className={[
-            "text-sm leading-relaxed sm:text-base",
+            "st-fade-in text-sm leading-relaxed sm:text-base",
             line.startsWith("「")
               ? "font-semibold text-wood"
               : "text-foreground/80",
-            i === lineIdx && !finished ? "st-caret" : "",
           ].join(" ")}
         >
-          {i === lineIdx ? line.slice(0, charIdx) : line}
+          {line}
         </p>
       ))}
-      {!finished ? (
-        <p className="text-[11px] font-semibold text-wood/45">
-          (누르면 빨리 감기)
-        </p>
-      ) : null}
     </div>
   );
 }
@@ -680,6 +680,7 @@ export default function ShadowTemple() {
   const [isPending, startTransition] = useTransition();
 
   const audioRef = useRef<TempleAudio | null>(null);
+  const mutedRef = useRef(muted);
   const deadlineRef = useRef(0);
   const scoreRef = useRef(0);
   const phaseRef = useRef<Phase>("ready");
@@ -697,17 +698,27 @@ export default function ShadowTemple() {
     phaseRef.current = phase;
   }, [phase]);
 
+  useEffect(() => {
+    mutedRef.current = muted;
+    audioRef.current?.setMuted(muted);
+  }, [muted]);
+
   const getAudio = useCallback((): TempleAudio => {
     if (!audioRef.current) {
       audioRef.current = new TempleAudio();
-      audioRef.current.setMuted(muted);
+      audioRef.current.setMuted(mutedRef.current);
     }
     return audioRef.current;
-  }, [muted]);
+  }, []);
 
-  useEffect(() => {
-    audioRef.current?.setMuted(muted);
-  }, [muted]);
+  const narrate = useCallback(
+    (lines: readonly string[]) => {
+      const text = joinNarration(lines);
+      if (!text || mutedRef.current) return;
+      getAudio().speak(text);
+    },
+    [getAudio],
+  );
 
   useEffect(() => {
     warmSpeechVoices();
@@ -746,69 +757,6 @@ export default function ShadowTemple() {
   const torchFrac = currentTorchFraction(timeLeft);
   const torchSecLeft = currentTorchSecondsLeft(timeLeft);
   const dangerTime = torchesLeft <= 2 && torchesLeft > 0;
-
-  /**
-   * Narrate as soon as the matching text appears (same moment as Typewriter),
-   * not after the typewriter finishes — and again when advancing screens.
-   */
-  useEffect(() => {
-    if (phase !== "prologue" || PROLOGUE.length === 0) return;
-    const audio = getAudio();
-    const t = window.setTimeout(() => audio.speak(joinNarration(PROLOGUE)), 60);
-    return () => {
-      window.clearTimeout(t);
-      audio.stopSpeak();
-    };
-  }, [phase, getAudio]);
-
-  useEffect(() => {
-    if (phase !== "playing" || stage !== "enter" || !room) return;
-    const audio = getAudio();
-    const t = window.setTimeout(
-      () => audio.speak(joinNarration(room.enterStory)),
-      60,
-    );
-    return () => {
-      window.clearTimeout(t);
-      audio.stopSpeak();
-    };
-  }, [phase, stage, roomIndex, room, getAudio]);
-
-  useEffect(() => {
-    if (phase !== "playing" || stage !== "solve" || !puzzle || !allCluesFound) {
-      return;
-    }
-    if (solvedInfo) return;
-    const audio = getAudio();
-    const lines = [puzzle.prompt, puzzle.approxNote].filter(
-      (line): line is string => Boolean(line),
-    );
-    const t = window.setTimeout(() => audio.speak(joinNarration(lines)), 60);
-    return () => {
-      window.clearTimeout(t);
-      audio.stopSpeak();
-    };
-  }, [
-    phase,
-    stage,
-    roomIndex,
-    puzzleIndex,
-    allCluesFound,
-    puzzle,
-    solvedInfo,
-    getAudio,
-  ]);
-
-  useEffect(() => {
-    if (phase !== "cinematic") return;
-    const audio = getAudio();
-    const lines = outcome === "escaped" ? ESCAPE_STORY : TRAPPED_STORY;
-    const t = window.setTimeout(() => audio.speak(joinNarration(lines)), 60);
-    return () => {
-      window.clearTimeout(t);
-      audio.stopSpeak();
-    };
-  }, [phase, outcome, getAudio]);
 
   /* --------------------------------------------------------- ending */
 
@@ -849,7 +797,7 @@ export default function ShadowTemple() {
       phaseRef.current = "cinematic";
       const endingLines =
         finalOutcome === "escaped" ? ESCAPE_STORY : TRAPPED_STORY;
-      audio.speak(joinNarration(endingLines));
+      narrate(endingLines);
 
       startTransition(async () => {
         const result = await submitGameRun({
@@ -878,7 +826,7 @@ export default function ShadowTemple() {
         }
       });
     },
-    [getAudio, startTransition],
+    [getAudio, narrate, startTransition],
   );
 
   /* ---------------------------------------------------------- timer */
@@ -950,8 +898,7 @@ export default function ShadowTemple() {
     audio.unlockSpeech();
     audio.startAmbience();
     audio.play("door");
-    // Start prologue narration in the same user gesture as the click.
-    audio.speak(joinNarration(PROLOGUE));
+    narrate(PROLOGUE);
     setPhase("prologue");
     phaseRef.current = "prologue";
   };
@@ -964,7 +911,7 @@ export default function ShadowTemple() {
     const audio = getAudio();
     audio.unlockSpeech();
     audio.play("door");
-    if (first) audio.speak(joinNarration(first.enterStory));
+    if (first) narrate(first.enterStory);
     setStoryDone(false);
     setPhase("playing");
     phaseRef.current = "playing";
@@ -994,7 +941,7 @@ export default function ShadowTemple() {
       const lines = [puzzle.prompt, puzzle.approxNote].filter(
         (line): line is string => Boolean(line),
       );
-      getAudio().speak(joinNarration(lines));
+      narrate(lines);
     }
   };
 
@@ -1143,7 +1090,7 @@ export default function ShadowTemple() {
     setHintOpen(false);
     setStatusMsg("");
     if (nextRoom) {
-      getAudio().speak(joinNarration(nextRoom.enterStory));
+      narrate(nextRoom.enterStory);
     }
   };
 
@@ -1253,9 +1200,9 @@ export default function ShadowTemple() {
         <section className="quest-card border-lavender/40 bg-gradient-to-br from-lavender/25 via-sky/15 to-gold/15 p-6 sm:p-10">
           <p className="font-display text-xl text-wood/60">— 프롤로그 —</p>
           <div className="mt-4">
-            <Typewriter
+            <StoryReveal
               key="prologue"
-              lines={PROLOGUE}
+              lines={[...PROLOGUE]}
               onDone={() => setStoryDone(true)}
             />
           </div>
@@ -1330,11 +1277,11 @@ export default function ShadowTemple() {
               </h2>
               <p className="mt-1 text-xs font-bold text-wood/60">{room.objective}</p>
               <div className="mt-5">
-                <Typewriter
+                <StoryReveal
                   key={`story-${roomIndex}`}
-                  lines={room.enterStory}
+                  lines={[...room.enterStory]}
                   onDone={() => setStoryDone(true)}
-                  speed={18}
+                  linePause={780}
                 />
               </div>
               <div className="mt-6">
@@ -1348,7 +1295,7 @@ export default function ShadowTemple() {
                   </StoneButton>
                 ) : (
                   <p className="text-xs font-semibold text-wood/45">
-                    이야기를 끝까지 읽어야 조사할 수 있어요 (누르면 빨리 감기)
+                    이야기가 끝나면 조사를 시작할 수 있어요
                   </p>
                 )}
               </div>
@@ -1595,8 +1542,10 @@ export default function ShadowTemple() {
             {outcome === "escaped" ? "— 탈출 —" : "— 횃불이 꺼졌다 —"}
           </p>
           <div className="mt-4">
-            <Typewriter
-              lines={outcome === "escaped" ? ESCAPE_STORY : TRAPPED_STORY}
+            <StoryReveal
+              lines={
+                outcome === "escaped" ? [...ESCAPE_STORY] : [...TRAPPED_STORY]
+              }
               onDone={() => setStoryDone(true)}
             />
           </div>

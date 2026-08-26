@@ -36,6 +36,7 @@ export class TempleAudio {
   private master: GainNode | null = null;
   private droneNodes: { stop: () => void } | null = null;
   private heartbeatTimer: number | null = null;
+  private speakTimer: number | null = null;
   private muted = false;
 
   private ensureCtx(): AC | null {
@@ -70,27 +71,45 @@ export class TempleAudio {
 
   /** Korean TTS for story / puzzle prompts (Web Speech API). */
   speak(text: string) {
-    if (typeof window === "undefined" || !window.speechSynthesis) return;
-    this.stopSpeak();
-    if (this.muted) return;
+    if (typeof window === "undefined" || !window.speechSynthesis || this.muted) {
+      return;
+    }
     const cleaned = sanitizeSpeechText(text);
     if (!cleaned) return;
+
+    if (this.speakTimer != null) {
+      window.clearTimeout(this.speakTimer);
+      this.speakTimer = null;
+    }
     try {
-      // Some browsers keep speechSynthesis paused after cancel(); resume first.
-      try {
-        window.speechSynthesis.resume();
-      } catch {
-        /* ignore */
-      }
-      const utter = new SpeechSynthesisUtterance(cleaned);
-      utter.lang = "ko-KR";
-      utter.rate = 1.02;
-      const voice = pickKoreanVoice();
-      if (voice) utter.voice = voice;
-      window.speechSynthesis.speak(utter);
+      window.speechSynthesis.cancel();
     } catch {
       /* ignore */
     }
+
+    // Chrome/Safari often drop speak() when it runs in the same tick as cancel().
+    this.speakTimer = window.setTimeout(() => {
+      this.speakTimer = null;
+      if (this.muted) return;
+      try {
+        window.speechSynthesis.resume();
+        const utter = new SpeechSynthesisUtterance(cleaned);
+        utter.lang = "ko-KR";
+        utter.rate = 1.02;
+        const voice = pickKoreanVoice();
+        if (voice) utter.voice = voice;
+        utter.onstart = () => {
+          try {
+            window.speechSynthesis.resume();
+          } catch {
+            /* ignore */
+          }
+        };
+        window.speechSynthesis.speak(utter);
+      } catch {
+        /* ignore */
+      }
+    }, 80);
   }
 
   /**
@@ -112,6 +131,10 @@ export class TempleAudio {
   }
 
   stopSpeak() {
+    if (this.speakTimer != null) {
+      window.clearTimeout(this.speakTimer);
+      this.speakTimer = null;
+    }
     if (typeof window === "undefined" || !window.speechSynthesis) return;
     try {
       window.speechSynthesis.cancel();
