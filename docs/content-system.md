@@ -245,3 +245,4 @@ type ContentMeta = {
 | 2026-07-30 | §8 학습 결과 기록 체크리스트 · [`activity-results.md`](activity-results.md) |
 | 2026-07-30 | `inquiry` 타입 · [`inquiry-activities.md`](inquiry-activities.md) |
 | 2026-07-30 | 탐구: 학생 솔로 연습 제거, 세션 전용 + 미리보기 |
+| 2026-08-26 | `g3-u3-1-shadow-temple` 삼각비 방탈출 솔로 게임 추가 |

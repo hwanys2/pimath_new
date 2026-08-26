@@ -8,6 +8,7 @@
  * → escape / trapped cinematic → score submit + ranking.
  */
 
+import Image from "next/image";
 import {
   useCallback,
   useEffect,
@@ -116,8 +117,8 @@ function Typewriter({
           className={[
             "text-sm leading-relaxed sm:text-base",
             line.startsWith("「")
-              ? "font-semibold text-[#ffd76a]"
-              : "text-[#d8cdf2]",
+              ? "font-semibold text-wood"
+              : "text-foreground/80",
             i === lineIdx && !finished ? "st-caret" : "",
           ].join(" ")}
         >
@@ -125,7 +126,7 @@ function Typewriter({
         </p>
       ))}
       {!finished ? (
-        <p className="text-[11px] font-semibold text-[#8a76b8]">
+        <p className="text-[11px] font-semibold text-wood/45">
           (누르면 빨리 감기)
         </p>
       ) : null}
@@ -152,10 +153,10 @@ function StoneButton({
 }) {
   const base =
     variant === "gold"
-      ? "bg-[#ffd76a] text-[#3a2508] hover:bg-[#ffe08a] shadow-[0_4px_0_rgba(122,86,10,0.6)]"
+      ? "bg-gold text-wood hover:bg-[#ffe08a] shadow-[0_4px_0_rgba(139,94,60,0.35)]"
       : variant === "ghost"
-        ? "bg-transparent text-[#b7a8e0] hover:bg-white/5 border border-[#3a2f5a]"
-        : "bg-[#2c2145] text-[#efe7ff] hover:bg-[#372a55] shadow-[0_4px_0_rgba(10,6,20,0.7)] border border-[#463767]";
+        ? "bg-transparent text-wood hover:bg-wood/5 border border-wood/20"
+        : "bg-wood text-cream hover:bg-wood-dark shadow-[0_4px_0_rgba(91,58,34,0.55)]";
   return (
     <button
       type="button"
@@ -197,11 +198,11 @@ function NumericPad({
   };
   return (
     <div className="mx-auto w-full max-w-[15rem]">
-      <div className="rounded-xl border-2 border-[#463767] bg-[#0d0819] px-4 py-3 text-center">
-        <span className="font-display text-2xl tabular-nums tracking-widest text-[#ffd76a]">
+      <div className="rounded-xl border-2 border-wood/20 bg-cream px-4 py-3 text-center">
+        <span className="font-display text-2xl tabular-nums tracking-widest text-wood">
           {entry || "\u00a0"}
         </span>
-        <span className="ml-1 text-sm font-bold text-[#8a76b8]">
+        <span className="ml-1 text-sm font-bold text-wood/50">
           {input.unit}
         </span>
       </div>
@@ -266,8 +267,8 @@ function ChoiceBoard({
             className={[
               "group relative flex flex-col items-center gap-1.5 rounded-2xl border-2 px-3 py-3 transition active:scale-[0.97]",
               wrong
-                ? "cursor-not-allowed border-[#5a2d2d] bg-[#241017] opacity-50"
-                : "border-[#463767] bg-[#1d1433] hover:border-[#ffd76a]/70 hover:bg-[#2c2145]",
+                ? "cursor-not-allowed border-[#e85d4c]/40 bg-[#e85d4c]/10 opacity-50"
+                : "border-wood/20 bg-white/70 hover:border-gold hover:bg-gold/20",
             ].join(" ")}
             aria-label={`${input.artifactLabel} ${opt.title}${opt.sub ? ` (${opt.sub})` : ""}`}
           >
@@ -275,8 +276,8 @@ function ChoiceBoard({
               <svg viewBox="0 0 40 44" className="h-11 w-10" aria-hidden>
                 <path
                   d="M 20 2 L 37 9 L 37 24 C 37 34 29 40 20 43 C 11 40 3 34 3 24 L 3 9 Z"
-                  fill={wrong ? "#3a2330" : "#4a3c63"}
-                  stroke={wrong ? "#5a2d2d" : "#ffd76a"}
+                  fill={wrong ? "#e8d4b0" : "#c4b4e8"}
+                  stroke={wrong ? "#e85d4c" : "#d4a017"}
                   strokeWidth="1.6"
                 />
                 <polygon
@@ -293,18 +294,18 @@ function ChoiceBoard({
                   cy="15"
                   rx="20"
                   ry="12"
-                  fill={wrong ? "#3a2330" : "#8a6a1e"}
-                  stroke="#ffd76a"
+                  fill={wrong ? "#e8d4b0" : "#c49a6c"}
+                  stroke="#d4a017"
                   strokeWidth="1.6"
                 />
-                <ellipse cx="22" cy="13" rx="15" ry="8" fill={wrong ? "#4a2f3d" : "#ffd76a"} opacity="0.75" />
+                <ellipse cx="22" cy="13" rx="15" ry="8" fill={wrong ? "#f0e0c8" : "#ffd76a"} opacity="0.75" />
               </svg>
             )}
-            <span className="font-display text-lg leading-none text-[#ffd76a]">
+            <span className="font-display text-lg leading-none text-wood">
               {opt.title}
             </span>
             {opt.sub ? (
-              <span className="text-[11px] font-bold text-[#b7a8e0]">
+              <span className="text-[11px] font-bold text-wood/60">
                 {opt.sub}
               </span>
             ) : null}
@@ -353,8 +354,8 @@ function DialLock({
             >
               ▲
             </StoneButton>
-            <div className="flex h-16 w-16 items-center justify-center rounded-full border-4 border-[#463767] bg-[#0d0819] shadow-[inset_0_3px_10px_rgba(0,0,0,0.8)]">
-              <span className="font-display text-3xl text-[#ffd76a]">
+            <div className="flex h-16 w-16 items-center justify-center rounded-full border-4 border-wood/25 bg-cream shadow-[inset_0_3px_10px_rgba(139,94,60,0.15)]">
+              <span className="font-display text-3xl text-wood">
                 {digits[idx]}
               </span>
             </div>
@@ -532,7 +533,7 @@ export default function ShadowTemple() {
           score: finalScore,
           details: activityDetailsV1(
             {
-              escaped: finalOutcome === "escaped",
+              escaped: finalOutcome === "escaped" ? "성공" : "시간 초과",
               roomsCleared: roomsClearedRef.current,
               wrongAttempts: wrongTotalRef.current,
               hintsUsed: hintTotalRef.current,
@@ -670,11 +671,13 @@ export default function ShadowTemple() {
     window.setTimeout(() => setWrongFlash(false), 450);
     const flavor =
       room.kind === "lavaFloor"
-        ? "용암이 꿀렁이며 차오른다…!"
+        ? "바닥이 뜨거워진다! 다시 계산해 보자."
         : room.kind === "guardianShield"
-          ? "수호자의 눈이 붉게 번뜩인다…!"
-          : "신전이 낮게 울린다…";
-    setStatusMsg(`${flavor} 오답! 횃불이 ${WRONG_TIME_PENALTY_SEC}초만큼 타 버렸다.`);
+          ? "방패가 홈에 맞지 않는다. 넓이를 다시 비교해 보자."
+          : "장치가 꿈틀한다. 숫자를 한 번 더 살펴보자.";
+    setStatusMsg(
+      `${flavor} 오답 — 횃불이 ${WRONG_TIME_PENALTY_SEC}초만큼 타 버렸다.`,
+    );
   };
 
   const handleCorrect = () => {
@@ -794,61 +797,72 @@ export default function ShadowTemple() {
 
   return (
     <div className="flex flex-col gap-5">
-      <section className="quest-card bg-gradient-to-br from-[#2c2145] via-[#3a2f5a] to-[#1d1433] p-5 text-[#efe7ff] sm:p-7">
-        <p className="text-sm font-bold text-[#b7a8e0]">중3 · 3.1 삼각비</p>
-        <h1 className="font-display mt-1 text-3xl text-[#ffd76a] sm:text-4xl">
-          그림자 신전: 여섯 개의 시련
-        </h1>
-        <p className="mt-3 max-w-2xl text-sm leading-relaxed text-[#d8cdf2] sm:text-base">
-          실종된 피타 박사의 흔적을 쫓아 들어간 고대 신전. 등 뒤에서 석문이
-          닫혔다! 방마다 숨은 <strong className="text-[#ffd76a]">단서를 조사</strong>하고,
-          삼각비로 장치를 풀어 횃불이 꺼지기 전에 탈출하세요.
-        </p>
+      <section className="quest-card relative overflow-hidden bg-gradient-to-br from-lavender/45 via-sky/20 to-gold/25 p-5 sm:p-7">
+        <div className="relative flex flex-wrap items-start gap-4">
+          <div className="relative h-16 w-16 shrink-0 sm:h-20 sm:w-20">
+            <Image
+              src="/images/grade-3-v2.png"
+              alt="별빛"
+              fill
+              className="object-contain"
+              sizes="80px"
+            />
+          </div>
+          <div className="min-w-0 flex-1">
+            <p className="text-sm font-bold text-wood">중3 · 3.1 삼각비</p>
+            <h1 className="font-display mt-1 text-3xl text-foreground sm:text-4xl">
+              그림자 신전: 여섯 개의 시련
+            </h1>
+            <p className="mt-3 max-w-2xl text-sm leading-relaxed text-foreground/75 sm:text-base">
+              별빛과 함께 피타 박사의 흔적을 쫓아 들어간 고대 신전. 석문이 닫혔다!
+              방마다 숨은 <strong>단서를 조사</strong>하고, 삼각비로 장치를 풀어
+              횃불이 꺼지기 전에 탈출하세요.
+            </p>
+          </div>
+        </div>
       </section>
 
-      {/* ---------------------------------------------------- title */}
       {phase === "ready" ? (
-        <section className="overflow-hidden rounded-3xl border border-[#3a2f5a] bg-[#120c20] text-center">
+        <section className="quest-card overflow-hidden border-lavender/40 bg-gradient-to-br from-lavender/30 via-sky/20 to-gold/20 text-center">
           <TitleScene />
           <div className="px-5 pb-8 pt-2 sm:px-8">
-            <p className="font-display text-2xl text-[#ffd76a] sm:text-3xl">
+            <p className="font-display text-2xl text-wood sm:text-3xl">
               여섯 개의 방, 하나의 탈출구
             </p>
-            <ul className="mx-auto mt-4 grid max-w-lg gap-2 text-left text-sm font-semibold text-[#d8cdf2]">
-              <li className="rounded-xl bg-white/5 px-4 py-2.5">
-                🔥 횃불 시간 <strong className="text-[#ffd76a]">15분</strong> —
-                다 타면 탈출 실패. 오답은 {WRONG_TIME_PENALTY_SEC}초를 태워요.
+            <ul className="mx-auto mt-4 grid max-w-lg gap-2 text-left text-sm font-semibold text-foreground/80">
+              <li className="rounded-xl bg-white/55 px-4 py-2.5">
+                횃불 시간 <strong>15분</strong> — 다 타면 탈출 실패. 오답은{" "}
+                {WRONG_TIME_PENALTY_SEC}초를 태워요.
               </li>
-              <li className="rounded-xl bg-white/5 px-4 py-2.5">
-                🔍 방마다 빛나는 곳을 <strong className="text-[#ffd76a]">조사해 단서</strong>를
-                모아야 장치가 깨어나요.
+              <li className="rounded-xl bg-white/55 px-4 py-2.5">
+                방마다 빛나는 곳을 <strong>조사해 단서</strong>를 모아야 장치가
+                깨어나요.
               </li>
-              <li className="rounded-xl bg-white/5 px-4 py-2.5">
-                📖 막히면 <strong className="text-[#ffd76a]">박사의 수첩</strong>(힌트)을
-                펴 보세요 — 대신 점수가 조금 줄어요.
+              <li className="rounded-xl bg-white/55 px-4 py-2.5">
+                막히면 <strong>박사의 수첩</strong>(힌트)을 펴 보세요 — 대신 점수가
+                조금 줄어요.
               </li>
-              <li className="rounded-xl bg-white/5 px-4 py-2.5">
-                ⚡ 빠르고 정확할수록 높은 점수! 남은 횃불 시간은 보너스가 돼요.
+              <li className="rounded-xl bg-white/55 px-4 py-2.5">
+                빠르고 정확할수록 높은 점수! 남은 횃불 시간은 보너스가 돼요.
               </li>
             </ul>
             <button
               type="button"
               onClick={enterTemple}
-              className="mt-7 rounded-xl bg-[#ffd76a] px-10 py-4 text-lg font-black text-[#3a2508] shadow-[0_5px_0_rgba(122,86,10,0.6)] transition hover:bg-[#ffe08a] active:translate-y-[3px] active:shadow-none"
+              className="mt-7 rounded-xl bg-wood px-10 py-4 text-lg font-bold text-cream shadow-md transition hover:bg-wood-dark active:scale-[0.98]"
             >
               신전에 들어가기
             </button>
-            <p className="mt-3 text-xs font-semibold text-[#8a76b8]">
-              🎧 소리를 켜면 더 실감나요
+            <p className="mt-3 text-xs font-semibold text-wood/50">
+              소리를 켜면 더 실감나요
             </p>
           </div>
         </section>
       ) : null}
 
-      {/* ------------------------------------------------- prologue */}
       {phase === "prologue" ? (
-        <section className="rounded-3xl border border-[#3a2f5a] bg-[#120c20] p-6 sm:p-10">
-          <p className="font-display text-xl text-[#8a76b8]">— 프롤로그 —</p>
+        <section className="quest-card border-lavender/40 bg-gradient-to-br from-lavender/25 via-sky/15 to-gold/15 p-6 sm:p-10">
+          <p className="font-display text-xl text-wood/60">— 프롤로그 —</p>
           <div className="mt-4">
             <Typewriter lines={PROLOGUE} onDone={() => setStoryDone(true)} />
           </div>
@@ -857,7 +871,7 @@ export default function ShadowTemple() {
               <button
                 type="button"
                 onClick={beginTrials}
-                className="st-fade-in rounded-xl bg-[#e85d4c] px-8 py-3.5 text-lg font-black text-white shadow-[0_5px_0_rgba(120,30,18,0.6)] transition hover:bg-[#f06e5d] active:translate-y-[3px] active:shadow-none"
+                className="st-fade-in rounded-xl bg-wood px-8 py-3.5 text-lg font-bold text-cream shadow-md transition hover:bg-wood-dark active:scale-[0.98]"
               >
                 시련 시작 — 횃불에 불을 붙인다
               </button>
@@ -866,17 +880,15 @@ export default function ShadowTemple() {
         </section>
       ) : null}
 
-      {/* -------------------------------------------------- playing */}
       {phase === "playing" && run && room && puzzle ? (
         <section
           className={[
-            "overflow-hidden rounded-3xl border border-[#3a2f5a] bg-[#120c20] text-[#efe7ff]",
+            "quest-card-static overflow-hidden",
             wrongFlash ? "st-shake" : "",
             dangerTime ? "st-danger" : "",
           ].join(" ")}
         >
-          {/* HUD */}
-          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[#3a2f5a] px-4 py-3 sm:px-5">
+          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-wood/10 px-4 py-3 sm:px-5">
             <div className="flex items-center gap-1.5" aria-label="방 진행도">
               {ROOM_ICONS.map((icon, i) => (
                 <span
@@ -884,10 +896,10 @@ export default function ShadowTemple() {
                   className={[
                     "flex h-7 min-w-7 items-center justify-center rounded-lg px-1 text-[11px] font-black",
                     i < roomIndex
-                      ? "bg-[#7fe3c4]/25 text-[#7fe3c4]"
+                      ? "bg-mint/40 text-wood"
                       : i === roomIndex
-                        ? "bg-[#ffd76a] text-[#3a2508]"
-                        : "bg-white/5 text-[#8a76b8]",
+                        ? "bg-gold text-wood"
+                        : "bg-wood/8 text-wood/40",
                   ].join(" ")}
                 >
                   {i < roomIndex ? "✓" : icon}
@@ -895,41 +907,38 @@ export default function ShadowTemple() {
               ))}
             </div>
             <div className="flex items-center gap-2 text-sm font-bold">
-              <span className="rounded-xl bg-[#ffd76a]/15 px-3 py-1 text-[#ffd76a]">
+              <span className="rounded-xl bg-gold/50 px-3 py-1 text-wood">
                 {score}점
               </span>
               <button
                 type="button"
                 onClick={toggleMute}
-                className="rounded-lg border border-[#3a2f5a] px-3 py-1.5 text-xs font-bold text-[#b7a8e0] hover:bg-white/5"
+                className="rounded-lg bg-wood/8 px-3 py-1.5 text-xs font-bold text-wood"
                 aria-pressed={muted}
               >
-                {muted ? "🔇 소리 켜기" : "🔊 소리 끄기"}
+                {muted ? "소리 켜기" : "소리 끄기"}
               </button>
             </div>
           </div>
 
-          {/* torch timer */}
-          <div className="border-b border-[#3a2f5a] px-4 py-2 sm:px-5">
-            <div className="flex items-center justify-between text-xs font-semibold text-[#b7a8e0]">
-              <span>🔥 횃불이 타는 중…</span>
+          <div className="border-b border-wood/10 px-4 py-2 sm:px-5">
+            <div className="flex items-center justify-between text-xs font-semibold text-foreground/55">
+              <span>횃불이 타는 중…</span>
               <span
                 className={[
                   "font-display text-base tabular-nums",
-                  dangerTime ? "text-[#ff8d7a]" : "text-[#ffd76a]",
+                  dangerTime ? "text-[#e85d4c]" : "text-wood",
                 ].join(" ")}
                 aria-live="off"
               >
                 {formatClock(timeLeft)}
               </span>
             </div>
-            <div className="mt-1 h-2.5 overflow-hidden rounded-full bg-white/8">
+            <div className="mt-1 h-2.5 overflow-hidden rounded-full bg-wood/10">
               <div
                 className={[
                   "h-full rounded-full transition-[width] duration-300",
-                  dangerTime
-                    ? "bg-gradient-to-r from-[#e85d4c] to-[#ff8d7a]"
-                    : "bg-gradient-to-r from-[#ff8a4d] to-[#ffd76a]",
+                  dangerTime ? "bg-[#e85d4c]" : "bg-gradient-to-r from-peach to-gold",
                 ].join(" ")}
                 style={{ width: `${timePct}%` }}
               />
@@ -938,15 +947,11 @@ export default function ShadowTemple() {
 
           {stage === "enter" ? (
             <div className="st-room-enter px-5 py-7 sm:px-8" key={`enter-${roomIndex}`}>
-              <p className="text-sm font-bold text-[#8a76b8]">
-                {room.id}번째 방
-              </p>
-              <h2 className="font-display mt-1 text-2xl text-[#ffd76a] sm:text-3xl">
+              <p className="text-sm font-bold text-wood/55">{room.id}번째 방</p>
+              <h2 className="font-display mt-1 text-2xl text-wood sm:text-3xl">
                 {room.title}
               </h2>
-              <p className="mt-1 text-xs font-bold text-[#b7a8e0]">
-                {room.objective}
-              </p>
+              <p className="mt-1 text-xs font-bold text-wood/60">{room.objective}</p>
               <div className="mt-5">
                 <Typewriter
                   lines={room.enterStory}
@@ -960,28 +965,28 @@ export default function ShadowTemple() {
                   onClick={startInvestigation}
                   className="px-8 py-3 text-base"
                 >
-                  방 조사 시작 🔍
+                  방 조사 시작
                 </StoneButton>
               </div>
             </div>
           ) : (
             <div className="st-room-enter" key={`solve-${roomIndex}-${puzzleIndex}`}>
               <div className="flex flex-wrap items-baseline justify-between gap-2 px-4 pt-3 sm:px-5">
-                <h2 className="font-display text-xl text-[#ffd76a] sm:text-2xl">
+                <h2 className="font-display text-xl text-wood sm:text-2xl">
                   {room.title}
                   {room.puzzles.length > 1 ? (
-                    <span className="ml-2 text-sm text-[#b7a8e0]">
+                    <span className="ml-2 text-sm text-wood/55">
                       ({puzzleIndex + 1}/{room.puzzles.length})
                     </span>
                   ) : null}
                 </h2>
-                <span className="text-xs font-bold text-[#8a76b8]">
+                <span className="text-xs font-bold text-wood/50">
                   단서 {cluesFound}/{puzzle.clues.length}
                 </span>
               </div>
 
               <div className="px-3 pt-2 sm:px-4">
-                <div className="overflow-hidden rounded-2xl border border-[#3a2f5a]">
+                <div className="overflow-hidden rounded-2xl border border-wood/15">
                   <RoomScene
                     room={room}
                     found={found}
@@ -992,33 +997,29 @@ export default function ShadowTemple() {
                 </div>
               </div>
 
-              {/* clue list */}
               {revealedClues.length > 0 ? (
                 <ul className="mx-3 mt-2 space-y-1.5 sm:mx-4">
                   {revealedClues.map((c) => (
                     <li
                       key={c.id}
-                      className="st-fade-in rounded-xl bg-[#7fe3c4]/8 px-3 py-2 text-xs font-semibold leading-relaxed text-[#d8cdf2] sm:text-sm"
+                      className="st-fade-in rounded-xl bg-mint/20 px-3 py-2 text-xs font-semibold leading-relaxed text-foreground/80 sm:text-sm"
                     >
-                      <span className="mr-1.5 font-black text-[#7fe3c4]">
-                        {c.label}
-                      </span>
+                      <span className="mr-1.5 font-black text-wood">{c.label}</span>
                       {c.text}
                     </li>
                   ))}
                 </ul>
               ) : null}
 
-              {/* device */}
-              <div className="mx-3 my-3 rounded-2xl border border-[#3a2f5a] bg-[#1d1433] p-4 sm:mx-4">
+              <div className="mx-3 my-3 rounded-2xl border border-wood/15 bg-white/50 p-4 sm:mx-4">
                 {allCluesFound ? (
                   <>
-                    <p className="text-center text-sm font-bold text-[#efe7ff] sm:text-base">
+                    <p className="text-center text-sm font-bold text-foreground sm:text-base">
                       {puzzle.prompt}
                     </p>
                     {puzzle.approxNote ? (
-                      <p className="mt-1 text-center text-xs font-bold text-[#ffd76a]">
-                        ✳ {puzzle.approxNote}
+                      <p className="mt-1 text-center text-xs font-bold text-wood">
+                        * {puzzle.approxNote}
                       </p>
                     ) : null}
                     <div className="mt-4">
@@ -1049,54 +1050,54 @@ export default function ShadowTemple() {
                     </div>
                   </>
                 ) : (
-                  <p className="py-4 text-center text-sm font-bold text-[#8a76b8]">
-                    🔒 장치가 잠들어 있다 — 빛나는 곳을 모두 조사하면 깨어난다
-                    ({cluesFound}/{puzzle.clues.length})
+                  <p className="py-4 text-center text-sm font-bold text-wood/50">
+                    장치가 잠들어 있다 — 빛나는 곳을 모두 조사하면 깨어난다 (
+                    {cluesFound}/{puzzle.clues.length})
                   </p>
                 )}
               </div>
 
-              {/* status + hint */}
-              <div className="flex items-start justify-between gap-3 border-t border-[#3a2f5a] bg-black/25 px-4 py-3 sm:px-5">
+              <div className="flex items-start justify-between gap-3 border-t border-wood/10 bg-cream/60 px-4 py-3 sm:px-5">
                 <p
-                  className="min-h-[2.25rem] flex-1 text-xs font-semibold leading-relaxed text-[#d8cdf2] sm:text-sm"
+                  className="min-h-[2.25rem] flex-1 text-xs font-semibold leading-relaxed text-foreground/70 sm:text-sm"
                   role="status"
                   aria-live="polite"
                 >
                   {statusMsg}
                 </p>
                 <StoneButton variant="ghost" onClick={openHint} className="shrink-0">
-                  📖 박사의 수첩
+                  박사의 수첩
                 </StoneButton>
               </div>
             </div>
           )}
 
-          {/* hint drawer */}
           {hintOpen && puzzle ? (
-            <div className="border-t-2 border-[#ffd76a]/40 bg-[#1a1226] px-5 py-4 sm:px-7">
+            <div className="border-t-2 border-gold/50 bg-gold/10 px-5 py-4 sm:px-7">
               <div className="flex items-center justify-between">
-                <p className="font-display text-lg text-[#ffd76a]">
-                  📖 박사의 수첩
-                </p>
-                <StoneButton variant="ghost" onClick={() => setHintOpen(false)} className="px-3 py-1.5 text-xs">
-                  덮기 ✕
+                <p className="font-display text-lg text-wood">박사의 수첩</p>
+                <StoneButton
+                  variant="ghost"
+                  onClick={() => setHintOpen(false)}
+                  className="px-3 py-1.5 text-xs"
+                >
+                  덮기
                 </StoneButton>
               </div>
               <div className="mt-2 space-y-1.5">
                 {puzzle.hintConcept.map((line, i) => (
-                  <p key={i} className="text-sm leading-relaxed text-[#d8cdf2]">
+                  <p key={i} className="text-sm leading-relaxed text-foreground/80">
                     {line}
                   </p>
                 ))}
               </div>
               {hintLevel >= 2 ? (
-                <div className="mt-3 space-y-1.5 rounded-xl bg-[#ffd76a]/8 px-4 py-3">
-                  <p className="text-xs font-black text-[#ffd76a]">
-                    ✍ 찢어진 페이지 — 풀이의 흔적
+                <div className="mt-3 space-y-1.5 rounded-xl bg-white/70 px-4 py-3">
+                  <p className="text-xs font-black text-wood">
+                    찢어진 페이지 — 풀이의 흔적
                   </p>
                   {puzzle.hintSolve.map((line, i) => (
-                    <p key={i} className="text-sm leading-relaxed text-[#efe7ff]">
+                    <p key={i} className="text-sm leading-relaxed text-foreground">
                       {i + 1}. {line}
                     </p>
                   ))}
@@ -1105,7 +1106,7 @@ export default function ShadowTemple() {
                 <button
                   type="button"
                   onClick={deepenHint}
-                  className="mt-3 text-xs font-bold text-[#8a76b8] underline underline-offset-2 hover:text-[#b7a8e0]"
+                  className="mt-3 text-xs font-bold text-wood/60 underline underline-offset-2 hover:text-wood"
                 >
                   찢어진 페이지를 펼친다 (풀이 보기 · 점수 더 감소)
                 </button>
@@ -1113,13 +1114,12 @@ export default function ShadowTemple() {
             </div>
           ) : null}
 
-          {/* solved overlay */}
           {solvedInfo ? (
-            <div className="border-t-2 border-[#7fe3c4]/50 bg-[#10241e] px-5 py-5 text-center sm:px-8">
-              <p className="font-display text-xl text-[#7fe3c4]">
-                ✨ 장치가 풀렸다! +{solvedInfo.award}점
+            <div className="border-t-2 border-mint/60 bg-mint/20 px-5 py-5 text-center sm:px-8">
+              <p className="font-display text-xl text-wood">
+                장치가 풀렸다! +{solvedInfo.award}점
               </p>
-              <p className="mt-2 text-sm leading-relaxed text-[#d8f5ea]">
+              <p className="mt-2 text-sm leading-relaxed text-foreground/80">
                 {solvedInfo.line}
               </p>
               <StoneButton
@@ -1138,10 +1138,9 @@ export default function ShadowTemple() {
         </section>
       ) : null}
 
-      {/* ------------------------------------------------ cinematic */}
       {phase === "cinematic" ? (
-        <section className="rounded-3xl border border-[#3a2f5a] bg-[#120c20] p-6 sm:p-10">
-          <p className="font-display text-xl text-[#8a76b8]">
+        <section className="quest-card border-lavender/40 bg-gradient-to-br from-lavender/30 via-sky/15 to-gold/20 p-6 sm:p-10">
+          <p className="font-display text-xl text-wood/60">
             {outcome === "escaped" ? "— 탈출 —" : "— 횃불이 꺼졌다 —"}
           </p>
           <div className="mt-4">
@@ -1155,7 +1154,7 @@ export default function ShadowTemple() {
               <button
                 type="button"
                 onClick={finishCinematic}
-                className="st-fade-in rounded-xl bg-[#ffd76a] px-8 py-3.5 text-lg font-black text-[#3a2508] shadow-[0_5px_0_rgba(122,86,10,0.6)] transition hover:bg-[#ffe08a] active:translate-y-[3px] active:shadow-none"
+                className="st-fade-in rounded-xl bg-wood px-8 py-3.5 text-lg font-bold text-cream shadow-md transition hover:bg-wood-dark active:scale-[0.98]"
               >
                 {outcome === "escaped" ? "탈출 성공! 결과 보기" : "결과 보기"}
               </button>
@@ -1164,20 +1163,19 @@ export default function ShadowTemple() {
         </section>
       ) : null}
 
-      {/* --------------------------------------------------- ended */}
       {phase === "ended" ? (
         <section
-          className="rounded-3xl border border-[#3a2f5a] bg-[#120c20] p-5 text-center text-[#efe7ff] sm:p-7"
+          className="quest-card border-lavender/40 bg-gradient-to-br from-lavender/40 via-sky/20 to-gold/30 p-5 text-center sm:p-7"
           role="status"
           aria-live="polite"
         >
-          <p className="font-display text-2xl text-[#8a76b8]">
-            {outcome === "escaped" ? "🏆 신전 탈출 성공!" : "🕯 다음 도전을 기다린다"}
+          <p className="font-display text-2xl text-wood">
+            {outcome === "escaped" ? "신전 탈출 성공!" : "다음 도전을 기다린다"}
           </p>
-          <p className="font-display mt-2 text-4xl text-[#ffd76a] sm:text-5xl">
+          <p className="font-display mt-2 text-4xl text-wood sm:text-5xl">
             {score}점
           </p>
-          <p className="mt-2 text-sm font-semibold text-[#b7a8e0]">
+          <p className="mt-2 text-sm font-semibold text-foreground/70">
             방 {finalStats.rooms}/6 통과
             {" · "}오답 {finalStats.wrong}회
             {" · "}수첩 {finalStats.hints}회
@@ -1187,24 +1185,20 @@ export default function ShadowTemple() {
           </p>
 
           {isPending && !submitResult ? (
-            <p className="mt-4 text-sm font-bold text-[#b7a8e0]">점수 반영 중…</p>
+            <p className="mt-4 text-sm font-bold text-wood/70">점수 반영 중…</p>
           ) : null}
 
           {submitResult?.error ? (
-            <p className="mt-4 text-sm font-bold text-[#ff8d7a]">
-              {submitResult.error}
-            </p>
+            <p className="mt-4 text-sm font-bold text-[#a63a1a]">{submitResult.error}</p>
           ) : null}
 
           {submitResult && !submitResult.error ? (
             submitResult.recorded ? (
-              <p className="mt-4 text-sm font-bold text-[#7fe3c4]">
-                {submitResult.message}
-              </p>
+              <p className="mt-4 text-sm font-bold text-wood">{submitResult.message}</p>
             ) : (
-              <p className="mx-auto mt-4 max-w-md rounded-2xl bg-white/5 px-4 py-3 text-sm font-semibold text-[#d8cdf2]">
+              <p className="mx-auto mt-4 max-w-md rounded-2xl bg-wood/5 px-4 py-3 text-sm font-semibold text-foreground/65">
                 연습 모드 · 점수는 반영되지 않아요
-                <span className="mt-1 block text-xs font-medium text-[#8a76b8]">
+                <span className="mt-1 block text-xs font-medium text-foreground/50">
                   학급에 배정·활성화된 게임을 학생 로그인으로 플레이하면 XP와
                   랭킹이 쌓여요.
                 </span>
@@ -1213,7 +1207,7 @@ export default function ShadowTemple() {
           ) : null}
 
           {submitResult?.recorded ? (
-            <div className="mt-6 rounded-2xl bg-cream p-3 text-left text-foreground">
+            <div className="mt-6 text-left">
               <GameRankingBoard
                 rows={ranking}
                 scope={rankingScope}
@@ -1228,7 +1222,7 @@ export default function ShadowTemple() {
           <button
             type="button"
             onClick={backToTitle}
-            className="mt-6 rounded-xl bg-[#ffd76a] px-8 py-3 text-base font-black text-[#3a2508] shadow-[0_4px_0_rgba(122,86,10,0.6)] transition hover:bg-[#ffe08a] active:translate-y-[2px] active:shadow-none"
+            className="mt-6 rounded-xl bg-wood px-8 py-3 text-base font-bold text-cream"
           >
             다시 도전하기
           </button>

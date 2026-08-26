@@ -210,6 +210,39 @@ function TrigoSlashDetail({ items }: { items: ActivityDetailsV1["items"] }) {
   );
 }
 
+function ShadowTempleDetail({ items }: { items: ActivityDetailsV1["items"] }) {
+  if (!items?.length) return null;
+  const hintLabel = (n: unknown) => {
+    if (n === 2) return "풀이";
+    if (n === 1) return "개념";
+    return "없음";
+  };
+  return (
+    <div className="mt-2 overflow-x-auto">
+      <table className="w-full min-w-[280px] text-left text-xs">
+        <thead>
+          <tr className="border-b border-wood/15 text-foreground/55">
+            <th className="py-1 pr-3 font-semibold">방</th>
+            <th className="py-1 pr-3 font-semibold">시련</th>
+            <th className="py-1 pr-3 font-semibold">시도</th>
+            <th className="py-1 font-semibold">수첩</th>
+          </tr>
+        </thead>
+        <tbody>
+          {items.map((item, i) => (
+            <tr key={i} className="border-b border-wood/8">
+              <td className="py-1 pr-3">{String(item.room ?? i + 1)}</td>
+              <td className="py-1 pr-3">{String(item.title ?? "—")}</td>
+              <td className="py-1 pr-3">{String(item.attempts ?? "—")}</td>
+              <td className="py-1">{hintLabel(item.hint)}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
 export function ContentResultDetail({
   contentKey,
   details,
@@ -233,6 +266,10 @@ export function ContentResultDetail({
 
   if (contentKey === "g3-u3-1-trigo-slash") {
     return <TrigoSlashDetail items={details.items} />;
+  }
+
+  if (contentKey === "g3-u3-1-shadow-temple") {
+    return <ShadowTempleDetail items={details.items} />;
   }
 
   return <GenericItemsDetail items={details.items} />;

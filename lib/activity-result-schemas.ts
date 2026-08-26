@@ -56,7 +56,7 @@ export const SUMMARY_LABELS: Record<string, Record<string, string>> = {
     reverseCount: "순서 반대",
   },
   "g3-u3-1-shadow-temple": {
-    escaped: "탈출 성공",
+    escaped: "탈출",
     roomsCleared: "통과한 방",
     wrongAttempts: "오답 시도",
     hintsUsed: "수첩(힌트)",

@@ -1,21 +1,20 @@
 "use client";
 
 /**
- * SVG scenes for 「그림자 신전」 — one dark, torch-lit room per stage,
- * with glowing clue hotspots the player must inspect before solving.
- * Measurement labels appear on the diagram only after the matching
- * clue has been found (escape-room style investigation).
+ * SVG scenes for 「그림자 신전」 — pastel adventure rooms (character-style-guide:
+ * cream / wood / lavender / gold, no grim dark fantasy), with glowing clue
+ * hotspots. Measurement labels appear only after the matching clue is found.
  */
 
 import type { Room } from "@/lib/shadow-temple-math";
 
-const GOLD = "#ffd76a";
-const MINT = "#7fe3c4";
-const STONE = "#4a3c63";
-const STONE_DARK = "#332852";
-const LINE = "#b7a8e0";
-const CRYSTAL = "#9fd8ff";
-const RED = "#ff8d7a";
+const GOLD = "#d4a017";
+const MINT = "#2a9d7c";
+const STONE = "#c4b4e8";
+const STONE_DARK = "#9b88c8";
+const LINE = "#8b5e3c";
+const CRYSTAL = "#3d8fd9";
+const RED = "#e85d4c";
 
 type SceneProps = {
   room: Room;
@@ -162,7 +161,7 @@ function MeasureLabel({
         width={w}
         height={size + 6}
         rx={4}
-        fill="rgba(18,12,32,0.85)"
+        fill="rgba(255,248,235,0.94)"
         stroke={color}
         strokeWidth={0.6}
         opacity={0.95}
@@ -185,17 +184,18 @@ function SceneDefs() {
   return (
     <defs>
       <linearGradient id="st-bg" x1="0" y1="0" x2="0" y2="1">
-        <stop offset="0%" stopColor="#151022" />
-        <stop offset="70%" stopColor="#221937" />
-        <stop offset="100%" stopColor="#2c2145" />
+        <stop offset="0%" stopColor="#f3eaff" />
+        <stop offset="55%" stopColor="#fff8eb" />
+        <stop offset="100%" stopColor="#f0e0c8" />
       </linearGradient>
       <radialGradient id="st-torch-glow">
         <stop offset="0%" stopColor="rgba(255,179,71,0.35)" />
         <stop offset="100%" stopColor="rgba(255,179,71,0)" />
       </radialGradient>
       <linearGradient id="st-lava" x1="0" y1="0" x2="0" y2="1">
-        <stop offset="0%" stopColor="#ff8a4d" />
-        <stop offset="100%" stopColor="#c62f14" />
+        <stop offset="0%" stopColor="#ffd76a" />
+        <stop offset="55%" stopColor="#ffc9a8" />
+        <stop offset="100%" stopColor="#e85d4c" />
       </linearGradient>
       <radialGradient id="st-star-glow">
         <stop offset="0%" stopColor="rgba(255,224,138,0.85)" />
@@ -256,13 +256,13 @@ function GiantGateScene({ room, found, onFind }: SceneProps) {
         <rect x={262} y={92} width={52} height={44} rx={8} fill={STONE} />
         <rect x={266} y={44} width={44} height={52} rx={10} fill={STONE} />
         {/* face */}
-        <rect x={274} y={66} width={10} height={4} rx={2} fill="#241a3c" />
-        <rect x={292} y={66} width={10} height={4} rx={2} fill="#241a3c" />
-        <rect x={283} y={78} width={10} height={3} rx={1.5} fill="#241a3c" />
+        <rect x={274} y={66} width={10} height={4} rx={2} fill="#6b4423" />
+        <rect x={292} y={66} width={10} height={4} rx={2} fill="#6b4423" />
+        <rect x={283} y={78} width={10} height={3} rx={1.5} fill="#6b4423" />
         {/* keyhole on forehead */}
         <circle cx={key.x} cy={key.y} r={13} fill="url(#st-star-glow)" className="st-glow" />
-        <circle cx={key.x} cy={key.y} r={4.2} fill="#120c20" stroke={GOLD} strokeWidth={1.4} />
-        <rect x={key.x - 1.4} y={key.y + 2} width={2.8} height={5.5} fill="#120c20" stroke={GOLD} strokeWidth={0.8} />
+        <circle cx={key.x} cy={key.y} r={4.2} fill="#6b4423" stroke={GOLD} strokeWidth={1.4} />
+        <rect x={key.x - 1.4} y={key.y + 2} width={2.8} height={5.5} fill="#6b4423" stroke={GOLD} strokeWidth={0.8} />
         {/* arms */}
         <rect x={238} y={136} width={18} height={72} rx={8} fill={STONE} />
         <rect x={320} y={136} width={18} height={72} rx={8} fill={STONE} />
@@ -273,7 +273,7 @@ function GiantGateScene({ room, found, onFind }: SceneProps) {
         <path d="M 34 120 L 46 96 L 58 120 Z" fill="none" stroke={LINE} strokeWidth={1} opacity={0.6} />
       </g>
       {/* ground */}
-      <rect x={0} y={228} width={400} height={32} fill="#1a1330" />
+      <rect x={0} y={228} width={400} height={32} fill="#e8d4b0" />
       <line x1={0} y1={228} x2={400} y2={228} stroke="rgba(255,255,255,0.1)" />
       {/* observation device */}
       <g transform={`translate(${obs.x} ${obs.y})`}>
@@ -400,11 +400,11 @@ function BrokenBridgeScene({ room, found, onFind }: SceneProps) {
   return (
     <Frame>
       {/* far cliff */}
-      <rect x={0} y={0} width={400} height={C.y - 14} fill="#241a3c" />
-      <path d={`M 0 ${C.y - 14} Q 70 ${C.y - 24} 140 ${C.y - 14} T 280 ${C.y - 14} T 400 ${C.y - 14} L 400 0 L 0 0 Z`} fill="#2c2145" />
+      <rect x={0} y={0} width={400} height={C.y - 14} fill="#d4c4ff" />
+      <path d={`M 0 ${C.y - 14} Q 70 ${C.y - 24} 140 ${C.y - 14} T 280 ${C.y - 14} T 400 ${C.y - 14} L 400 0 L 0 0 Z`} fill="#c4b4e8" />
       {/* near cliff */}
-      <rect x={0} y={y0 + 14} width={400} height={260 - y0 - 14} fill="#241a3c" />
-      <path d={`M 0 ${y0 + 14} Q 80 ${y0 + 26} 160 ${y0 + 14} T 320 ${y0 + 14} T 400 ${y0 + 14} L 400 260 L 0 260 Z`} fill="#2c2145" />
+      <rect x={0} y={y0 + 14} width={400} height={260 - y0 - 14} fill="#e8d4b0" />
+      <path d={`M 0 ${y0 + 14} Q 80 ${y0 + 26} 160 ${y0 + 14} T 320 ${y0 + 14} T 400 ${y0 + 14} L 400 260 L 0 260 Z`} fill="#d4b896" />
       {/* broken bridge remains */}
       <g opacity={0.7}>
         <rect x={C.x - 9} y={C.y - 10} width={18} height={12} rx={2} fill="#5d4a33" transform={`rotate(-14 ${C.x} ${C.y})`} />
@@ -481,7 +481,7 @@ function GuardianShieldScene({ room, found, onFind }: SceneProps) {
         <rect x={128} y={96} width={30} height={98} rx={12} fill={STONE_DARK} />
         <rect x={242} y={96} width={30} height={98} rx={12} fill={STONE_DARK} />
         {/* chest groove */}
-        <polygon points={pts} fill="#120c20" stroke={GOLD} strokeWidth={1.6} className={hasGroove ? "" : "st-hotspot"} />
+        <polygon points={pts} fill="#fff8eb" stroke={GOLD} strokeWidth={1.6} className={hasGroove ? "" : "st-hotspot"} />
         {hasGroove ? (
           <>
             <MeasureLabel x={gx} y={gy - hgt / 2 - 10} text={`${a}`} color={MINT} />
@@ -499,7 +499,7 @@ function GuardianShieldScene({ room, found, onFind }: SceneProps) {
         <line x1={46} y1={220} x2={80} y2={220} stroke={LINE} strokeWidth={1} opacity={0.5} />
       </g>
       {/* floor */}
-      <rect x={0} y={232} width={400} height={28} fill="#1a1330" />
+      <rect x={0} y={232} width={400} height={28} fill="#e8d4b0" />
       <Hotspot x={gx} y={gy} label="가슴의 홈" found={hasGroove} onClick={() => onFind("groove")} />
       <Hotspot x={64} y={186} label="받침돌의 문장" found={found.has("script")} onClick={() => onFind("script")} />
     </Frame>
@@ -565,7 +565,7 @@ function SunAltarScene({ room, found, onFind, puzzleIndex, solvedCount }: SceneP
         ) : null}
       </g>
       {/* floor */}
-      <rect x={0} y={212} width={400} height={48} fill="#1a1330" />
+      <rect x={0} y={212} width={400} height={48} fill="#e8d4b0" />
       {onFirst ? (
         <>
           <Hotspot x={110} y={230} label="제단의 눈금" found={hasAltar1} onClick={() => onFind("altar1")} />
@@ -656,14 +656,14 @@ export function TitleScene() {
         <circle key={i} cx={x} cy={y} r={1.3} fill="#e6f4ff" opacity={0.75} className={i % 2 ? "st-flame-inner" : ""} />
       ))}
       {/* temple silhouette */}
-      <polygon points="60,88 200,34 340,88" fill="#2c2145" stroke="rgba(255,255,255,0.08)" />
-      <rect x={78} y={88} width={244} height={104} fill="#241a3c" />
+      <polygon points="60,88 200,34 340,88" fill="#d4c4ff" stroke="rgba(139,94,60,0.25)" />
+      <rect x={78} y={88} width={244} height={104} fill="#c4b4e8" />
       {[100, 140, 236, 276].map((x) => (
-        <rect key={x} x={x} y={96} width={22} height={96} rx={4} fill="#332852" />
+        <rect key={x} x={x} y={96} width={22} height={96} rx={4} fill="#b8a0e8" />
       ))}
       {/* entrance */}
-      <path d="M 172 192 L 172 122 A 28 30 0 0 1 228 122 L 228 192 Z" fill="#120c20" stroke={GOLD} strokeWidth={1.2} />
-      <path d="M 186 192 L 186 134 A 14 16 0 0 1 214 134 L 214 192 Z" fill="#080512" />
+      <path d="M 172 192 L 172 122 A 28 30 0 0 1 228 122 L 228 192 Z" fill="#fff8eb" stroke={GOLD} strokeWidth={1.2} />
+      <path d="M 186 192 L 186 134 A 14 16 0 0 1 214 134 L 214 192 Z" fill="#8b5e3c" />
       {/* eye emblem above door */}
       <circle cx={200} cy={106} r={9} fill="none" stroke={GOLD} strokeWidth={1.4} className="st-glow" />
       <circle cx={200} cy={106} r={3.4} fill={GOLD} className="st-flame-inner" />
@@ -677,7 +677,7 @@ export function TitleScene() {
         <rect x={283} y={120} width={20} height={24} rx={6} fill={STONE} />
       </g>
       {/* ground fog */}
-      <rect x={0} y={192} width={400} height={28} fill="#1a1330" />
+      <rect x={0} y={192} width={400} height={28} fill="#e8d4b0" />
       <ellipse cx={200} cy={196} rx={190} ry={10} fill="rgba(159,216,255,0.06)" />
     </svg>
   );
