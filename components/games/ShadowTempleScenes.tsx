@@ -628,16 +628,134 @@ function GuardianShieldScene({ room, found, onFind }: SceneProps) {
 
 /* --------------------------------------------- Room 5 · 태양의 제단 */
 
-function buildTri(
-  apex: { x: number; y: number },
+/** Stepped wooden altar — triangle rests on the top plank. */
+function WoodAltar({
+  cx,
+  topY,
+  width,
+  lit = false,
+}: {
+  cx: number;
+  topY: number;
+  width: number;
+  lit?: boolean;
+}) {
+  const half = width / 2;
+  const top = lit ? "#c9a66b" : "#a67c52";
+  const mid = lit ? "#9a7348" : "#8b5e3c";
+  const base = lit ? "#7a5632" : "#6b4423";
+  return (
+    <g>
+      <ellipse
+        cx={cx}
+        cy={topY + 34}
+        rx={half + 14}
+        ry={8}
+        fill="rgba(139,94,60,0.16)"
+      />
+      <rect
+        x={cx - half - 12}
+        y={topY + 18}
+        width={width + 24}
+        height={14}
+        rx={4}
+        fill={base}
+      />
+      <rect
+        x={cx - half - 5}
+        y={topY + 8}
+        width={width + 10}
+        height={12}
+        rx={3}
+        fill={mid}
+      />
+      <rect
+        x={cx - half}
+        y={topY}
+        width={width}
+        height={10}
+        rx={3}
+        fill={top}
+      />
+      <line
+        x1={cx - half + 8}
+        y1={topY + 3}
+        x2={cx + half - 8}
+        y2={topY + 3}
+        stroke="rgba(255,248,235,0.4)"
+        strokeWidth={1.2}
+        strokeLinecap="round"
+      />
+    </g>
+  );
+}
+
+/**
+ * SAS triangle with the included angle on the altar: one leg along the wood,
+ * the other rising at −includedDeg. Picks the orientation that stands taller
+ * within the given box so skinny acute cases don't look flat.
+ */
+function altarOnWood(
   lenA: number,
   lenB: number,
   includedDeg: number,
-  startDeg: number,
+  region: { left: number; right: number; baseY: number; maxH: number },
 ) {
-  const p1 = polar(apex.x, apex.y, lenA, startDeg);
-  const p2 = polar(apex.x, apex.y, lenB, startDeg + includedDeg);
-  return { apex, p1, p2 };
+  const rad = (includedDeg * Math.PI) / 180;
+  const sin = Math.sin(rad);
+  const cos = Math.cos(rad);
+  const maxW = region.right - region.left;
+
+  type Cand = {
+    along: number;
+    rising: number;
+    labelAlong: number;
+    labelRising: number;
+    s: number;
+    height: number;
+    span: number;
+    tipX: number;
+  };
+
+  const tryOrient = (along: number, rising: number, labelAlong: number, labelRising: number): Cand => {
+    const tipX = rising * cos;
+    const span = Math.max(along, tipX) - Math.min(0, tipX);
+    const rawH = rising * sin;
+    const s = Math.min(maxW / (span + 0.01), region.maxH / (rawH + 0.01), 13.5);
+    return {
+      along,
+      rising,
+      labelAlong,
+      labelRising,
+      s,
+      height: rawH * s,
+      span: span * s,
+      tipX: tipX * s,
+    };
+  };
+
+  const c1 = tryOrient(lenA, lenB, lenA, lenB);
+  const c2 = tryOrient(lenB, lenA, lenB, lenA);
+  const best = c1.height >= c2.height ? c1 : c2;
+
+  // Anchor so the full figure sits inside the region.
+  const minLocalX = Math.min(0, best.tipX);
+  const V = {
+    x: region.left - minLocalX + (maxW - best.span) / 2,
+    y: region.baseY,
+  };
+  const A = { x: V.x + best.along * best.s, y: V.y };
+  const B = polar(V.x, V.y, best.rising * best.s, -includedDeg);
+  return {
+    V,
+    A,
+    B,
+    s: best.s,
+    labelAlong: best.labelAlong,
+    labelRising: best.labelRising,
+    along: best.along,
+    rising: best.rising,
+  };
 }
 
 function SunAltarScene({ room, found, onFind, puzzleIndex, solvedCount }: SceneProps) {
@@ -657,56 +775,86 @@ function SunAltarScene({ room, found, onFind, puzzleIndex, solvedCount }: SceneP
   const sunLit = solvedCount >= 1;
   const allLit = solvedCount >= 2;
 
-  // Acute altar (puzzle 1): large triangle, included angle at top apex.
-  const s1 = 125 / Math.max(a1, b1);
-  const acute = buildTri({ x: 120, y: 88 }, a1 * s1, b1 * s1, deg1, 90 - deg1 / 2);
-  const acutePts = `${acute.apex.x},${acute.apex.y} ${acute.p1.x},${acute.p1.y} ${acute.p2.x},${acute.p2.y}`;
-  const acuteArcR = Math.min(20, a1 * s1 * 0.22, b1 * s1 * 0.22);
-  // Angle label ABOVE the apex (outside). Side labels offset outward from each leg.
-  const acuteAngleLabel = { x: acute.apex.x, y: acute.apex.y - acuteArcR - 18 };
+  const baseY = 168;
+
+  // Acute altar — included angle at the wood corner (left half of the room).
+  const acute = altarOnWood(a1, b1, deg1, {
+    left: 28,
+    right: 188,
+    baseY,
+    maxH: 92,
+  });
+  const acutePts = `${acute.V.x},${acute.V.y} ${acute.A.x},${acute.A.y} ${acute.B.x},${acute.B.y}`;
+  const acuteLeft = Math.min(acute.V.x, acute.A.x, acute.B.x);
+  const acuteRight = Math.max(acute.V.x, acute.A.x, acute.B.x);
+  const acuteWoodW = Math.max(118, acuteRight - acuteLeft + 44);
+  const acuteWoodCx = (acuteLeft + acuteRight) / 2;
+  const acuteArcR = Math.min(
+    20,
+    acute.along * acute.s * 0.2,
+    acute.rising * acute.s * 0.26,
+  );
+  const acuteAngleLabel = polar(acute.V.x, acute.V.y, acuteArcR + 20, -deg1 / 2);
   const acuteCentroid = {
-    x: (acute.apex.x + acute.p1.x + acute.p2.x) / 3,
-    y: (acute.apex.y + acute.p1.y + acute.p2.y) / 3,
+    x: (acute.V.x + acute.A.x + acute.B.x) / 3,
+    y: (acute.V.y + acute.A.y + acute.B.y) / 3,
   };
-  const acuteMidA = sideLabelAway(acute.apex, acute.p1, acuteCentroid, 22);
-  const acuteMidB = sideLabelAway(acute.apex, acute.p2, acuteCentroid, 22);
-  const acuteBaseY = Math.max(acute.p1.y, acute.p2.y);
+  const acuteMidA = sideLabelAway(acute.V, acute.A, acuteCentroid, 20);
+  acuteMidA.y = Math.min(acuteMidA.y, baseY - 12);
+  const acuteMidB = sideLabelAway(acute.V, acute.B, acuteCentroid, 24);
   const acutePanel = {
-    l: Math.min(acute.apex.x, acute.p1.x, acute.p2.x) - 36,
-    r: Math.max(acute.apex.x, acute.p1.x, acute.p2.x) + 36,
-    t: Math.min(acute.apex.y, acute.p1.y, acute.p2.y) - 28,
-    b: acuteBaseY + 22,
+    l: Math.min(acute.V.x, acute.A.x, acute.B.x, acuteMidB.x, acuteAngleLabel.x) - 20,
+    r: Math.max(acute.V.x, acute.A.x, acute.B.x, acuteMidA.x, acuteMidB.x) + 20,
+    t: Math.min(acute.V.y, acute.A.y, acute.B.y, acuteMidB.y) - 12,
+    // Stop above the wood so the altar plank reads as a real base.
+    b: baseY - 1,
   };
 
-  // Obtuse altar (puzzle 2): included angle at left-base vertex.
-  const s2 = Math.min(110 / Math.max(a2, b2), 100 / (a2 + 0.01));
-  const obtuseV = { x: 246, y: 188 };
-  const obtuseA = { x: obtuseV.x + a2 * s2, y: obtuseV.y };
-  const obtuseB = polar(obtuseV.x, obtuseV.y, b2 * s2, -deg2);
-  const obtusePts = `${obtuseV.x},${obtuseV.y} ${obtuseA.x},${obtuseA.y} ${obtuseB.x},${obtuseB.y}`;
-  const obtuseArcR = Math.min(18, a2 * s2 * 0.2, b2 * s2 * 0.2);
-  const obtuseAngleLabel = polar(obtuseV.x, obtuseV.y, obtuseArcR + 20, -deg2 / 2);
+  // Obtuse altar — same pose in the right half.
+  const obtuse = altarOnWood(a2, b2, deg2, {
+    left: 208,
+    right: 378,
+    baseY,
+    maxH: 86,
+  });
+  const obtusePts = `${obtuse.V.x},${obtuse.V.y} ${obtuse.A.x},${obtuse.A.y} ${obtuse.B.x},${obtuse.B.y}`;
+  const obtuseLeft = Math.min(obtuse.V.x, obtuse.A.x, obtuse.B.x);
+  const obtuseRight = Math.max(obtuse.V.x, obtuse.A.x, obtuse.B.x);
+  const obtuseWoodW = Math.max(122, obtuseRight - obtuseLeft + 40);
+  const obtuseWoodCx = (obtuseLeft + obtuseRight) / 2;
+  const obtuseArcR = Math.min(
+    18,
+    obtuse.along * obtuse.s * 0.18,
+    obtuse.rising * obtuse.s * 0.24,
+  );
+  const obtuseAngleLabel = polar(
+    obtuse.V.x,
+    obtuse.V.y,
+    obtuseArcR + 20,
+    -deg2 / 2,
+  );
   const obtuseCentroid = {
-    x: (obtuseV.x + obtuseA.x + obtuseB.x) / 3,
-    y: (obtuseV.y + obtuseA.y + obtuseB.y) / 3,
+    x: (obtuse.V.x + obtuse.A.x + obtuse.B.x) / 3,
+    y: (obtuse.V.y + obtuse.A.y + obtuse.B.y) / 3,
   };
-  const obtuseMidA = sideLabelAway(obtuseV, obtuseA, obtuseCentroid, 20);
-  const obtuseMidB = sideLabelAway(obtuseV, obtuseB, obtuseCentroid, 22);
+  const obtuseMidA = sideLabelAway(obtuse.V, obtuse.A, obtuseCentroid, 20);
+  obtuseMidA.y = Math.min(obtuseMidA.y, baseY - 12);
+  const obtuseMidB = sideLabelAway(obtuse.V, obtuse.B, obtuseCentroid, 24);
   const obtusePanel = {
-    l: Math.min(obtuseV.x, obtuseA.x, obtuseB.x) - 30,
-    r: Math.max(obtuseV.x, obtuseA.x, obtuseB.x) + 30,
-    t: Math.min(obtuseV.y, obtuseA.y, obtuseB.y) - 18,
-    b: Math.max(obtuseV.y, obtuseA.y, obtuseB.y) + 24,
+    l: Math.min(obtuse.V.x, obtuse.A.x, obtuse.B.x, obtuseMidB.x, obtuseAngleLabel.x) - 20,
+    r: Math.max(obtuse.V.x, obtuse.A.x, obtuse.B.x, obtuseMidA.x, obtuseMidB.x) + 20,
+    t: Math.min(obtuse.V.y, obtuse.A.y, obtuse.B.y, obtuseMidB.y) - 12,
+    b: baseY - 1,
   };
 
   return (
     <Frame>
       {/* Sun disc */}
-      <circle cx={200} cy={44} r={30} fill="url(#st-star-glow)" opacity={sunLit ? 1 : 0.4} className={sunLit ? "st-glow" : ""} />
-      <circle cx={200} cy={44} r={15} fill={sunLit ? GOLD : "#5d4a33"} stroke={GOLD} strokeWidth={1.4} />
+      <circle cx={200} cy={38} r={26} fill="url(#st-star-glow)" opacity={sunLit ? 1 : 0.4} className={sunLit ? "st-glow" : ""} />
+      <circle cx={200} cy={38} r={13} fill={sunLit ? GOLD : "#5d4a33"} stroke={GOLD} strokeWidth={1.4} />
       {Array.from({ length: 8 }, (_, i) => {
-        const p1 = polar(200, 44, 19, i * 45);
-        const p2 = polar(200, 44, 26, i * 45);
+        const p1 = polar(200, 38, 17, i * 45);
+        const p2 = polar(200, 38, 24, i * 45);
         return (
           <line
             key={i}
@@ -720,55 +868,40 @@ function SunAltarScene({ room, found, onFind, puzzleIndex, solvedCount }: SceneP
           />
         );
       })}
-      <Torch x={20} y={110} />
-      <Torch x={380} y={110} flip />
+      <Torch x={20} y={96} />
+      <Torch x={380} y={96} flip />
 
       {/* Floor */}
-      <rect x={0} y={210} width={400} height={50} fill="#e8d4b0" />
-      <ellipse cx={120} cy={214} rx={70} ry={8} fill="rgba(139,94,60,0.08)" />
-      <ellipse cx={290} cy={214} rx={80} ry={8} fill="rgba(139,94,60,0.08)" />
+      <rect x={0} y={206} width={400} height={54} fill="#e8d4b0" />
+      <ellipse cx={acuteWoodCx} cy={210} rx={78} ry={9} fill="rgba(139,94,60,0.08)" />
+      <ellipse cx={obtuseWoodCx} cy={210} rx={86} ry={9} fill="rgba(139,94,60,0.08)" />
 
       {/* —— First altar (acute) —— */}
       <g opacity={onFirst || solvedCount >= 1 ? 1 : 0.4}>
-        {/* stone plinth */}
-        <rect
-          x={Math.min(acute.p1.x, acute.p2.x) - 14}
-          y={acuteBaseY + 2}
-          width={Math.abs(acute.p2.x - acute.p1.x) + 28}
-          height={16}
-          rx={4}
-          fill={STONE_DARK}
+        <WoodAltar
+          cx={acuteWoodCx}
+          topY={baseY}
+          width={acuteWoodW}
+          lit={solvedCount >= 1}
         />
-        <rect
-          x={Math.min(acute.p1.x, acute.p2.x) - 8}
-          y={acuteBaseY - 2}
-          width={Math.abs(acute.p2.x - acute.p1.x) + 16}
-          height={8}
-          rx={3}
-          fill={STONE}
-        />
-        {/* diagram panel behind triangle */}
+        {/* parchment only behind the triangle — wood stays visible below */}
         <rect
           x={acutePanel.l}
           y={acutePanel.t}
           width={acutePanel.r - acutePanel.l}
-          height={acutePanel.b - acutePanel.t}
-          rx={10}
-          fill={
-            onFirst
-              ? "rgba(255,248,235,0.94)"
-              : "rgba(255,248,235,0.55)"
-          }
-          stroke={onFirst ? GOLD : "rgba(139,94,60,0.25)"}
-          strokeWidth={onFirst ? 1.8 : 1}
+          height={Math.max(36, acutePanel.b - acutePanel.t)}
+          rx={14}
+          fill={onFirst ? "rgba(255,248,235,0.88)" : "rgba(255,248,235,0.48)"}
+          stroke={onFirst ? GOLD : "rgba(139,94,60,0.2)"}
+          strokeWidth={onFirst ? 1.6 : 1}
         />
         <polygon
           points={acutePts}
           fill={
             solvedCount >= 1
-              ? "rgba(255,215,106,0.35)"
+              ? "rgba(255,215,106,0.38)"
               : onFirst
-                ? "rgba(196,180,232,0.35)"
+                ? "rgba(196,180,232,0.38)"
                 : "rgba(159,216,255,0.1)"
           }
           stroke={onFirst ? GOLD : LINE}
@@ -777,13 +910,7 @@ function SunAltarScene({ room, found, onFind, puzzleIndex, solvedCount }: SceneP
         {hasAltar1 ? (
           <>
             <path
-              d={arcPath(
-                acute.apex.x,
-                acute.apex.y,
-                acuteArcR,
-                90 - deg1 / 2,
-                90 + deg1 / 2,
-              )}
+              d={arcPath(acute.V.x, acute.V.y, acuteArcR, -deg1, 0)}
               fill="none"
               stroke={GOLD}
               strokeWidth={1.7}
@@ -791,14 +918,14 @@ function SunAltarScene({ room, found, onFind, puzzleIndex, solvedCount }: SceneP
             <MeasureLabel
               x={acuteMidA.x}
               y={acuteMidA.y}
-              text={`${a1}`}
+              text={`${acute.labelAlong}`}
               color={MINT}
               size={12}
             />
             <MeasureLabel
               x={acuteMidB.x}
               y={acuteMidB.y}
-              text={`${b1}`}
+              text={`${acute.labelRising}`}
               color={MINT}
               size={12}
             />
@@ -815,39 +942,29 @@ function SunAltarScene({ room, found, onFind, puzzleIndex, solvedCount }: SceneP
 
       {/* —— Second altar (obtuse) —— */}
       <g opacity={!onFirst || allLit ? 1 : 0.35}>
-        <rect
-          x={Math.min(obtuseV.x, obtuseA.x, obtuseB.x) - 12}
-          y={188}
-          width={Math.max(obtuseV.x, obtuseA.x, obtuseB.x) - Math.min(obtuseV.x, obtuseA.x, obtuseB.x) + 24}
-          height={16}
-          rx={4}
-          fill={STONE_DARK}
-        />
-        <rect
-          x={Math.min(obtuseV.x, obtuseA.x, obtuseB.x) - 6}
-          y={184}
-          width={Math.max(obtuseV.x, obtuseA.x, obtuseB.x) - Math.min(obtuseV.x, obtuseA.x, obtuseB.x) + 12}
-          height={8}
-          rx={3}
-          fill={STONE}
+        <WoodAltar
+          cx={obtuseWoodCx}
+          topY={baseY}
+          width={obtuseWoodW}
+          lit={allLit}
         />
         <rect
           x={obtusePanel.l}
           y={obtusePanel.t}
           width={obtusePanel.r - obtusePanel.l}
-          height={obtusePanel.b - obtusePanel.t}
-          rx={10}
-          fill={!onFirst ? "rgba(255,248,235,0.94)" : "rgba(255,248,235,0.4)"}
-          stroke={!onFirst ? GOLD : "rgba(139,94,60,0.2)"}
-          strokeWidth={!onFirst ? 1.8 : 1}
+          height={Math.max(36, obtusePanel.b - obtusePanel.t)}
+          rx={14}
+          fill={!onFirst ? "rgba(255,248,235,0.88)" : "rgba(255,248,235,0.36)"}
+          stroke={!onFirst ? GOLD : "rgba(139,94,60,0.16)"}
+          strokeWidth={!onFirst ? 1.6 : 1}
         />
         <polygon
           points={obtusePts}
           fill={
             allLit
-              ? "rgba(255,215,106,0.35)"
+              ? "rgba(255,215,106,0.38)"
               : !onFirst
-                ? "rgba(196,180,232,0.35)"
+                ? "rgba(196,180,232,0.38)"
                 : "rgba(159,216,255,0.08)"
           }
           stroke={!onFirst ? GOLD : LINE}
@@ -856,7 +973,7 @@ function SunAltarScene({ room, found, onFind, puzzleIndex, solvedCount }: SceneP
         {hasAltar2 ? (
           <>
             <path
-              d={arcPath(obtuseV.x, obtuseV.y, obtuseArcR, -deg2, 0)}
+              d={arcPath(obtuse.V.x, obtuse.V.y, obtuseArcR, -deg2, 0)}
               fill="none"
               stroke={GOLD}
               strokeWidth={1.7}
@@ -864,14 +981,14 @@ function SunAltarScene({ room, found, onFind, puzzleIndex, solvedCount }: SceneP
             <MeasureLabel
               x={obtuseMidA.x}
               y={obtuseMidA.y}
-              text={`${a2}`}
+              text={`${obtuse.labelAlong}`}
               color={MINT}
               size={12}
             />
             <MeasureLabel
               x={obtuseMidB.x}
               y={obtuseMidB.y}
-              text={`${b2}`}
+              text={`${obtuse.labelRising}`}
               color={MINT}
               size={12}
             />
@@ -889,26 +1006,26 @@ function SunAltarScene({ room, found, onFind, puzzleIndex, solvedCount }: SceneP
       {onFirst ? (
         <>
           <Hotspot
-            x={(acutePanel.l + acutePanel.r) / 2}
-            y={Math.min(236, acuteBaseY + 36)}
+            x={acuteWoodCx}
+            y={232}
             label="제단의 눈금"
             found={hasAltar1}
             onClick={() => onFind("altar1")}
           />
-          <Hotspot x={200} y={78} label="태양 문양" found={hasSun} onClick={() => onFind("sun")} />
+          <Hotspot x={200} y={68} label="태양 문양" found={hasSun} onClick={() => onFind("sun")} />
         </>
       ) : (
         <>
           <Hotspot
-            x={(obtusePanel.l + obtusePanel.r) / 2}
-            y={Math.min(236, obtusePanel.b + 20)}
+            x={obtuseWoodCx}
+            y={232}
             label="두 번째 제단"
             found={hasAltar2}
             onClick={() => onFind("altar2")}
           />
           <Hotspot
-            x={Math.min(370, obtusePanel.r + 20)}
-            y={88}
+            x={Math.min(372, obtusePanel.r + 16)}
+            y={82}
             label="그림자 문양"
             found={hasShadow}
             onClick={() => onFind("shadow")}
@@ -947,58 +1064,239 @@ function GoldenStarScene({ room, found, onFind }: SceneProps) {
   const hasD1 = found.has("diag1");
   const hasD2 = found.has("diag2");
   const hasCross = found.has("cross");
-  // Build diagonals that actually cross at `deg`.
-  const X = { x: 208, y: 172 };
-  const scale = 150 / Math.max(d1, d2);
-  const half1 = (d1 * scale) / 2;
-  const half2 = (d2 * scale) / 2;
-  const dir1 = -28;
-  const Q = {
-    a: polar(X.x, X.y, half1, dir1),
-    c: polar(X.x, X.y, half1, dir1 + 180),
-    d: polar(X.x, X.y, half2, dir1 + deg),
-    b: polar(X.x, X.y, half2, dir1 + deg + 180),
+
+  // Floor diagram region — keep clear of the hanging star / dome apex.
+  const box = { l: 78, r: 322, t: 118, b: 208 };
+  const boxW = box.r - box.l;
+  const boxH = box.b - box.t;
+  const dir1 = 18; // slight tilt so both diagonals read clearly
+
+  // Unit diagonals crossing at origin, then scale+center into the box.
+  const u1 = (d1 / 2);
+  const u2 = (d2 / 2);
+  const raw = {
+    a: polar(0, 0, u1, dir1),
+    c: polar(0, 0, u1, dir1 + 180),
+    d: polar(0, 0, u2, dir1 + deg),
+    b: polar(0, 0, u2, dir1 + deg + 180),
   };
-  const arcR = 14;
-  const angLabel = polar(X.x, X.y, arcR + 16, dir1 + deg / 2);
+  const rawXs = [raw.a.x, raw.b.x, raw.c.x, raw.d.x];
+  const rawYs = [raw.a.y, raw.b.y, raw.c.y, raw.d.y];
+  const rawW = Math.max(...rawXs) - Math.min(...rawXs);
+  const rawH = Math.max(...rawYs) - Math.min(...rawYs);
+  const scale = Math.min((boxW - 36) / rawW, (boxH - 28) / rawH);
+  const cx = (box.l + box.r) / 2;
+  const cy = (box.t + box.b) / 2;
+  const midRawX = (Math.min(...rawXs) + Math.max(...rawXs)) / 2;
+  const midRawY = (Math.min(...rawYs) + Math.max(...rawYs)) / 2;
+  const map = (p: { x: number; y: number }) => ({
+    x: cx + (p.x - midRawX) * scale,
+    y: cy + (p.y - midRawY) * scale,
+  });
+  const Q = {
+    a: map(raw.a),
+    b: map(raw.b),
+    c: map(raw.c),
+    d: map(raw.d),
+  };
+  const X = map({ x: 0, y: 0 });
+  const centroid = {
+    x: (Q.a.x + Q.b.x + Q.c.x + Q.d.x) / 4,
+    y: (Q.a.y + Q.b.y + Q.c.y + Q.d.y) / 4,
+  };
+  const angBisect = dir1 + deg / 2;
+  const arcR = Math.min(24, 0.28 * Math.min(d1, d2) * scale);
+  const d1Cand = [
+    sideLabelAway(Q.a, X, centroid, 22),
+    sideLabelAway(Q.c, X, centroid, 22),
+  ];
+  const d2Cand = [
+    sideLabelAway(Q.b, X, centroid, 22),
+    sideLabelAway(Q.d, X, centroid, 22),
+  ];
+  const pickPair = (ang: { x: number; y: number }) => {
+    let best = {
+      d1: d1Cand[0],
+      d2: d2Cand[0],
+      score: -Infinity,
+    };
+    for (const p1 of d1Cand) {
+      for (const p2 of d2Cand) {
+        const gap12 = Math.hypot(p1.x - p2.x, p1.y - p2.y);
+        const gap1a = Math.hypot(p1.x - ang.x, p1.y - ang.y);
+        const gap2a = Math.hypot(p2.x - ang.x, p2.y - ang.y);
+        const score = Math.min(gap12, gap1a, gap2a);
+        if (score > best.score) best = { d1: p1, d2: p2, score };
+      }
+    }
+    return best;
+  };
+  let angLabel = polar(X.x, X.y, arcR + 26, angBisect);
+  let angFrom = dir1;
+  let picked = pickPair(angLabel);
+  const flipped = polar(X.x, X.y, arcR + 26, angBisect + 180);
+  const pickedFlip = pickPair(flipped);
+  if (pickedFlip.score > picked.score) {
+    angLabel = flipped;
+    picked = pickedFlip;
+    angFrom = dir1 + 180;
+  }
+  const d1Label = picked.d1;
+  const d2Label = picked.d2;
+  const panelPad = 28;
+  const panel = {
+    l: Math.min(Q.a.x, Q.b.x, Q.c.x, Q.d.x, d1Label.x, d2Label.x, angLabel.x) - panelPad,
+    r: Math.max(Q.a.x, Q.b.x, Q.c.x, Q.d.x, d1Label.x, d2Label.x, angLabel.x) + panelPad,
+    t: Math.min(Q.a.y, Q.b.y, Q.c.y, Q.d.y, d1Label.y, d2Label.y, angLabel.y) - 20,
+    b: Math.max(Q.a.y, Q.b.y, Q.c.y, Q.d.y, d1Label.y, d2Label.y, angLabel.y) + 18,
+  };
+
   return (
     <Frame>
+      {/* night sparkles */}
       {[
-        [40, 30], [90, 18], [150, 36], [250, 22], [330, 34], [370, 16], [200, 14],
+        [36, 28], [72, 16], [120, 34], [280, 20], [340, 30], [368, 14], [190, 12], [240, 38],
       ].map(([x, y], i) => (
-        <circle key={i} cx={x} cy={y} r={1.4} fill="#e6f4ff" opacity={0.7} className={i % 2 ? "st-flame-inner" : ""} />
+        <circle
+          key={i}
+          cx={x}
+          cy={y}
+          r={1.3}
+          fill="#e6f4ff"
+          opacity={0.7}
+          className={i % 2 ? "st-flame-inner" : ""}
+        />
       ))}
-      <Torch x={24} y={140} />
-      <Torch x={376} y={140} flip />
-      <path d="M 118 150 A 90 84 0 0 1 298 150 L 298 168 L 118 168 Z" fill="rgba(159,216,255,0.1)" stroke={CRYSTAL} strokeWidth={1.4} />
-      <path d="M 140 108 A 70 62 0 0 1 208 66" fill="none" stroke="rgba(230,244,255,0.5)" strokeWidth={2} strokeLinecap="round" />
-      <circle cx={208} cy={116} r={30} fill="url(#st-star-glow)" className="st-glow" />
+      <Torch x={22} y={120} />
+      <Torch x={378} y={120} flip />
+
+      {/* glass dome — star hangs above the floor diagram */}
       <path
-        d="M 208 96 L 213.5 110 L 228 110.5 L 216.5 119.5 L 221 133.5 L 208 125 L 195 133.5 L 199.5 119.5 L 188 110.5 L 202.5 110 Z"
+        d="M 100 112 A 100 92 0 0 1 300 112"
+        fill="rgba(159,216,255,0.12)"
+        stroke={CRYSTAL}
+        strokeWidth={1.6}
+      />
+      <path
+        d="M 100 112 L 300 112"
+        stroke="rgba(61,143,217,0.35)"
+        strokeWidth={1.2}
+        strokeDasharray="4 5"
+      />
+      <path
+        d="M 130 96 A 78 70 0 0 1 200 48"
+        fill="none"
+        stroke="rgba(230,244,255,0.55)"
+        strokeWidth={2}
+        strokeLinecap="round"
+      />
+      <circle cx={200} cy={72} r={26} fill="url(#st-star-glow)" className="st-glow" />
+      <path
+        d="M 200 54 L 204.8 66.2 L 218 66.6 L 207.4 74.4 L 211.4 86.6 L 200 79.2 L 188.6 86.6 L 192.6 74.4 L 182 66.6 L 195.2 66.2 Z"
         fill={GOLD}
         stroke="#fff1c4"
         strokeWidth={1}
         className="st-float"
       />
+
+      {/* stone floor under the diagram */}
+      <ellipse cx={200} cy={222} rx={150} ry={14} fill="rgba(139,94,60,0.1)" />
+      <rect x={0} y={228} width={400} height={32} fill="#e8d4b0" />
+
+      {/* parchment plate for the floor quadrilateral */}
+      <rect
+        x={Math.max(56, panel.l)}
+        y={Math.max(108, panel.t)}
+        width={Math.min(344, panel.r) - Math.max(56, panel.l)}
+        height={Math.min(220, panel.b) - Math.max(108, panel.t)}
+        rx={14}
+        fill="rgba(255,248,235,0.92)"
+        stroke={GOLD}
+        strokeWidth={1.6}
+      />
+
+      {/* quadrilateral */}
       <polygon
         points={`${Q.a.x},${Q.a.y} ${Q.b.x},${Q.b.y} ${Q.c.x},${Q.c.y} ${Q.d.x},${Q.d.y}`}
-        fill="rgba(255,215,106,0.06)"
+        fill="rgba(196,180,232,0.28)"
         stroke={LINE}
-        strokeWidth={1.4}
+        strokeWidth={2}
       />
-      <line x1={Q.a.x} y1={Q.a.y} x2={Q.c.x} y2={Q.c.y} stroke={GOLD} strokeWidth={1.6} strokeDasharray="6 4" opacity={0.9} />
-      <line x1={Q.d.x} y1={Q.d.y} x2={Q.b.x} y2={Q.b.y} stroke={CRYSTAL} strokeWidth={1.6} strokeDasharray="6 4" opacity={0.9} />
-      {hasD1 ? <MeasureLabel x={(Q.a.x + Q.c.x) / 2 - 20} y={(Q.a.y + Q.c.y) / 2 + 14} text={`d₁ = ${d1} m`} color={GOLD} /> : null}
-      {hasD2 ? <MeasureLabel x={(Q.d.x + Q.b.x) / 2 + 20} y={(Q.d.y + Q.b.y) / 2 + 14} text={`d₂ = ${d2} m`} color={CRYSTAL} /> : null}
+      {/* diagonals as starlight */}
+      <line
+        x1={Q.a.x}
+        y1={Q.a.y}
+        x2={Q.c.x}
+        y2={Q.c.y}
+        stroke={GOLD}
+        strokeWidth={hasD1 ? 2.4 : 1.6}
+        strokeDasharray={hasD1 ? undefined : "7 5"}
+        opacity={0.95}
+      />
+      <line
+        x1={Q.d.x}
+        y1={Q.d.y}
+        x2={Q.b.x}
+        y2={Q.b.y}
+        stroke={CRYSTAL}
+        strokeWidth={hasD2 ? 2.4 : 1.6}
+        strokeDasharray={hasD2 ? undefined : "7 5"}
+        opacity={0.95}
+      />
+      {/* vertices */}
+      {[Q.a, Q.b, Q.c, Q.d].map((p, i) => (
+        <circle key={i} cx={p.x} cy={p.y} r={3.2} fill="#fff8eb" stroke={LINE} strokeWidth={1.2} />
+      ))}
+      {/* intersection */}
+      <circle
+        cx={X.x}
+        cy={X.y}
+        r={hasCross ? 4.5 : 3.2}
+        fill={hasCross ? GOLD : "#fff8eb"}
+        stroke={hasCross ? "#fff1c4" : LINE}
+        strokeWidth={1.3}
+      />
+
+      {hasD1 ? (
+        <MeasureLabel x={d1Label.x} y={d1Label.y} text={`d₁ = ${d1} m`} color={GOLD} size={11} />
+      ) : null}
+      {hasD2 ? (
+        <MeasureLabel x={d2Label.x} y={d2Label.y} text={`d₂ = ${d2} m`} color={CRYSTAL} size={11} />
+      ) : null}
       {hasCross ? (
         <>
-          <path d={arcPath(X.x, X.y, arcR, dir1, dir1 + deg)} fill="none" stroke={GOLD} strokeWidth={1.4} />
-          <MeasureLabel x={angLabel.x} y={angLabel.y} text={`${deg}°`} color={GOLD} />
+          <path
+            d={arcPath(X.x, X.y, arcR, angFrom, angFrom + deg)}
+            fill="none"
+            stroke={GOLD}
+            strokeWidth={1.8}
+          />
+          <MeasureLabel x={angLabel.x} y={angLabel.y} text={`${deg}°`} color={GOLD} size={11} />
         </>
       ) : null}
-      <Hotspot x={(Q.a.x + X.x) / 2} y={(Q.a.y + X.y) / 2} label="첫 번째 별빛 선" found={hasD1} onClick={() => onFind("diag1")} />
-      <Hotspot x={(Q.b.x + X.x) / 2} y={(Q.b.y + X.y) / 2} label="두 번째 별빛 선" found={hasD2} onClick={() => onFind("diag2")} />
-      <Hotspot x={X.x} y={X.y + 26} label="교차점" found={hasCross} onClick={() => onFind("cross")} />
+
+      {/* Hotspots around the plate — never on the diagonals / labels */}
+      <Hotspot
+        x={Math.max(36, Math.max(56, panel.l) - 28)}
+        y={(Q.a.y + Q.c.y) / 2}
+        label="첫 번째 별빛 선"
+        found={hasD1}
+        onClick={() => onFind("diag1")}
+      />
+      <Hotspot
+        x={Math.min(364, Math.min(344, panel.r) + 28)}
+        y={(Q.d.y + Q.b.y) / 2}
+        label="두 번째 별빛 선"
+        found={hasD2}
+        onClick={() => onFind("diag2")}
+      />
+      <Hotspot
+        x={200}
+        y={Math.min(234, Math.min(220, panel.b) + 18)}
+        label="교차점의 문양"
+        found={hasCross}
+        onClick={() => onFind("cross")}
+      />
     </Frame>
   );
 }
