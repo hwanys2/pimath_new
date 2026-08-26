@@ -73,7 +73,7 @@ export class TempleAudio {
     if (typeof window === "undefined" || !window.speechSynthesis) return;
     this.stopSpeak();
     if (this.muted) return;
-    const cleaned = text.replace(/\s+/g, " ").trim();
+    const cleaned = sanitizeSpeechText(text);
     if (!cleaned) return;
     try {
       // Some browsers keep speechSynthesis paused after cancel(); resume first.
@@ -359,6 +359,21 @@ export class TempleAudio {
       this.master = null;
     }
   }
+}
+
+/**
+ * Strip unit-only parentheses like (m), (cm), (m²) from TTS text.
+ * Keep Hangul clarifiers such as (협곡의 폭), (사각형), (뒷면).
+ */
+export function sanitizeSpeechText(text: string): string {
+  return text
+    .replace(
+      /\s*[\(\[](?=[^\)\]\uAC00-\uD7A3]*[A-Za-zμµ°²³])[^\)\]\uAC00-\uD7A3]*[\)\]]/g,
+      "",
+    )
+    .replace(/\s{2,}/g, " ")
+    .replace(/\s+([.!?…])/g, "$1")
+    .trim();
 }
 
 function pickKoreanVoice(): SpeechSynthesisVoice | null {
