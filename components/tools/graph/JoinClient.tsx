@@ -7,8 +7,11 @@ import {
   graphGuestPollAction,
   graphSubmitPointAction,
 } from "@/app/tools/graph/actions";
-import { formatCoord } from "@/lib/graph-explorer-math";
-import type { GraphStudentState } from "@/lib/graph-explorer-types";
+import { formatCoord, parseCoordinate } from "@/lib/graph-explorer-math";
+import {
+  sameGraphCoordinate,
+  type GraphStudentState,
+} from "@/lib/graph-explorer-types";
 import InteractiveGraphPlane, {
   type PlanePoint,
 } from "@/components/tools/graph/InteractiveGraphPlane";
@@ -152,6 +155,30 @@ export default function JoinClient({ initialCode }: { initialCode: string }) {
       setFeedback({ tone: "error", text: "x와 y를 모두 입력해 주세요." });
       return;
     }
+
+    // 보드에 보이는 점으로 선검사 (서버가 최종 판정; 비공개 보드는 서버만 전체 검사)
+    if (state && !state.settings.allowDuplicatePoints) {
+      const x = parseCoordinate(xRaw);
+      const y = parseCoordinate(yRaw);
+      if (x != null && y != null) {
+        const taken = state.points.some((p) =>
+          sameGraphCoordinate(p.x, p.y, x, y),
+        );
+        if (taken) {
+          const mine = state.points.some(
+            (p) => p.isMe && sameGraphCoordinate(p.x, p.y, x, y),
+          );
+          setFeedback({
+            tone: "error",
+            text: mine
+              ? "이미 내가 찍은 점이에요. 다른 점을 찾아보세요!"
+              : "이미 다른 친구가 찍은 점이에요. 다른 점을 찾아보세요!",
+          });
+          return;
+        }
+      }
+    }
+
     setSubmitting(true);
     const res = await graphSubmitPointAction({
       sessionId,
@@ -297,6 +324,11 @@ export default function JoinClient({ initialCode }: { initialCode: string }) {
           {state.settings.integersOnly ? (
             <span className="ml-1 rounded-full bg-sky/40 px-2 py-0.5 text-xs font-semibold">
               정수만
+            </span>
+          ) : null}
+          {!state.settings.allowDuplicatePoints ? (
+            <span className="ml-1 rounded-full bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-800">
+              같은 점 한 명만
             </span>
           ) : null}
         </p>

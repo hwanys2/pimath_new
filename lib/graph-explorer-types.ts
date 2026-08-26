@@ -17,6 +17,11 @@ export type GraphSettings = {
   pointSize: GraphPointSize;
   shareBoardWithStudents: boolean;
   hideExpression: boolean;
+  /**
+   * true면 여러 학생이 같은 좌표를 찍을 수 있음(기본).
+   * false면 이미 칠판에 있는 좌표는 다른 학생도 제출 불가.
+   */
+  allowDuplicatePoints: boolean;
 };
 
 export const DEFAULT_GRAPH_SETTINGS: GraphSettings = {
@@ -34,6 +39,7 @@ export const DEFAULT_GRAPH_SETTINGS: GraphSettings = {
   pointSize: "md",
   shareBoardWithStudents: true,
   hideExpression: false,
+  allowDuplicatePoints: true,
 };
 
 function num(v: unknown, fallback: number): number {
@@ -99,7 +105,21 @@ export function parseGraphSettings(raw: unknown): GraphSettings {
       d.shareBoardWithStudents,
     ),
     hideExpression: bool(o.hideExpression, d.hideExpression),
+    allowDuplicatePoints: bool(
+      o.allowDuplicatePoints,
+      d.allowDuplicatePoints,
+    ),
   };
+}
+
+/** 두 좌표가 같은 점으로 취급되는지 (제출/중복 검사용). */
+export function sameGraphCoordinate(
+  ax: number,
+  ay: number,
+  bx: number,
+  by: number,
+): boolean {
+  return Math.abs(ax - bx) < 1e-9 && Math.abs(ay - by) < 1e-9;
 }
 
 export type GraphPoint = {

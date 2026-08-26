@@ -533,6 +533,12 @@ export async function graphSubmitPoint(input: {
 
   if (submitError) {
     console.error("[pm] pm_graph_submit_point failed:", submitError.message);
+    if (submitError.message.includes("duplicate point")) {
+      return {
+        ok: false,
+        error: "이미 칠판에 있는 점이에요. 다른 점을 찾아보세요!",
+      };
+    }
     if (submitError.message.includes("point limit reached")) {
       return { ok: false, error: "제출 가능한 점을 모두 사용했어요." };
     }

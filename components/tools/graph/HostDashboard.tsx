@@ -93,6 +93,10 @@ function SettingsPanel({
   const [dirty, setDirty] = useState(false);
   const [saving, setSaving] = useState(false);
 
+  useEffect(() => {
+    if (!dirty) setDraft(state.settings);
+  }, [state.settings, dirty]);
+
   const set = <K extends keyof GraphSettings>(key: K, value: GraphSettings[K]) => {
     setDraft((d) => ({ ...d, [key]: value }));
     setDirty(true);
@@ -145,6 +149,7 @@ function SettingsPanel({
           ["showNames", "이름 표시"],
           ["shareBoardWithStudents", "학생에게 전체 점 공개"],
           ["hideExpression", "함수식 숨기기"],
+          ["allowDuplicatePoints", "중복 점 허용"],
         ] as const
       ).map(([key, label]) => (
         <label key={key} className="flex items-center gap-2 text-xs text-foreground/70">
@@ -157,6 +162,11 @@ function SettingsPanel({
           {label}
         </label>
       ))}
+      {!draft.allowDuplicatePoints ? (
+        <p className="text-[11px] leading-snug text-foreground/50">
+          꺼 두면 이미 칠판에 찍힌 좌표는 다른 학생이 다시 제출할 수 없어요.
+        </p>
+      ) : null}
 
       <button
         type="button"

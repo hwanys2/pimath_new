@@ -84,6 +84,7 @@ export default function CreateRoomClient({
       showNames: s.showNames,
       shareBoardWithStudents: s.shareBoardWithStudents,
       hideExpression: s.hideExpression,
+      allowDuplicatePoints: s.allowDuplicatePoints,
       pointSize: s.pointSize,
       unlimitedPoints: s.unlimitedPoints,
     }));
@@ -248,6 +249,7 @@ export default function CreateRoomClient({
                 ["showNames", "이름 표시"],
                 ["shareBoardWithStudents", "학생에게 전체 점 공개"],
                 ["hideExpression", "함수식 숨기기"],
+                ["allowDuplicatePoints", "중복 점 허용"],
               ] as const
             ).map(([key, label]) => (
               <label key={key} className="flex items-center gap-2 text-sm">
@@ -255,6 +257,11 @@ export default function CreateRoomClient({
                 {label}
               </label>
             ))}
+            {!settings.allowDuplicatePoints ? (
+              <p className="text-xs text-foreground/50">
+                꺼 두면 이미 칠판에 찍힌 좌표는 다른 학생이 다시 제출할 수 없어요.
+              </p>
+            ) : null}
           </div>
         </div>
       </div>
