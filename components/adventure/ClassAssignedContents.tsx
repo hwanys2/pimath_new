@@ -1,6 +1,11 @@
-import Link from "next/link";
+import BlockButton from "@/components/BlockButton";
 import type { AssignedContentView } from "@/lib/class-contents";
-import { contentTypeBadgeClass, contentTypeLabel } from "@/lib/contents";
+import {
+  contentTypeBadgeClass,
+  contentTypeButtonVariant,
+  contentTypeLabel,
+  contentTypeStartLabel,
+} from "@/lib/contents";
 import { getUnit, getUnitLabel } from "@/lib/curriculum";
 
 type Props = {
@@ -61,16 +66,14 @@ function ContentCard({
       </div>
 
       {content && !locked ? (
-        <Link
+        <BlockButton
           href={content.href}
-          className="inline-flex w-full shrink-0 items-center justify-center rounded-xl bg-mint/60 px-4 py-2 text-sm font-bold text-wood no-underline hover:bg-mint/80"
+          variant={contentTypeButtonVariant(content.type)}
+          size="sm"
+          className="w-full"
         >
-          {content.type === "simulation"
-            ? "시뮬레이션 시작"
-            : content.type === "inquiry"
-              ? "탐구 참여"
-              : "게임 시작"}
-        </Link>
+          {contentTypeStartLabel(content.type)}
+        </BlockButton>
       ) : (
         <span className="inline-flex w-full shrink-0 items-center justify-center rounded-xl bg-wood/10 px-4 py-2 text-sm font-bold text-foreground/40">
           잠김

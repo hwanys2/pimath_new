@@ -10,7 +10,9 @@ import {
 } from "@/lib/curriculum";
 import {
   contentTypeBadgeClass,
+  contentTypeButtonVariant,
   contentTypeLabel,
+  contentTypeStartLabel,
   getContentsForUnit,
 } from "@/lib/contents";
 import { fetchTeacherAssignContext } from "@/lib/teacher-classes";
@@ -119,12 +121,10 @@ export default async function UnitPage({ params }: Props) {
                 <div className="mt-auto flex flex-wrap items-start gap-2 pt-2">
                   <BlockButton
                     href={content.href}
-                    variant={grade.theme}
+                    variant={contentTypeButtonVariant(content.type)}
                     size="sm"
                   >
-                    {content.type === "simulation"
-                      ? "시뮬레이션 시작"
-                      : "게임 시작"}
+                    {contentTypeStartLabel(content.type)}
                   </BlockButton>
                   {assignCtx ? (
                     <AssignContentButton

@@ -291,6 +291,32 @@ export function contentTypeLabel(type: ContentType): string {
   }
 }
 
+/** CTA copy aligned with content type (list / adventure cards). */
+export function contentTypeStartLabel(type: ContentType): string {
+  switch (type) {
+    case "simulation":
+      return "시뮬레이션 시작";
+    case "inquiry":
+      return "탐구 시작";
+    default:
+      return "게임 시작";
+  }
+}
+
+/** BlockButton variant matching contentTypeBadgeClass hues. */
+export function contentTypeButtonVariant(
+  type: ContentType,
+): "sky" | "lavender" | "gold" {
+  switch (type) {
+    case "simulation":
+      return "sky";
+    case "inquiry":
+      return "lavender";
+    default:
+      return "gold";
+  }
+}
+
 /** Distinct pill colors so sim vs game is obvious at a glance. */
 export function contentTypeBadgeClass(type: ContentType): string {
   switch (type) {
