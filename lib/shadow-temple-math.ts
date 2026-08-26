@@ -100,19 +100,23 @@ export type TempleRun = {
 
 /* ---------------------------------------------------------------- score */
 
+/** Points deducted when the player reveals one notebook hint line. */
+export const HINT_LINE_PENALTY = 10;
+
 /**
- * Award for solving one puzzle. Attempts and hints reduce the award.
+ * Award for solving one puzzle. Attempts reduce the award; hint cost is
+ * deducted live (−HINT_LINE_PENALTY per line) when the notebook is used.
  * Six rooms: 5 rooms × 150 + room 5 (two altars × 75) = 900,
  * plus time bonus up to 100 → target ≈ 1000 (progression-system.md).
  */
-export function puzzleAward(
-  attempt: number,
-  hintLevel: 0 | 1 | 2,
-  weight: number,
-): number {
+export function puzzleAward(attempt: number, weight: number): number {
   const base = attempt <= 1 ? 150 : attempt === 2 ? 110 : attempt === 3 ? 80 : 60;
-  const hintPenalty = hintLevel === 0 ? 0 : hintLevel === 1 ? 20 : 50;
-  return Math.max(20, Math.round((base - hintPenalty) * weight));
+  return Math.max(20, Math.round(base * weight));
+}
+
+/** Live score loss when opening a notebook line (floor at 0). */
+export function applyHintLinePenalty(current: number): number {
+  return Math.max(0, Math.round(current) - HINT_LINE_PENALTY);
 }
 
 export function timeBonus(timeLeftSec: number): number {
@@ -239,7 +243,7 @@ function buildGateRoom(): Room {
           {
             id: "mural",
             label: "벽화",
-            text: "「높이를 아는 자만이 거인의 눈을 뜨게 하리라.」 — 높이를 구해 입력해야 한다!",
+            text: "「높이를 아는 자만이 거인의 눈을 뜨게 하리라.」",
           },
         ],
         input: { kind: "numeric", answer: v.val, unit: "m", exact: v.exact },
@@ -355,12 +359,14 @@ type BridgeVariant = {
   val: number;
 };
 
+/** Only asymmetric angle pairs — equal ends collapse to a dull isosceles. */
 const BRIDGE_POOL: readonly BridgeVariant[] = [
   { alpha: 30, beta: 60, d: 12, exact: "3√3", val: 5.1 },
   { alpha: 30, beta: 60, d: 16, exact: "4√3", val: 6.8 },
-  { alpha: 45, beta: 45, d: 14, exact: "7", val: 7 },
-  { alpha: 45, beta: 45, d: 18, exact: "9", val: 9 },
-  { alpha: 60, beta: 60, d: 10, exact: "5√3", val: 8.5 },
+  { alpha: 30, beta: 45, d: 20, exact: "10(√3−1)", val: 7 },
+  { alpha: 30, beta: 45, d: 16, exact: "8(√3−1)", val: 5.6 },
+  { alpha: 45, beta: 60, d: 10, exact: "5(3−√3)", val: 6.5 },
+  { alpha: 45, beta: 60, d: 14, exact: "7(3−√3)", val: 9.1 },
 ];
 
 function buildBridgeRoom(): Room {
@@ -374,15 +380,16 @@ function buildBridgeRoom(): Room {
       "AH = h ÷ (√3/3) = √3·h,  BH = h ÷ √3 = (√3/3)·h",
       `AH + BH = √3h + (√3/3)h = (4√3/3)h = ${v.d}  →  h = ${v.exact} = ${fmt(v.val)} m`,
     );
-  } else if (v.alpha === 45) {
+  } else if (v.alpha === 30 && v.beta === 45) {
     steps.push(
-      "tan 45° = 1 이므로 AH = h, BH = h",
-      `AH + BH = 2h = ${v.d}  →  h = ${fmt(v.val)} m`,
+      "AH = h ÷ (√3/3) = √3·h,  BH = h ÷ 1 = h",
+      `AH + BH = (√3+1)h = ${v.d}  →  h = ${v.d}/(√3+1) = ${v.exact} = ${fmt(v.val)} m`,
     );
   } else {
+    // 45 & 60
     steps.push(
-      "AH = h ÷ √3 = (√3/3)h, BH 도 같다.",
-      `AH + BH = (2√3/3)h = ${v.d}  →  h = ${v.exact} = ${fmt(v.val)} m`,
+      "AH = h ÷ 1 = h,  BH = h ÷ √3 = (√3/3)·h",
+      `AH + BH = h + (√3/3)h = ((3+√3)/3)h = ${v.d}  →  h = ${v.exact} = ${fmt(v.val)} m`,
     );
   }
   return {

@@ -45,29 +45,27 @@ for (const v of LAVA) {
   if (sq !== v.ans * v.ans) fail(`lava ${JSON.stringify(v)} → ${sq}`);
 }
 
-// Room 3 — h·(cotα + cotβ) = d, exact result matches listed decimal.
+// Room 3 — h·(cotα + cotβ) = d; only asymmetric pairs (no isosceles).
 const BRIDGE = [
-  { alpha: 30, beta: 60, d: 12, val: 5.1 },
-  { alpha: 30, beta: 60, d: 16, val: 6.8 },
-  { alpha: 45, beta: 45, d: 14, val: 7 },
-  { alpha: 45, beta: 45, d: 18, val: 9 },
-  { alpha: 60, beta: 60, d: 10, val: 8.5 },
+  { alpha: 30, beta: 60, d: 12, val: 5.1, via: "d/4*√3" },
+  { alpha: 30, beta: 60, d: 16, val: 6.8, via: "d/4*√3" },
+  { alpha: 30, beta: 45, d: 20, val: 7, via: "d*(√3-1)/2" },
+  { alpha: 30, beta: 45, d: 16, val: 5.6, via: "d*(√3-1)/2" },
+  { alpha: 45, beta: 60, d: 10, val: 6.5, via: "d*(3-√3)/2" },
+  { alpha: 45, beta: 60, d: 14, val: 9.1, via: "d*(3-√3)/2" },
 ];
 for (const v of BRIDGE) {
+  // Textbook: simplify with radicals, then √3 → 1.7 (may drift ~0.3 from Math.tan).
+  let approx;
+  if (v.alpha === 30 && v.beta === 60) approx = (v.d / 4) * SQRT3;
+  else if (v.alpha === 30 && v.beta === 45) approx = (v.d * (SQRT3 - 1)) / 2;
+  else approx = (v.d * (3 - SQRT3)) / 2;
+  if (Math.abs(approx - v.val) > 1e-9)
+    fail(`bridge approx ${JSON.stringify(v)} → ${approx}`);
   const cot = (deg) => 1 / Math.tan(deg2rad(deg));
   const hExact = v.d / (cot(v.alpha) + cot(v.beta));
-  if (Math.abs(hExact - v.val) > 0.25)
-    fail(`bridge exact ${JSON.stringify(v)} → ${hExact}`);
-  // textbook path: exact radical then √3 → 1.7
-  const sqrt3Count = { "30,60": v.d / 4, "45,45": null, "60,60": v.d / 2 }[
-    `${v.alpha},${v.beta}`
-  ];
-  if (sqrt3Count != null) {
-    if (Math.abs(sqrt3Count * SQRT3 - v.val) > 1e-9)
-      fail(`bridge approx ${JSON.stringify(v)}`);
-  } else if (Math.abs(v.d / 2 - v.val) > 1e-9) {
-    fail(`bridge 45 ${JSON.stringify(v)}`);
-  }
+  if (Math.abs(hExact - v.val) > 0.35)
+    fail(`bridge exact drift ${JSON.stringify(v)} → ${hExact}`);
 }
 
 // Room 4 — parallelogram S = ab·sinθ; correct matches groove, distractors differ.

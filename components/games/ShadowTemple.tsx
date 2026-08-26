@@ -20,7 +20,7 @@ import {
 import type { RankingMode, RankingRow, RankingScope } from "@/lib/game-types";
 import GameRankingBoard from "@/components/games/GameRankingBoard";
 import RoomScene, { TitleScene } from "@/components/games/ShadowTempleScenes";
-import { TempleAudio, type TempleSfx } from "@/components/games/shadow-temple-audio";
+import { TempleAudio, type TempleSfx, warmSpeechVoices } from "@/components/games/shadow-temple-audio";
 import {
   submitGameRun,
   fetchGameRanking,
@@ -31,10 +31,12 @@ import { applyScoreGain } from "@/lib/xp";
 import {
   CONTENT_KEY,
   ESCAPE_STORY,
+  HINT_LINE_PENALTY,
   PROLOGUE,
   TOTAL_TIME_SEC,
   TRAPPED_STORY,
   WRONG_TIME_PENALTY_SEC,
+  applyHintLinePenalty,
   checkNumericAnswer,
   formatClock,
   generateRun,
@@ -394,7 +396,7 @@ export default function ShadowTemple() {
   const [found, setFound] = useState<Set<string>>(() => new Set());
   const [wrongPicks, setWrongPicks] = useState<Set<number>>(() => new Set());
   const [attempt, setAttempt] = useState(1);
-  const [hintLevel, setHintLevel] = useState<0 | 1 | 2>(0);
+  const [hintRevealed, setHintRevealed] = useState(0);
   const [hintOpen, setHintOpen] = useState(false);
   const [solvedInfo, setSolvedInfo] = useState<{
     line: string;
@@ -459,6 +461,7 @@ export default function ShadowTemple() {
   }, [muted]);
 
   useEffect(() => {
+    warmSpeechVoices();
     return () => {
       audioRef.current?.dispose();
       audioRef.current = null;
@@ -491,6 +494,52 @@ export default function ShadowTemple() {
     : 0;
   const allCluesFound = puzzle ? cluesFound >= puzzle.clues.length : false;
   const dangerTime = timeLeft <= 60;
+
+  /* Narrate prologue, room enter story, then the unlocked puzzle prompt. */
+  useEffect(() => {
+    if (phase === "prologue" && PROLOGUE.length > 0) {
+      const audio = getAudio();
+      const t = window.setTimeout(() => audio.speak(PROLOGUE.join(". ")), 400);
+      return () => {
+        window.clearTimeout(t);
+        audio.stopSpeak();
+      };
+    }
+    return undefined;
+  }, [phase, getAudio]);
+
+  useEffect(() => {
+    if (phase !== "playing" || stage !== "enter" || !room) return;
+    const audio = getAudio();
+    const script = [room.title, ...room.enterStory].join(". ");
+    const t = window.setTimeout(() => audio.speak(script), 350);
+    return () => {
+      window.clearTimeout(t);
+      audio.stopSpeak();
+    };
+  }, [phase, stage, roomIndex, room, getAudio]);
+
+  useEffect(() => {
+    if (phase !== "playing" || stage !== "solve" || !puzzle || !allCluesFound) {
+      return;
+    }
+    if (solvedInfo) return;
+    const audio = getAudio();
+    const t = window.setTimeout(() => audio.speak(puzzle.prompt), 280);
+    return () => {
+      window.clearTimeout(t);
+      audio.stopSpeak();
+    };
+  }, [
+    phase,
+    stage,
+    roomIndex,
+    puzzleIndex,
+    allCluesFound,
+    puzzle,
+    solvedInfo,
+    getAudio,
+  ]);
 
   /* --------------------------------------------------------- ending */
 
@@ -588,7 +637,7 @@ export default function ShadowTemple() {
     setFound(new Set());
     setWrongPicks(new Set());
     setAttempt(1);
-    setHintLevel(0);
+    setHintRevealed(0);
     setHintOpen(false);
     setSolvedInfo(null);
     setScore(0);
@@ -644,20 +693,21 @@ export default function ShadowTemple() {
   };
 
   const openHint = () => {
-    if (hintLevel === 0) {
-      setHintLevel(1);
-      hintTotalRef.current += 1;
-    }
     sfx("hint");
     setHintOpen(true);
   };
 
-  const deepenHint = () => {
-    if (hintLevel < 2) {
-      setHintLevel(2);
-      hintTotalRef.current += 1;
-      sfx("hint");
-    }
+  const revealNextHintLine = () => {
+    if (!puzzle) return;
+    const lines = [...puzzle.hintConcept, ...puzzle.hintSolve];
+    if (hintRevealed >= lines.length) return;
+    const nextScore = applyHintLinePenalty(scoreRef.current);
+    scoreRef.current = nextScore;
+    setScore(nextScore);
+    setHintRevealed((n) => n + 1);
+    hintTotalRef.current += 1;
+    sfx("hint");
+    setStatusMsg(`수첩에서 한 줄을 펼쳤다 (−${HINT_LINE_PENALTY}점).`);
   };
 
   const handleWrong = () => {
@@ -682,7 +732,7 @@ export default function ShadowTemple() {
 
   const handleCorrect = () => {
     if (!room || !puzzle) return;
-    const award = puzzleAward(attempt, hintLevel, puzzle.weight);
+    const award = puzzleAward(attempt, puzzle.weight);
     const next = applyScoreGain(scoreRef.current, award);
     scoreRef.current = next;
     setScore(next);
@@ -690,7 +740,7 @@ export default function ShadowTemple() {
       room: room.id,
       title: room.title,
       attempts: attempt,
-      hint: hintLevel,
+      hint: hintRevealed,
     });
     const isLastPuzzleOfRoom = puzzleIndex >= room.puzzles.length - 1;
     if (isLastPuzzleOfRoom) {
@@ -745,7 +795,8 @@ export default function ShadowTemple() {
     if (!solvedInfo.isLastPuzzleOfRoom) {
       setPuzzleIndex((p) => p + 1);
       setAttempt(1);
-      setHintLevel(0);
+      setHintRevealed(0);
+      setFound(new Set());
       setWrongPicks(new Set());
       setSolvedInfo(null);
       sfx("click");
@@ -759,7 +810,7 @@ export default function ShadowTemple() {
     setFound(new Set());
     setWrongPicks(new Set());
     setAttempt(1);
-    setHintLevel(0);
+    setHintRevealed(0);
     setSolvedInfo(null);
     setStatusMsg("");
   };
@@ -839,8 +890,8 @@ export default function ShadowTemple() {
                 깨어나요.
               </li>
               <li className="rounded-xl bg-white/55 px-4 py-2.5">
-                막히면 <strong>박사의 수첩</strong>(힌트)을 펴 보세요 — 대신 점수가
-                조금 줄어요.
+                막히면 <strong>박사의 수첩</strong>을 펴고 한 줄씩 펼치세요 — 줄마다{" "}
+                −{HINT_LINE_PENALTY}점.
               </li>
               <li className="rounded-xl bg-white/55 px-4 py-2.5">
                 빠르고 정확할수록 높은 점수! 남은 횃불 시간은 보너스가 돼요.
@@ -1074,7 +1125,7 @@ export default function ShadowTemple() {
 
           {hintOpen && puzzle ? (
             <div className="border-t-2 border-gold/50 bg-gold/10 px-5 py-4 sm:px-7">
-              <div className="flex items-center justify-between">
+              <div className="flex items-center justify-between gap-3">
                 <p className="font-display text-lg text-wood">박사의 수첩</p>
                 <StoneButton
                   variant="ghost"
@@ -1084,33 +1135,56 @@ export default function ShadowTemple() {
                   덮기
                 </StoneButton>
               </div>
-              <div className="mt-2 space-y-1.5">
-                {puzzle.hintConcept.map((line, i) => (
-                  <p key={i} className="text-sm leading-relaxed text-foreground/80">
-                    {line}
-                  </p>
-                ))}
-              </div>
-              {hintLevel >= 2 ? (
-                <div className="mt-3 space-y-1.5 rounded-xl bg-white/70 px-4 py-3">
-                  <p className="text-xs font-black text-wood">
-                    찢어진 페이지 — 풀이의 흔적
-                  </p>
-                  {puzzle.hintSolve.map((line, i) => (
-                    <p key={i} className="text-sm leading-relaxed text-foreground">
-                      {i + 1}. {line}
-                    </p>
-                  ))}
-                </div>
-              ) : (
-                <button
-                  type="button"
-                  onClick={deepenHint}
-                  className="mt-3 text-xs font-bold text-wood/60 underline underline-offset-2 hover:text-wood"
-                >
-                  찢어진 페이지를 펼친다 (풀이 보기 · 점수 더 감소)
-                </button>
-              )}
+              <p className="mt-1 text-xs font-semibold text-wood/55">
+                한 줄씩 펼칩니다. 줄마다 −{HINT_LINE_PENALTY}점.
+              </p>
+              {(() => {
+                const lines = [...puzzle.hintConcept, ...puzzle.hintSolve];
+                const shown = lines.slice(0, hintRevealed);
+                const conceptCount = puzzle.hintConcept.length;
+                return (
+                  <>
+                    {shown.length === 0 ? (
+                      <p className="mt-3 text-sm text-foreground/55">
+                        아직 펼친 줄이 없습니다. 막히면 아래 버튼으로 한 줄만 보세요.
+                      </p>
+                    ) : (
+                      <div className="mt-3 space-y-1.5">
+                        {shown.map((line, i) => (
+                          <p
+                            key={i}
+                            className={[
+                              "text-sm leading-relaxed",
+                              i >= conceptCount
+                                ? "rounded-lg bg-white/70 px-3 py-2 text-foreground"
+                                : "text-foreground/80",
+                            ].join(" ")}
+                          >
+                            {i >= conceptCount ? `${i - conceptCount + 1}. ` : ""}
+                            {line}
+                          </p>
+                        ))}
+                      </div>
+                    )}
+                    {hintRevealed < lines.length ? (
+                      <StoneButton
+                        variant="ghost"
+                        onClick={revealNextHintLine}
+                        className="mt-3 text-xs"
+                      >
+                        다음 줄 펼치기 (−{HINT_LINE_PENALTY}점)
+                        {hintRevealed > 0
+                          ? ` · ${hintRevealed}/${lines.length}`
+                          : ""}
+                      </StoneButton>
+                    ) : (
+                      <p className="mt-3 text-xs font-bold text-wood/50">
+                        수첩의 이 페이지를 모두 펼쳤습니다 ({lines.length}줄).
+                      </p>
+                    )}
+                  </>
+                );
+              })()}
             </div>
           ) : null}
 

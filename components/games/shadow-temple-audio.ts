@@ -58,12 +58,41 @@ export class TempleAudio {
 
   setMuted(muted: boolean) {
     this.muted = muted;
+    if (muted) this.stopSpeak();
     if (this.master && this.ctx) {
       this.master.gain.setTargetAtTime(
         muted ? 0 : 1,
         this.ctx.currentTime,
         0.05,
       );
+    }
+  }
+
+  /** Korean TTS for story / puzzle prompts (Web Speech API). */
+  speak(text: string) {
+    if (typeof window === "undefined" || !window.speechSynthesis) return;
+    this.stopSpeak();
+    if (this.muted) return;
+    const cleaned = text.replace(/\s+/g, " ").trim();
+    if (!cleaned) return;
+    try {
+      const utter = new SpeechSynthesisUtterance(cleaned);
+      utter.lang = "ko-KR";
+      utter.rate = 1.02;
+      const voice = pickKoreanVoice();
+      if (voice) utter.voice = voice;
+      window.speechSynthesis.speak(utter);
+    } catch {
+      /* ignore */
+    }
+  }
+
+  stopSpeak() {
+    if (typeof window === "undefined" || !window.speechSynthesis) return;
+    try {
+      window.speechSynthesis.cancel();
+    } catch {
+      /* ignore */
     }
   }
 
@@ -295,6 +324,7 @@ export class TempleAudio {
   dispose() {
     this.stopHeartbeat();
     this.stopAmbience();
+    this.stopSpeak();
     if (this.ctx) {
       try {
         void this.ctx.close();
@@ -305,4 +335,23 @@ export class TempleAudio {
       this.master = null;
     }
   }
+}
+
+function pickKoreanVoice(): SpeechSynthesisVoice | null {
+  if (typeof window === "undefined" || !window.speechSynthesis) return null;
+  const voices = window.speechSynthesis.getVoices();
+  return (
+    voices.find((v) => v.lang === "ko-KR") ??
+    voices.find((v) => v.lang.toLowerCase().startsWith("ko")) ??
+    null
+  );
+}
+
+/** Warm the voice list early — some browsers populate it asynchronously. */
+export function warmSpeechVoices() {
+  if (typeof window === "undefined" || !window.speechSynthesis) return;
+  void window.speechSynthesis.getVoices();
+  window.speechSynthesis.addEventListener?.("voiceschanged", () => {
+    void window.speechSynthesis.getVoices();
+  }, { once: true });
 }
