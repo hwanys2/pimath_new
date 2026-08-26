@@ -362,8 +362,9 @@ export class TempleAudio {
 }
 
 /**
- * Strip unit-only parentheses like (m), (cm), (m²) from TTS text.
- * Keep Hangul clarifiers such as (협곡의 폭), (사각형), (뒷면).
+ * Make math text speakable in Korean TTS.
+ * - Drop unit-only parentheses like (m); keep Hangul clarifiers
+ * - √3 = 1.7 → 루트3은 1.7
  */
 export function sanitizeSpeechText(text: string): string {
   return text
@@ -371,6 +372,17 @@ export function sanitizeSpeechText(text: string): string {
       /\s*[\(\[](?=[^\)\]\uAC00-\uD7A3]*[A-Za-zμµ°²³])[^\)\]\uAC00-\uD7A3]*[\)\]]/g,
       "",
     )
+    .replace(/√\s*3/g, "루트3")
+    .replace(/√\s*2/g, "루트2")
+    .replace(/√/g, "루트")
+    .replace(/(루트\d+)\s*=\s*/g, "$1은 ")
+    .replace(/\s*=\s*/g, "는 ")
+    .replace(/°/g, "도")
+    .replace(/×/g, " 곱하기 ")
+    .replace(/÷/g, " 나누기 ")
+    .replace(/→/g, " 그러면 ")
+    .replace(/½/g, "이분의 일")
+    .replace(/(\d)\s+로\b/g, "$1로")
     .replace(/\s{2,}/g, " ")
     .replace(/\s+([.!?…])/g, "$1")
     .trim();
