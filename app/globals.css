@@ -564,3 +564,227 @@ body {
   stroke-dasharray: 4000;
   animation: pm-graph-curve-draw 2.4s ease-out forwards;
 }
+
+/* ── 그림자 신전 (삼각비 방탈출) ───────────────────────────── */
+
+@keyframes st-flicker {
+  0%,
+  100% {
+    opacity: 0.9;
+    transform: scale(1);
+  }
+  22% {
+    opacity: 1;
+    transform: scale(1.08, 1.16);
+  }
+  48% {
+    opacity: 0.72;
+    transform: scale(0.92, 0.9);
+  }
+  76% {
+    opacity: 0.96;
+    transform: scale(1.04, 0.95);
+  }
+}
+
+.st-flame {
+  transform-box: fill-box;
+  transform-origin: 50% 92%;
+  animation: st-flicker 1.7s ease-in-out infinite;
+}
+
+.st-flame-inner {
+  transform-box: fill-box;
+  transform-origin: 50% 92%;
+  animation: st-flicker 1.1s ease-in-out infinite reverse;
+}
+
+@keyframes st-glow-pulse {
+  0%,
+  100% {
+    opacity: 0.75;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+.st-glow {
+  animation: st-glow-pulse 2.6s ease-in-out infinite;
+}
+
+@keyframes st-hotspot-pulse {
+  0%,
+  100% {
+    transform: scale(1);
+    opacity: 0.55;
+  }
+  50% {
+    transform: scale(1.35);
+    opacity: 1;
+  }
+}
+
+.st-hotspot {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: st-hotspot-pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes st-float-anim {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-5px);
+  }
+}
+
+.st-float {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: st-float-anim 3s ease-in-out infinite;
+}
+
+@keyframes st-lava-glow {
+  0%,
+  100% {
+    filter: brightness(1);
+  }
+  50% {
+    filter: brightness(1.25);
+  }
+}
+
+.st-lava {
+  animation: st-lava-glow 2.2s ease-in-out infinite;
+}
+
+@keyframes st-bubble-anim {
+  0% {
+    transform: translateY(0);
+    opacity: 0.85;
+  }
+  100% {
+    transform: translateY(-14px);
+    opacity: 0;
+  }
+}
+
+.st-bubble {
+  transform-box: fill-box;
+  animation: st-bubble-anim 1.8s ease-out infinite;
+}
+
+.st-bubble-2 {
+  animation-delay: 0.6s;
+}
+
+.st-bubble-3 {
+  animation-delay: 1.1s;
+}
+
+@keyframes st-fade-in-anim {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.st-fade-in {
+  animation: st-fade-in-anim 0.4s ease-out;
+}
+
+@keyframes st-shake-anim {
+  0%,
+  100% {
+    transform: translateX(0);
+  }
+  20% {
+    transform: translateX(-5px);
+  }
+  40% {
+    transform: translateX(4px);
+  }
+  60% {
+    transform: translateX(-3px);
+  }
+  80% {
+    transform: translateX(2px);
+  }
+}
+
+.st-shake {
+  animation: st-shake-anim 0.4s ease-in-out;
+}
+
+@keyframes st-door-wipe {
+  0% {
+    opacity: 1;
+  }
+  45% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
+.st-door-wipe {
+  animation: st-door-wipe 1s ease-in-out forwards;
+  pointer-events: none;
+}
+
+@keyframes st-room-enter {
+  from {
+    opacity: 0;
+    transform: scale(0.985);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.st-room-enter {
+  animation: st-room-enter 0.6s ease-out;
+}
+
+@keyframes st-danger-anim {
+  0%,
+  100% {
+    box-shadow: inset 0 0 0 0 rgba(232, 93, 76, 0);
+  }
+  50% {
+    box-shadow: inset 0 0 44px 6px rgba(232, 93, 76, 0.35);
+  }
+}
+
+.st-danger {
+  animation: st-danger-anim 1.1s ease-in-out infinite;
+}
+
+.st-caret::after {
+  content: "▌";
+  margin-left: 2px;
+  animation: st-glow-pulse 0.9s steps(2) infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .st-flame,
+  .st-flame-inner,
+  .st-glow,
+  .st-hotspot,
+  .st-float,
+  .st-lava,
+  .st-bubble,
+  .st-shake,
+  .st-danger {
+    animation: none;
+  }
+}

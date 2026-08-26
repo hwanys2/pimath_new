@@ -55,6 +55,13 @@ export const SUMMARY_LABELS: Record<string, Record<string, string>> = {
     accuracy: "정확도(%)",
     reverseCount: "순서 반대",
   },
+  "g3-u3-1-shadow-temple": {
+    escaped: "탈출 성공",
+    roomsCleared: "통과한 방",
+    wrongAttempts: "오답 시도",
+    hintsUsed: "수첩(힌트)",
+    timeLeftSec: "남은 시간(초)",
+  },
   "g1-u2-2-linear-equation-balance": {
     correctCount: "정답",
     problemCount: "문제 수",
