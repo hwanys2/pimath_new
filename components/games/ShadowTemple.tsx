@@ -147,6 +147,95 @@ function Typewriter({
   );
 }
 
+/* -------------------------------------------------- room story modal */
+
+function RoomStoryModal({
+  roomId,
+  title,
+  objective,
+  lines,
+  onClose,
+}: {
+  roomId: number;
+  title: string;
+  objective: string;
+  lines: readonly string[];
+  onClose: () => void;
+}) {
+  const closeRef = useRef<HTMLButtonElement>(null);
+
+  useEffect(() => {
+    closeRef.current?.focus();
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-end justify-center bg-wood/45 p-3 backdrop-blur-[2px] sm:items-center sm:p-6"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="st-room-story-title"
+      onClick={onClose}
+    >
+      <div
+        className="st-fade-in relative max-h-[85vh] w-full max-w-lg overflow-y-auto rounded-2xl border-2 border-wood/20 bg-gradient-to-b from-[#fff8eb] via-[#fff3d6] to-[#f0e0c8] p-5 shadow-[0_12px_40px_rgba(91,58,34,0.35)] sm:p-7"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <p className="text-[11px] font-bold tracking-wide text-wood/50">
+              가방 · 문서
+            </p>
+            <h3
+              id="st-room-story-title"
+              className="font-display mt-1 text-xl text-wood sm:text-2xl"
+            >
+              방의 기록
+            </h3>
+          </div>
+          <button
+            ref={closeRef}
+            type="button"
+            onClick={onClose}
+            className="rounded-xl border border-wood/20 px-3 py-1.5 text-xs font-bold text-wood transition hover:bg-wood/5"
+          >
+            접기
+          </button>
+        </div>
+
+        <div className="mt-4 rounded-xl border border-wood/15 bg-white/55 px-4 py-4">
+          <p className="text-xs font-bold text-wood/55">{roomId}번째 방</p>
+          <p className="font-display mt-0.5 text-lg text-wood">{title}</p>
+          <p className="mt-1 text-[11px] font-bold text-wood/60">{objective}</p>
+          <div className="mt-4 space-y-3 border-t border-wood/10 pt-3">
+            {lines.map((line, i) => (
+              <p
+                key={i}
+                className={[
+                  "text-sm leading-relaxed sm:text-base",
+                  line.startsWith("「")
+                    ? "font-semibold text-wood"
+                    : "text-foreground/80",
+                ].join(" ")}
+              >
+                {line}
+              </p>
+            ))}
+          </div>
+        </div>
+
+        <p className="mt-3 text-center text-[11px] font-semibold text-wood/40">
+          조사 중에도 이 기록을 다시 펼칠 수 있습니다
+        </p>
+      </div>
+    </div>
+  );
+}
+
 /* --------------------------------------------------------- devices */
 
 function StoneButton({
@@ -409,6 +498,7 @@ export default function ShadowTemple() {
   const [attempt, setAttempt] = useState(1);
   const [hintRevealed, setHintRevealed] = useState(0);
   const [hintOpen, setHintOpen] = useState(false);
+  const [storyOpen, setStoryOpen] = useState(false);
   const [solvedInfo, setSolvedInfo] = useState<{
     line: string;
     award: number;
@@ -659,6 +749,7 @@ export default function ShadowTemple() {
     setAttempt(1);
     setHintRevealed(0);
     setHintOpen(false);
+    setStoryOpen(false);
     setSolvedInfo(null);
     setScore(0);
     scoreRef.current = 0;
@@ -695,7 +786,10 @@ export default function ShadowTemple() {
   const startInvestigation = () => {
     sfx("click");
     setStage("solve");
-    setStatusMsg("빛나는 곳을 눌러 단서를 모으세요.");
+    setStoryOpen(false);
+    setStatusMsg(
+      "방의 기록이 가방에 들어갔다. 필요할 때 「방의 기록」을 눌러 다시 읽을 수 있다.",
+    );
   };
 
   const onFindClue = (clueId: string) => {
@@ -837,6 +931,7 @@ export default function ShadowTemple() {
       setFound(new Set());
       setWrongPicks(new Set());
       setSolvedInfo(null);
+      setStoryOpen(false);
       sfx("click");
       setStatusMsg("빛나는 곳을 눌러 새 단서를 모으세요.");
       return;
@@ -851,6 +946,8 @@ export default function ShadowTemple() {
     setHintRevealed(0);
     setSolvedInfo(null);
     setStoryDone(false);
+    setStoryOpen(false);
+    setHintOpen(false);
     setStatusMsg("");
   };
 
@@ -927,6 +1024,10 @@ export default function ShadowTemple() {
               <li className="rounded-xl bg-white/55 px-4 py-2.5">
                 방마다 빛나는 곳을 <strong>조사해 단서</strong>를 모아야 장치가
                 깨어나요.
+              </li>
+              <li className="rounded-xl bg-white/55 px-4 py-2.5">
+                방 이야기는 조사 시작 후 <strong>방의 기록</strong>으로 가방에
+                남아요. 다시 펼쳐 읽을 수 있습니다.
               </li>
               <li className="rounded-xl bg-white/55 px-4 py-2.5">
                 막히면 <strong>박사의 수첩</strong>을 펴고 한 줄씩 펼치세요 — 본문은
@@ -1166,12 +1267,39 @@ export default function ShadowTemple() {
                 >
                   {statusMsg}
                 </p>
-                <StoneButton variant="ghost" onClick={openHint} className="shrink-0">
-                  박사의 수첩
-                </StoneButton>
+                <div className="flex shrink-0 flex-col gap-1.5 sm:flex-row">
+                  <StoneButton
+                    variant="ghost"
+                    onClick={() => {
+                      sfx("clue");
+                      setStoryOpen(true);
+                    }}
+                    className="px-3 py-2 text-xs"
+                    ariaLabel="방의 기록 펼치기"
+                  >
+                    방의 기록
+                  </StoneButton>
+                  <StoneButton
+                    variant="ghost"
+                    onClick={openHint}
+                    className="px-3 py-2 text-xs"
+                  >
+                    박사의 수첩
+                  </StoneButton>
+                </div>
               </div>
             </div>
           )}
+
+          {storyOpen && room ? (
+            <RoomStoryModal
+              roomId={room.id}
+              title={room.title}
+              objective={room.objective}
+              lines={room.enterStory}
+              onClose={() => setStoryOpen(false)}
+            />
+          ) : null}
 
           {hintOpen && puzzle ? (
             <div className="border-t-2 border-gold/50 bg-gold/10 px-5 py-4 sm:px-7">
