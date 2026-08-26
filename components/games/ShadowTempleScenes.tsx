@@ -465,51 +465,164 @@ function BrokenBridgeScene({ room, found, onFind }: SceneProps) {
 function GuardianShieldScene({ room, found, onFind }: SceneProps) {
   const { a, b, deg } = room.params as { a: number; b: number; deg: number };
   const hasGroove = found.has("groove");
-  const scale = 52 / Math.max(a, b);
+  const hasScript = found.has("script");
+
+  // Keep the parallelogram large AND tall enough to read (esp. 30°).
+  const rad = (deg * Math.PI) / 180;
+  const sin = Math.sin(rad);
+  const cos = Math.cos(rad);
+  const scale = Math.min(
+    17,
+    Math.max(110 / a, sin > 0.08 ? 68 / (b * sin) : 12, 82 / Math.max(a, b)),
+  );
   const ax = a * scale;
-  const bx = b * scale * Math.cos((deg * Math.PI) / 180);
-  const by = -b * scale * Math.sin((deg * Math.PI) / 180);
-  const V = { x: 200 - (ax + bx) / 2, y: 148 - by / 2 };
+  const bx = b * scale * cos;
+  const by = -b * scale * sin;
+  // Anchor on the chest; pad so labels sit outside the polygon.
+  const cx = 210;
+  const cy = 138;
+  const V = { x: cx - (ax + bx) / 2, y: cy - by / 2 };
   const pA = { x: V.x + ax, y: V.y };
   const pAB = { x: V.x + ax + bx, y: V.y + by };
   const pB = { x: V.x + bx, y: V.y + by };
   const pts = `${V.x},${V.y} ${pA.x},${pA.y} ${pAB.x},${pAB.y} ${pB.x},${pB.y}`;
   const sideB = Math.hypot(bx, by);
-  const arcR = Math.min(15, ax * 0.32, sideB * 0.32);
-  const midA = { x: (V.x + pA.x) / 2, y: (V.y + pA.y) / 2 - 12 };
-  const midB = { x: (V.x + pB.x) / 2 - 16, y: (V.y + pB.y) / 2 };
-  const angleLabel = polar(V.x, V.y, arcR + 14, -deg / 2);
+  const arcR = Math.min(20, ax * 0.26, sideB * 0.26);
+  // Labels clearly outside each edge / the angle wedge.
+  const midA = {
+    x: (V.x + pA.x) / 2,
+    y: (V.y + pA.y) / 2 + 20,
+  };
+  const midB = {
+    x: (V.x + pB.x) / 2 - 24,
+    y: (V.y + pB.y) / 2,
+  };
+  const angleLabel = polar(V.x, V.y, arcR + 20, -deg / 2);
+  const panelL = Math.max(78, Math.min(V.x, pA.x, pAB.x, pB.x) - 28);
+  const panelR = Math.min(340, Math.max(V.x, pA.x, pAB.x, pB.x) + 28);
+  const panelT = Math.max(78, Math.min(V.y, pA.y, pAB.y, pB.y) - 16);
+  const panelB = Math.min(188, Math.max(V.y, pA.y, pAB.y, pB.y) + 26);
+
   return (
     <Frame>
-      <Torch x={24} y={140} />
-      <Torch x={376} y={140} flip />
+      <Torch x={22} y={128} />
+      <Torch x={378} y={128} flip />
+
+      {/* Guardian statue — armor, helm, pauldrons (not just boxes) */}
       <g>
-        <rect x={150} y={168} width={100} height={64} rx={8} fill={STONE_DARK} />
-        <rect x={158} y={86} width={84} height={92} rx={14} fill={STONE} />
-        <rect x={170} y={40} width={60} height={52} rx={12} fill={STONE} />
-        <rect x={180} y={58} width={12} height={5} rx={2.5} fill="#ffb347" className="st-flame-inner" />
-        <rect x={208} y={58} width={12} height={5} rx={2.5} fill="#ffb347" className="st-flame-inner" />
-        <rect x={128} y={96} width={30} height={98} rx={12} fill={STONE_DARK} />
-        <rect x={242} y={96} width={30} height={98} rx={12} fill={STONE_DARK} />
-        <polygon points={pts} fill="#fff8eb" stroke={GOLD} strokeWidth={1.6} className={hasGroove ? "" : "st-hotspot"} />
+        {/* soft ground shadow */}
+        <ellipse cx={200} cy={228} rx={78} ry={10} fill="rgba(139,94,60,0.12)" />
+        {/* pedestal */}
+        <rect x={132} y={198} width={136} height={28} rx={6} fill={STONE_DARK} />
+        <rect x={140} y={192} width={120} height={10} rx={4} fill={STONE} />
+        <line x1={152} y1={206} x2={248} y2={206} stroke="rgba(255,255,255,0.18)" strokeWidth={1} />
+        {/* legs / lower armor */}
+        <rect x={168} y={168} width={28} height={36} rx={6} fill={STONE_DARK} />
+        <rect x={204} y={168} width={28} height={36} rx={6} fill={STONE_DARK} />
+        <rect x={162} y={198} width={40} height={10} rx={3} fill={STONE} />
+        <rect x={198} y={198} width={40} height={10} rx={3} fill={STONE} />
+        {/* torso */}
+        <path
+          d="M 156 88 L 244 88 L 252 168 L 148 168 Z"
+          fill={STONE}
+          stroke="rgba(255,255,255,0.2)"
+          strokeWidth={1}
+        />
+        {/* chest plate ridge */}
+        <path
+          d="M 170 96 L 230 96 L 236 150 L 164 150 Z"
+          fill={STONE_DARK}
+          opacity={0.55}
+        />
+        {/* belt */}
+        <rect x={154} y={158} width={92} height={12} rx={3} fill="#8b5e3c" />
+        <circle cx={200} cy={164} r={4} fill={GOLD} />
+        {/* pauldrons */}
+        <ellipse cx={148} cy={100} rx={22} ry={16} fill={STONE_DARK} />
+        <ellipse cx={252} cy={100} rx={22} ry={16} fill={STONE_DARK} />
+        <path d="M 130 100 Q 148 86 166 100" fill="none" stroke={GOLD} strokeWidth={1.2} opacity={0.7} />
+        <path d="M 234 100 Q 252 86 270 100" fill="none" stroke={GOLD} strokeWidth={1.2} opacity={0.7} />
+        {/* arms */}
+        <path d="M 128 108 L 118 170 L 136 174 L 148 116 Z" fill={STONE} />
+        <path d="M 272 108 L 282 170 L 264 174 L 252 116 Z" fill={STONE} />
+        {/* fists */}
+        <rect x={110} y={168} width={28} height={18} rx={6} fill={STONE_DARK} />
+        <rect x={262} y={168} width={28} height={18} rx={6} fill={STONE_DARK} />
+        {/* head + helm */}
+        <rect x={172} y={42} width={56} height={48} rx={12} fill={STONE} />
+        <path
+          d="M 168 58 L 200 28 L 232 58 L 226 72 L 174 72 Z"
+          fill={STONE_DARK}
+          stroke={GOLD}
+          strokeWidth={1.2}
+        />
+        <circle cx={200} cy={36} r={4} fill={GOLD} className="st-flame-inner" />
+        {/* glowing eyes */}
+        <rect x={182} y={62} width={14} height={6} rx={2} fill="#ffb347" className="st-flame-inner" />
+        <rect x={204} y={62} width={14} height={6} rx={2} fill="#ffb347" className="st-flame-inner" />
+        <path d="M 190 78 Q 200 84 210 78" fill="none" stroke="#6b4423" strokeWidth={1.4} strokeLinecap="round" opacity={0.55} />
+      </g>
+
+      {/* Large diagram panel on the chest — room for shape + labels */}
+      <g>
+        <rect
+          x={panelL}
+          y={panelT}
+          width={panelR - panelL}
+          height={panelB - panelT}
+          rx={10}
+          fill="rgba(255,248,235,0.94)"
+          stroke={GOLD}
+          strokeWidth={1.8}
+          className={hasGroove ? "" : "st-hotspot"}
+        />
+        <polygon
+          points={pts}
+          fill={hasGroove ? "rgba(196,180,232,0.38)" : "rgba(212,160,23,0.14)"}
+          stroke={GOLD}
+          strokeWidth={2.4}
+        />
         {hasGroove ? (
           <>
-            <MeasureLabel x={midA.x} y={midA.y} text={`${a}`} color={MINT} />
-            <MeasureLabel x={midB.x} y={midB.y} text={`${b}`} color={MINT} />
-            <path d={arcPath(V.x, V.y, arcR, -deg, 0)} fill="none" stroke={GOLD} strokeWidth={1.2} />
-            <MeasureLabel x={angleLabel.x} y={angleLabel.y} text={`${deg}°`} color={GOLD} size={9} />
+            <path d={arcPath(V.x, V.y, arcR, -deg, 0)} fill="none" stroke={GOLD} strokeWidth={1.7} />
+            <MeasureLabel x={midA.x} y={midA.y} text={`${a}`} color={MINT} size={12} />
+            <MeasureLabel x={midB.x} y={midB.y} text={`${b}`} color={MINT} size={12} />
+            <MeasureLabel
+              x={angleLabel.x}
+              y={angleLabel.y}
+              text={`${deg}°`}
+              color={GOLD}
+              size={11}
+            />
           </>
         ) : null}
       </g>
+
+      {/* Pedestal inscription stone */}
       <g>
-        <rect x={38} y={196} width={52} height={34} rx={5} fill={STONE_DARK} stroke="rgba(255,255,255,0.1)" />
-        <line x1={46} y1={206} x2={82} y2={206} stroke={LINE} strokeWidth={1} opacity={0.5} />
-        <line x1={46} y1={213} x2={76} y2={213} stroke={LINE} strokeWidth={1} opacity={0.5} />
-        <line x1={46} y1={220} x2={80} y2={220} stroke={LINE} strokeWidth={1} opacity={0.5} />
+        <rect x={28} y={188} width={58} height={40} rx={6} fill={STONE_DARK} stroke="rgba(255,255,255,0.12)" />
+        <rect x={34} y={194} width={46} height={28} rx={3} fill="#fff8eb" opacity={0.85} />
+        <line x1={40} y1={202} x2={74} y2={202} stroke={LINE} strokeWidth={1.1} opacity={0.55} />
+        <line x1={40} y1={209} x2={68} y2={209} stroke={LINE} strokeWidth={1.1} opacity={0.45} />
+        <line x1={40} y1={216} x2={72} y2={216} stroke={LINE} strokeWidth={1.1} opacity={0.45} />
       </g>
+
       <rect x={0} y={232} width={400} height={28} fill="#e8d4b0" />
-      <Hotspot x={200} y={128} label="가슴의 홈" found={hasGroove} onClick={() => onFind("groove")} />
-      <Hotspot x={64} y={186} label="받침돌의 문장" found={found.has("script")} onClick={() => onFind("script")} />
+      {/* Hotspot to the side — never covers the parallelogram or its labels */}
+      <Hotspot
+        x={Math.min(372, panelR + 28)}
+        y={(panelT + panelB) / 2 - 6}
+        label="가슴의 홈"
+        found={hasGroove}
+        onClick={() => onFind("groove")}
+      />
+      <Hotspot
+        x={57}
+        y={178}
+        label="받침돌의 문장"
+        found={hasScript}
+        onClick={() => onFind("script")}
+      />
     </Frame>
   );
 }
