@@ -105,44 +105,64 @@ export class TempleAudio {
     }
     const synth = window.speechSynthesis;
     const gen = ++this.speakGen;
-    try {
-      synth.resume();
-    } catch {
-      /* ignore */
-    }
 
-    const enqueue = () => {
+    const deliver = () => {
       if (this.muted || gen !== this.speakGen) return;
       try {
-        for (const chunk of chunks) {
-          const utter = new SpeechSynthesisUtterance(chunk);
-          utter.rate = 1.02;
-          utter.lang = "ko-KR";
-          applyKoreanVoice(utter);
-          synth.speak(utter);
-        }
-        this.startKeepAlive();
+        synth.resume();
       } catch {
         /* ignore */
       }
-    };
 
-    const busy = synth.speaking || synth.pending;
-    if (busy) {
-      try {
-        synth.cancel();
-      } catch {
-        /* ignore */
+      const enqueue = () => {
+        if (this.muted || gen !== this.speakGen) return;
+        try {
+          for (const chunk of chunks) {
+            const utter = new SpeechSynthesisUtterance(chunk);
+            utter.rate = NARRATION_SPEECH_RATE;
+            utter.lang = "ko-KR";
+            applyKoreanVoice(utter);
+            synth.speak(utter);
+          }
+          this.startKeepAlive();
+        } catch {
+          /* ignore */
+        }
+      };
+
+      const busy = synth.speaking || synth.pending;
+      if (busy) {
+        try {
+          synth.cancel();
+        } catch {
+          /* ignore */
+        }
+        enqueue();
+        // Desktop Chrome may drop speak() in the same turn as cancel().
+        window.setTimeout(() => {
+          if (this.muted || gen !== this.speakGen) return;
+          if (!synth.speaking && !synth.pending) enqueue();
+        }, 40);
+        return;
       }
       enqueue();
-      // Chrome sometimes swallows speak() in the same turn as cancel().
-      window.setTimeout(() => {
-        if (this.muted || gen !== this.speakGen) return;
-        if (!synth.speaking && !synth.pending) enqueue();
-      }, 40);
+    };
+
+    // Desktop browsers often return zero voices until voiceschanged fires.
+    if (pickKoreanVoice()) {
+      deliver();
       return;
     }
-    enqueue();
+    let settled = false;
+    const finish = () => {
+      if (settled) return;
+      settled = true;
+      synth.removeEventListener("voiceschanged", finish);
+      deliver();
+    };
+    synth.addEventListener("voiceschanged", finish);
+    void synth.getVoices();
+    window.setTimeout(finish, 320);
   }
 
   private startKeepAlive() {
@@ -161,7 +181,7 @@ export class TempleAudio {
       } catch {
         /* ignore */
       }
-    }, 4000);
+    }, 1000);
   }
 
   private stopKeepAlive() {
@@ -450,6 +470,12 @@ export function sanitizeSpeechText(text: string): string {
     .replace(/\s+([.!?…])/g, "$1")
     .trim();
 }
+
+/** Typing speed for on-screen narration — tuned to utter.rate below. */
+export const NARRATION_SPEECH_RATE = 1.02;
+export const NARRATION_MS_PER_CHAR = Math.round(
+  1000 / (5.5 * NARRATION_SPEECH_RATE),
+);
 
 function splitSpeechChunks(text: string): string[] {
   const trimmed = text.trim();

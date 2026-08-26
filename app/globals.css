@@ -792,7 +792,8 @@ body {
   .st-lava,
   .st-bubble,
   .st-shake,
-  .st-danger {
+  .st-danger,
+  .st-caret::after {
     animation: none;
   }
 }

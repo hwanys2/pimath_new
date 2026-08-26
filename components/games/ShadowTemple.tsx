@@ -21,7 +21,7 @@ import {
 import type { RankingMode, RankingRow, RankingScope } from "@/lib/game-types";
 import GameRankingBoard from "@/components/games/GameRankingBoard";
 import RoomScene, { TitleScene } from "@/components/games/ShadowTempleScenes";
-import { TempleAudio, type TempleSfx, warmSpeechVoices } from "@/components/games/shadow-temple-audio";
+import { TempleAudio, type TempleSfx, warmSpeechVoices, NARRATION_MS_PER_CHAR } from "@/components/games/shadow-temple-audio";
 import {
   submitGameRun,
   fetchGameRanking,
@@ -74,31 +74,92 @@ type PuzzleLog = {
   hint: number;
 };
 
-/* ---------------------------------------------------- story reveal */
+/* ---------------------------------------------------- narration typing */
 
 /**
- * Show every narration line at once. Previous typewriter / line-queue
- * versions reset whenever the parent re-rendered (torch timer), so the
- * text blinked and could not be read.
+ * Character typing synced roughly to Korean TTS speed.
+ * Resets only when `storyKey` changes — parent re-renders (torch timer) do not
+ * restart the animation.
  */
-function StoryReveal({
+function NarrationTypewriter({
+  storyKey,
   lines,
   onDone,
 }: {
+  storyKey: string;
   lines: readonly string[];
   onDone: () => void;
 }) {
   const onDoneRef = useRef(onDone);
   onDoneRef.current = onDone;
+  const linesRef = useRef(lines);
+  linesRef.current = lines;
+
+  const [lineIdx, setLineIdx] = useState(0);
+  const [charIdx, setCharIdx] = useState(0);
+  const doneRef = useRef(false);
 
   useEffect(() => {
-    const t = window.setTimeout(() => onDoneRef.current(), 280);
+    const reduced =
+      typeof window !== "undefined" &&
+      window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    doneRef.current = false;
+    if (reduced && linesRef.current.length > 0) {
+      const last = linesRef.current.length - 1;
+      setLineIdx(last);
+      setCharIdx(linesRef.current[last]?.length ?? 0);
+      return;
+    }
+    setLineIdx(0);
+    setCharIdx(0);
+  }, [storyKey]);
+
+  const lastLineLen = lines[lines.length - 1]?.length ?? 0;
+  const finished =
+    lines.length === 0 ||
+    (lineIdx >= lines.length - 1 && charIdx >= lastLineLen);
+
+  useEffect(() => {
+    if (finished) {
+      if (!doneRef.current) {
+        doneRef.current = true;
+        onDoneRef.current();
+      }
+      return;
+    }
+
+    const currentLines = linesRef.current;
+    const line = currentLines[lineIdx] ?? "";
+    if (charIdx < line.length) {
+      const ch = line[charIdx] ?? "";
+      let delay = NARRATION_MS_PER_CHAR;
+      if (/[.!?…]/.test(ch)) delay = Math.round(delay * 2.8);
+      else if (/[，、:]/.test(ch)) delay = Math.round(delay * 1.6);
+      else if (ch === " ") delay = Math.round(delay * 0.35);
+      const t = window.setTimeout(() => setCharIdx((c) => c + 1), delay);
+      return () => window.clearTimeout(t);
+    }
+
+    const t = window.setTimeout(() => {
+      setLineIdx((l) => l + 1);
+      setCharIdx(0);
+    }, Math.round(NARRATION_MS_PER_CHAR * 4));
     return () => window.clearTimeout(t);
-  }, []);
+  }, [storyKey, lineIdx, charIdx, finished]);
+
+  const skip = () => {
+    if (finished || lines.length === 0) return;
+    setLineIdx(lines.length - 1);
+    setCharIdx(lastLineLen);
+  };
 
   return (
-    <div className="space-y-3 text-left">
-      {lines.map((line, i) => (
+    <div
+      className="cursor-pointer space-y-3 text-left"
+      onClick={skip}
+      role="presentation"
+    >
+      {lines.slice(0, lineIdx + 1).map((line, i) => (
         <p
           key={i}
           className={[
@@ -106,11 +167,17 @@ function StoryReveal({
             line.startsWith("「")
               ? "font-semibold text-wood"
               : "text-foreground/80",
+            i === lineIdx && !finished ? "st-caret" : "",
           ].join(" ")}
         >
-          {line}
+          {i === lineIdx ? line.slice(0, charIdx) : line}
         </p>
       ))}
+      {!finished ? (
+        <p className="text-[11px] font-semibold text-wood/45">
+          (누르면 빨리 감기)
+        </p>
+      ) : null}
     </div>
   );
 }
@@ -134,8 +201,8 @@ const RoomEnterBody = memo(function RoomEnterBody({
       </h2>
       <p className="mt-1 text-xs font-bold text-wood/60">{room.objective}</p>
       <div className="mt-5">
-        <StoryReveal
-          key={`story-${room.id}`}
+        <NarrationTypewriter
+          storyKey={`room-${room.id}`}
           lines={room.enterStory}
           onDone={onStoryDone}
         />
@@ -1211,8 +1278,8 @@ export default function ShadowTemple() {
         <section className="quest-card border-lavender/40 bg-gradient-to-br from-lavender/25 via-sky/15 to-gold/15 p-6 sm:p-10">
           <p className="font-display text-xl text-wood/60">— 프롤로그 —</p>
           <div className="mt-4">
-            <StoryReveal
-              key="prologue"
+            <NarrationTypewriter
+              storyKey="prologue"
               lines={PROLOGUE}
               onDone={markStoryDone}
             />
@@ -1529,8 +1596,8 @@ export default function ShadowTemple() {
             {outcome === "escaped" ? "— 탈출 —" : "— 횃불이 꺼졌다 —"}
           </p>
           <div className="mt-4">
-            <StoryReveal
-              key={outcome}
+            <NarrationTypewriter
+              storyKey={`ending-${outcome}`}
               lines={outcome === "escaped" ? ESCAPE_STORY : TRAPPED_STORY}
               onDone={markStoryDone}
             />
