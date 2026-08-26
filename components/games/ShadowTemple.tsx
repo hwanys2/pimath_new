@@ -20,7 +20,7 @@ import {
 import type { RankingMode, RankingRow, RankingScope } from "@/lib/game-types";
 import GameRankingBoard from "@/components/games/GameRankingBoard";
 import RoomScene, { TitleScene } from "@/components/games/ShadowTempleScenes";
-import { TempleAudio, type TempleSfx } from "@/components/games/shadow-temple-audio";
+import { TempleAudio, type TempleSfx, warmSpeechVoices } from "@/components/games/shadow-temple-audio";
 import {
   submitGameRun,
   fetchGameRanking,
@@ -459,6 +459,7 @@ export default function ShadowTemple() {
   }, [muted]);
 
   useEffect(() => {
+    warmSpeechVoices();
     return () => {
       audioRef.current?.dispose();
       audioRef.current = null;
@@ -491,6 +492,52 @@ export default function ShadowTemple() {
     : 0;
   const allCluesFound = puzzle ? cluesFound >= puzzle.clues.length : false;
   const dangerTime = timeLeft <= 60;
+
+  /* Narrate prologue, room enter story, then the unlocked puzzle prompt. */
+  useEffect(() => {
+    if (phase === "prologue" && PROLOGUE.length > 0) {
+      const audio = getAudio();
+      const t = window.setTimeout(() => audio.speak(PROLOGUE.join(". ")), 400);
+      return () => {
+        window.clearTimeout(t);
+        audio.stopSpeak();
+      };
+    }
+    return undefined;
+  }, [phase, getAudio]);
+
+  useEffect(() => {
+    if (phase !== "playing" || stage !== "enter" || !room) return;
+    const audio = getAudio();
+    const script = [room.title, ...room.enterStory].join(". ");
+    const t = window.setTimeout(() => audio.speak(script), 350);
+    return () => {
+      window.clearTimeout(t);
+      audio.stopSpeak();
+    };
+  }, [phase, stage, roomIndex, room, getAudio]);
+
+  useEffect(() => {
+    if (phase !== "playing" || stage !== "solve" || !puzzle || !allCluesFound) {
+      return;
+    }
+    if (solvedInfo) return;
+    const audio = getAudio();
+    const t = window.setTimeout(() => audio.speak(puzzle.prompt), 280);
+    return () => {
+      window.clearTimeout(t);
+      audio.stopSpeak();
+    };
+  }, [
+    phase,
+    stage,
+    roomIndex,
+    puzzleIndex,
+    allCluesFound,
+    puzzle,
+    solvedInfo,
+    getAudio,
+  ]);
 
   /* --------------------------------------------------------- ending */
 

@@ -239,7 +239,7 @@ function buildGateRoom(): Room {
           {
             id: "mural",
             label: "벽화",
-            text: "「높이를 아는 자만이 거인의 눈을 뜨게 하리라.」 — 높이를 구해 입력해야 한다!",
+            text: "「높이를 아는 자만이 거인의 눈을 뜨게 하리라.」",
           },
         ],
         input: { kind: "numeric", answer: v.val, unit: "m", exact: v.exact },

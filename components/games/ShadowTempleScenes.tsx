@@ -240,34 +240,44 @@ function Frame({ children }: { children: React.ReactNode }) {
 
 function GiantGateScene({ room, found, onFind }: SceneProps) {
   const { d, deg } = room.params as { d: number; deg: number };
-  const obs = { x: 92, y: 224 };
-  const base = { x: 288, y: 224 };
-  const key = { x: 288, y: 58 };
-  const dirToKey = (Math.atan2(key.y - obs.y, key.x - obs.x) * 180) / Math.PI;
+  // Keep an exact elevation angle: adj / opp = cot θ (or opp = adj · tan θ).
+  // Prefer keyhole near the statue forehead; if 30° would run off-canvas, clamp
+  // the observer and drop the keyhole so the drawn angle stays exact.
+  const base = { x: 292, y: 224 };
+  const foreheadY = 56;
+  const oppPreferred = base.y - foreheadY;
+  const adjPreferred = oppPreferred / Math.tan((deg * Math.PI) / 180);
+  const obsX = Math.max(40, base.x - adjPreferred);
+  const adj = base.x - obsX;
+  const opp = adj * Math.tan((deg * Math.PI) / 180);
+  const obs = { x: obsX, y: base.y };
+  const key = { x: base.x, y: base.y - opp };
+  const dirToKey = -deg; // horizontal → keyhole elevation (SVG y-down)
   const hasFloor = found.has("floor");
   const hasDevice = found.has("device");
+  const midFloorX = (obs.x + base.x) / 2;
   return (
     <Frame>
       <Torch x={24} y={150} />
       <Torch x={376} y={150} flip />
       {/* statue */}
       <g>
-        <rect x={252} y={128} width={72} height={100} rx={6} fill={STONE_DARK} />
-        <rect x={262} y={92} width={52} height={44} rx={8} fill={STONE} />
-        <rect x={266} y={44} width={44} height={52} rx={10} fill={STONE} />
+        <rect x={256} y={128} width={72} height={100} rx={6} fill={STONE_DARK} />
+        <rect x={266} y={92} width={52} height={44} rx={8} fill={STONE} />
+        <rect x={270} y={44} width={44} height={52} rx={10} fill={STONE} />
         {/* face */}
-        <rect x={274} y={66} width={10} height={4} rx={2} fill="#6b4423" />
-        <rect x={292} y={66} width={10} height={4} rx={2} fill="#6b4423" />
-        <rect x={283} y={78} width={10} height={3} rx={1.5} fill="#6b4423" />
-        {/* keyhole on forehead */}
+        <rect x={278} y={66} width={10} height={4} rx={2} fill="#6b4423" />
+        <rect x={296} y={66} width={10} height={4} rx={2} fill="#6b4423" />
+        <rect x={287} y={78} width={10} height={3} rx={1.5} fill="#6b4423" />
+        {/* keyhole on forehead / upper face */}
         <circle cx={key.x} cy={key.y} r={13} fill="url(#st-star-glow)" className="st-glow" />
         <circle cx={key.x} cy={key.y} r={4.2} fill="#6b4423" stroke={GOLD} strokeWidth={1.4} />
         <rect x={key.x - 1.4} y={key.y + 2} width={2.8} height={5.5} fill="#6b4423" stroke={GOLD} strokeWidth={0.8} />
         {/* arms */}
-        <rect x={238} y={136} width={18} height={72} rx={8} fill={STONE} />
-        <rect x={320} y={136} width={18} height={72} rx={8} fill={STONE} />
+        <rect x={242} y={136} width={18} height={72} rx={8} fill={STONE} />
+        <rect x={324} y={136} width={18} height={72} rx={8} fill={STONE} />
       </g>
-      {/* wall mural */}
+      {/* wall mural — atmospheric only; what to solve comes from reading it */}
       <g>
         <rect x={28} y={84} width={38} height={48} rx={4} fill={STONE_DARK} stroke="rgba(255,255,255,0.08)" />
         <path d="M 34 120 L 46 96 L 58 120 Z" fill="none" stroke={LINE} strokeWidth={1} opacity={0.6} />
@@ -294,10 +304,9 @@ function GiantGateScene({ room, found, onFind }: SceneProps) {
         </>
       ) : null}
       {hasFloor ? (
-        <MeasureLabel x={(obs.x + base.x) / 2} y={base.y + 16} text={`${d} m`} />
+        <MeasureLabel x={midFloorX} y={base.y + 16} text={`${d} m`} />
       ) : null}
-      <MeasureLabel x={base.x + 34} y={(base.y + key.y) / 2} text="h = ?" color={RED} size={11} />
-      <Hotspot x={190} y={205} label="바닥의 표식" found={hasFloor} onClick={() => onFind("floor")} />
+      <Hotspot x={midFloorX} y={205} label="바닥의 표식" found={hasFloor} onClick={() => onFind("floor")} />
       <Hotspot x={obs.x} y={obs.y - 38} label="관측 장치" found={hasDevice} onClick={() => onFind("device")} />
       <Hotspot x={47} y={106} label="벽화" found={found.has("mural")} onClick={() => onFind("mural")} />
     </Frame>
