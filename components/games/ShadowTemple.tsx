@@ -33,11 +33,16 @@ import {
   ESCAPE_STORY,
   HINT_LINE_PENALTY,
   PROLOGUE,
+  TORCH_BONUS_EACH,
+  TORCH_COUNT,
+  TORCH_DURATION_SEC,
   TOTAL_TIME_SEC,
   TRAPPED_STORY,
   WRONG_TIME_PENALTY_SEC,
   applyHintLinePenalty,
   checkNumericAnswer,
+  currentTorchFraction,
+  currentTorchSecondsLeft,
   formatClock,
   generateRun,
   isFreeHintLine,
@@ -45,6 +50,7 @@ import {
   puzzleAward,
   puzzleHintLines,
   timeBonus,
+  torchesRemaining,
   type ChoiceInput,
   type DialInput,
   type NumericInput,
@@ -143,6 +149,145 @@ function Typewriter({
           (누르면 빨리 감기)
         </p>
       ) : null}
+    </div>
+  );
+}
+
+/* ------------------------------------------------------- torch rack */
+
+function MiniTorch({
+  lit,
+  active,
+  frac,
+}: {
+  lit: boolean;
+  active: boolean;
+  frac: number;
+}) {
+  const flameScale = active ? 0.55 + frac * 0.55 : lit ? 0.85 : 0;
+  return (
+    <span
+      className={[
+        "relative inline-flex h-9 w-4 flex-col items-center justify-end sm:h-10 sm:w-[1.15rem]",
+        active ? "st-torch-active" : "",
+      ].join(" ")}
+      aria-hidden
+    >
+      {lit ? (
+        <span
+          className="absolute bottom-[14px] flex flex-col items-center"
+          style={{
+            transform: `scale(${flameScale})`,
+            transformOrigin: "bottom center",
+            opacity: 0.55 + frac * 0.45,
+          }}
+        >
+          <span className="absolute h-5 w-5 rounded-full bg-[rgba(255,179,71,0.28)] blur-[3px] st-glow" />
+          <svg width="14" height="18" viewBox="0 0 14 18" className="relative">
+            <path
+              d="M7 1 C10 5 12 8 12 11 C12 14.3 9.8 16.5 7 16.5 C4.2 16.5 2 14.3 2 11 C2 8 4 5 7 1 Z"
+              fill="#ffb347"
+              className="st-flame"
+            />
+            <path
+              d="M7 5 C8.6 7.2 9.4 9 9.4 10.6 C9.4 12.2 8.3 13.4 7 13.4 C5.7 13.4 4.6 12.2 4.6 10.6 C4.6 9 5.4 7.2 7 5 Z"
+              fill="#ffe08a"
+              className="st-flame-inner"
+            />
+          </svg>
+        </span>
+      ) : (
+        <span className="absolute bottom-[15px] h-1.5 w-1.5 rounded-full bg-wood/25" />
+      )}
+      <span
+        className={[
+          "h-[13px] w-[3px] rounded-full",
+          lit ? "bg-[#6b4423]" : "bg-wood/30",
+        ].join(" ")}
+      />
+      <span
+        className={[
+          "mt-px h-1.5 w-3 rounded-sm",
+          lit ? "bg-[#8b5e3c]" : "bg-wood/25",
+        ].join(" ")}
+      />
+    </span>
+  );
+}
+
+function TorchRack({
+  lit,
+  frac,
+  secondsOnCurrent,
+}: {
+  lit: number;
+  frac: number;
+  secondsOnCurrent: number;
+}) {
+  return (
+    <div className="st-torch-rack rounded-2xl border border-wood/10 bg-gradient-to-b from-[#fff8eb]/90 to-[#f0e0c8]/70 px-3 py-2.5 sm:px-4">
+      <div className="flex items-center justify-between gap-2">
+        <div>
+          <p className="text-[11px] font-bold tracking-wide text-wood/55">
+            신전의 횃불
+          </p>
+          <p className="font-display text-lg leading-none text-wood sm:text-xl">
+            {lit}
+            <span className="text-sm font-semibold text-wood/45">
+              {" "}
+              / {TORCH_COUNT}
+            </span>
+          </p>
+        </div>
+        <div className="text-right">
+          <p className="text-[11px] font-bold text-wood/45">
+            {lit > 0 ? "이 횃불" : "꺼짐"}
+          </p>
+          <p
+            className={[
+              "font-display text-base tabular-nums sm:text-lg",
+              lit <= 2 ? "text-[#e85d4c]" : "text-wood",
+            ].join(" ")}
+          >
+            {lit > 0 ? formatClock(secondsOnCurrent) : "0:00"}
+          </p>
+        </div>
+      </div>
+      <div
+        className="mt-2 flex items-end justify-between gap-0.5 px-0.5 sm:gap-1"
+        role="img"
+        aria-label={`횃불 ${lit}개 남음`}
+      >
+        {Array.from({ length: TORCH_COUNT }, (_, i) => {
+          const isLit = i < lit;
+          const isActive = i === lit - 1;
+          return (
+            <MiniTorch
+              key={i}
+              lit={isLit}
+              active={isActive}
+              frac={isActive ? frac : isLit ? 1 : 0}
+            />
+          );
+        })}
+      </div>
+      {lit > 0 ? (
+        <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-wood/10">
+          <div
+            className={[
+              "h-full rounded-full transition-[width] duration-300",
+              lit <= 2
+                ? "bg-[#e85d4c]"
+                : "bg-gradient-to-r from-peach via-gold to-[#ffb347]",
+            ].join(" ")}
+            style={{ width: `${Math.max(4, frac * 100)}%` }}
+          />
+        </div>
+      ) : (
+        <p className="mt-2 text-center text-[11px] font-bold text-[#e85d4c]">
+          모든 횃불이 꺼졌다…
+        </p>
+      )}
     </div>
   );
 }
@@ -516,6 +661,8 @@ export default function ShadowTemple() {
     wrong: 0,
     hints: 0,
     timeLeft: 0,
+    torches: 0,
+    torchBonus: 0,
   });
   const [muted, setMuted] = useState(() => {
     if (typeof window === "undefined") return false;
@@ -544,6 +691,7 @@ export default function ShadowTemple() {
   const roomsClearedRef = useRef(0);
   const puzzleLogsRef = useRef<PuzzleLog[]>([]);
   const finalTimeLeftRef = useRef(0);
+  const torchesRef = useRef(TORCH_COUNT);
 
   useEffect(() => {
     phaseRef.current = phase;
@@ -594,7 +742,10 @@ export default function ShadowTemple() {
     ? puzzle.clues.filter((c) => found.has(c.id)).length
     : 0;
   const allCluesFound = puzzle ? cluesFound >= puzzle.clues.length : false;
-  const dangerTime = timeLeft <= 60;
+  const torchesLeft = torchesRemaining(timeLeft);
+  const torchFrac = currentTorchFraction(timeLeft);
+  const torchSecLeft = currentTorchSecondsLeft(timeLeft);
+  const dangerTime = torchesLeft <= 2 && torchesLeft > 0;
 
   /**
    * TTS only after the matching on-screen narration is fully visible
@@ -665,8 +816,9 @@ export default function ShadowTemple() {
         (deadlineRef.current - Date.now()) / 1000,
       );
       let finalScore = scoreRef.current;
+      const torches = torchesRemaining(finalTimeLeftRef.current);
+      const bonus = timeBonus(finalTimeLeftRef.current);
       if (finalOutcome === "escaped") {
-        const bonus = timeBonus(finalTimeLeftRef.current);
         finalScore = applyScoreGain(finalScore, bonus);
         scoreRef.current = finalScore;
         setScore(finalScore);
@@ -681,6 +833,8 @@ export default function ShadowTemple() {
         wrong: wrongTotalRef.current,
         hints: hintTotalRef.current,
         timeLeft: finalTimeLeftRef.current,
+        torches,
+        torchBonus: finalOutcome === "escaped" ? bonus : 0,
       });
       setStoryDone(false);
       setPhase("cinematic");
@@ -692,10 +846,11 @@ export default function ShadowTemple() {
           score: finalScore,
           details: activityDetailsV1(
             {
-              escaped: finalOutcome === "escaped" ? "성공" : "시간 초과",
+              escaped: finalOutcome === "escaped" ? "성공" : "횃불 소진",
               roomsCleared: roomsClearedRef.current,
               wrongAttempts: wrongTotalRef.current,
               hintsUsed: hintTotalRef.current,
+              torchesLeft: torches,
               timeLeftSec: Math.round(finalTimeLeftRef.current),
             },
             puzzleLogsRef.current.map((l) => ({ ...l })),
@@ -722,11 +877,23 @@ export default function ShadowTemple() {
     const iv = window.setInterval(() => {
       const left = (deadlineRef.current - Date.now()) / 1000;
       setTimeLeft(Math.max(0, left));
+      const lit = torchesRemaining(left);
       const audio = audioRef.current;
-      if (left <= 60 && left > 0 && !heartbeatOnRef.current) {
+      if (lit < torchesRef.current && lit >= 0) {
+        torchesRef.current = lit;
+        if (lit > 0) {
+          audio?.play("wrong");
+          setStatusMsg(
+            `횃불 하나가 사그라들었다… 남은 횃불 ${lit}개.`,
+          );
+        }
+      } else {
+        torchesRef.current = lit;
+      }
+      if (lit <= 1 && lit > 0 && !heartbeatOnRef.current) {
         heartbeatOnRef.current = true;
         audio?.startHeartbeat();
-      } else if (left > 60 && heartbeatOnRef.current) {
+      } else if ((lit > 1 || lit <= 0) && heartbeatOnRef.current) {
         heartbeatOnRef.current = false;
         audio?.stopHeartbeat();
       }
@@ -767,6 +934,7 @@ export default function ShadowTemple() {
     roomsClearedRef.current = 0;
     puzzleLogsRef.current = [];
     heartbeatOnRef.current = false;
+    torchesRef.current = TORCH_COUNT;
     const audio = getAudio();
     audio.startAmbience();
     audio.play("door");
@@ -777,6 +945,7 @@ export default function ShadowTemple() {
   const beginTrials = () => {
     deadlineRef.current = Date.now() + TOTAL_TIME_SEC * 1000;
     setTimeLeft(TOTAL_TIME_SEC);
+    torchesRef.current = TORCH_COUNT;
     sfx("door");
     setStoryDone(false);
     setPhase("playing");
@@ -858,7 +1027,7 @@ export default function ShadowTemple() {
           ? "방패가 홈에 맞지 않는다. 넓이를 다시 비교해 보자."
           : "장치가 꿈틀한다. 숫자를 한 번 더 살펴보자.";
     setStatusMsg(
-      `${flavor} 오답 — 횃불이 ${WRONG_TIME_PENALTY_SEC}초만큼 타 버렸다.`,
+      `${flavor} 오답 — 횃불이 ${WRONG_TIME_PENALTY_SEC}초만큼 사그라들었다.`,
     );
   };
 
@@ -974,7 +1143,6 @@ export default function ShadowTemple() {
     });
   };
 
-  const timePct = Math.max(0, Math.min(100, (timeLeft / TOTAL_TIME_SEC) * 100));
   const revealedClues = useMemo(
     () => (puzzle ? puzzle.clues.filter((c) => found.has(c.id)) : []),
     [puzzle, found],
@@ -1003,7 +1171,7 @@ export default function ShadowTemple() {
             <p className="mt-3 max-w-2xl text-sm leading-relaxed text-foreground/75 sm:text-base">
               별빛과 함께 피타 박사의 흔적을 쫓아 들어간 고대 신전. 석문이 닫혔다!
               방마다 숨은 <strong>단서를 조사</strong>하고, 삼각비로 장치를 풀어
-              횃불이 꺼지기 전에 탈출하세요.
+              횃불이 모두 꺼지기 전에 탈출하세요.
             </p>
           </div>
         </div>
@@ -1018,8 +1186,10 @@ export default function ShadowTemple() {
             </p>
             <ul className="mx-auto mt-4 grid max-w-lg gap-2 text-left text-sm font-semibold text-foreground/80">
               <li className="rounded-xl bg-white/55 px-4 py-2.5">
-                횃불 시간 <strong>15분</strong> — 다 타면 탈출 실패. 오답은{" "}
-                {WRONG_TIME_PENALTY_SEC}초를 태워요.
+                횃불 <strong>{TORCH_COUNT}개</strong> — 개당{" "}
+                {TORCH_DURATION_SEC / 60}분, 최대 {TOTAL_TIME_SEC / 60}분.
+                5분마다 하나씩 꺼져요. 오답은 {WRONG_TIME_PENALTY_SEC}초를
+                태워요.
               </li>
               <li className="rounded-xl bg-white/55 px-4 py-2.5">
                 방마다 빛나는 곳을 <strong>조사해 단서</strong>를 모아야 장치가
@@ -1034,7 +1204,8 @@ export default function ShadowTemple() {
                 줄마다 −{HINT_LINE_PENALTY}점 (표지는 무료).
               </li>
               <li className="rounded-xl bg-white/55 px-4 py-2.5">
-                빠르고 정확할수록 높은 점수! 남은 횃불 시간은 보너스가 돼요.
+                탈출 성공 시 <strong>남은 횃불 × {TORCH_BONUS_EACH}점</strong>{" "}
+                보너스! 서두를수록 높은 점수예요.
               </li>
             </ul>
             <button
@@ -1116,28 +1287,12 @@ export default function ShadowTemple() {
             </div>
           </div>
 
-          <div className="border-b border-wood/10 px-4 py-2 sm:px-5">
-            <div className="flex items-center justify-between text-xs font-semibold text-foreground/55">
-              <span>횃불이 타는 중…</span>
-              <span
-                className={[
-                  "font-display text-base tabular-nums",
-                  dangerTime ? "text-[#e85d4c]" : "text-wood",
-                ].join(" ")}
-                aria-live="off"
-              >
-                {formatClock(timeLeft)}
-              </span>
-            </div>
-            <div className="mt-1 h-2.5 overflow-hidden rounded-full bg-wood/10">
-              <div
-                className={[
-                  "h-full rounded-full transition-[width] duration-300",
-                  dangerTime ? "bg-[#e85d4c]" : "bg-gradient-to-r from-peach to-gold",
-                ].join(" ")}
-                style={{ width: `${timePct}%` }}
-              />
-            </div>
+          <div className="border-b border-wood/10 px-3 py-2.5 sm:px-5">
+            <TorchRack
+              lit={torchesLeft}
+              frac={torchFrac}
+              secondsOnCurrent={torchSecLeft}
+            />
           </div>
 
           {stage === "enter" ? (
@@ -1449,7 +1604,7 @@ export default function ShadowTemple() {
             {" · "}오답 {finalStats.wrong}회
             {" · "}수첩 {finalStats.hints}회
             {outcome === "escaped"
-              ? ` · 남은 횃불 ${formatClock(finalStats.timeLeft)}`
+              ? ` · 남은 횃불 ${finalStats.torches}개 (+${finalStats.torchBonus}점)`
               : ""}
           </p>
 

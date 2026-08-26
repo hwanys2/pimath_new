@@ -7,12 +7,15 @@
 
 export const CONTENT_KEY = "g3-u3-1-shadow-temple";
 
+/** Ten temple torches × 5 minutes each → up to 50 minutes. */
+export const TORCH_COUNT = 10;
+export const TORCH_DURATION_SEC = 5 * 60;
 /** Total escape time budget (seconds). */
-export const TOTAL_TIME_SEC = 15 * 60;
+export const TOTAL_TIME_SEC = TORCH_COUNT * TORCH_DURATION_SEC;
 /** Wrong answer burns extra torch time. */
-export const WRONG_TIME_PENALTY_SEC = 20;
-/** Max time bonus appended after the final room. */
-export const TIME_BONUS_MAX = 100;
+export const WRONG_TIME_PENALTY_SEC = 30;
+/** Escape bonus per remaining lit torch. */
+export const TORCH_BONUS_EACH = 50;
 
 export const SQRT2_APPROX = 1.4;
 export const SQRT3_APPROX = 1.7;
@@ -129,8 +132,7 @@ export function paidHintCount(
 /**
  * Award for solving one puzzle. Attempts reduce the award; hint cost is
  * deducted live (−HINT_LINE_PENALTY per paid line) when the notebook is used.
- * Six rooms: 5 rooms × 150 + room 5 (two altars × 75) = 900,
- * plus time bonus up to 100 → target ≈ 1000 (progression-system.md).
+ * Six rooms ≈ 900 + remaining-torch bonus (up to 10 × 50 = 500).
  */
 export function puzzleAward(attempt: number, weight: number): number {
   const base = attempt <= 1 ? 150 : attempt === 2 ? 110 : attempt === 3 ? 80 : 60;
@@ -142,9 +144,36 @@ export function applyHintLinePenalty(current: number): number {
   return Math.max(0, Math.round(current) - HINT_LINE_PENALTY);
 }
 
+/** How many torches are still lit for the remaining time. */
+export function torchesRemaining(timeLeftSec: number): number {
+  if (timeLeftSec <= 0) return 0;
+  return Math.min(
+    TORCH_COUNT,
+    Math.ceil(timeLeftSec / TORCH_DURATION_SEC),
+  );
+}
+
+/**
+ * Fraction (0–1) of the currently burning torch that is still left.
+ * 1 = just started / full; near 0 = about to go out.
+ */
+export function currentTorchFraction(timeLeftSec: number): number {
+  if (timeLeftSec <= 0) return 0;
+  const rem = timeLeftSec % TORCH_DURATION_SEC;
+  const within = rem === 0 ? TORCH_DURATION_SEC : rem;
+  return Math.max(0, Math.min(1, within / TORCH_DURATION_SEC));
+}
+
+/** Escape bonus from leftover torches. */
 export function timeBonus(timeLeftSec: number): number {
-  const ratio = Math.max(0, Math.min(1, timeLeftSec / TOTAL_TIME_SEC));
-  return Math.round(TIME_BONUS_MAX * ratio);
+  return torchesRemaining(timeLeftSec) * TORCH_BONUS_EACH;
+}
+
+/** Seconds left on the torch that is currently burning. */
+export function currentTorchSecondsLeft(timeLeftSec: number): number {
+  if (timeLeftSec <= 0) return 0;
+  const rem = timeLeftSec % TORCH_DURATION_SEC;
+  return rem === 0 ? TORCH_DURATION_SEC : rem;
 }
 
 /**
@@ -805,18 +834,18 @@ export const PROLOGUE: string[] = [
   "박사가 남긴 별 표지 수첩 첫 장에는 이렇게 적혀 있다.",
   "「이 신전은 여섯 개의 시련으로 잠겨 있다. 열쇠는 검이 아니라 삼각비다.」",
   "별빛이 손을 흔든다. 「괜찮아, 방마다 단서가 있어. 우리가 풀면 돼!」",
-  "신전에 발을 들이자 등 뒤에서 석문이 살며시 닫힌다. 횃불이 꺼지기 전에 여섯 방을 모두 풀고 나가자!",
+  "신전에 발을 들이자 등 뒤에서 석문이 살며시 닫힌다. 횃불 열 개가 타오른다 — 하나씩 꺼지기 전에 여섯 방을 모두 풀고 나가자!",
 ];
 
 export const ESCAPE_STORY: string[] = [
   "황금의 별이 손안에서 반짝이자, 신전 천장이 별빛으로 가득 찬다.",
   "돌문이 열리고 쏟아지는 햇살. 그 안에 피타 박사와 별빛이 손을 흔들고 있다.",
-  "「하하, 드디어 풀었구나!」 박사가 활짝 웃는다.",
+  "「하하, 드디어 풀었구나!」 박사가 활짝 웃는다. 「남은 횃불이 많을수록 보너스도 크다네.」",
   "「이 신전은 내가 만든 최종 시험이었단다. 삼각비를 퀘스트처럼 다루는 자, 이제 너는 후계자다.」",
 ];
 
 export const TRAPPED_STORY: string[] = [
-  "마지막 횃불이 깜빡이다 사그라든다. 잠시 어두운 듯했지만 —",
+  "열 개의 횃불이 모두 사그라든다. 잠시 어두운 듯했지만 —",
   "별빛이 수정 구슬을 들어 길을 밝힌다. 「오늘은 여기까지! 다음에 다시 오자.」",
   "입구의 돌문이 스르륵 열린다. 수첩에 새 글씨가 번진다.",
   "「신전은 도망가지 않는단다. 더 빠르게, 더 정확하게. 다시 도전하는 자를 기다린다.」",

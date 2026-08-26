@@ -60,6 +60,7 @@ export const SUMMARY_LABELS: Record<string, Record<string, string>> = {
     roomsCleared: "통과한 방",
     wrongAttempts: "오답 시도",
     hintsUsed: "수첩(힌트)",
+    torchesLeft: "남은 횃불",
     timeLeftSec: "남은 시간(초)",
   },
   "g1-u2-2-linear-equation-balance": {
