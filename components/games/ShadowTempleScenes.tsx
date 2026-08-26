@@ -467,41 +467,40 @@ function GuardianShieldScene({ room, found, onFind }: SceneProps) {
   const hasGroove = found.has("groove");
   const hasScript = found.has("script");
 
-  // Keep the parallelogram large AND tall enough to read (esp. 30°).
+  // Fit the true-angle parallelogram as large as the chest panel allows.
   const rad = (deg * Math.PI) / 180;
   const sin = Math.sin(rad);
   const cos = Math.cos(rad);
-  const scale = Math.min(
-    17,
-    Math.max(110 / a, sin > 0.08 ? 68 / (b * sin) : 12, 82 / Math.max(a, b)),
-  );
+  const natW = a + b * Math.abs(cos);
+  const natH = Math.max(0.2, b * sin);
+  const scale = Math.min(240 / natW, 78 / natH);
   const ax = a * scale;
   const bx = b * scale * cos;
   const by = -b * scale * sin;
   // Anchor on the chest; pad so labels sit outside the polygon.
   const cx = 210;
-  const cy = 138;
+  const cy = 136;
   const V = { x: cx - (ax + bx) / 2, y: cy - by / 2 };
   const pA = { x: V.x + ax, y: V.y };
   const pAB = { x: V.x + ax + bx, y: V.y + by };
   const pB = { x: V.x + bx, y: V.y + by };
   const pts = `${V.x},${V.y} ${pA.x},${pA.y} ${pAB.x},${pAB.y} ${pB.x},${pB.y}`;
   const sideB = Math.hypot(bx, by);
-  const arcR = Math.min(20, ax * 0.26, sideB * 0.26);
+  const arcR = Math.min(22, ax * 0.24, sideB * 0.3);
   // Labels clearly outside each edge / the angle wedge.
   const midA = {
     x: (V.x + pA.x) / 2,
-    y: (V.y + pA.y) / 2 + 20,
+    y: (V.y + pA.y) / 2 + 22,
   };
   const midB = {
-    x: (V.x + pB.x) / 2 - 24,
+    x: (V.x + pB.x) / 2 - 26,
     y: (V.y + pB.y) / 2,
   };
-  const angleLabel = polar(V.x, V.y, arcR + 20, -deg / 2);
-  const panelL = Math.max(78, Math.min(V.x, pA.x, pAB.x, pB.x) - 28);
-  const panelR = Math.min(340, Math.max(V.x, pA.x, pAB.x, pB.x) + 28);
-  const panelT = Math.max(78, Math.min(V.y, pA.y, pAB.y, pB.y) - 16);
-  const panelB = Math.min(188, Math.max(V.y, pA.y, pAB.y, pB.y) + 26);
+  const angleLabel = polar(V.x, V.y, arcR + 22, -deg / 2);
+  const panelL = Math.max(72, Math.min(V.x, pA.x, pAB.x, pB.x) - 34);
+  const panelR = Math.min(348, Math.max(V.x, pA.x, pAB.x, pB.x) + 34);
+  const panelT = Math.max(74, Math.min(V.y, pA.y, pAB.y, pB.y) - 14);
+  const panelB = Math.min(190, Math.max(V.y, pA.y, pAB.y, pB.y) + 28);
 
   return (
     <Frame>
