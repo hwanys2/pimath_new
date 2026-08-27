@@ -3,24 +3,22 @@
 import { Noto_Serif, Noto_Serif_KR } from "next/font/google";
 import Link from "next/link";
 import { useCallback, useMemo, useState, useSyncExternalStore } from "react";
-import ChordCard from "@/components/tools/figures/circle-chords/ChordCard";
-import CircleChordsCanvas from "@/components/tools/figures/circle-chords/CircleChordsCanvas";
+import CircleChordsCanvas, {
+  type CircleChordsSetter,
+} from "@/components/tools/figures/circle-chords/CircleChordsCanvas";
 import {
-  NumberField,
-  Panel,
+  ChipToggle,
   Segmented,
   SliderField,
-  TextField,
 } from "@/components/tools/figures/circle-chords/controls";
+import { cycleLabelMode, mapChord } from "@/lib/diagrams/circle-chords/geometry";
 import {
-  addChord,
   CIRCLE_CHORD_PRESETS,
   cloneState,
   DEFAULT_CIRCLE_CHORDS_STATE,
   withSnappedChords,
   type CircleChordsState,
   type ChordDraft,
-  type MeasLabel,
 } from "@/lib/diagrams/circle-chords/model";
 import { buildCircleChordsScene } from "@/lib/diagrams/circle-chords/scene";
 import {
@@ -59,26 +57,37 @@ function getServerSnapshot(): CircleChordsState {
   return DEFAULT_CIRCLE_CHORDS_STATE;
 }
 
-/** Must return the same object while storage is unchanged, or React 185 loops. */
+/** Must return the same object while unchanged, or React 185 loops. */
 function getClientSnapshot(): CircleChordsState {
-  const raw = window.localStorage.getItem(STORAGE_KEY);
-  if (cacheReady && raw === cachedRaw) return cachedState;
-  cacheReady = true;
-  cachedRaw = raw;
-  cachedState = parseStoredState(raw);
+  if (!cacheReady) {
+    cacheReady = true;
+    cachedRaw = window.localStorage.getItem(STORAGE_KEY);
+    cachedState = parseStoredState(cachedRaw);
+  }
   return cachedState;
 }
 
-function writeStoredState(state: CircleChordsState) {
+function writeStoredState(state: CircleChordsState, persist = true) {
   cachedState = state;
-  cachedRaw = JSON.stringify(state);
   cacheReady = true;
+  if (persist) {
+    cachedRaw = JSON.stringify(state);
+    try {
+      window.localStorage.setItem(STORAGE_KEY, cachedRaw);
+    } catch {
+      /* ignore quota */
+    }
+  }
+  storeListeners.forEach((listener) => listener());
+}
+
+function persistCachedState() {
+  cachedRaw = JSON.stringify(cachedState);
   try {
     window.localStorage.setItem(STORAGE_KEY, cachedRaw);
   } catch {
     /* ignore quota */
   }
-  storeListeners.forEach((listener) => listener());
 }
 
 function subscribeStoredState(onChange: () => void) {
@@ -94,19 +103,15 @@ function useCircleChordsState() {
     getClientSnapshot,
     getServerSnapshot,
   );
-  const setState = useCallback(
-    (
-      updater:
-        | CircleChordsState
-        | ((prev: CircleChordsState) => CircleChordsState),
-    ) => {
-      const prev = getClientSnapshot();
-      const next = typeof updater === "function" ? updater(prev) : updater;
-      if (Object.is(next, prev)) return;
-      writeStoredState(next);
-    },
-    [],
-  );
+  const setState = useCallback<CircleChordsSetter>((updater, persist = true) => {
+    const prev = getClientSnapshot();
+    const next = typeof updater === "function" ? updater(prev) : updater;
+    if (Object.is(next, prev)) {
+      if (persist) persistCachedState();
+      return;
+    }
+    writeStoredState(next, persist);
+  }, []);
   return [state, setState] as const;
 }
 
@@ -136,48 +141,30 @@ export default function CircleChordsStudio() {
   const [state, setState] = useCircleChordsState();
   const [status, setStatus] = useState<string | null>(null);
   const [styleOpen, setStyleOpen] = useState(false);
+  const [tool, setTool] = useState<"select" | "draw">("select");
+  const [selectedId, setSelectedId] = useState<string | null>(
+    () => state.chords[0]?.id ?? null,
+  );
   const fonts = useMemo(() => fontsFromNext(), []);
+  const selected =
+    state.chords.find((c) => c.id === selectedId) ?? state.chords[0] ?? null;
 
-  const set = useCallback((patch: Partial<CircleChordsState>) => {
-    setState((prev) => withSnappedChords({ ...prev, ...patch }));
-  }, [setState]);
+  const set = useCallback(
+    (patch: Partial<CircleChordsState>) => {
+      setState((prev) => withSnappedChords({ ...prev, ...patch }));
+    },
+    [setState],
+  );
 
-  const patchChord = useCallback((id: string, patch: Partial<ChordDraft>) => {
-    setState((prev) =>
-      withSnappedChords({
-        ...prev,
-        chords: prev.chords.map((c) => (c.id === id ? { ...c, ...patch } : c)),
-      }),
-    );
-  }, [setState]);
-
-  const nudgeLabel = useCallback((id: string, dx: number, dy: number) => {
-    setState((prev) => {
-      const sep = id.lastIndexOf(":");
-      if (sep < 0) return prev;
-      const chordId = id.slice(0, sep);
-      const key = id.slice(sep + 1);
-      const labelKeys = new Set([
-        "chordLabel",
-        "distLabel",
-        "halfLabel",
-        "radiusLabel",
-      ]);
-      if (!labelKeys.has(key)) return prev;
-      return {
-        ...prev,
-        chords: prev.chords.map((c) => {
-          if (c.id !== chordId) return c;
-          const label = c[key as keyof ChordDraft];
-          if (!label || typeof label !== "object" || !("mode" in label)) {
-            return c;
-          }
-          const m = label as MeasLabel;
-          return { ...c, [key]: { ...m, dx: m.dx + dx, dy: m.dy + dy } };
-        }),
-      };
-    });
-  }, [setState]);
+  const patchSelected = useCallback(
+    (patch: Partial<ChordDraft>) => {
+      if (!selected) return;
+      setState((prev) =>
+        withSnappedChords(mapChord(prev, selected.id, (c) => ({ ...c, ...patch }))),
+      );
+    },
+    [selected, setState],
+  );
 
   async function exportPng() {
     await document.fonts.ready;
@@ -217,23 +204,8 @@ export default function CircleChordsStudio() {
     setStatus("SVG를 저장했어요.");
   }
 
-  function resetLabelPositions() {
-    setState((prev) => ({
-      ...prev,
-      chords: prev.chords.map((c) => ({
-        ...c,
-        chordLabel: { ...c.chordLabel, dx: 0, dy: 0 },
-        distLabel: { ...c.distLabel, dx: 0, dy: 0 },
-        halfLabel: { ...c.halfLabel, dx: 0, dy: 0 },
-        radiusLabel: { ...c.radiusLabel, dx: 0, dy: 0 },
-      })),
-    }));
-  }
-
   return (
-    <div
-      className={`${notoSerif.variable} ${notoSerifKr.variable} space-y-5`}
-    >
+    <div className={`${notoSerif.variable} ${notoSerifKr.variable} space-y-4`}>
       <span
         className={`${notoSerif.className} ${notoSerifKr.className} hidden`}
         aria-hidden
@@ -252,9 +224,9 @@ export default function CircleChordsStudio() {
           <h1 className="font-display mt-1 text-3xl text-wood-dark sm:text-4xl">
             원의 현
           </h1>
-          <p className="mt-1 max-w-xl text-sm text-foreground/65">
-            길이만 바꾸면 수선·직각·설명선이 맞춰져요. 숫자 자리만{" "}
-            {state.unknownLetter}로 바꾸고 PNG로 저장하세요.
+          <p className="mt-1 max-w-2xl text-sm text-foreground/65">
+            원 위를 끌어 현을 그리세요. 점 A를 옮기면 길이는 그대로 두고 B가
+            원을 따라가요. 글자를 누르면 이름이나 숫자를 바로 바꿀 수 있어요.
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -267,7 +239,11 @@ export default function CircleChordsStudio() {
           </button>
           <button
             type="button"
-            onClick={() => void copyPng().catch(() => setStatus("복사에 실패했어요. PNG 저장을 이용해 주세요."))}
+            onClick={() =>
+              void copyPng().catch(() =>
+                setStatus("복사에 실패했어요. PNG 저장을 이용해 주세요."),
+              )
+            }
             className="font-display rounded-xl bg-gold px-4 py-2.5 text-sm text-[#6b4a00] shadow-[0_3px_0_rgba(107,74,0,0.3)]"
           >
             복사
@@ -288,252 +264,319 @@ export default function CircleChordsStudio() {
         </p>
       ) : null}
 
-      <div className="grid items-start gap-5 lg:grid-cols-[minmax(0,1.05fr)_minmax(20rem,0.95fr)]">
-        <div className="lg:sticky lg:top-4">
-          <div className="overflow-hidden rounded-3xl border-2 border-wood/10 bg-white shadow-[0_12px_40px_rgba(61,44,30,0.08)]">
-            <CircleChordsCanvas
-              state={state}
-              fonts={fonts}
-              onNudgeLabel={nudgeLabel}
-            />
-          </div>
-          <p className="mt-2 text-center text-[11px] text-foreground/45">
-            길이 글자를 드래그하면 겹치지 않게 옮길 수 있어요.
-          </p>
+      <div className="flex flex-wrap items-center gap-2">
+        <ChipToggle on={tool === "select"} onClick={() => setTool("select")}>
+          옮기기
+        </ChipToggle>
+        <ChipToggle
+          on={tool === "draw"}
+          onClick={() => setTool("draw")}
+        >
+          현 그리기
+        </ChipToggle>
+        <span className="mx-1 h-4 w-px bg-wood/15" />
+        {CIRCLE_CHORD_PRESETS.map((preset) => (
+          <button
+            key={preset.id}
+            type="button"
+            onClick={() => {
+              const next = cloneState(preset.state);
+              setState(next);
+              setSelectedId(next.chords[0]?.id ?? null);
+              setTool("select");
+            }}
+            className="rounded-full bg-black/5 px-2.5 py-1 text-xs font-semibold text-foreground/65 hover:bg-black/10"
+          >
+            {preset.title}
+          </button>
+        ))}
+      </div>
+
+      <div className="overflow-hidden rounded-3xl border-2 border-wood/10 bg-white shadow-[0_12px_40px_rgba(61,44,30,0.08)]">
+        <CircleChordsCanvas
+          state={state}
+          fonts={fonts}
+          tool={tool}
+          selectedId={selected?.id ?? null}
+          setState={setState}
+          persist={persistCachedState}
+          onSelect={setSelectedId}
+          onToolChange={setTool}
+        />
+      </div>
+
+      {selected ? (
+        <div className="flex flex-wrap items-center gap-1.5">
+          <span className="mr-1 text-xs font-semibold text-foreground/45">
+            {selected.startName}
+            {selected.endName}
+          </span>
+          <ChipToggle
+            on={selected.showPerp}
+            onClick={() => patchSelected({ showPerp: !selected.showPerp })}
+          >
+            수선
+          </ChipToggle>
+          <ChipToggle
+            on={selected.showRightAngle}
+            onClick={() =>
+              patchSelected({ showRightAngle: !selected.showRightAngle })
+            }
+          >
+            직각
+          </ChipToggle>
+          <ChipToggle
+            on={selected.showRadiusEnd || selected.showRadiusStart}
+            onClick={() =>
+              patchSelected({
+                showRadiusEnd: !(selected.showRadiusEnd || selected.showRadiusStart),
+                showRadiusStart: false,
+              })
+            }
+          >
+            반지름
+          </ChipToggle>
+          <ChipToggle
+            on={selected.showPoints}
+            onClick={() => patchSelected({ showPoints: !selected.showPoints })}
+          >
+            점 이름
+          </ChipToggle>
+          <ChipToggle
+            on={selected.showMidpoint}
+            onClick={() =>
+              patchSelected({ showMidpoint: !selected.showMidpoint })
+            }
+          >
+            중점
+          </ChipToggle>
+          <ChipToggle
+            on={selected.showHalf}
+            onClick={() => patchSelected({ showHalf: !selected.showHalf })}
+          >
+            반
+          </ChipToggle>
+          <ChipToggle
+            on={selected.equalTicks > 0}
+            onClick={() =>
+              patchSelected({
+                equalTicks: selected.equalTicks === 0 ? 1 : 0,
+              })
+            }
+          >
+            빗금
+          </ChipToggle>
+          <ChipToggle
+            on={selected.chordLabel.mode !== "hide"}
+            onClick={() =>
+              patchSelected({
+                chordLabel: cycleLabelMode(selected.chordLabel),
+              })
+            }
+          >
+            길이{labelModeHint(selected.chordLabel.mode, state.unknownLetter)}
+          </ChipToggle>
+          <ChipToggle
+            on={selected.distLabel.mode !== "hide"}
+            onClick={() =>
+              patchSelected({
+                distLabel: cycleLabelMode(selected.distLabel),
+              })
+            }
+          >
+            거리{labelModeHint(selected.distLabel.mode, state.unknownLetter)}
+          </ChipToggle>
+          <button
+            type="button"
+            onClick={() => {
+              const remaining = state.chords.filter((c) => c.id !== selected.id);
+              setState((prev) => ({
+                ...prev,
+                chords: prev.chords.filter((c) => c.id !== selected.id),
+              }));
+              setSelectedId(remaining[0]?.id ?? null);
+            }}
+            className="rounded-full px-2.5 py-1 text-xs font-semibold text-foreground/45 hover:bg-black/5 hover:text-foreground"
+          >
+            삭제
+          </button>
         </div>
+      ) : (
+        <p className="text-center text-[12px] text-foreground/45">
+          원 둘레를 클릭하거나 끌어서 현을 그리세요.
+        </p>
+      )}
 
-        <div className="space-y-4">
-          <Panel title="빠른 그림">
-            <div className="grid grid-cols-2 gap-2">
-              {CIRCLE_CHORD_PRESETS.map((preset) => (
-                <button
-                  key={preset.id}
-                  type="button"
-                  onClick={() => setState(cloneState(preset.state))}
-                  className="rounded-2xl border-2 border-wood/10 bg-white px-3 py-2.5 text-left transition hover:border-wood/30 hover:bg-cream/60"
-                >
-                  <span className="block text-sm font-semibold text-wood-dark">
-                    {preset.title}
-                  </span>
-                  <span className="mt-0.5 block text-[11px] leading-snug text-foreground/50">
-                    {preset.hint}
-                  </span>
-                </button>
-              ))}
-            </div>
-          </Panel>
+      <div className="flex flex-wrap items-end gap-3">
+        <label className="text-xs font-semibold text-foreground/60">
+          반지름
+          <input
+            type="number"
+            min={1}
+            max={40}
+            step={0.5}
+            value={state.radius}
+            onChange={(e) => set({ radius: Number(e.target.value) })}
+            className="ml-2 w-20 rounded-xl border-2 border-wood/20 bg-white px-2 py-1.5 text-sm outline-none focus:border-wood"
+          />
+        </label>
+        <label className="text-xs font-semibold text-foreground/60">
+          단위
+          <input
+            value={state.unit}
+            onChange={(e) => set({ unit: e.target.value })}
+            placeholder="cm"
+            className="ml-2 w-16 rounded-xl border-2 border-wood/20 bg-white px-2 py-1.5 text-sm outline-none focus:border-wood"
+          />
+        </label>
+        <label className="text-xs font-semibold text-foreground/60">
+          미지수
+          <input
+            value={state.unknownLetter}
+            onChange={(e) => set({ unknownLetter: e.target.value })}
+            className="ml-2 w-12 rounded-xl border-2 border-wood/20 bg-white px-2 py-1.5 text-sm outline-none focus:border-wood"
+          />
+        </label>
+        <label className="min-w-[12rem] flex-1 text-xs font-semibold text-foreground/60">
+          아래 문구
+          <input
+            value={state.caption}
+            onChange={(e) =>
+              set({
+                caption: e.target.value,
+                showCaption: e.target.value.trim().length > 0,
+              })
+            }
+            placeholder="x를 구하시오."
+            className="ml-2 w-[calc(100%-4rem)] rounded-xl border-2 border-wood/20 bg-white px-2 py-1.5 text-sm font-normal outline-none focus:border-wood"
+          />
+        </label>
+        <label className="flex items-center gap-2 pb-1.5 text-sm">
+          <input
+            type="checkbox"
+            checked={state.showCenter}
+            onChange={(e) => set({ showCenter: e.target.checked })}
+            className="accent-wood"
+          />
+          중심
+        </label>
+      </div>
 
-          <Panel title="원">
-            <div className="grid grid-cols-2 gap-2">
-              <NumberField
-                label="반지름 r"
-                value={state.radius}
-                onChange={(radius) => set({ radius })}
-                min={1}
-                max={40}
-                step={0.5}
-                suffix={state.unit}
-              />
-              <TextField
-                label="단위"
-                value={state.unit}
-                onChange={(unit) => set({ unit })}
-                placeholder="cm  또는 비우기"
-              />
-              <TextField
-                label="중심 이름"
-                value={state.centerName}
-                onChange={(centerName) => set({ centerName })}
-              />
-              <TextField
-                label="미지수 글자"
-                value={state.unknownLetter}
-                onChange={(unknownLetter) => set({ unknownLetter })}
-              />
-            </div>
-            <label className="flex items-center gap-2 text-sm">
-              <input
-                type="checkbox"
-                checked={state.showCenter}
-                onChange={(e) => set({ showCenter: e.target.checked })}
-                className="accent-wood"
-              />
-              중심 점 표시
-            </label>
+      <section className="rounded-2xl border-2 border-wood/10 bg-white/80 p-4">
+        <button
+          type="button"
+          onClick={() => setStyleOpen((v) => !v)}
+          className="flex w-full items-center justify-between"
+        >
+          <h2 className="font-display text-base text-wood-dark">그림 스타일</h2>
+          <span className="text-xs text-foreground/45">
+            {styleOpen ? "접기" : "선 굵기 · 글자 · 여백"}
+          </span>
+        </button>
+        {styleOpen ? (
+          <div className="mt-3 space-y-3">
             <SliderField
-              label="그림 전체 회전"
-              value={state.viewRotationDeg}
-              onChange={(viewRotationDeg) => set({ viewRotationDeg })}
-              min={-40}
+              label="선 굵기"
+              value={state.style.lineWidth}
+              onChange={(lineWidth) =>
+                set({ style: { ...state.style, lineWidth } })
+              }
+              min={1}
+              max={3.5}
+              step={0.1}
+              display={state.style.lineWidth.toFixed(1)}
+            />
+            <SliderField
+              label="길이 글자 크기"
+              value={state.style.fontSize}
+              onChange={(fontSize) =>
+                set({ style: { ...state.style, fontSize } })
+              }
+              min={14}
+              max={32}
+              step={1}
+            />
+            <SliderField
+              label="점 이름 크기"
+              value={state.style.pointLabelSize}
+              onChange={(pointLabelSize) =>
+                set({ style: { ...state.style, pointLabelSize } })
+              }
+              min={14}
+              max={36}
+              step={1}
+            />
+            <SliderField
+              label="설명선 간격"
+              value={state.style.dimOffset}
+              onChange={(dimOffset) =>
+                set({ style: { ...state.style, dimOffset } })
+              }
+              min={10}
               max={40}
               step={1}
-              display={`${state.viewRotationDeg}°`}
             />
-            <TextField
-              label="그림 아래 문구"
-              value={state.caption}
-              onChange={(caption) => set({ caption })}
-              placeholder="x를 구하시오."
+            <SliderField
+              label="직각 표시 크기"
+              value={state.style.rightAngleSize}
+              onChange={(rightAngleSize) =>
+                set({ style: { ...state.style, rightAngleSize } })
+              }
+              min={6}
+              max={20}
+              step={1}
             />
-            <label className="flex items-center gap-2 text-sm">
-              <input
-                type="checkbox"
-                checked={state.showCaption}
-                onChange={(e) => set({ showCaption: e.target.checked })}
-                className="accent-wood"
+            <SliderField
+              label="여백"
+              value={state.style.padding}
+              onChange={(padding) =>
+                set({ style: { ...state.style, padding } })
+              }
+              min={48}
+              max={110}
+              step={2}
+            />
+            <div>
+              <p className="mb-1 text-xs font-semibold text-foreground/60">
+                저장 해상도
+              </p>
+              <Segmented
+                value={String(state.style.exportScale)}
+                onChange={(v) =>
+                  set({
+                    style: { ...state.style, exportScale: Number(v) },
+                  })
+                }
+                options={[
+                  { id: "2", label: "2×" },
+                  { id: "3", label: "3×" },
+                  { id: "4", label: "4×" },
+                ]}
               />
-              아래 문구 보이기
-            </label>
-          </Panel>
-
-          <Panel title="현">
-            <div className="space-y-3">
-              {state.chords.map((chord, i) => (
-                <ChordCard
-                  key={chord.id}
-                  index={i}
-                  chord={chord}
-                  radius={state.radius}
-                  unit={state.unit}
-                  unknownLetter={state.unknownLetter}
-                  canDelete={state.chords.length > 1}
-                  onChange={(patch) => patchChord(chord.id, patch)}
-                  onDelete={() =>
-                    set({
-                      chords: state.chords.filter((c) => c.id !== chord.id),
-                    })
-                  }
-                />
-              ))}
             </div>
-            <div className="flex flex-wrap gap-2">
-              <button
-                type="button"
-                disabled={state.chords.length >= 4}
-                onClick={() => setState((prev) => addChord(prev))}
-                className="font-display rounded-xl bg-sky/80 px-3 py-2 text-sm text-[#1a4a6e] disabled:opacity-40"
-              >
-                현 추가
-              </button>
-              <button
-                type="button"
-                onClick={resetLabelPositions}
-                className="rounded-xl bg-black/5 px-3 py-2 text-xs font-semibold text-foreground/60"
-              >
-                라벨 위치 되돌리기
-              </button>
-            </div>
-          </Panel>
-
-          <section className="rounded-2xl border-2 border-wood/10 bg-white/80 p-4">
-            <button
-              type="button"
-              onClick={() => setStyleOpen((v) => !v)}
-              className="flex w-full items-center justify-between"
-            >
-              <h2 className="font-display text-base text-wood-dark">
-                그림 스타일
-              </h2>
-              <span className="text-xs text-foreground/45">
-                {styleOpen ? "접기" : "선 굵기 · 글자 · 여백"}
-              </span>
-            </button>
-            {styleOpen ? (
-              <div className="mt-3 space-y-3">
-                <SliderField
-                  label="선 굵기"
-                  value={state.style.lineWidth}
-                  onChange={(lineWidth) =>
-                    set({ style: { ...state.style, lineWidth } })
-                  }
-                  min={1}
-                  max={3.5}
-                  step={0.1}
-                  display={state.style.lineWidth.toFixed(1)}
-                />
-                <SliderField
-                  label="길이 글자 크기"
-                  value={state.style.fontSize}
-                  onChange={(fontSize) =>
-                    set({ style: { ...state.style, fontSize } })
-                  }
-                  min={14}
-                  max={32}
-                  step={1}
-                />
-                <SliderField
-                  label="점 이름 크기"
-                  value={state.style.pointLabelSize}
-                  onChange={(pointLabelSize) =>
-                    set({ style: { ...state.style, pointLabelSize } })
-                  }
-                  min={14}
-                  max={36}
-                  step={1}
-                />
-                <SliderField
-                  label="설명선 간격"
-                  value={state.style.dimOffset}
-                  onChange={(dimOffset) =>
-                    set({ style: { ...state.style, dimOffset } })
-                  }
-                  min={10}
-                  max={40}
-                  step={1}
-                />
-                <SliderField
-                  label="직각 표시 크기"
-                  value={state.style.rightAngleSize}
-                  onChange={(rightAngleSize) =>
-                    set({ style: { ...state.style, rightAngleSize } })
-                  }
-                  min={6}
-                  max={20}
-                  step={1}
-                />
-                <SliderField
-                  label="여백"
-                  value={state.style.padding}
-                  onChange={(padding) =>
-                    set({ style: { ...state.style, padding } })
-                  }
-                  min={48}
-                  max={110}
-                  step={2}
-                />
-                <div>
-                  <p className="mb-1 text-xs font-semibold text-foreground/60">
-                    저장 해상도
-                  </p>
-                  <Segmented
-                    value={String(state.style.exportScale)}
-                    onChange={(v) =>
-                      set({
-                        style: { ...state.style, exportScale: Number(v) },
-                      })
-                    }
-                    options={[
-                      { id: "2", label: "2×" },
-                      { id: "3", label: "3×" },
-                      { id: "4", label: "4×" },
-                    ]}
-                  />
-                </div>
-                <SliderField
-                  label="아래 문구 크기"
-                  value={state.style.captionSize}
-                  onChange={(captionSize) =>
-                    set({ style: { ...state.style, captionSize } })
-                  }
-                  min={14}
-                  max={28}
-                  step={1}
-                />
-              </div>
-            ) : null}
-          </section>
-        </div>
-      </div>
+            <SliderField
+              label="아래 문구 크기"
+              value={state.style.captionSize}
+              onChange={(captionSize) =>
+                set({ style: { ...state.style, captionSize } })
+              }
+              min={14}
+              max={28}
+              step={1}
+            />
+          </div>
+        ) : null}
+      </section>
     </div>
   );
+}
+
+function labelModeHint(
+  mode: ChordDraft["chordLabel"]["mode"],
+  unknown: string,
+): string {
+  if (mode === "x") return ` ${unknown}`;
+  if (mode === "hide") return " 숨김";
+  if (mode === "custom") return " 직접";
+  return "";
 }

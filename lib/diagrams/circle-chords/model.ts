@@ -19,9 +19,17 @@ export type ChordDraft = {
   cardinal: Cardinal;
   /** Added to the cardinal angle, degrees. */
   tiltDeg: number;
+  /** Preferred source of orientation. Falls back to cardinal + tilt. */
+  midAngleDeg?: number;
   startName: string;
   endName: string;
   midName: string;
+  startDx?: number;
+  startDy?: number;
+  endDx?: number;
+  endDy?: number;
+  midDx?: number;
+  midDy?: number;
   showPoints: boolean;
   showMidpoint: boolean;
   showPerp: boolean;
@@ -53,6 +61,8 @@ export type CircleChordsState = {
   radius: number;
   showCenter: boolean;
   centerName: string;
+  centerDx?: number;
+  centerDy?: number;
   unit: string;
   unknownLetter: string;
   caption: string;
@@ -104,6 +114,12 @@ function chordAB(partial: Partial<ChordDraft> = {}): ChordDraft {
     startName: "A",
     endName: "B",
     midName: "M",
+    startDx: 0,
+    startDy: 0,
+    endDx: 0,
+    endDy: 0,
+    midDx: 0,
+    midDy: 0,
     showPoints: true,
     showMidpoint: false,
     showPerp: true,
@@ -124,15 +140,16 @@ export function snapChordToRadius(chord: ChordDraft, radius: number): ChordDraft
   const r = Math.max(radius, 0.01);
   const maxLen = r * 2 * 0.995;
   const maxDist = r * 0.995;
+  const midAngleDeg = chordAngleDeg(chord);
   if (chord.lock === "length") {
     const length = clamp(chord.length, 0.2, maxLen);
     const half = length / 2;
     const distance = Math.sqrt(Math.max(r * r - half * half, 0));
-    return { ...chord, length, distance };
+    return { ...chord, length, distance, midAngleDeg };
   }
   const distance = clamp(chord.distance, 0, maxDist);
   const half = Math.sqrt(Math.max(r * r - distance * distance, 0));
-  return { ...chord, distance, length: half * 2 };
+  return { ...chord, distance, length: half * 2, midAngleDeg };
 }
 
 function clamp(n: number, min: number, max: number): number {
@@ -346,6 +363,9 @@ export function addChord(state: CircleChordsState): CircleChordsState {
 }
 
 export function chordAngleDeg(chord: ChordDraft): number {
+  if (typeof chord.midAngleDeg === "number" && Number.isFinite(chord.midAngleDeg)) {
+    return chord.midAngleDeg;
+  }
   return CARDINAL_ANGLE[chord.cardinal] + chord.tiltDeg;
 }
 

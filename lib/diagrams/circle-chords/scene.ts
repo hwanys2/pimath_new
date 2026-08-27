@@ -58,10 +58,18 @@ export type DiagramScene = {
   height: number;
   cmds: SceneCmd[];
   texts: SceneText[];
+  layout: SceneLayout;
 };
 
 export const SCENE_WIDTH = 720;
 export const SCENE_HEIGHT = 780;
+
+export type SceneLayout = {
+  origin: Vec;
+  visualR: number;
+  scale: number;
+  viewRot: number;
+};
 
 function add(a: Vec, b: Vec): Vec {
   return { x: a.x + b.x, y: a.y + b.y };
@@ -85,6 +93,37 @@ function rot(a: Vec, deg: number): Vec {
   const c = Math.cos(r);
   const s = Math.sin(r);
   return { x: a.x * c - a.y * s, y: a.x * s + a.y * c };
+}
+
+export function getSceneLayout(state: CircleChordsState): SceneLayout {
+  const captionBand = state.showCaption && state.caption.trim() ? 44 : 12;
+  const origin: Vec = {
+    x: SCENE_WIDTH / 2,
+    y: (SCENE_HEIGHT - captionBand) / 2 + 6,
+  };
+  const visualR =
+    Math.min(SCENE_WIDTH, SCENE_HEIGHT - captionBand) / 2 - state.style.padding;
+  return {
+    origin,
+    visualR,
+    scale: visualR / state.radius,
+    viewRot: state.viewRotationDeg,
+  };
+}
+
+export function canvasToMath(p: Vec, layout: SceneLayout): Vec {
+  const dx = p.x - layout.origin.x;
+  const dy = layout.origin.y - p.y;
+  const rad = (-layout.viewRot * Math.PI) / 180;
+  const c = Math.cos(rad);
+  const s = Math.sin(rad);
+  const xr = dx * c - dy * s;
+  const yr = dx * s + dy * c;
+  return { x: xr / layout.scale, y: yr / layout.scale };
+}
+
+export function mathToCanvas(p: Vec, layout: SceneLayout): Vec {
+  return toCanvas(p, layout.origin, layout.scale, layout.viewRot);
 }
 
 function toCanvas(
@@ -158,22 +197,18 @@ export function buildCircleChordsScene(state: CircleChordsState): DiagramScene {
   const { style } = state;
   const width = SCENE_WIDTH;
   const height = SCENE_HEIGHT;
-  const captionBand = state.showCaption && state.caption.trim() ? 44 : 12;
-  const origin: Vec = { x: width / 2, y: (height - captionBand) / 2 + 6 };
-  const visualR = Math.min(width, height - captionBand) / 2 - style.padding;
-  const scale = visualR / state.radius;
-  const viewRot = state.viewRotationDeg;
-  const map = (p: Vec) => toCanvas(p, origin, scale, viewRot);
+  const layout = getSceneLayout(state);
+  const map = (p: Vec) => mathToCanvas(p, layout);
   const cmds: SceneCmd[] = [];
   const texts: SceneText[] = [];
 
-  cmds.push({ t: "circle", x: origin.x, y: origin.y, r: visualR });
+  cmds.push({ t: "circle", x: layout.origin.x, y: layout.origin.y, r: layout.visualR });
 
   if (state.showCenter) {
     cmds.push({
       t: "dot",
-      x: origin.x,
-      y: origin.y,
+      x: layout.origin.x,
+      y: layout.origin.y,
       r: style.pointRadius,
     });
   }
@@ -190,7 +225,10 @@ export function buildCircleChordsScene(state: CircleChordsState): DiagramScene {
 
   if (state.showCenter && state.centerName.trim()) {
     const away = averageOutward(state.chords);
-    const oPos = add(origin, mul(away, 18));
+    const oPos = add(
+      add(layout.origin, mul(away, 18)),
+      { x: state.centerDx ?? 0, y: state.centerDy ?? 0 },
+    );
     pushText(texts, cmds, {
       id: "center-name",
       x: oPos.x,
@@ -212,7 +250,7 @@ export function buildCircleChordsScene(state: CircleChordsState): DiagramScene {
     });
   }
 
-  return { width, height, cmds, texts };
+  return { width, height, cmds, texts, layout };
 }
 
 function averageOutward(chords: ChordDraft[]): Vec {
@@ -289,7 +327,10 @@ function drawChord(args: {
   const radialA = norm(sub(cA, cO));
   const radialB = norm(sub(cB, cO));
   if (chord.showPoints && chord.startName.trim()) {
-    const p = add(cA, mul(radialA, 16));
+    const p = add(add(cA, mul(radialA, 16)), {
+      x: chord.startDx ?? 0,
+      y: chord.startDy ?? 0,
+    });
     pushText(texts, cmds, {
       id: `${chord.id}:startName`,
       x: p.x,
@@ -300,7 +341,10 @@ function drawChord(args: {
     });
   }
   if (chord.showPoints && chord.endName.trim()) {
-    const p = add(cB, mul(radialB, 16));
+    const p = add(add(cB, mul(radialB, 16)), {
+      x: chord.endDx ?? 0,
+      y: chord.endDy ?? 0,
+    });
     pushText(texts, cmds, {
       id: `${chord.id}:endName`,
       x: p.x,
@@ -312,7 +356,10 @@ function drawChord(args: {
   }
   if (chord.showMidpoint && chord.midName.trim()) {
     const away = norm(sub(cM, cO));
-    const p = add(cM, mul(away, 16));
+    const p = add(add(cM, mul(away, 16)), {
+      x: chord.midDx ?? 0,
+      y: chord.midDy ?? 0,
+    });
     pushText(texts, cmds, {
       id: `${chord.id}:midName`,
       x: p.x,
@@ -420,6 +467,10 @@ function drawEqualTicks(
   }
 }
 
+export function sceneTextPlain(text: SceneText): string {
+  return text.runs.map((run) => run.text).join("");
+}
+
 export function hitTestText(
   scene: DiagramScene,
   x: number,
@@ -429,7 +480,6 @@ export function hitTestText(
   let best: SceneText | null = null;
   let bestD = radius;
   for (const text of scene.texts) {
-    if (text.id === "caption") continue;
     const d = Math.hypot(text.x - x, text.y - y);
     if (d < bestD) {
       best = text;
@@ -437,4 +487,92 @@ export function hitTestText(
     }
   }
   return best;
+}
+
+export type FigureHit =
+  | { kind: "label"; id: string }
+  | { kind: "point"; chordId: string; which: "start" | "end" | "mid" }
+  | { kind: "center" }
+  | { kind: "chord"; chordId: string }
+  | { kind: "circle" };
+
+function distToSeg(p: Vec, a: Vec, b: Vec): number {
+  const dx = b.x - a.x;
+  const dy = b.y - a.y;
+  const len2 = dx * dx + dy * dy;
+  if (len2 < 1e-9) return Math.hypot(p.x - a.x, p.y - a.y);
+  let t = ((p.x - a.x) * dx + (p.y - a.y) * dy) / len2;
+  t = Math.max(0, Math.min(1, t));
+  return Math.hypot(p.x - (a.x + t * dx), p.y - (a.y + t * dy));
+}
+
+export function hitTestFigure(
+  state: CircleChordsState,
+  scene: DiagramScene,
+  x: number,
+  y: number,
+): FigureHit | null {
+  const p = { x, y };
+  const layout = scene.layout;
+  const best: { hit: FigureHit; d: number } = { hit: { kind: "circle" }, d: Infinity };
+
+  function consider(hit: FigureHit, d: number, max: number) {
+    if (d > max || d >= best.d) return;
+    best.hit = hit;
+    best.d = d;
+  }
+
+  for (const text of scene.texts) {
+    consider(
+      { kind: "label", id: text.id },
+      Math.hypot(text.x - x, text.y - y),
+      26,
+    );
+  }
+
+  for (const chord of state.chords) {
+    const ang = (chordAngleDeg(chord) * Math.PI) / 180;
+    const u = { x: Math.cos(ang), y: Math.sin(ang) };
+    const v = { x: -u.y, y: u.x };
+    const M = { x: u.x * chord.distance, y: u.y * chord.distance };
+    const half = chord.length / 2;
+    const A = { x: M.x + v.x * -half, y: M.y + v.y * -half };
+    const B = { x: M.x + v.x * half, y: M.y + v.y * half };
+    const cA = mathToCanvas(A, layout);
+    const cB = mathToCanvas(B, layout);
+    const cM = mathToCanvas(M, layout);
+    consider(
+      { kind: "point", chordId: chord.id, which: "start" },
+      Math.hypot(p.x - cA.x, p.y - cA.y),
+      22,
+    );
+    consider(
+      { kind: "point", chordId: chord.id, which: "end" },
+      Math.hypot(p.x - cB.x, p.y - cB.y),
+      22,
+    );
+    consider(
+      { kind: "point", chordId: chord.id, which: "mid" },
+      Math.hypot(p.x - cM.x, p.y - cM.y),
+      16,
+    );
+    consider(
+      { kind: "chord", chordId: chord.id },
+      distToSeg(p, cA, cB),
+      12,
+    );
+  }
+
+  const cO = layout.origin;
+  consider({ kind: "center" }, Math.hypot(p.x - cO.x, p.y - cO.y), 16);
+
+  if (best.d > 20) {
+    consider(
+      { kind: "circle" },
+      Math.abs(Math.hypot(p.x - cO.x, p.y - cO.y) - layout.visualR),
+      16,
+    );
+  }
+
+  return best.d === Infinity ? null : best.hit;
 }
