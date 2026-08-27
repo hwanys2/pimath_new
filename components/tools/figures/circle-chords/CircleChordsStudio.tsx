@@ -38,11 +38,13 @@ const STORAGE_KEY = "pm-diagram-g3-circle-chords-v1";
 
 const storeListeners = new Set<() => void>();
 
-function readStoredState(): CircleChordsState {
-  if (typeof window === "undefined") return DEFAULT_CIRCLE_CHORDS_STATE;
+let cachedRaw: string | null = null;
+let cachedState: CircleChordsState = DEFAULT_CIRCLE_CHORDS_STATE;
+let cacheReady = false;
+
+function parseStoredState(raw: string | null): CircleChordsState {
+  if (!raw) return DEFAULT_CIRCLE_CHORDS_STATE;
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return DEFAULT_CIRCLE_CHORDS_STATE;
     const parsed = JSON.parse(raw) as CircleChordsState;
     if (parsed && Array.isArray(parsed.chords) && parsed.radius) {
       return withSnappedChords(parsed);
@@ -53,9 +55,26 @@ function readStoredState(): CircleChordsState {
   return DEFAULT_CIRCLE_CHORDS_STATE;
 }
 
+function getServerSnapshot(): CircleChordsState {
+  return DEFAULT_CIRCLE_CHORDS_STATE;
+}
+
+/** Must return the same object while storage is unchanged, or React 185 loops. */
+function getClientSnapshot(): CircleChordsState {
+  const raw = window.localStorage.getItem(STORAGE_KEY);
+  if (cacheReady && raw === cachedRaw) return cachedState;
+  cacheReady = true;
+  cachedRaw = raw;
+  cachedState = parseStoredState(raw);
+  return cachedState;
+}
+
 function writeStoredState(state: CircleChordsState) {
+  cachedState = state;
+  cachedRaw = JSON.stringify(state);
+  cacheReady = true;
   try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    window.localStorage.setItem(STORAGE_KEY, cachedRaw);
   } catch {
     /* ignore quota */
   }
@@ -72,13 +91,18 @@ function subscribeStoredState(onChange: () => void) {
 function useCircleChordsState() {
   const state = useSyncExternalStore(
     subscribeStoredState,
-    readStoredState,
-    () => DEFAULT_CIRCLE_CHORDS_STATE,
+    getClientSnapshot,
+    getServerSnapshot,
   );
   const setState = useCallback(
-    (updater: CircleChordsState | ((prev: CircleChordsState) => CircleChordsState)) => {
-      const prev = readStoredState();
+    (
+      updater:
+        | CircleChordsState
+        | ((prev: CircleChordsState) => CircleChordsState),
+    ) => {
+      const prev = getClientSnapshot();
       const next = typeof updater === "function" ? updater(prev) : updater;
+      if (Object.is(next, prev)) return;
       writeStoredState(next);
     },
     [],
