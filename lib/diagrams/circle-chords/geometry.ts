@@ -61,12 +61,13 @@ export function rotateChordToPoint(
   target: Vec,
   which: "start" | "end",
 ): ChordDraft {
+  if (Math.hypot(target.x, target.y) < radius * 0.12) return chord;
   const { A, B } = chordMath(chord, radius);
   const from = which === "start" ? A : B;
   const fromAng = Math.atan2(from.y, from.x);
   const toAng = Math.atan2(target.y, target.x);
   const delta = ((toAng - fromAng) * 180) / Math.PI;
-  return withMidAngle(chord, chordAngleDeg(chord) + delta);
+  return withMidAngle({ ...chord, lock: "length" }, chordAngleDeg(chord) + delta);
 }
 
 /** Move toward/away from the center. Length follows. Negative = other side. */
@@ -294,6 +295,37 @@ export function mapChord(
     ...state,
     chords: state.chords.map((c) => (c.id === id ? fn(c) : c)),
   };
+}
+
+function clampNum(n: number, min: number, max: number): number {
+  return Math.min(max, Math.max(min, n));
+}
+
+export function nudgeMeasureLabel(
+  label: MeasLabel,
+  canvasDx: number,
+  canvasDy: number,
+  along: Vec,
+  outward: Vec,
+  halfSpan: number,
+): MeasLabel {
+  const alongAmt = canvasDx * along.x + canvasDy * along.y;
+  const perpAmt = canvasDx * outward.x + canvasDy * outward.y;
+  const maxAlong = Math.max(halfSpan - 18, 4);
+  return {
+    ...label,
+    dx: clampNum(label.dx + alongAmt, -maxAlong, maxAlong),
+    dy: clampNum(label.dy + perpAmt, -80, 110),
+  };
+}
+
+export function isMeasureKey(key: string): boolean {
+  return (
+    key === "chordLabel" ||
+    key === "distLabel" ||
+    key === "halfLabel" ||
+    key === "radiusLabel"
+  );
 }
 
 export function nudgeById(

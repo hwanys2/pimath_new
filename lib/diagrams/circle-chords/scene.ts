@@ -39,6 +39,7 @@ export type SceneCmd =
       x2: number;
       y2: number;
       dashed?: boolean;
+      id?: string;
     }
   | { t: "dot"; x: number; y: number; r: number }
   | {
@@ -61,8 +62,8 @@ export type DiagramScene = {
   layout: SceneLayout;
 };
 
-export const SCENE_WIDTH = 720;
-export const SCENE_HEIGHT = 780;
+export const SCENE_WIDTH = 480;
+export const SCENE_HEIGHT = 520;
 
 export type SceneLayout = {
   origin: Vec;
@@ -154,6 +155,10 @@ function pushText(
   cmds.push({ t: "text", text });
 }
 
+function clamp(n: number, min: number, max: number): number {
+  return Math.min(max, Math.max(min, n));
+}
+
 function dimArc(
   cmds: SceneCmd[],
   texts: SceneText[],
@@ -168,10 +173,14 @@ function dimArc(
 ): void {
   if (!label) return;
   const u = norm(outward);
-  const start = add(a, mul(u, offset * 0.22));
-  const end = add(b, mul(u, offset * 0.22));
+  const along = norm(sub(b, a));
+  const span = len(sub(b, a));
+  const height = clamp(offset + nudge.y, 10, 96);
+  const lift = Math.min(7, height * 0.18);
+  const start = add(a, mul(u, lift));
+  const end = add(b, mul(u, lift));
   const mid = mul(add(a, b), 0.5);
-  const ctrl = add(mid, mul(u, offset * 1.15));
+  const ctrl = add(mid, mul(u, height));
   cmds.push({
     t: "quad",
     x1: start.x,
@@ -181,8 +190,13 @@ function dimArc(
     x2: end.x,
     y2: end.y,
     dashed: true,
+    id: labelId,
   });
-  const tp = add(add(ctrl, mul(u, fontSize * 0.55)), nudge);
+  const margin = Math.min(span * 0.14, 26);
+  const maxAlong = Math.max(span / 2 - margin, 0);
+  const alongShift = clamp(nudge.x, -maxAlong, maxAlong);
+  const onSeg = add(mid, mul(along, alongShift));
+  const tp = add(onSeg, mul(u, height + fontSize * 0.52));
   pushText(texts, cmds, {
     id: labelId,
     x: tp.x,
@@ -493,17 +507,17 @@ export type FigureHit =
   | { kind: "label"; id: string }
   | { kind: "point"; chordId: string; which: "start" | "end" | "mid" }
   | { kind: "center" }
-  | { kind: "chord"; chordId: string }
+  | { kind: "chord"; chordId: string; t: number }
   | { kind: "circle" };
 
-function distToSeg(p: Vec, a: Vec, b: Vec): number {
+function distToSeg(p: Vec, a: Vec, b: Vec): { d: number; t: number } {
   const dx = b.x - a.x;
   const dy = b.y - a.y;
   const len2 = dx * dx + dy * dy;
-  if (len2 < 1e-9) return Math.hypot(p.x - a.x, p.y - a.y);
+  if (len2 < 1e-9) return { d: Math.hypot(p.x - a.x, p.y - a.y), t: 0 };
   let t = ((p.x - a.x) * dx + (p.y - a.y) * dy) / len2;
   t = Math.max(0, Math.min(1, t));
-  return Math.hypot(p.x - (a.x + t * dx), p.y - (a.y + t * dy));
+  return { d: Math.hypot(p.x - (a.x + t * dx), p.y - (a.y + t * dy)), t };
 }
 
 export function hitTestFigure(
@@ -526,8 +540,18 @@ export function hitTestFigure(
     consider(
       { kind: "label", id: text.id },
       Math.hypot(text.x - x, text.y - y),
-      26,
+      28,
     );
+  }
+
+  for (const cmd of scene.cmds) {
+    if (cmd.t === "quad" && cmd.id) {
+      consider(
+        { kind: "label", id: cmd.id },
+        Math.hypot(cmd.cx - x, cmd.cy - y),
+        22,
+      );
+    }
   }
 
   for (const chord of state.chords) {
@@ -544,29 +568,28 @@ export function hitTestFigure(
     consider(
       { kind: "point", chordId: chord.id, which: "start" },
       Math.hypot(p.x - cA.x, p.y - cA.y),
-      22,
+      26,
     );
     consider(
       { kind: "point", chordId: chord.id, which: "end" },
       Math.hypot(p.x - cB.x, p.y - cB.y),
-      22,
+      26,
     );
-    consider(
-      { kind: "point", chordId: chord.id, which: "mid" },
-      Math.hypot(p.x - cM.x, p.y - cM.y),
-      16,
-    );
-    consider(
-      { kind: "chord", chordId: chord.id },
-      distToSeg(p, cA, cB),
-      12,
-    );
+    if (chord.showMidpoint) {
+      consider(
+        { kind: "point", chordId: chord.id, which: "mid" },
+        Math.hypot(p.x - cM.x, p.y - cM.y),
+        16,
+      );
+    }
+    const seg = distToSeg(p, cA, cB);
+    consider({ kind: "chord", chordId: chord.id, t: seg.t }, seg.d, 14);
   }
 
   const cO = layout.origin;
   consider({ kind: "center" }, Math.hypot(p.x - cO.x, p.y - cO.y), 16);
 
-  if (best.d > 20) {
+  if (best.d > 22) {
     consider(
       { kind: "circle" },
       Math.abs(Math.hypot(p.x - cO.x, p.y - cO.y) - layout.visualR),
@@ -575,4 +598,54 @@ export function hitTestFigure(
   }
 
   return best.d === Infinity ? null : best.hit;
+}
+
+export function measureFrame(
+  state: CircleChordsState,
+  scene: DiagramScene,
+  id: string,
+): { along: Vec; outward: Vec; halfSpan: number } | null {
+  const sep = id.lastIndexOf(":");
+  if (sep < 0) return null;
+  const chord = state.chords.find((c) => c.id === id.slice(0, sep));
+  const key = id.slice(sep + 1);
+  if (!chord) return null;
+  const layout = scene.layout;
+  const ang = (chordAngleDeg(chord) * Math.PI) / 180;
+  const u = { x: Math.cos(ang), y: Math.sin(ang) };
+  const v = { x: -u.y, y: u.x };
+  const M = { x: u.x * chord.distance, y: u.y * chord.distance };
+  const half = chord.length / 2;
+  const A = { x: M.x + v.x * -half, y: M.y + v.y * -half };
+  const B = { x: M.x + v.x * half, y: M.y + v.y * half };
+  const O = { x: 0, y: 0 };
+  const map = (q: Vec) => mathToCanvas(q, layout);
+  const cA = map(A);
+  const cB = map(B);
+  const cM = map(M);
+  const cO = map(O);
+  function frame(a: Vec, b: Vec, out: Vec) {
+    const along = norm(sub(b, a));
+    return {
+      along,
+      outward: norm(out),
+      halfSpan: len(sub(b, a)) / 2,
+    };
+  }
+  if (key === "chordLabel") return frame(cA, cB, sub(cM, cO));
+  if (key === "distLabel") {
+    const along = norm(sub(cB, cA));
+    const out =
+      chord.cardinal === "down" || chord.cardinal === "left"
+        ? mul(along, -1)
+        : along;
+    return frame(cO, cM, out);
+  }
+  if (key === "halfLabel") return frame(cM, cB, mul(norm(sub(cM, cO)), -1));
+  if (key === "radiusLabel") {
+    const target = chord.showRadiusEnd ? cB : cA;
+    const side = chord.showRadiusEnd ? sub(cM, cB) : sub(cM, cA);
+    return frame(cO, target, side);
+  }
+  return null;
 }

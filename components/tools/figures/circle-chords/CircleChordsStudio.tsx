@@ -166,6 +166,17 @@ export default function CircleChordsStudio() {
     [selected, setState],
   );
 
+  const deleteSelected = useCallback(() => {
+    const id = selected?.id;
+    if (!id) return;
+    const remaining = state.chords.filter((c) => c.id !== id);
+    setState((prev) => ({
+      ...prev,
+      chords: prev.chords.filter((c) => c.id !== id),
+    }));
+    setSelectedId(remaining[0]?.id ?? null);
+  }, [selected, state.chords, setState]);
+
   async function exportPng() {
     await document.fonts.ready;
     const scene = buildCircleChordsScene(state);
@@ -226,7 +237,7 @@ export default function CircleChordsStudio() {
           </h1>
           <p className="mt-1 max-w-2xl text-sm text-foreground/65">
             원 위를 끌어 현을 그리세요. 점 A를 옮기면 길이는 그대로 두고 B가
-            원을 따라가요. 글자를 누르면 이름이나 숫자를 바로 바꿀 수 있어요.
+            원을 따라가요. Delete로 고른 현을 지울 수 있어요.
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -264,309 +275,374 @@ export default function CircleChordsStudio() {
         </p>
       ) : null}
 
-      <div className="flex flex-wrap items-center gap-2">
-        <ChipToggle on={tool === "select"} onClick={() => setTool("select")}>
-          옮기기
-        </ChipToggle>
-        <ChipToggle
-          on={tool === "draw"}
-          onClick={() => setTool("draw")}
-        >
-          현 그리기
-        </ChipToggle>
-        <span className="mx-1 h-4 w-px bg-wood/15" />
-        {CIRCLE_CHORD_PRESETS.map((preset) => (
-          <button
-            key={preset.id}
-            type="button"
-            onClick={() => {
-              const next = cloneState(preset.state);
-              setState(next);
-              setSelectedId(next.chords[0]?.id ?? null);
-              setTool("select");
-            }}
-            className="rounded-full bg-black/5 px-2.5 py-1 text-xs font-semibold text-foreground/65 hover:bg-black/10"
-          >
-            {preset.title}
-          </button>
-        ))}
-      </div>
-
-      <div className="overflow-hidden rounded-3xl border-2 border-wood/10 bg-white shadow-[0_12px_40px_rgba(61,44,30,0.08)]">
-        <CircleChordsCanvas
-          state={state}
-          fonts={fonts}
-          tool={tool}
-          selectedId={selected?.id ?? null}
-          setState={setState}
-          persist={persistCachedState}
-          onSelect={setSelectedId}
-          onToolChange={setTool}
-        />
-      </div>
-
-      {selected ? (
-        <div className="flex flex-wrap items-center gap-1.5">
-          <span className="mr-1 text-xs font-semibold text-foreground/45">
-            {selected.startName}
-            {selected.endName}
-          </span>
-          <ChipToggle
-            on={selected.showPerp}
-            onClick={() => patchSelected({ showPerp: !selected.showPerp })}
-          >
-            수선
-          </ChipToggle>
-          <ChipToggle
-            on={selected.showRightAngle}
-            onClick={() =>
-              patchSelected({ showRightAngle: !selected.showRightAngle })
-            }
-          >
-            직각
-          </ChipToggle>
-          <ChipToggle
-            on={selected.showRadiusEnd || selected.showRadiusStart}
-            onClick={() =>
-              patchSelected({
-                showRadiusEnd: !(selected.showRadiusEnd || selected.showRadiusStart),
-                showRadiusStart: false,
-              })
-            }
-          >
-            반지름
-          </ChipToggle>
-          <ChipToggle
-            on={selected.showPoints}
-            onClick={() => patchSelected({ showPoints: !selected.showPoints })}
-          >
-            점 이름
-          </ChipToggle>
-          <ChipToggle
-            on={selected.showMidpoint}
-            onClick={() =>
-              patchSelected({ showMidpoint: !selected.showMidpoint })
-            }
-          >
-            중점
-          </ChipToggle>
-          <ChipToggle
-            on={selected.showHalf}
-            onClick={() => patchSelected({ showHalf: !selected.showHalf })}
-          >
-            반
-          </ChipToggle>
-          <ChipToggle
-            on={selected.equalTicks > 0}
-            onClick={() =>
-              patchSelected({
-                equalTicks: selected.equalTicks === 0 ? 1 : 0,
-              })
-            }
-          >
-            빗금
-          </ChipToggle>
-          <ChipToggle
-            on={selected.chordLabel.mode !== "hide"}
-            onClick={() =>
-              patchSelected({
-                chordLabel: cycleLabelMode(selected.chordLabel),
-              })
-            }
-          >
-            길이{labelModeHint(selected.chordLabel.mode, state.unknownLetter)}
-          </ChipToggle>
-          <ChipToggle
-            on={selected.distLabel.mode !== "hide"}
-            onClick={() =>
-              patchSelected({
-                distLabel: cycleLabelMode(selected.distLabel),
-              })
-            }
-          >
-            거리{labelModeHint(selected.distLabel.mode, state.unknownLetter)}
-          </ChipToggle>
-          <button
-            type="button"
-            onClick={() => {
-              const remaining = state.chords.filter((c) => c.id !== selected.id);
-              setState((prev) => ({
-                ...prev,
-                chords: prev.chords.filter((c) => c.id !== selected.id),
-              }));
-              setSelectedId(remaining[0]?.id ?? null);
-            }}
-            className="rounded-full px-2.5 py-1 text-xs font-semibold text-foreground/45 hover:bg-black/5 hover:text-foreground"
-          >
-            삭제
-          </button>
+      <div className="grid items-start gap-5 lg:grid-cols-[minmax(0,22rem)_minmax(16rem,1fr)] xl:grid-cols-[minmax(0,24rem)_20rem]">
+        <div className="mx-auto w-full max-w-[24rem] overflow-hidden rounded-3xl border-2 border-wood/10 bg-white shadow-[0_12px_40px_rgba(61,44,30,0.08)] lg:mx-0">
+          <CircleChordsCanvas
+            state={state}
+            fonts={fonts}
+            tool={tool}
+            selectedId={selected?.id ?? null}
+            setState={setState}
+            persist={persistCachedState}
+            onSelect={setSelectedId}
+            onToolChange={setTool}
+            onDeleteSelected={deleteSelected}
+          />
         </div>
-      ) : (
-        <p className="text-center text-[12px] text-foreground/45">
-          원 둘레를 클릭하거나 끌어서 현을 그리세요.
-        </p>
-      )}
 
-      <div className="flex flex-wrap items-end gap-3">
-        <label className="text-xs font-semibold text-foreground/60">
-          반지름
-          <input
-            type="number"
-            min={1}
-            max={40}
-            step={0.5}
-            value={state.radius}
-            onChange={(e) => set({ radius: Number(e.target.value) })}
-            className="ml-2 w-20 rounded-xl border-2 border-wood/20 bg-white px-2 py-1.5 text-sm outline-none focus:border-wood"
-          />
-        </label>
-        <label className="text-xs font-semibold text-foreground/60">
-          단위
-          <input
-            value={state.unit}
-            onChange={(e) => set({ unit: e.target.value })}
-            placeholder="cm"
-            className="ml-2 w-16 rounded-xl border-2 border-wood/20 bg-white px-2 py-1.5 text-sm outline-none focus:border-wood"
-          />
-        </label>
-        <label className="text-xs font-semibold text-foreground/60">
-          미지수
-          <input
-            value={state.unknownLetter}
-            onChange={(e) => set({ unknownLetter: e.target.value })}
-            className="ml-2 w-12 rounded-xl border-2 border-wood/20 bg-white px-2 py-1.5 text-sm outline-none focus:border-wood"
-          />
-        </label>
-        <label className="min-w-[12rem] flex-1 text-xs font-semibold text-foreground/60">
-          아래 문구
-          <input
-            value={state.caption}
-            onChange={(e) =>
-              set({
-                caption: e.target.value,
-                showCaption: e.target.value.trim().length > 0,
-              })
-            }
-            placeholder="x를 구하시오."
-            className="ml-2 w-[calc(100%-4rem)] rounded-xl border-2 border-wood/20 bg-white px-2 py-1.5 text-sm font-normal outline-none focus:border-wood"
-          />
-        </label>
-        <label className="flex items-center gap-2 pb-1.5 text-sm">
-          <input
-            type="checkbox"
-            checked={state.showCenter}
-            onChange={(e) => set({ showCenter: e.target.checked })}
-            className="accent-wood"
-          />
-          중심
-        </label>
-      </div>
+        <div className="space-y-4">
+          <div className="flex flex-wrap items-center gap-2">
+            <ChipToggle on={tool === "select"} onClick={() => setTool("select")}>
+              옮기기
+            </ChipToggle>
+            <ChipToggle on={tool === "draw"} onClick={() => setTool("draw")}>
+              현 그리기
+            </ChipToggle>
+          </div>
 
-      <section className="rounded-2xl border-2 border-wood/10 bg-white/80 p-4">
-        <button
-          type="button"
-          onClick={() => setStyleOpen((v) => !v)}
-          className="flex w-full items-center justify-between"
-        >
-          <h2 className="font-display text-base text-wood-dark">그림 스타일</h2>
-          <span className="text-xs text-foreground/45">
-            {styleOpen ? "접기" : "선 굵기 · 글자 · 여백"}
-          </span>
-        </button>
-        {styleOpen ? (
-          <div className="mt-3 space-y-3">
-            <SliderField
-              label="선 굵기"
-              value={state.style.lineWidth}
-              onChange={(lineWidth) =>
-                set({ style: { ...state.style, lineWidth } })
-              }
-              min={1}
-              max={3.5}
-              step={0.1}
-              display={state.style.lineWidth.toFixed(1)}
-            />
-            <SliderField
-              label="길이 글자 크기"
-              value={state.style.fontSize}
-              onChange={(fontSize) =>
-                set({ style: { ...state.style, fontSize } })
-              }
-              min={14}
-              max={32}
-              step={1}
-            />
-            <SliderField
-              label="점 이름 크기"
-              value={state.style.pointLabelSize}
-              onChange={(pointLabelSize) =>
-                set({ style: { ...state.style, pointLabelSize } })
-              }
-              min={14}
-              max={36}
-              step={1}
-            />
-            <SliderField
-              label="설명선 간격"
-              value={state.style.dimOffset}
-              onChange={(dimOffset) =>
-                set({ style: { ...state.style, dimOffset } })
-              }
-              min={10}
-              max={40}
-              step={1}
-            />
-            <SliderField
-              label="직각 표시 크기"
-              value={state.style.rightAngleSize}
-              onChange={(rightAngleSize) =>
-                set({ style: { ...state.style, rightAngleSize } })
-              }
-              min={6}
-              max={20}
-              step={1}
-            />
-            <SliderField
-              label="여백"
-              value={state.style.padding}
-              onChange={(padding) =>
-                set({ style: { ...state.style, padding } })
-              }
-              min={48}
-              max={110}
-              step={2}
-            />
-            <div>
-              <p className="mb-1 text-xs font-semibold text-foreground/60">
-                저장 해상도
+          <section className="rounded-2xl border-2 border-wood/10 bg-white/80 p-3.5">
+            <h2 className="font-display text-sm text-wood-dark">빠른 그림</h2>
+            <div className="mt-2 grid grid-cols-2 gap-1.5">
+              {CIRCLE_CHORD_PRESETS.map((preset) => (
+                <button
+                  key={preset.id}
+                  type="button"
+                  onClick={() => {
+                    const next = cloneState(preset.state);
+                    setState(next);
+                    setSelectedId(next.chords[0]?.id ?? null);
+                    setTool("select");
+                  }}
+                  className="rounded-xl bg-black/5 px-2.5 py-2 text-left text-xs font-semibold text-foreground/70 hover:bg-black/10"
+                >
+                  {preset.title}
+                </button>
+              ))}
+            </div>
+          </section>
+
+          <section className="rounded-2xl border-2 border-wood/10 bg-white/80 p-3.5">
+            <div className="flex items-center justify-between gap-2">
+              <h2 className="font-display text-sm text-wood-dark">
+                {selected
+                  ? `현 ${selected.startName}${selected.endName}`
+                  : "현"}
+              </h2>
+              {selected ? (
+                <button
+                  type="button"
+                  onClick={deleteSelected}
+                  className="rounded-lg bg-black/5 px-2.5 py-1 text-xs font-semibold text-foreground/70 hover:bg-black/10"
+                >
+                  삭제
+                </button>
+              ) : null}
+            </div>
+            {selected ? (
+              <div className="mt-2.5 flex flex-wrap gap-1.5">
+                <ChipToggle
+                  on={selected.showRadiusStart}
+                  onClick={() =>
+                    patchSelected({ showRadiusStart: !selected.showRadiusStart })
+                  }
+                >
+                  {state.centerName || "O"}
+                  {selected.startName}
+                </ChipToggle>
+                <ChipToggle
+                  on={selected.showRadiusEnd}
+                  onClick={() =>
+                    patchSelected({ showRadiusEnd: !selected.showRadiusEnd })
+                  }
+                >
+                  {state.centerName || "O"}
+                  {selected.endName}
+                </ChipToggle>
+                <ChipToggle
+                  on={selected.showPerp}
+                  onClick={() => patchSelected({ showPerp: !selected.showPerp })}
+                >
+                  수선
+                </ChipToggle>
+                <ChipToggle
+                  on={selected.showRightAngle}
+                  onClick={() =>
+                    patchSelected({ showRightAngle: !selected.showRightAngle })
+                  }
+                >
+                  직각
+                </ChipToggle>
+                <ChipToggle
+                  on={selected.showPoints}
+                  onClick={() =>
+                    patchSelected({ showPoints: !selected.showPoints })
+                  }
+                >
+                  점 이름
+                </ChipToggle>
+                <ChipToggle
+                  on={selected.showMidpoint}
+                  onClick={() =>
+                    patchSelected({ showMidpoint: !selected.showMidpoint })
+                  }
+                >
+                  중점
+                </ChipToggle>
+                <ChipToggle
+                  on={selected.showHalf}
+                  onClick={() =>
+                    patchSelected({ showHalf: !selected.showHalf })
+                  }
+                >
+                  반
+                </ChipToggle>
+                <ChipToggle
+                  on={selected.equalTicks > 0}
+                  onClick={() =>
+                    patchSelected({
+                      equalTicks: selected.equalTicks === 0 ? 1 : 0,
+                    })
+                  }
+                >
+                  빗금
+                </ChipToggle>
+                <ChipToggle
+                  on={selected.chordLabel.mode !== "hide"}
+                  onClick={() =>
+                    patchSelected({
+                      chordLabel: cycleLabelMode(selected.chordLabel),
+                    })
+                  }
+                >
+                  길이{labelModeHint(selected.chordLabel.mode, state.unknownLetter)}
+                </ChipToggle>
+                <ChipToggle
+                  on={selected.distLabel.mode !== "hide"}
+                  onClick={() =>
+                    patchSelected({
+                      distLabel: cycleLabelMode(selected.distLabel),
+                    })
+                  }
+                >
+                  거리{labelModeHint(selected.distLabel.mode, state.unknownLetter)}
+                </ChipToggle>
+              </div>
+            ) : (
+              <p className="mt-2 text-xs text-foreground/50">
+                원 둘레를 끌어 현을 그리세요.
               </p>
-              <Segmented
-                value={String(state.style.exportScale)}
-                onChange={(v) =>
-                  set({
-                    style: { ...state.style, exportScale: Number(v) },
-                  })
+            )}
+            {state.chords.length > 0 ? (
+              <ul className="mt-3 space-y-1">
+                {state.chords.map((chord) => (
+                  <li key={chord.id} className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setSelectedId(chord.id)}
+                      className={`flex-1 rounded-lg px-2 py-1 text-left text-xs font-semibold ${
+                        chord.id === selected?.id
+                          ? "bg-wood/15 text-wood-dark"
+                          : "text-foreground/55 hover:bg-black/5"
+                      }`}
+                    >
+                      {chord.startName}
+                      {chord.endName}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const remaining = state.chords.filter(
+                          (c) => c.id !== chord.id,
+                        );
+                        setState((prev) => ({
+                          ...prev,
+                          chords: prev.chords.filter((c) => c.id !== chord.id),
+                        }));
+                        if (selectedId === chord.id) {
+                          setSelectedId(remaining[0]?.id ?? null);
+                        }
+                      }}
+                      className="text-xs font-semibold text-foreground/40 hover:text-foreground"
+                    >
+                      지우기
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            ) : null}
+            <p className="mt-2 text-[11px] leading-snug text-foreground/45">
+              끝점을 더블클릭하거나 중심까지 끌면 반지름이 이어집니다. Delete
+              키로도 지울 수 있어요.
+            </p>
+          </section>
+
+          <section className="rounded-2xl border-2 border-wood/10 bg-white/80 p-3.5">
+            <h2 className="font-display text-sm text-wood-dark">크기</h2>
+            <div className="mt-2 space-y-3">
+              <SliderField
+                label="길이 글자"
+                value={state.style.fontSize}
+                onChange={(fontSize) =>
+                  set({ style: { ...state.style, fontSize } })
                 }
-                options={[
-                  { id: "2", label: "2×" },
-                  { id: "3", label: "3×" },
-                  { id: "4", label: "4×" },
-                ]}
+                min={14}
+                max={56}
+                step={1}
+              />
+              <SliderField
+                label="점 이름"
+                value={state.style.pointLabelSize}
+                onChange={(pointLabelSize) =>
+                  set({ style: { ...state.style, pointLabelSize } })
+                }
+                min={14}
+                max={64}
+                step={1}
               />
             </div>
-            <SliderField
-              label="아래 문구 크기"
-              value={state.style.captionSize}
-              onChange={(captionSize) =>
-                set({ style: { ...state.style, captionSize } })
-              }
-              min={14}
-              max={28}
-              step={1}
-            />
-          </div>
-        ) : null}
-      </section>
+            <div className="mt-3 grid grid-cols-2 gap-2">
+              <label className="text-xs font-semibold text-foreground/60">
+                반지름
+                <input
+                  type="number"
+                  min={1}
+                  max={40}
+                  step={0.5}
+                  value={state.radius}
+                  onChange={(e) => set({ radius: Number(e.target.value) })}
+                  className="mt-1 w-full rounded-xl border-2 border-wood/20 bg-white px-2 py-1.5 text-sm outline-none focus:border-wood"
+                />
+              </label>
+              <label className="text-xs font-semibold text-foreground/60">
+                단위
+                <input
+                  value={state.unit}
+                  onChange={(e) => set({ unit: e.target.value })}
+                  placeholder="cm"
+                  className="mt-1 w-full rounded-xl border-2 border-wood/20 bg-white px-2 py-1.5 text-sm outline-none focus:border-wood"
+                />
+              </label>
+              <label className="text-xs font-semibold text-foreground/60">
+                미지수
+                <input
+                  value={state.unknownLetter}
+                  onChange={(e) => set({ unknownLetter: e.target.value })}
+                  className="mt-1 w-full rounded-xl border-2 border-wood/20 bg-white px-2 py-1.5 text-sm outline-none focus:border-wood"
+                />
+              </label>
+              <label className="flex items-end gap-2 pb-1.5 text-sm">
+                <input
+                  type="checkbox"
+                  checked={state.showCenter}
+                  onChange={(e) => set({ showCenter: e.target.checked })}
+                  className="accent-wood"
+                />
+                중심
+              </label>
+            </div>
+            <label className="mt-2 block text-xs font-semibold text-foreground/60">
+              아래 문구
+              <input
+                value={state.caption}
+                onChange={(e) =>
+                  set({
+                    caption: e.target.value,
+                    showCaption: e.target.value.trim().length > 0,
+                  })
+                }
+                placeholder="x를 구하시오."
+                className="mt-1 w-full rounded-xl border-2 border-wood/20 bg-white px-2 py-1.5 text-sm font-normal outline-none focus:border-wood"
+              />
+            </label>
+          </section>
+
+          <section className="rounded-2xl border-2 border-wood/10 bg-white/80 p-3.5">
+            <button
+              type="button"
+              onClick={() => setStyleOpen((v) => !v)}
+              className="flex w-full items-center justify-between"
+            >
+              <h2 className="font-display text-sm text-wood-dark">그림 스타일</h2>
+              <span className="text-xs text-foreground/45">
+                {styleOpen ? "접기" : "선 · 여백"}
+              </span>
+            </button>
+            {styleOpen ? (
+              <div className="mt-3 space-y-3">
+                <SliderField
+                  label="선 굵기"
+                  value={state.style.lineWidth}
+                  onChange={(lineWidth) =>
+                    set({ style: { ...state.style, lineWidth } })
+                  }
+                  min={1}
+                  max={3.5}
+                  step={0.1}
+                  display={state.style.lineWidth.toFixed(1)}
+                />
+                <SliderField
+                  label="설명선 기본 간격"
+                  value={state.style.dimOffset}
+                  onChange={(dimOffset) =>
+                    set({ style: { ...state.style, dimOffset } })
+                  }
+                  min={10}
+                  max={80}
+                  step={1}
+                />
+                <SliderField
+                  label="직각 표시 크기"
+                  value={state.style.rightAngleSize}
+                  onChange={(rightAngleSize) =>
+                    set({ style: { ...state.style, rightAngleSize } })
+                  }
+                  min={6}
+                  max={20}
+                  step={1}
+                />
+                <SliderField
+                  label="여백"
+                  value={state.style.padding}
+                  onChange={(padding) =>
+                    set({ style: { ...state.style, padding } })
+                  }
+                  min={36}
+                  max={90}
+                  step={2}
+                />
+                <div>
+                  <p className="mb-1 text-xs font-semibold text-foreground/60">
+                    저장 해상도
+                  </p>
+                  <Segmented
+                    value={String(state.style.exportScale)}
+                    onChange={(v) =>
+                      set({
+                        style: { ...state.style, exportScale: Number(v) },
+                      })
+                    }
+                    options={[
+                      { id: "2", label: "2×" },
+                      { id: "3", label: "3×" },
+                      { id: "4", label: "4×" },
+                    ]}
+                  />
+                </div>
+                <SliderField
+                  label="아래 문구 크기"
+                  value={state.style.captionSize}
+                  onChange={(captionSize) =>
+                    set({ style: { ...state.style, captionSize } })
+                  }
+                  min={14}
+                  max={48}
+                  step={1}
+                />
+              </div>
+            ) : null}
+          </section>
+        </div>
+      </div>
     </div>
   );
 }

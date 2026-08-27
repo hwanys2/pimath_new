@@ -98,7 +98,7 @@ const DEFAULT_STYLE: DiagramStyle = {
   pointRadius: 3.2,
   rightAngleSize: 11,
   dimOffset: 22,
-  padding: 78,
+  padding: 52,
   exportScale: 3,
   captionSize: 20,
 };
