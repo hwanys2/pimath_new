@@ -21,3 +21,7 @@ Before any Supabase work (auth, tables, RLS, migrations, keys), READ and FOLLOW 
 # 1:1 PvP games
 
 When adding or changing **1:1 matchmaking games** (class/global queue, auto-requeue after game end), READ and FOLLOW [`docs/pvp-matchmaking.md`](docs/pvp-matchmaking.md). Product rules summary: [`docs/content-system.md`](docs/content-system.md) §5.4.
+
+# 문제 그림 그리기
+
+When adding or changing **exam-diagram tools** (학년별 카드, 원의 현 같은 소재별 생성기, PNG 저장), READ and FOLLOW [`docs/problem-diagram-tools.md`](docs/problem-diagram-tools.md). These are specialized generators, not a GeoGebra-style construction app.

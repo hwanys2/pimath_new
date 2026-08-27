@@ -1,7 +1,7 @@
 # 콘텐츠 · 단원 · 학급 배정 시스템
 
 > 이후 **모든 시뮬레이션·게임**과 교사 배정 UI는 이 문서를 따른다.  
-> 관련: [`progression-system.md`](progression-system.md) (XP), [`supabase-pm-conventions.md`](supabase-pm-conventions.md) (DB)  
+> 관련: [`progression-system.md`](progression-system.md) (XP), [`supabase-pm-conventions.md`](supabase-pm-conventions.md) (DB), 수업 도구 중 시험 그림은 [`problem-diagram-tools.md`](problem-diagram-tools.md)  
 > 코드 단일 출처: [`lib/curriculum.ts`](../lib/curriculum.ts), [`lib/contents.ts`](../lib/contents.ts)
 
 ---

@@ -36,6 +36,16 @@ export const TOOLS: ToolMeta[] = [
     accentClass: "from-peach/50 to-gold/30",
     teacherOnly: true,
   },
+  {
+    key: "figures",
+    label: "문제 그림",
+    title: "문제 그림 그리기",
+    description:
+      "중1·중2·중3 소재별로 시험 문제 그림을 바로 그리고 PNG로 저장해요. 원의 현처럼 그 유형만 최적화된 도구입니다.",
+    href: "/tools/figures",
+    emoji: "📐",
+    accentClass: "from-lavender/45 to-sky/30",
+  },
 ];
 
 export function getTool(key: string): ToolMeta | undefined {
