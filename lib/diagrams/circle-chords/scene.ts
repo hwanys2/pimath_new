@@ -276,7 +276,7 @@ function drawChord(args: {
     });
   }
 
-  if (chord.equalTicks > 0) {
+  if (chord.equalTicks === 1 || chord.equalTicks === 2) {
     drawEqualTicks(cmds, cA, cB, chord.equalTicks, 7);
   }
 
