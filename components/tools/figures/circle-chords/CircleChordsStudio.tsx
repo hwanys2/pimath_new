@@ -217,10 +217,11 @@ export default function CircleChordsStudio() {
   return (
     <div className={`${notoSerif.variable} ${notoSerifKr.variable} space-y-4`}>
       <span
-        className={`${notoSerif.className} ${notoSerifKr.className} hidden`}
+        className={`${notoSerif.className} ${notoSerifKr.className} sr-only italic`}
+        style={{ fontFamily: '"Times New Roman", serif' }}
         aria-hidden
       >
-        x cm 가
+        xxyy OO AA cm 가
       </span>
       <header className="flex flex-wrap items-end justify-between gap-3">
         <div>

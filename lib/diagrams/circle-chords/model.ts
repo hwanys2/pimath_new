@@ -403,7 +403,8 @@ export function resolveLabelText(
   if (label.mode === "hide") return null;
   if (label.mode === "x") {
     const u = unit.trim();
-    return u ? `${unknownLetter} ${u}` : unknownLetter;
+    const math = `$${unknownLetter.trim() || "x"}$`;
+    return u ? `${math} ${u}` : math;
   }
   if (label.mode === "custom") {
     const t = label.custom.trim();

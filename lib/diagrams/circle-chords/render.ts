@@ -41,18 +41,25 @@ function paintCmd(
     case "line":
       ctx.save();
       if (cmd.dashed) ctx.setLineDash([4.2, 3.2]);
+      if (cmd.id) ctx.lineCap = "butt";
       ctx.beginPath();
       ctx.moveTo(cmd.x1, cmd.y1);
       ctx.lineTo(cmd.x2, cmd.y2);
       ctx.stroke();
       ctx.restore();
       break;
-    case "quad":
+    case "arc":
       ctx.save();
-      if (cmd.dashed) ctx.setLineDash([4.2, 3.2]);
+      if (cmd.dashed) {
+        const sweep = arcSweep(cmd.a0, cmd.a1, cmd.ccw);
+        const arcLen = Math.max(cmd.r * sweep, 1);
+        const n = Math.max(4, Math.round(arcLen / 7.4));
+        const period = arcLen / n;
+        ctx.setLineDash([period * 0.56, period * 0.44]);
+      }
+      ctx.lineCap = "butt";
       ctx.beginPath();
-      ctx.moveTo(cmd.x1, cmd.y1);
-      ctx.quadraticCurveTo(cmd.cx, cmd.cy, cmd.x2, cmd.y2);
+      ctx.arc(cmd.cx, cmd.cy, cmd.r, cmd.a0, cmd.a1, cmd.ccw);
       ctx.stroke();
       ctx.restore();
       break;
@@ -115,11 +122,14 @@ export function sceneToSvg(
     const tspans = t.runs
       .map((run) => {
         const style = run.italic ? "italic" : "normal";
-        return `<tspan font-style="${style}">${escapeXml(run.text)}</tspan>`;
+        const family = run.italic
+          ? `'Times New Roman', ${escapeXml(fonts.math)}, serif`
+          : `${escapeXml(fonts.math)}, ${escapeXml(fonts.korean)}, 'Times New Roman', Batang, serif`;
+        return `<tspan font-style="${style}" font-family="${family}">${escapeXml(run.text)}</tspan>`;
       })
       .join("");
     parts.push(
-      `<text x="${t.x.toFixed(2)}" y="${t.y.toFixed(2)}" text-anchor="${anchor}" dominant-baseline="middle" fill="${INK}" font-size="${t.size}" font-family="${escapeXml(fonts.math)}, ${escapeXml(fonts.korean)}, 'Times New Roman', Batang, serif">${tspans}</text>`,
+      `<text x="${t.x.toFixed(2)}" y="${t.y.toFixed(2)}" text-anchor="${anchor}" dominant-baseline="middle" fill="${INK}" font-size="${t.size}">${tspans}</text>`,
     );
   }
 
@@ -134,8 +144,16 @@ function cmdToSvg(cmd: SceneCmd): string {
       return `<circle cx="${cmd.x}" cy="${cmd.y}" r="${cmd.r}"/>`;
     case "line":
       return `<line x1="${cmd.x1}" y1="${cmd.y1}" x2="${cmd.x2}" y2="${cmd.y2}"${cmd.dashed ? ` ${dash}` : ""}/>`;
-    case "quad":
-      return `<path d="M ${cmd.x1} ${cmd.y1} Q ${cmd.cx} ${cmd.cy} ${cmd.x2} ${cmd.y2}"${cmd.dashed ? ` ${dash}` : ""}/>`;
+    case "arc": {
+      const x0 = cmd.cx + cmd.r * Math.cos(cmd.a0);
+      const y0 = cmd.cy + cmd.r * Math.sin(cmd.a0);
+      const x1 = cmd.cx + cmd.r * Math.cos(cmd.a1);
+      const y1 = cmd.cy + cmd.r * Math.sin(cmd.a1);
+      const sweep = arcSweep(cmd.a0, cmd.a1, cmd.ccw);
+      const large = sweep > Math.PI ? 1 : 0;
+      const sweepFlag = cmd.ccw ? 0 : 1;
+      return `<path d="M ${x0.toFixed(2)} ${y0.toFixed(2)} A ${cmd.r.toFixed(2)} ${cmd.r.toFixed(2)} 0 ${large} ${sweepFlag} ${x1.toFixed(2)} ${y1.toFixed(2)}"${cmd.dashed ? ` ${dash}` : ""}/>`;
+    }
     case "dot":
       return `<circle cx="${cmd.x}" cy="${cmd.y}" r="${cmd.r}" fill="${INK}" stroke="none"/>`;
     case "rightAngle": {
@@ -151,6 +169,19 @@ function cmdToSvg(cmd: SceneCmd): string {
     default:
       return "";
   }
+}
+
+function arcSweep(a0: number, a1: number, ccw: boolean): number {
+  const two = Math.PI * 2;
+  const n = (a: number) => ((a % two) + two) % two;
+  if (ccw) {
+    let m = n(a0) - n(a1);
+    if (m < 0) m += two;
+    return m;
+  }
+  let m = n(a1) - n(a0);
+  if (m < 0) m += two;
+  return m;
 }
 
 function escapeXml(s: string): string {

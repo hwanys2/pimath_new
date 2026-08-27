@@ -372,16 +372,13 @@ export function nudgeMeasureLine(
   label: MeasLabel,
   canvasDx: number,
   canvasDy: number,
-  along: Vec,
+  _along: Vec,
   outward: Vec,
-  halfSpan: number,
+  _halfSpan: number,
 ): MeasLabel {
-  const alongAmt = canvasDx * along.x + canvasDy * along.y;
   const perpAmt = canvasDx * outward.x + canvasDy * outward.y;
-  const maxAlong = Math.max(halfSpan - 10, 4);
   return {
     ...label,
-    lineDx: clampNum((label.lineDx ?? 0) + alongAmt, -maxAlong, maxAlong),
     lineDy: clampNum((label.lineDy ?? 0) + perpAmt, -160, 160),
   };
 }

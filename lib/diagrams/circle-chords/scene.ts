@@ -30,6 +30,7 @@ export type SceneCmd =
       x2: number;
       y2: number;
       dashed?: boolean;
+      id?: string;
     }
   | {
       t: "quad";
@@ -39,6 +40,17 @@ export type SceneCmd =
       cy: number;
       x2: number;
       y2: number;
+      dashed?: boolean;
+      id?: string;
+    }
+  | {
+      t: "arc";
+      cx: number;
+      cy: number;
+      r: number;
+      a0: number;
+      a1: number;
+      ccw: boolean;
       dashed?: boolean;
       id?: string;
     }
@@ -166,6 +178,46 @@ function signedHeight(h: number, minAbs = 10, maxAbs = 140): number {
   return sign * clamp(Math.abs(h), minAbs, maxAbs);
 }
 
+function normalizeAngle(a: number): number {
+  let t = a % (Math.PI * 2);
+  if (t < 0) t += Math.PI * 2;
+  return t;
+}
+
+function ccwSpan(from: number, to: number): number {
+  let d = normalizeAngle(to) - normalizeAngle(from);
+  if (d < 0) d += Math.PI * 2;
+  return d;
+}
+
+function angleOnArc(ang: number, a0: number, a1: number, ccw: boolean): boolean {
+  if (ccw) return ccwSpan(a0, ang) <= ccwSpan(a0, a1) + 1e-6;
+  return ccwSpan(a1, ang) <= ccwSpan(a1, a0) + 1e-6;
+}
+
+/** Circular arc through A,B with signed sagitta along unit perpendicular u. */
+function sagittaArc(
+  a: Vec,
+  b: Vec,
+  u: Vec,
+  sagitta: number,
+): { C: Vec; r: number; a0: number; a1: number; ccw: boolean } | null {
+  const span = len(sub(b, a));
+  const s = sagitta;
+  if (span < 2 || Math.abs(s) < 0.75) return null;
+  const mid = mul(add(a, b), 0.5);
+  const half = span / 2;
+  const r = (half * half + s * s) / (2 * Math.abs(s));
+  const C = add(mid, mul(u, s - Math.sign(s) * r));
+  const a0 = Math.atan2(a.y - C.y, a.x - C.x);
+  const a1 = Math.atan2(b.y - C.y, b.x - C.x);
+  const peak = add(mid, mul(u, s));
+  const aS = Math.atan2(peak.y - C.y, peak.x - C.x);
+  const sOnIncreasing = ccwSpan(a0, aS) <= ccwSpan(a0, a1) + 1e-6;
+  const ccw = !sOnIncreasing;
+  return { C, r, a0, a1, ccw };
+}
+
 function dimArc(
   cmds: SceneCmd[],
   texts: SceneText[],
@@ -185,28 +237,58 @@ function dimArc(
   const mid = mul(add(a, b), 0.5);
   const margin = Math.min(span * 0.14, 26);
   const maxAlong = Math.max(span / 2 - margin, 0);
+  const lineId = `${labelId}:line`;
 
   const textH = signedHeight(offset + meas.dy);
   const lineH = signedHeight(offset + meas.dy + (meas.lineDy ?? 0));
   const textAlong = clamp(meas.dx, -maxAlong, maxAlong);
-  const lineAlong = clamp(meas.dx + (meas.lineDx ?? 0), -maxAlong, maxAlong);
-
   const lineSign = lineH < 0 ? -1 : 1;
-  const lift = lineSign * Math.min(7, Math.abs(lineH) * 0.18);
-  const start = add(a, mul(u, lift));
-  const end = add(b, mul(u, lift));
-  const ctrl = add(add(mid, mul(along, lineAlong)), mul(u, lineH));
+  const tick = clamp(Math.abs(lineH) * 0.22, 4.5, 8);
+  const aFoot = add(a, mul(u, lineSign * tick));
+  const bFoot = add(b, mul(u, lineSign * tick));
+  const sag = lineH - lineSign * tick;
+
   cmds.push({
-    t: "quad",
-    x1: start.x,
-    y1: start.y,
-    cx: ctrl.x,
-    cy: ctrl.y,
-    x2: end.x,
-    y2: end.y,
-    dashed: true,
-    id: `${labelId}:line`,
+    t: "line",
+    x1: a.x,
+    y1: a.y,
+    x2: aFoot.x,
+    y2: aFoot.y,
+    id: lineId,
   });
+  cmds.push({
+    t: "line",
+    x1: b.x,
+    y1: b.y,
+    x2: bFoot.x,
+    y2: bFoot.y,
+    id: lineId,
+  });
+
+  const arc = sagittaArc(aFoot, bFoot, u, sag);
+  if (arc) {
+    cmds.push({
+      t: "arc",
+      cx: arc.C.x,
+      cy: arc.C.y,
+      r: arc.r,
+      a0: arc.a0,
+      a1: arc.a1,
+      ccw: arc.ccw,
+      dashed: true,
+      id: lineId,
+    });
+  } else {
+    cmds.push({
+      t: "line",
+      x1: aFoot.x,
+      y1: aFoot.y,
+      x2: bFoot.x,
+      y2: bFoot.y,
+      dashed: true,
+      id: lineId,
+    });
+  }
 
   const textSign = textH < 0 ? -1 : 1;
   const onSeg = add(mid, mul(along, textAlong));
@@ -543,17 +625,25 @@ function measureTargetId(id: string): string {
   return id.endsWith(":line") ? id.slice(0, -5) : id;
 }
 
-function distToQuad(p: Vec, a: Vec, c: Vec, b: Vec): number {
-  let best = Infinity;
-  for (let i = 0; i <= 24; i += 1) {
-    const t = i / 24;
-    const s = 1 - t;
-    const x = s * s * a.x + 2 * s * t * c.x + t * t * b.x;
-    const y = s * s * a.y + 2 * s * t * c.y + t * t * b.y;
-    const d = Math.hypot(p.x - x, p.y - y);
-    if (d < best) best = d;
+function distToArc(
+  p: Vec,
+  cx: number,
+  cy: number,
+  r: number,
+  a0: number,
+  a1: number,
+  ccw: boolean,
+): number {
+  const ang = Math.atan2(p.y - cy, p.x - cx);
+  if (angleOnArc(ang, a0, a1, ccw)) {
+    return Math.abs(Math.hypot(p.x - cx, p.y - cy) - r);
   }
-  return best;
+  const p0 = { x: cx + r * Math.cos(a0), y: cy + r * Math.sin(a0) };
+  const p1 = { x: cx + r * Math.cos(a1), y: cy + r * Math.sin(a1) };
+  return Math.min(
+    Math.hypot(p.x - p0.x, p.y - p0.y),
+    Math.hypot(p.x - p1.x, p.y - p1.y),
+  );
 }
 
 function distToSeg(p: Vec, a: Vec, b: Vec): { d: number; t: number } {
@@ -591,11 +681,18 @@ export function hitTestFigure(
   }
 
   for (const cmd of scene.cmds) {
-    if (cmd.t === "quad" && cmd.id) {
+    if (cmd.t === "arc" && cmd.id) {
       consider(
         { kind: "dimLine", id: measureTargetId(cmd.id) },
-        distToQuad(p, { x: cmd.x1, y: cmd.y1 }, { x: cmd.cx, y: cmd.cy }, { x: cmd.x2, y: cmd.y2 }),
+        distToArc(p, cmd.cx, cmd.cy, cmd.r, cmd.a0, cmd.a1, cmd.ccw),
         14,
+      );
+    }
+    if (cmd.t === "line" && cmd.id) {
+      consider(
+        { kind: "dimLine", id: measureTargetId(cmd.id) },
+        distToSeg(p, { x: cmd.x1, y: cmd.y1 }, { x: cmd.x2, y: cmd.y2 }).d,
+        12,
       );
     }
   }

@@ -8,15 +8,19 @@ const UNIT_WORDS = new Set(["cm", "mm", "m", "km", "CM", "MM"]);
 /**
  * Textbook-style math labels:
  * Latin point/variable names italic, numbers and units upright, Hangul upright.
+ * `$x$` is treated as a math variable so `x cm` looks like a formula.
  */
 export function parseMathRuns(text: string): TextRun[] {
   const runs: TextRun[] = [];
-  const tokenRe = /([A-Za-z]+)|([^A-Za-z]+)/g;
+  const tokenRe = /(\$([^$]+)\$)|([A-Za-z]+)|([^A-Za-z$]+)|(\$)/g;
   let match: RegExpExecArray | null;
   while ((match = tokenRe.exec(text)) !== null) {
-    const word = match[1];
-    const rest = match[2];
-    if (word) {
+    const mathInner = match[2];
+    const word = match[3];
+    const rest = match[4] ?? match[5];
+    if (mathInner != null) {
+      runs.push({ text: mathInner, italic: true });
+    } else if (word) {
       runs.push({ text: word, italic: !UNIT_WORDS.has(word) });
     } else if (rest) {
       runs.push({ text: rest, italic: false });
@@ -66,7 +70,10 @@ export function canvasFont(
   fonts: FontFaces,
 ): string {
   const style = italic ? "italic" : "normal";
-  return `${style} ${size}px ${fonts.math}, ${fonts.korean}, "Times New Roman", "Batang", serif`;
+  const family = italic
+    ? `"Times New Roman", ${fonts.math}, ${fonts.korean}, serif`
+    : `${fonts.math}, ${fonts.korean}, "Times New Roman", Batang, serif`;
+  return `${style} ${size}px ${family}`;
 }
 
 export function fillRuns(
