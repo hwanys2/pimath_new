@@ -13,6 +13,7 @@ import {
   nudgeMeasureLabel,
   projectOnCircle,
   rotateChordToPoint,
+  toggleRadius,
 } from "@/lib/diagrams/circle-chords/geometry";
 import type { CircleChordsState } from "@/lib/diagrams/circle-chords/model";
 import { paintCircleChordsScene } from "@/lib/diagrams/circle-chords/render";
@@ -299,14 +300,15 @@ export default function CircleChordsCanvas({
           if (!scene) return;
           const p = scenePoint(e);
           const hit = hitTestFigure(stateRef.current, scene, p.x, p.y);
-          if (hit?.kind !== "point" || hit.which === "mid") return;
+          if (hit?.kind !== "point") return;
+          if (hit.which === "mid") return;
+          const which = hit.which;
           setState(
             (prev) =>
-              mapChord(prev, hit.chordId, (chord) =>
-                hit.which === "start"
-                  ? { ...chord, showRadiusStart: !chord.showRadiusStart }
-                  : { ...chord, showRadiusEnd: !chord.showRadiusEnd },
-              ),
+              mapChord(prev, hit.chordId, (chord) => ({
+                ...chord,
+                ...toggleRadius(chord, which),
+              })),
             true,
           );
         }}
@@ -436,11 +438,14 @@ export default function CircleChordsCanvas({
               if (Math.hypot(p.x - o.x, p.y - o.y) < 28) {
                 setState(
                   (prev) =>
-                    mapChord(prev, drag.chordId, (chord) =>
-                      drag.which === "start"
-                        ? { ...chord, showRadiusStart: true }
-                        : { ...chord, showRadiusEnd: true },
-                    ),
+                    mapChord(prev, drag.chordId, (chord) => {
+                      if (drag.which === "start") {
+                        if (chord.showRadiusStart) return chord;
+                        return { ...chord, ...toggleRadius(chord, "start") };
+                      }
+                      if (chord.showRadiusEnd) return chord;
+                      return { ...chord, ...toggleRadius(chord, "end") };
+                    }),
                   true,
                 );
               }

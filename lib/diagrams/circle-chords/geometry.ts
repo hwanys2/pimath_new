@@ -140,7 +140,8 @@ export function chordFromTwoPoints(
         chordLabel: emptyLabel("auto"),
         distLabel: emptyLabel("auto"),
         halfLabel: emptyLabel("hide"),
-        radiusLabel: emptyLabel("hide"),
+        radiusStartLabel: emptyLabel("hide"),
+        radiusEndLabel: emptyLabel("hide"),
       },
       mid,
     ),
@@ -221,14 +222,21 @@ export function applyEditedLabel(
     "chordLabel",
     "distLabel",
     "halfLabel",
+    "radiusStartLabel",
+    "radiusEndLabel",
     "radiusLabel",
   ]);
   if (!labelKeys.has(key)) return state;
 
+  const radiusKey =
+    key === "radiusStartLabel" ||
+    key === "radiusEndLabel" ||
+    key === "radiusLabel";
+
   return {
     ...state,
     radius:
-      key === "radiusLabel" && parsed.kind === "number" && parsed.value
+      radiusKey && parsed.kind === "number" && parsed.value
         ? Math.max(parsed.value, 0.01)
         : state.radius,
     unknownLetter:
@@ -237,16 +245,22 @@ export function applyEditedLabel(
         : state.unknownLetter,
     chords: state.chords.map((c) => {
       if (c.id !== chordId) {
-        if (key === "radiusLabel" && parsed.kind === "number" && parsed.value) {
+        if (radiusKey && parsed.kind === "number" && parsed.value) {
           return snapChordToRadius(c, Math.max(parsed.value, 0.01));
         }
         return c;
       }
-      const prev = c[key as "chordLabel"] as MeasLabel;
+      const storedKey =
+        key === "radiusLabel"
+          ? c.showRadiusEnd
+            ? "radiusEndLabel"
+            : "radiusStartLabel"
+          : key;
+      const prev = c[storedKey as "chordLabel"] as MeasLabel;
       const label = labelFromParse(parsed, text, prev);
-      let next: ChordDraft = { ...c, [key]: label };
+      let next: ChordDraft = { ...c, [storedKey]: label };
       const r =
-        key === "radiusLabel" && parsed.kind === "number" && parsed.value
+        radiusKey && parsed.kind === "number" && parsed.value
           ? Math.max(parsed.value, 0.01)
           : state.radius;
       if (key === "chordLabel" && parsed.kind === "number" && parsed.value != null) {
@@ -324,8 +338,32 @@ export function isMeasureKey(key: string): boolean {
     key === "chordLabel" ||
     key === "distLabel" ||
     key === "halfLabel" ||
+    key === "radiusStartLabel" ||
+    key === "radiusEndLabel" ||
     key === "radiusLabel"
   );
+}
+
+export function toggleRadius(
+  chord: ChordDraft,
+  which: "start" | "end",
+): Partial<ChordDraft> {
+  if (which === "start") {
+    const on = !chord.showRadiusStart;
+    const label = chord.radiusStartLabel ?? emptyLabel("hide");
+    return {
+      showRadiusStart: on,
+      radiusStartLabel:
+        on && label.mode === "hide" ? { ...label, mode: "auto" } : label,
+    };
+  }
+  const on = !chord.showRadiusEnd;
+  const label = chord.radiusEndLabel ?? emptyLabel("hide");
+  return {
+    showRadiusEnd: on,
+    radiusEndLabel:
+      on && label.mode === "hide" ? { ...label, mode: "auto" } : label,
+  };
 }
 
 export function nudgeById(
@@ -363,7 +401,8 @@ export function nudgeById(
         "chordLabel",
         "distLabel",
         "halfLabel",
-        "radiusLabel",
+        "radiusStartLabel",
+        "radiusEndLabel",
       ]);
       if (!labelKeys.has(key)) return c;
       const label = c[key as "chordLabel"] as MeasLabel;

@@ -42,7 +42,8 @@ export type ChordDraft = {
   chordLabel: MeasLabel;
   distLabel: MeasLabel;
   halfLabel: MeasLabel;
-  radiusLabel: MeasLabel;
+  radiusStartLabel: MeasLabel;
+  radiusEndLabel: MeasLabel;
 };
 
 export type DiagramStyle = {
@@ -131,7 +132,8 @@ function chordAB(partial: Partial<ChordDraft> = {}): ChordDraft {
     chordLabel: emptyLabel("auto"),
     distLabel: emptyLabel("auto"),
     halfLabel: emptyLabel("hide"),
-    radiusLabel: emptyLabel("hide"),
+    radiusStartLabel: emptyLabel("hide"),
+    radiusEndLabel: emptyLabel("hide"),
     ...partial,
   };
 }
@@ -160,7 +162,24 @@ export function withSnappedChords(state: CircleChordsState): CircleChordsState {
   return {
     ...state,
     radius: Math.max(state.radius, 0.01),
-    chords: state.chords.map((c) => snapChordToRadius(c, state.radius)),
+    chords: state.chords.map((c) =>
+      snapChordToRadius(normalizeChord(c), state.radius),
+    ),
+  };
+}
+
+function normalizeChord(chord: ChordDraft): ChordDraft {
+  const legacy = (chord as ChordDraft & { radiusLabel?: MeasLabel }).radiusLabel;
+  return {
+    ...chord,
+    radiusStartLabel:
+      chord.radiusStartLabel ??
+      (chord.showRadiusStart
+        ? (legacy ?? emptyLabel("auto"))
+        : emptyLabel("hide")),
+    radiusEndLabel:
+      chord.radiusEndLabel ??
+      (chord.showRadiusEnd ? (legacy ?? emptyLabel("auto")) : emptyLabel("hide")),
   };
 }
 
@@ -238,7 +257,7 @@ export const CIRCLE_CHORD_PRESETS: {
             showPoints: false,
             distLabel: emptyLabel("hide"),
             showRadiusEnd: true,
-            radiusLabel: emptyLabel("auto"),
+            radiusEndLabel: emptyLabel("auto"),
           }),
           10,
         ),
@@ -266,7 +285,7 @@ export const CIRCLE_CHORD_PRESETS: {
             showHalf: true,
             showRadiusEnd: true,
             halfLabel: emptyLabel("auto"),
-            radiusLabel: emptyLabel("auto"),
+            radiusEndLabel: emptyLabel("auto"),
             distLabel: emptyLabel("x"),
           }),
           10,

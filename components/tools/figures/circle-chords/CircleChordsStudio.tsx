@@ -11,7 +11,7 @@ import {
   Segmented,
   SliderField,
 } from "@/components/tools/figures/circle-chords/controls";
-import { cycleLabelMode, mapChord } from "@/lib/diagrams/circle-chords/geometry";
+import { cycleLabelMode, mapChord, toggleRadius } from "@/lib/diagrams/circle-chords/geometry";
 import {
   CIRCLE_CHORD_PRESETS,
   cloneState,
@@ -140,7 +140,6 @@ function fontsFromNext(): FontFaces {
 export default function CircleChordsStudio() {
   const [state, setState] = useCircleChordsState();
   const [status, setStatus] = useState<string | null>(null);
-  const [styleOpen, setStyleOpen] = useState(false);
   const [tool, setTool] = useState<"select" | "draw">("select");
   const [selectedId, setSelectedId] = useState<string | null>(
     () => state.chords[0]?.id ?? null,
@@ -275,7 +274,7 @@ export default function CircleChordsStudio() {
         </p>
       ) : null}
 
-      <div className="grid items-start gap-5 lg:grid-cols-[minmax(0,22rem)_minmax(16rem,1fr)] xl:grid-cols-[minmax(0,24rem)_20rem]">
+      <div className="grid items-start gap-5 lg:grid-cols-[minmax(0,22rem)_minmax(16rem,20rem)_minmax(15rem,18rem)]">
         <div className="mx-auto w-full max-w-[24rem] overflow-hidden rounded-3xl border-2 border-wood/10 bg-white shadow-[0_12px_40px_rgba(61,44,30,0.08)] lg:mx-0">
           <CircleChordsCanvas
             state={state}
@@ -343,21 +342,55 @@ export default function CircleChordsStudio() {
                 <ChipToggle
                   on={selected.showRadiusStart}
                   onClick={() =>
-                    patchSelected({ showRadiusStart: !selected.showRadiusStart })
+                    patchSelected(toggleRadius(selected, "start"))
                   }
                 >
                   {state.centerName || "O"}
                   {selected.startName}
                 </ChipToggle>
+                {selected.showRadiusStart ? (
+                  <ChipToggle
+                    on={selected.radiusStartLabel.mode !== "hide"}
+                    onClick={() =>
+                      patchSelected({
+                        radiusStartLabel: cycleLabelMode(
+                          selected.radiusStartLabel,
+                        ),
+                      })
+                    }
+                  >
+                    {state.centerName || "O"}
+                    {selected.startName} 길이
+                    {labelModeHint(
+                      selected.radiusStartLabel.mode,
+                      state.unknownLetter,
+                    )}
+                  </ChipToggle>
+                ) : null}
                 <ChipToggle
                   on={selected.showRadiusEnd}
-                  onClick={() =>
-                    patchSelected({ showRadiusEnd: !selected.showRadiusEnd })
-                  }
+                  onClick={() => patchSelected(toggleRadius(selected, "end"))}
                 >
                   {state.centerName || "O"}
                   {selected.endName}
                 </ChipToggle>
+                {selected.showRadiusEnd ? (
+                  <ChipToggle
+                    on={selected.radiusEndLabel.mode !== "hide"}
+                    onClick={() =>
+                      patchSelected({
+                        radiusEndLabel: cycleLabelMode(selected.radiusEndLabel),
+                      })
+                    }
+                  >
+                    {state.centerName || "O"}
+                    {selected.endName} 길이
+                    {labelModeHint(
+                      selected.radiusEndLabel.mode,
+                      state.unknownLetter,
+                    )}
+                  </ChipToggle>
+                ) : null}
                 <ChipToggle
                   on={selected.showPerp}
                   onClick={() => patchSelected({ showPerp: !selected.showPerp })}
@@ -390,9 +423,16 @@ export default function CircleChordsStudio() {
                 </ChipToggle>
                 <ChipToggle
                   on={selected.showHalf}
-                  onClick={() =>
-                    patchSelected({ showHalf: !selected.showHalf })
-                  }
+                  onClick={() => {
+                    const on = !selected.showHalf;
+                    patchSelected({
+                      showHalf: on,
+                      halfLabel:
+                        on && selected.halfLabel.mode === "hide"
+                          ? { ...selected.halfLabel, mode: "auto" }
+                          : selected.halfLabel,
+                    });
+                  }}
                 >
                   반
                 </ChipToggle>
@@ -426,6 +466,19 @@ export default function CircleChordsStudio() {
                 >
                   거리{labelModeHint(selected.distLabel.mode, state.unknownLetter)}
                 </ChipToggle>
+                {selected.showHalf ? (
+                  <ChipToggle
+                    on={selected.halfLabel.mode !== "hide"}
+                    onClick={() =>
+                      patchSelected({
+                        halfLabel: cycleLabelMode(selected.halfLabel),
+                      })
+                    }
+                  >
+                    반 길이
+                    {labelModeHint(selected.halfLabel.mode, state.unknownLetter)}
+                  </ChipToggle>
+                ) : null}
               </div>
             ) : (
               <p className="mt-2 text-xs text-foreground/50">
@@ -477,29 +530,7 @@ export default function CircleChordsStudio() {
           </section>
 
           <section className="rounded-2xl border-2 border-wood/10 bg-white/80 p-3.5">
-            <h2 className="font-display text-sm text-wood-dark">크기</h2>
-            <div className="mt-2 space-y-3">
-              <SliderField
-                label="길이 글자"
-                value={state.style.fontSize}
-                onChange={(fontSize) =>
-                  set({ style: { ...state.style, fontSize } })
-                }
-                min={14}
-                max={56}
-                step={1}
-              />
-              <SliderField
-                label="점 이름"
-                value={state.style.pointLabelSize}
-                onChange={(pointLabelSize) =>
-                  set({ style: { ...state.style, pointLabelSize } })
-                }
-                min={14}
-                max={64}
-                step={1}
-              />
-            </div>
+            <h2 className="font-display text-sm text-wood-dark">원</h2>
             <div className="mt-3 grid grid-cols-2 gap-2">
               <label className="text-xs font-semibold text-foreground/60">
                 반지름
@@ -555,93 +586,102 @@ export default function CircleChordsStudio() {
               />
             </label>
           </section>
-
-          <section className="rounded-2xl border-2 border-wood/10 bg-white/80 p-3.5">
-            <button
-              type="button"
-              onClick={() => setStyleOpen((v) => !v)}
-              className="flex w-full items-center justify-between"
-            >
-              <h2 className="font-display text-sm text-wood-dark">그림 스타일</h2>
-              <span className="text-xs text-foreground/45">
-                {styleOpen ? "접기" : "선 · 여백"}
-              </span>
-            </button>
-            {styleOpen ? (
-              <div className="mt-3 space-y-3">
-                <SliderField
-                  label="선 굵기"
-                  value={state.style.lineWidth}
-                  onChange={(lineWidth) =>
-                    set({ style: { ...state.style, lineWidth } })
-                  }
-                  min={1}
-                  max={3.5}
-                  step={0.1}
-                  display={state.style.lineWidth.toFixed(1)}
-                />
-                <SliderField
-                  label="설명선 기본 간격"
-                  value={state.style.dimOffset}
-                  onChange={(dimOffset) =>
-                    set({ style: { ...state.style, dimOffset } })
-                  }
-                  min={10}
-                  max={80}
-                  step={1}
-                />
-                <SliderField
-                  label="직각 표시 크기"
-                  value={state.style.rightAngleSize}
-                  onChange={(rightAngleSize) =>
-                    set({ style: { ...state.style, rightAngleSize } })
-                  }
-                  min={6}
-                  max={20}
-                  step={1}
-                />
-                <SliderField
-                  label="여백"
-                  value={state.style.padding}
-                  onChange={(padding) =>
-                    set({ style: { ...state.style, padding } })
-                  }
-                  min={36}
-                  max={90}
-                  step={2}
-                />
-                <div>
-                  <p className="mb-1 text-xs font-semibold text-foreground/60">
-                    저장 해상도
-                  </p>
-                  <Segmented
-                    value={String(state.style.exportScale)}
-                    onChange={(v) =>
-                      set({
-                        style: { ...state.style, exportScale: Number(v) },
-                      })
-                    }
-                    options={[
-                      { id: "2", label: "2×" },
-                      { id: "3", label: "3×" },
-                      { id: "4", label: "4×" },
-                    ]}
-                  />
-                </div>
-                <SliderField
-                  label="아래 문구 크기"
-                  value={state.style.captionSize}
-                  onChange={(captionSize) =>
-                    set({ style: { ...state.style, captionSize } })
-                  }
-                  min={14}
-                  max={48}
-                  step={1}
-                />
-              </div>
-            ) : null}
-          </section>
         </div>
+
+        <section className="rounded-2xl border-2 border-wood/10 bg-white/80 p-3.5">
+          <h2 className="font-display text-sm text-wood-dark">그림 스타일</h2>
+          <div className="mt-3 space-y-3">
+            <SliderField
+              label="길이 글자"
+              value={state.style.fontSize}
+              onChange={(fontSize) =>
+                set({ style: { ...state.style, fontSize } })
+              }
+              min={14}
+              max={56}
+              step={1}
+            />
+            <SliderField
+              label="점 이름"
+              value={state.style.pointLabelSize}
+              onChange={(pointLabelSize) =>
+                set({ style: { ...state.style, pointLabelSize } })
+              }
+              min={14}
+              max={64}
+              step={1}
+            />
+            <SliderField
+              label="선 굵기"
+              value={state.style.lineWidth}
+              onChange={(lineWidth) =>
+                set({ style: { ...state.style, lineWidth } })
+              }
+              min={1}
+              max={3.5}
+              step={0.1}
+              display={state.style.lineWidth.toFixed(1)}
+            />
+            <SliderField
+              label="설명선 기본 간격"
+              value={state.style.dimOffset}
+              onChange={(dimOffset) =>
+                set({ style: { ...state.style, dimOffset } })
+              }
+              min={10}
+              max={80}
+              step={1}
+            />
+            <SliderField
+              label="직각 표시 크기"
+              value={state.style.rightAngleSize}
+              onChange={(rightAngleSize) =>
+                set({ style: { ...state.style, rightAngleSize } })
+              }
+              min={6}
+              max={20}
+              step={1}
+            />
+            <SliderField
+              label="여백"
+              value={state.style.padding}
+              onChange={(padding) =>
+                set({ style: { ...state.style, padding } })
+              }
+              min={36}
+              max={90}
+              step={2}
+            />
+            <SliderField
+              label="아래 문구 크기"
+              value={state.style.captionSize}
+              onChange={(captionSize) =>
+                set({ style: { ...state.style, captionSize } })
+              }
+              min={14}
+              max={48}
+              step={1}
+            />
+            <div>
+              <p className="mb-1 text-xs font-semibold text-foreground/60">
+                저장 해상도
+              </p>
+              <Segmented
+                value={String(state.style.exportScale)}
+                onChange={(v) =>
+                  set({
+                    style: { ...state.style, exportScale: Number(v) },
+                  })
+                }
+                options={[
+                  { id: "2", label: "2×" },
+                  { id: "3", label: "3×" },
+                  { id: "4", label: "4×" },
+                ]}
+              />
+            </div>
+          </div>
+        </section>
       </div>
     </div>
   );

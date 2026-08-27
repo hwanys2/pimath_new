@@ -50,7 +50,7 @@ export default function ChordCard({
     0.05;
 
   function setLabel(
-    key: "chordLabel" | "distLabel" | "halfLabel" | "radiusLabel",
+    key: "chordLabel" | "distLabel" | "halfLabel" | "radiusStartLabel" | "radiusEndLabel",
     patch: Partial<ChordDraft["chordLabel"]>,
   ) {
     onChange({ [key]: { ...chord[key], ...patch } });
@@ -257,14 +257,24 @@ export default function ChordCard({
             onCustom={(custom) => setLabel("halfLabel", { custom })}
           />
         ) : null}
-        {chord.showRadiusStart || chord.showRadiusEnd ? (
+        {chord.showRadiusStart ? (
           <LabelModeRow
-            title="반지름"
-            mode={chord.radiusLabel.mode}
-            custom={chord.radiusLabel.custom}
+            title={`${chord.startName} 반지름`}
+            mode={chord.radiusStartLabel.mode}
+            custom={chord.radiusStartLabel.custom}
             unknownLetter={unknownLetter}
-            onMode={(mode) => setLabel("radiusLabel", { mode })}
-            onCustom={(custom) => setLabel("radiusLabel", { custom })}
+            onMode={(mode) => setLabel("radiusStartLabel", { mode })}
+            onCustom={(custom) => setLabel("radiusStartLabel", { custom })}
+          />
+        ) : null}
+        {chord.showRadiusEnd ? (
+          <LabelModeRow
+            title={`${chord.endName} 반지름`}
+            mode={chord.radiusEndLabel.mode}
+            custom={chord.radiusEndLabel.custom}
+            unknownLetter={unknownLetter}
+            onMode={(mode) => setLabel("radiusEndLabel", { mode })}
+            onCustom={(custom) => setLabel("radiusEndLabel", { custom })}
           />
         ) : null}
       </div>

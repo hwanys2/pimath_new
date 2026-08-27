@@ -437,21 +437,35 @@ function drawChord(args: {
     );
   }
 
-  const radiusTarget = showREnd ? cB : showRStart ? cA : null;
-  const radiusMath = showREnd ? B : showRStart ? A : null;
-  if (radiusTarget && radiusMath) {
-    const rText = labelOf(chord.radiusLabel, state.radius, unit, unknownLetter);
-    const side = norm(sub(cM, radiusTarget));
+  if (showRStart) {
+    const startLabel = chord.radiusStartLabel ?? { mode: "auto" as const, custom: "", dx: 0, dy: 0 };
+    const rText = labelOf(startLabel, state.radius, unit, unknownLetter);
     dimArc(
       cmds,
       texts,
       cO,
-      radiusTarget,
-      side,
+      cA,
+      norm(sub(cM, cA)),
       style.dimOffset * 0.9,
       rText,
-      `${chord.id}:radiusLabel`,
-      { x: chord.radiusLabel.dx, y: chord.radiusLabel.dy },
+      `${chord.id}:radiusStartLabel`,
+      { x: startLabel.dx, y: startLabel.dy },
+      style.fontSize,
+    );
+  }
+  if (showREnd) {
+    const endLabel = chord.radiusEndLabel ?? { mode: "auto" as const, custom: "", dx: 0, dy: 0 };
+    const rText = labelOf(endLabel, state.radius, unit, unknownLetter);
+    dimArc(
+      cmds,
+      texts,
+      cO,
+      cB,
+      norm(sub(cM, cB)),
+      style.dimOffset * 0.9,
+      rText,
+      `${chord.id}:radiusEndLabel`,
+      { x: endLabel.dx, y: endLabel.dy },
       style.fontSize,
     );
   }
@@ -642,10 +656,11 @@ export function measureFrame(
     return frame(cO, cM, out);
   }
   if (key === "halfLabel") return frame(cM, cB, mul(norm(sub(cM, cO)), -1));
-  if (key === "radiusLabel") {
-    const target = chord.showRadiusEnd ? cB : cA;
-    const side = chord.showRadiusEnd ? sub(cM, cB) : sub(cM, cA);
-    return frame(cO, target, side);
+  if (key === "radiusStartLabel" || key === "radiusLabel") {
+    return frame(cO, cA, sub(cM, cA));
+  }
+  if (key === "radiusEndLabel") {
+    return frame(cO, cB, sub(cM, cB));
   }
   return null;
 }
