@@ -6,6 +6,8 @@
  * hotspots. Measurement labels appear only after the matching clue is found.
  */
 
+import Image from "next/image";
+import { useId, type CSSProperties } from "react";
 import type { Room } from "@/lib/shadow-temple-math";
 
 const GOLD = "#d4a017";
@@ -1353,6 +1355,317 @@ export function TitleScene() {
       <rect x={0} y={192} width={400} height={28} fill="#e8d4b0" />
       <ellipse cx={200} cy={196} rx={190} ry={10} fill="rgba(159,216,255,0.06)" />
     </svg>
+  );
+}
+
+/* --------------------------------------------- escape / trapped ending */
+
+const ESCAPE_SPARKS = [
+  { x: 8, y: 22, d: 3.4, delay: 1.15, s: 1.1 },
+  { x: 18, y: 48, d: 4.1, delay: 1.35, s: 0.8 },
+  { x: 28, y: 16, d: 2.8, delay: 1.55, s: 1.3 },
+  { x: 74, y: 20, d: 3.8, delay: 1.28, s: 0.75 },
+  { x: 86, y: 52, d: 4.2, delay: 1.6, s: 1.05 },
+  { x: 12, y: 72, d: 3.3, delay: 1.9, s: 0.85 },
+  { x: 81, y: 70, d: 4.0, delay: 2.15, s: 1 },
+  { x: 69, y: 58, d: 3.5, delay: 2.3, s: 0.9 },
+] as const;
+
+/** Dust motes that ride the sunlight through the arch. */
+const ESCAPE_DUST = [
+  { x: 42, y: 58, d: 4.6, delay: 1.35, s: 0.7 },
+  { x: 46, y: 44, d: 5.1, delay: 1.55, s: 1.1 },
+  { x: 49, y: 72, d: 3.8, delay: 1.2, s: 0.85 },
+  { x: 52, y: 38, d: 4.4, delay: 1.7, s: 0.95 },
+  { x: 55, y: 64, d: 5.4, delay: 1.45, s: 0.75 },
+  { x: 58, y: 50, d: 4.2, delay: 1.9, s: 1.2 },
+  { x: 44, y: 82, d: 3.6, delay: 2.1, s: 0.65 },
+  { x: 56, y: 86, d: 4.8, delay: 1.65, s: 0.9 },
+] as const;
+
+const ARCH_PATH =
+  "M 148 204 L 148 102 A 52 62 0 0 1 252 102 L 252 204 Z";
+
+/**
+ * Escape cinematic: stone doors part, sunlight shafts flood the hall,
+ * starlight motes rise, 별빛 and 피타 wait in the light.
+ * `settled` skips the open-up and holds the sunlit end pose (results page).
+ */
+function moteStyle(p: {
+  x: number;
+  y: number;
+  d: number;
+  delay: number;
+  s: number;
+}): CSSProperties {
+  return {
+    left: `${p.x}%`,
+    top: `${p.y}%`,
+    animationDuration: `${p.d}s`,
+    animationDelay: `${p.delay}s`,
+    "--st-spark-s": String(p.s),
+  } as CSSProperties;
+}
+
+export function EndingCinematic({
+  escaped,
+  settled = false,
+}: {
+  escaped: boolean;
+  settled?: boolean;
+}) {
+  const uid = useId().replace(/:/g, "");
+  const wallId = `st-esc-wall-${uid}`;
+  const doorId = `st-esc-door-${uid}`;
+  const floorId = `st-esc-floor-${uid}`;
+  const archId = `st-esc-arch-${uid}`;
+  const starId = `st-esc-star-${uid}`;
+
+  const cls = [
+    "st-escape",
+    escaped ? "" : "st-escape--dim",
+    settled ? "st-escape--settled" : "",
+  ]
+    .filter(Boolean)
+    .join(" ");
+
+  return (
+    <div className={cls} aria-hidden>
+      <div className="st-escape-sky-night" />
+      <div className="st-escape-sky-day" />
+      <div className="st-escape-vista">
+        <div className="st-escape-cloud st-escape-cloud--a" />
+        <div className="st-escape-cloud st-escape-cloud--b" />
+        <div className="st-escape-hills" />
+      </div>
+      <div className="st-escape-sun" />
+      <div className="st-escape-rays">
+        <div className="st-escape-rays-spin" />
+      </div>
+      <div className="st-escape-shaft st-escape-shaft--a" />
+      <div className="st-escape-shaft st-escape-shaft--b" />
+      <div className="st-escape-shaft st-escape-shaft--c" />
+      <div className="st-escape-bloom" />
+
+      <div className="st-escape-heroes">
+        {escaped ? (
+          <div className="st-escape-hero st-escape-hero--pi">
+            <Image
+              src="/images/mascot-v2.png"
+              alt=""
+              fill
+              sizes="140px"
+              className="object-contain object-bottom"
+            />
+          </div>
+        ) : null}
+        <div className="st-escape-hero st-escape-hero--star">
+          <Image
+            src="/images/grade-3-v2.png"
+            alt=""
+            fill
+            sizes="150px"
+            className="object-contain object-bottom"
+          />
+        </div>
+      </div>
+
+      {escaped ? (
+        <div className="st-escape-goldstar">
+          <svg viewBox="0 0 64 64" className="h-full w-full">
+            <defs>
+              <radialGradient id={starId} cx="50%" cy="38%" r="62%">
+                <stop offset="0%" stopColor="#fff6c8" />
+                <stop offset="50%" stopColor="#ffd76a" />
+                <stop offset="100%" stopColor="#d4a017" />
+              </radialGradient>
+            </defs>
+            <polygon
+              points="32,4 39,24 60,24 43,36 50,56 32,44 14,56 21,36 4,24 25,24"
+              fill={`url(#${starId})`}
+              stroke="#fff8eb"
+              strokeWidth="1.4"
+              strokeLinejoin="round"
+            />
+          </svg>
+        </div>
+      ) : null}
+
+      <div className="st-escape-dust">
+        {escaped
+          ? ESCAPE_DUST.map((p, i) => (
+              <span key={i} className="st-escape-spark" style={moteStyle(p)} />
+            ))
+          : null}
+      </div>
+
+      <svg
+        viewBox="0 0 400 220"
+        className="st-escape-temple"
+        role="presentation"
+      >
+        <defs>
+          <linearGradient id={wallId} x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor="#9b88c8" />
+            <stop offset="100%" stopColor="#7a68a8" />
+          </linearGradient>
+          <linearGradient id={doorId} x1="0" y1="0" x2="1" y2="0">
+            <stop offset="0%" stopColor="#c9b6ee" />
+            <stop offset="42%" stopColor="#b8a0e8" />
+            <stop offset="100%" stopColor="#8d78c0" />
+          </linearGradient>
+          <linearGradient id={floorId} x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor="#f0e0c8" />
+            <stop offset="100%" stopColor="#e0c8a0" />
+          </linearGradient>
+          <clipPath id={archId}>
+            <path d={ARCH_PATH} />
+          </clipPath>
+        </defs>
+
+        {/* Leaves clipped to the arch — they slide into the jamb, not over the wall. */}
+        <g clipPath={`url(#${archId})`}>
+          <g className="st-escape-door-l">
+            <rect x="148" y="40" width="54" height="164" fill={`url(#${doorId})`} />
+            <rect x="148" y="40" width="54" height="164" fill="none" stroke="#8b5e3c" strokeWidth="1.2" />
+            {[78, 112, 146, 180].map((y) => (
+              <line
+                key={y}
+                x1="152"
+                y1={y}
+                x2="198"
+                y2={y}
+                stroke="#8b5e3c"
+                strokeWidth="0.7"
+                opacity="0.28"
+              />
+            ))}
+            <rect x="150" y="124" width="50" height="7" rx="1" fill="#8b5e3c" opacity="0.42" />
+            <rect x="150" y="168" width="50" height="7" rx="1" fill="#8b5e3c" opacity="0.42" />
+            <circle cx="175" cy="100" r="11" fill="none" stroke={GOLD} strokeWidth="1.3" opacity="0.85" />
+            <circle cx="175" cy="100" r="3.2" fill={GOLD} opacity="0.9" />
+            {[0, 72, 144, 216, 288].map((deg) => {
+              const a = (deg * Math.PI) / 180;
+              return (
+                <line
+                  key={deg}
+                  x1={175 + Math.cos(a) * 4.2}
+                  y1={100 + Math.sin(a) * 4.2}
+                  x2={175 + Math.cos(a) * 10}
+                  y2={100 + Math.sin(a) * 10}
+                  stroke={GOLD}
+                  strokeWidth="1.1"
+                  opacity="0.8"
+                />
+              );
+            })}
+            <circle cx="193" cy="154" r="4.2" fill={GOLD} />
+          </g>
+          <g className="st-escape-door-r">
+            <rect x="198" y="40" width="54" height="164" fill={`url(#${doorId})`} />
+            <rect x="198" y="40" width="54" height="164" fill="none" stroke="#8b5e3c" strokeWidth="1.2" />
+            {[78, 112, 146, 180].map((y) => (
+              <line
+                key={y}
+                x1="202"
+                y1={y}
+                x2="248"
+                y2={y}
+                stroke="#8b5e3c"
+                strokeWidth="0.7"
+                opacity="0.28"
+              />
+            ))}
+            <rect x="200" y="124" width="50" height="7" rx="1" fill="#8b5e3c" opacity="0.42" />
+            <rect x="200" y="168" width="50" height="7" rx="1" fill="#8b5e3c" opacity="0.42" />
+            <circle cx="225" cy="100" r="11" fill="none" stroke={GOLD} strokeWidth="1.3" opacity="0.85" />
+            <circle cx="225" cy="100" r="3.2" fill={GOLD} opacity="0.9" />
+            {[0, 72, 144, 216, 288].map((deg) => {
+              const a = (deg * Math.PI) / 180;
+              return (
+                <line
+                  key={deg}
+                  x1={225 + Math.cos(a) * 4.2}
+                  y1={100 + Math.sin(a) * 4.2}
+                  x2={225 + Math.cos(a) * 10}
+                  y2={100 + Math.sin(a) * 10}
+                  stroke={GOLD}
+                  strokeWidth="1.1"
+                  opacity="0.8"
+                />
+              );
+            })}
+            <circle cx="207" cy="154" r="4.2" fill={GOLD} />
+          </g>
+        </g>
+
+        {/* Stone hall with the arch punched out so sky, shafts, and heroes show through. */}
+        <path
+          fill={`url(#${wallId})`}
+          fillRule="evenodd"
+          d={`M 0 0 H 400 V 204 H 0 Z ${ARCH_PATH}`}
+        />
+        <path
+          d={ARCH_PATH}
+          fill="none"
+          stroke="#ffe08a"
+          strokeWidth="2.4"
+          className="st-escape-arch-glow"
+        />
+        <rect x="0" y="0" width="400" height="18" fill="#8b79b8" />
+        <rect x="0" y="16" width="400" height="4" fill={GOLD} opacity="0.55" />
+        <circle cx="200" cy="48" r="10" fill="none" stroke={GOLD} strokeWidth="1.6" />
+        <circle cx="200" cy="48" r="3.6" fill={GOLD} className="st-escape-emblem" />
+        <rect x="36" y="88" width="22" height="52" rx="11" fill="#5d4a7a" opacity="0.45" />
+        <rect x="342" y="88" width="22" height="52" rx="11" fill="#5d4a7a" opacity="0.45" />
+        <rect x="38" y="90" width="18" height="48" rx="9" fill="#ffe08a" className="st-escape-window" />
+        <rect x="344" y="90" width="18" height="48" rx="9" fill="#ffe08a" className="st-escape-window" />
+        <rect x="84" y="148" width="28" height="52" rx="6" fill={STONE_DARK} opacity="0.88" />
+        <rect x="89" y="128" width="18" height="24" rx="6" fill={STONE} />
+        <rect x="288" y="148" width="28" height="52" rx="6" fill={STONE_DARK} opacity="0.88" />
+        <rect x="293" y="128" width="18" height="24" rx="6" fill={STONE} />
+        <rect x="0" y="200" width="400" height="20" fill={`url(#${floorId})`} />
+        <ellipse
+          cx="200"
+          cy="204"
+          rx="58"
+          ry="7"
+          fill="rgba(255,215,106,0.32)"
+          className="st-escape-pool"
+        />
+
+        {[
+          [42, 32],
+          [88, 26],
+          [310, 28],
+          [356, 34],
+          [120, 40],
+          [280, 38],
+          [64, 44],
+          [336, 42],
+        ].map(([x, y], i) => (
+          <circle
+            key={i}
+            cx={x}
+            cy={y}
+            r={1.4}
+            fill="#fff6c8"
+            className="st-escape-ceiling-star"
+            style={{ animationDelay: `${0.35 + i * 0.16}s` }}
+          />
+        ))}
+      </svg>
+
+      <div className="st-escape-sparkles">
+        {escaped
+          ? ESCAPE_SPARKS.map((p, i) => (
+              <span key={i} className="st-escape-spark" style={moteStyle(p)} />
+            ))
+          : null}
+      </div>
+
+      <div className="st-escape-flash" />
+    </div>
   );
 }
 

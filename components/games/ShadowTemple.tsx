@@ -20,7 +20,7 @@ import {
 } from "react";
 import type { RankingMode, RankingRow, RankingScope } from "@/lib/game-types";
 import GameRankingBoard from "@/components/games/GameRankingBoard";
-import RoomScene, { TitleScene } from "@/components/games/ShadowTempleScenes";
+import RoomScene, { TitleScene, EndingCinematic } from "@/components/games/ShadowTempleScenes";
 import { TempleAudio, type TempleSfx, warmSpeechVoices, NARRATION_MS_PER_CHAR } from "@/components/games/shadow-temple-audio";
 import {
   submitGameRun,
@@ -858,7 +858,8 @@ export default function ShadowTemple() {
         scoreRef.current = finalScore;
         setScore(finalScore);
         audio.play("collapse");
-        window.setTimeout(() => audio.play("fanfare"), 900);
+        window.setTimeout(() => audio.play("door"), 850);
+        window.setTimeout(() => audio.play("fanfare"), 1650);
       } else {
         audio.play("collapse");
       }
@@ -1595,37 +1596,49 @@ export default function ShadowTemple() {
       ) : null}
 
       {phase === "cinematic" ? (
-        <section className="quest-card border-lavender/40 bg-gradient-to-br from-lavender/30 via-sky/15 to-gold/20 p-6 sm:p-10">
-          <p className="font-display text-xl text-wood/60">
-            {outcome === "escaped" ? "— 탈출 —" : "— 횃불이 꺼졌다 —"}
-          </p>
-          <div className="mt-4">
-            <NarrationTypewriter
-              storyKey={`ending-${outcome}`}
-              lines={outcome === "escaped" ? ESCAPE_STORY : TRAPPED_STORY}
-              onDone={markStoryDone}
-            />
-          </div>
-          {storyDone ? (
-            <div className="mt-7 text-center">
-              <button
-                type="button"
-                onClick={finishCinematic}
-                className="st-fade-in rounded-xl bg-wood px-8 py-3.5 text-lg font-bold text-cream shadow-md transition hover:bg-wood-dark active:scale-[0.98]"
-              >
-                {outcome === "escaped" ? "탈출 성공! 결과 보기" : "결과 보기"}
-              </button>
+        <section className="quest-card-static overflow-hidden border-lavender/40 bg-gradient-to-br from-lavender/30 via-sky/15 to-gold/20">
+          <EndingCinematic escaped={outcome === "escaped"} />
+          <div className="p-6 sm:p-10">
+            <p className="font-display text-xl text-wood/60">
+              {outcome === "escaped" ? "— 탈출 —" : "— 횃불이 꺼졌다 —"}
+            </p>
+            <div className="mt-4">
+              <NarrationTypewriter
+                storyKey={`ending-${outcome}`}
+                lines={outcome === "escaped" ? ESCAPE_STORY : TRAPPED_STORY}
+                onDone={markStoryDone}
+              />
             </div>
-          ) : null}
+            {storyDone ? (
+              <div className="mt-7 text-center">
+                <button
+                  type="button"
+                  onClick={finishCinematic}
+                  className="st-fade-in rounded-xl bg-wood px-8 py-3.5 text-lg font-bold text-cream shadow-md transition hover:bg-wood-dark active:scale-[0.98]"
+                >
+                  {outcome === "escaped" ? "탈출 성공! 결과 보기" : "결과 보기"}
+                </button>
+              </div>
+            ) : null}
+          </div>
         </section>
       ) : null}
 
       {phase === "ended" ? (
         <section
-          className="quest-card border-lavender/40 bg-gradient-to-br from-lavender/40 via-sky/20 to-gold/30 p-5 text-center sm:p-7"
+          className={[
+            "quest-card-static overflow-hidden border-lavender/40 p-0 text-center",
+            outcome === "escaped"
+              ? "st-escape-result bg-gradient-to-br from-gold/25 via-sky/20 to-lavender/30"
+              : "bg-gradient-to-br from-lavender/40 via-sky/20 to-gold/30",
+          ].join(" ")}
           role="status"
           aria-live="polite"
         >
+          {outcome === "escaped" ? (
+            <EndingCinematic escaped settled />
+          ) : null}
+          <div className="relative p-5 sm:p-7">
           <p className="font-display text-2xl text-wood">
             {outcome === "escaped" ? "신전 탈출 성공!" : "다음 도전을 기다린다"}
           </p>
@@ -1683,6 +1696,7 @@ export default function ShadowTemple() {
           >
             다시 도전하기
           </button>
+          </div>
         </section>
       ) : null}
     </div>
