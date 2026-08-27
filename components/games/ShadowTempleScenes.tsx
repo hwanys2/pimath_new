@@ -396,17 +396,17 @@ function BrokenBridgeScene({ room, found, onFind }: SceneProps) {
     d: number;
   };
   const y0 = 196;
-  const h = 118;
-  const C = { x: 0, y: y0 - h };
+  // Unit-height triangle, then uniform scale — stretching only the base
+  // made 30° look ~37° and 60° look ~52°.
   const ta = Math.tan((alpha * Math.PI) / 180);
   const tb = Math.tan((beta * Math.PI) / 180);
-  const af = h / ta;
-  const fb = h / tb;
+  const af = 1 / ta;
+  const fb = 1 / tb;
   const total = af + fb;
-  const scale = 250 / total;
+  const scale = Math.min(250 / total, 118);
   const A = { x: 200 - (total * scale) / 2, y: y0 };
   const B = { x: 200 + (total * scale) / 2, y: y0 };
-  C.x = A.x + af * scale;
+  const C = { x: A.x + af * scale, y: y0 - scale };
   const hasA = found.has("obsA");
   const hasB = found.has("obsB");
   const hasChain = found.has("chain");
@@ -448,7 +448,7 @@ function BrokenBridgeScene({ room, found, onFind }: SceneProps) {
       ) : null}
       {hasB ? (
         <>
-          <path d={arcPath(B.x, B.y, 20, 180, dirBC)} fill="none" stroke={GOLD} strokeWidth={1.4} />
+          <path d={arcPath(B.x, B.y, 20, dirBC, -180)} fill="none" stroke={GOLD} strokeWidth={1.4} />
           <MeasureLabel x={B.x - 34} y={B.y - 12} text={`${beta}°`} color={GOLD} />
         </>
       ) : null}
@@ -498,7 +498,7 @@ function GuardianShieldScene({ room, found, onFind }: SceneProps) {
     x: (V.x + pB.x) / 2 - 26,
     y: (V.y + pB.y) / 2,
   };
-  const angleLabel = polar(V.x, V.y, arcR + 22, -deg / 2);
+  const angleLabel = polar(V.x, V.y, arcR + (deg <= 30 ? 36 : 22), -deg / 2);
   const panelL = Math.max(72, Math.min(V.x, pA.x, pAB.x, pB.x) - 34);
   const panelR = Math.min(348, Math.max(V.x, pA.x, pAB.x, pB.x) + 34);
   const panelT = Math.max(74, Math.min(V.y, pA.y, pAB.y, pB.y) - 14);
@@ -1074,6 +1074,37 @@ function sideLabelAway(
   return { x: mx + nx * dist, y: my + ny * dist };
 }
 
+function outwardFrom(
+  vertex: { x: number; y: number },
+  origin: { x: number; y: number },
+  dist: number,
+) {
+  const dx = vertex.x - origin.x;
+  const dy = vertex.y - origin.y;
+  const len = Math.hypot(dx, dy) || 1;
+  return { x: vertex.x + (dx / len) * dist, y: vertex.y + (dy / len) * dist };
+}
+
+function measureRect(
+  x: number,
+  y: number,
+  text: string,
+  size: number,
+) {
+  const w = text.length * size * 0.62 + 10;
+  const h = size + 6;
+  const t = y - size + 1;
+  return { l: x - w / 2, r: x + w / 2, t, b: t + h };
+}
+
+function rectsOverlap(
+  a: { l: number; r: number; t: number; b: number },
+  b: { l: number; r: number; t: number; b: number },
+  pad = 4,
+) {
+  return !(a.r + pad < b.l || b.r + pad < a.l || a.b + pad < b.t || b.b + pad < a.t);
+}
+
 /* --------------------------------------------- Play 6 · 황금의 별 */
 
 function GoldenStarScene({ room, found, onFind }: SceneProps) {
@@ -1117,49 +1148,48 @@ function GoldenStarScene({ room, found, onFind }: SceneProps) {
     d: map(raw.d),
   };
   const X = map({ x: 0, y: 0 });
-  const centroid = {
-    x: (Q.a.x + Q.b.x + Q.c.x + Q.d.x) / 4,
-    y: (Q.a.y + Q.b.y + Q.c.y + Q.d.y) / 4,
-  };
-  const angBisect = dir1 + deg / 2;
   const arcR = Math.min(24, 0.28 * Math.min(d1, d2) * scale);
-  const d1Cand = [
-    sideLabelAway(Q.a, X, centroid, 22),
-    sideLabelAway(Q.c, X, centroid, 22),
-  ];
-  const d2Cand = [
-    sideLabelAway(Q.b, X, centroid, 22),
-    sideLabelAway(Q.d, X, centroid, 22),
-  ];
-  const pickPair = (ang: { x: number; y: number }) => {
-    let best = {
-      d1: d1Cand[0],
-      d2: d2Cand[0],
-      score: -Infinity,
-    };
-    for (const p1 of d1Cand) {
-      for (const p2 of d2Cand) {
-        const gap12 = Math.hypot(p1.x - p2.x, p1.y - p2.y);
-        const gap1a = Math.hypot(p1.x - ang.x, p1.y - ang.y);
-        const gap2a = Math.hypot(p2.x - ang.x, p2.y - ang.y);
-        const score = Math.min(gap12, gap1a, gap2a);
-        if (score > best.score) best = { d1: p1, d2: p2, score };
+  const d1Text = `d₁ = ${d1} m`;
+  const d2Text = `d₂ = ${d2} m`;
+  const angText = `${deg}°`;
+  type Pt = { x: number; y: number };
+  let best: { d1: Pt; d2: Pt; ang: Pt; angFrom: number; score: number } | null =
+    null;
+  for (const flip of [false, true]) {
+    const angFrom = dir1 + (flip ? 180 : 0);
+    const ang = polar(X.x, X.y, arcR + 26, angFrom + deg / 2);
+    const angBox = measureRect(ang.x, ang.y, angText, 11);
+    for (const dist of [16, 22, 30, 38]) {
+      const d1Opts = [outwardFrom(Q.a, X, dist), outwardFrom(Q.c, X, dist)];
+      const d2Opts = [outwardFrom(Q.b, X, dist), outwardFrom(Q.d, X, dist)];
+      for (const p1 of d1Opts) {
+        for (const p2 of d2Opts) {
+          const b1 = measureRect(p1.x, p1.y, d1Text, 11);
+          const b2 = measureRect(p2.x, p2.y, d2Text, 11);
+          const clipped = [b1, b2, angBox].filter(
+            (box) => box.l < 8 || box.r > 392 || box.t < 100 || box.b > 250,
+          ).length;
+          const collided =
+            rectsOverlap(b1, b2) ||
+            rectsOverlap(b1, angBox) ||
+            rectsOverlap(b2, angBox);
+          const minGap = Math.min(
+            Math.hypot(p1.x - p2.x, p1.y - p2.y),
+            Math.hypot(p1.x - ang.x, p1.y - ang.y),
+            Math.hypot(p2.x - ang.x, p2.y - ang.y),
+          );
+          const score = minGap - clipped * 90 - (collided ? 400 : 0);
+          if (!best || score > best.score) {
+            best = { d1: p1, d2: p2, ang, angFrom, score };
+          }
+        }
       }
     }
-    return best;
-  };
-  let angLabel = polar(X.x, X.y, arcR + 26, angBisect);
-  let angFrom = dir1;
-  let picked = pickPair(angLabel);
-  const flipped = polar(X.x, X.y, arcR + 26, angBisect + 180);
-  const pickedFlip = pickPair(flipped);
-  if (pickedFlip.score > picked.score) {
-    angLabel = flipped;
-    picked = pickedFlip;
-    angFrom = dir1 + 180;
   }
-  const d1Label = picked.d1;
-  const d2Label = picked.d2;
+  const d1Label = best!.d1;
+  const d2Label = best!.d2;
+  const angLabel = best!.ang;
+  const angFrom = best!.angFrom;
   const panelPad = 28;
   const panel = {
     l: Math.min(Q.a.x, Q.b.x, Q.c.x, Q.d.x, d1Label.x, d2Label.x, angLabel.x) - panelPad,
