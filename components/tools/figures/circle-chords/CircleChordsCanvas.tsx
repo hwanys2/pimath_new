@@ -11,6 +11,8 @@ import {
   nextChordNames,
   nudgeById,
   nudgeMeasureLabel,
+  nudgeMeasureLine,
+  parseMeasureId,
   projectOnCircle,
   rotateChordToPoint,
   toggleRadius,
@@ -37,6 +39,7 @@ type Tool = "select" | "draw";
 
 type Drag =
   | { t: "label"; id: string; x: number; y: number; moved: boolean }
+  | { t: "dimLine"; id: string; x: number; y: number; moved: boolean }
   | { t: "rotate"; chordId: string; which: "start" | "end" }
   | { t: "distance"; chordId: string }
   | { t: "view"; lastX: number; lastY: number }
@@ -258,6 +261,21 @@ export default function CircleChordsCanvas({
             return;
           }
 
+          if (hit.kind === "dimLine") {
+            dragRef.current = {
+              t: "dimLine",
+              id: hit.id,
+              x: p.x,
+              y: p.y,
+              moved: false,
+            };
+            setCursor("grabbing");
+            e.currentTarget.setPointerCapture(e.pointerId);
+            const chordId = chordIdFromLabel(hit.id);
+            if (chordId) onSelect(chordId);
+            return;
+          }
+
           if (hit.kind === "point") {
             onSelect(hit.chordId);
             dragRef.current =
@@ -324,24 +342,26 @@ export default function CircleChordsCanvas({
           }
 
           const current = stateRef.current;
-          if (drag.t === "label") {
+          if (drag.t === "label" || drag.t === "dimLine") {
             const dx = p.x - drag.x;
             const dy = p.y - drag.y;
             const moved = drag.moved || Math.hypot(dx, dy) > MOVE_PX;
             dragRef.current = { ...drag, x: p.x, y: p.y, moved };
             if (moved) {
-              const key = drag.id.slice(drag.id.lastIndexOf(":") + 1);
+              const parsed = parseMeasureId(drag.id);
               const frame =
-                scene && isMeasureKey(key)
+                scene && parsed && isMeasureKey(parsed.key)
                   ? measureFrame(current, scene, drag.id)
                   : null;
-              if (frame) {
+              if (frame && parsed) {
+                const nudge =
+                  drag.t === "dimLine" ? nudgeMeasureLine : nudgeMeasureLabel;
                 setState(
                   (prev) =>
-                    mapChord(prev, drag.id.slice(0, drag.id.lastIndexOf(":")), (c) => ({
+                    mapChord(prev, parsed.chordId, (c) => ({
                       ...c,
-                      [key]: nudgeMeasureLabel(
-                        c[key as "chordLabel"],
+                      [parsed.key]: nudge(
+                        c[parsed.key as "chordLabel"],
                         dx,
                         dy,
                         frame.along,
@@ -502,6 +522,7 @@ export default function CircleChordsCanvas({
 function isKeepSelectHit(hit: FigureHit | null): boolean {
   return (
     hit?.kind === "label" ||
+    hit?.kind === "dimLine" ||
     hit?.kind === "point" ||
     hit?.kind === "chord" ||
     hit?.kind === "center"
@@ -509,9 +530,7 @@ function isKeepSelectHit(hit: FigureHit | null): boolean {
 }
 
 function chordIdFromLabel(id: string): string | null {
-  if (id === "center-name" || id === "caption") return null;
-  const sep = id.lastIndexOf(":");
-  return sep > 0 ? id.slice(0, sep) : null;
+  return parseMeasureId(id)?.chordId ?? null;
 }
 
 function cursorForHit(hit: FigureHit | null, tool: Tool): string {
@@ -519,6 +538,7 @@ function cursorForHit(hit: FigureHit | null, tool: Tool): string {
   if (!hit) return "default";
   if (hit.kind === "circle") return "crosshair";
   if (hit.kind === "label") return "text";
+  if (hit.kind === "dimLine") return "grab";
   return "grab";
 }
 

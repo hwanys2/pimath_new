@@ -1,4 +1,4 @@
-import { parseMathRuns, type TextRun } from "@/lib/diagrams/math-label";
+import { parseMeasureId } from "@/lib/diagrams/circle-chords/geometry";
 import {
   chordAngleDeg,
   resolveLabelText,
@@ -6,6 +6,7 @@ import {
   type ChordDraft,
   type MeasLabel,
 } from "@/lib/diagrams/circle-chords/model";
+import { parseMathRuns, type TextRun } from "@/lib/diagrams/math-label";
 
 export type Vec = { x: number; y: number };
 
@@ -159,6 +160,12 @@ function clamp(n: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, n));
 }
 
+function signedHeight(h: number, minAbs = 10, maxAbs = 140): number {
+  if (!Number.isFinite(h)) return minAbs;
+  const sign = h < 0 ? -1 : 1;
+  return sign * clamp(Math.abs(h), minAbs, maxAbs);
+}
+
 function dimArc(
   cmds: SceneCmd[],
   texts: SceneText[],
@@ -168,19 +175,27 @@ function dimArc(
   offset: number,
   label: string | null,
   labelId: string,
-  nudge: Vec,
+  meas: { dx: number; dy: number; lineDx?: number; lineDy?: number },
   fontSize: number,
 ): void {
   if (!label) return;
   const u = norm(outward);
   const along = norm(sub(b, a));
   const span = len(sub(b, a));
-  const height = clamp(offset + nudge.y, 10, 96);
-  const lift = Math.min(7, height * 0.18);
+  const mid = mul(add(a, b), 0.5);
+  const margin = Math.min(span * 0.14, 26);
+  const maxAlong = Math.max(span / 2 - margin, 0);
+
+  const textH = signedHeight(offset + meas.dy);
+  const lineH = signedHeight(offset + meas.dy + (meas.lineDy ?? 0));
+  const textAlong = clamp(meas.dx, -maxAlong, maxAlong);
+  const lineAlong = clamp(meas.dx + (meas.lineDx ?? 0), -maxAlong, maxAlong);
+
+  const lineSign = lineH < 0 ? -1 : 1;
+  const lift = lineSign * Math.min(7, Math.abs(lineH) * 0.18);
   const start = add(a, mul(u, lift));
   const end = add(b, mul(u, lift));
-  const mid = mul(add(a, b), 0.5);
-  const ctrl = add(mid, mul(u, height));
+  const ctrl = add(add(mid, mul(along, lineAlong)), mul(u, lineH));
   cmds.push({
     t: "quad",
     x1: start.x,
@@ -190,13 +205,12 @@ function dimArc(
     x2: end.x,
     y2: end.y,
     dashed: true,
-    id: labelId,
+    id: `${labelId}:line`,
   });
-  const margin = Math.min(span * 0.14, 26);
-  const maxAlong = Math.max(span / 2 - margin, 0);
-  const alongShift = clamp(nudge.x, -maxAlong, maxAlong);
-  const onSeg = add(mid, mul(along, alongShift));
-  const tp = add(onSeg, mul(u, height + fontSize * 0.52));
+
+  const textSign = textH < 0 ? -1 : 1;
+  const onSeg = add(mid, mul(along, textAlong));
+  const tp = add(onSeg, mul(u, textH + textSign * fontSize * 0.52));
   pushText(texts, cmds, {
     id: labelId,
     x: tp.x,
@@ -395,7 +409,7 @@ function drawChord(args: {
     style.dimOffset,
     chordText,
     `${chord.id}:chordLabel`,
-    { x: chord.chordLabel.dx, y: chord.chordLabel.dy },
+    chord.chordLabel,
     style.fontSize,
   );
 
@@ -415,7 +429,7 @@ function drawChord(args: {
       style.dimOffset * 0.85,
       distText,
       `${chord.id}:distLabel`,
-      { x: chord.distLabel.dx, y: chord.distLabel.dy },
+      chord.distLabel,
       style.fontSize,
     );
   }
@@ -432,7 +446,7 @@ function drawChord(args: {
       style.dimOffset * 0.7,
       halfText,
       `${chord.id}:halfLabel`,
-      { x: chord.halfLabel.dx, y: chord.halfLabel.dy },
+      chord.halfLabel,
       style.fontSize,
     );
   }
@@ -449,7 +463,7 @@ function drawChord(args: {
       style.dimOffset * 0.9,
       rText,
       `${chord.id}:radiusStartLabel`,
-      { x: startLabel.dx, y: startLabel.dy },
+      startLabel,
       style.fontSize,
     );
   }
@@ -465,7 +479,7 @@ function drawChord(args: {
       style.dimOffset * 0.9,
       rText,
       `${chord.id}:radiusEndLabel`,
-      { x: endLabel.dx, y: endLabel.dy },
+      endLabel,
       style.fontSize,
     );
   }
@@ -519,10 +533,28 @@ export function hitTestText(
 
 export type FigureHit =
   | { kind: "label"; id: string }
+  | { kind: "dimLine"; id: string }
   | { kind: "point"; chordId: string; which: "start" | "end" | "mid" }
   | { kind: "center" }
   | { kind: "chord"; chordId: string; t: number }
   | { kind: "circle" };
+
+function measureTargetId(id: string): string {
+  return id.endsWith(":line") ? id.slice(0, -5) : id;
+}
+
+function distToQuad(p: Vec, a: Vec, c: Vec, b: Vec): number {
+  let best = Infinity;
+  for (let i = 0; i <= 24; i += 1) {
+    const t = i / 24;
+    const s = 1 - t;
+    const x = s * s * a.x + 2 * s * t * c.x + t * t * b.x;
+    const y = s * s * a.y + 2 * s * t * c.y + t * t * b.y;
+    const d = Math.hypot(p.x - x, p.y - y);
+    if (d < best) best = d;
+  }
+  return best;
+}
 
 function distToSeg(p: Vec, a: Vec, b: Vec): { d: number; t: number } {
   const dx = b.x - a.x;
@@ -561,9 +593,9 @@ export function hitTestFigure(
   for (const cmd of scene.cmds) {
     if (cmd.t === "quad" && cmd.id) {
       consider(
-        { kind: "label", id: cmd.id },
-        Math.hypot(cmd.cx - x, cmd.cy - y),
-        22,
+        { kind: "dimLine", id: measureTargetId(cmd.id) },
+        distToQuad(p, { x: cmd.x1, y: cmd.y1 }, { x: cmd.cx, y: cmd.cy }, { x: cmd.x2, y: cmd.y2 }),
+        14,
       );
     }
   }
@@ -619,10 +651,10 @@ export function measureFrame(
   scene: DiagramScene,
   id: string,
 ): { along: Vec; outward: Vec; halfSpan: number } | null {
-  const sep = id.lastIndexOf(":");
-  if (sep < 0) return null;
-  const chord = state.chords.find((c) => c.id === id.slice(0, sep));
-  const key = id.slice(sep + 1);
+  const parsed = parseMeasureId(measureTargetId(id));
+  if (!parsed) return null;
+  const chord = state.chords.find((c) => c.id === parsed.chordId);
+  const key = parsed.key;
   if (!chord) return null;
   const layout = scene.layout;
   const ang = (chordAngleDeg(chord) * Math.PI) / 180;

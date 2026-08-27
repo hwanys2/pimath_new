@@ -315,6 +315,40 @@ function clampNum(n: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, n));
 }
 
+const MEASURE_KEYS = new Set([
+  "chordLabel",
+  "distLabel",
+  "halfLabel",
+  "radiusStartLabel",
+  "radiusEndLabel",
+  "radiusLabel",
+]);
+
+export function isMeasureKey(key: string): boolean {
+  return MEASURE_KEYS.has(key);
+}
+
+export function parseMeasureId(id: string): {
+  chordId: string;
+  key: string;
+  part: "text" | "line";
+} | null {
+  if (id === "center-name" || id === "caption") return null;
+  let part: "text" | "line" = "text";
+  let rest = id;
+  if (rest.endsWith(":line")) {
+    part = "line";
+    rest = rest.slice(0, -5);
+  }
+  const sep = rest.lastIndexOf(":");
+  if (sep <= 0) return null;
+  const key = rest.slice(sep + 1);
+  if (!isMeasureKey(key) && key !== "startName" && key !== "endName" && key !== "midName") {
+    return null;
+  }
+  return { chordId: rest.slice(0, sep), key, part };
+}
+
 export function nudgeMeasureLabel(
   label: MeasLabel,
   canvasDx: number,
@@ -329,19 +363,27 @@ export function nudgeMeasureLabel(
   return {
     ...label,
     dx: clampNum(label.dx + alongAmt, -maxAlong, maxAlong),
-    dy: clampNum(label.dy + perpAmt, -80, 110),
+    dy: clampNum(label.dy + perpAmt, -160, 160),
   };
 }
 
-export function isMeasureKey(key: string): boolean {
-  return (
-    key === "chordLabel" ||
-    key === "distLabel" ||
-    key === "halfLabel" ||
-    key === "radiusStartLabel" ||
-    key === "radiusEndLabel" ||
-    key === "radiusLabel"
-  );
+/** Move only the dashed dim line; the length text stays put. */
+export function nudgeMeasureLine(
+  label: MeasLabel,
+  canvasDx: number,
+  canvasDy: number,
+  along: Vec,
+  outward: Vec,
+  halfSpan: number,
+): MeasLabel {
+  const alongAmt = canvasDx * along.x + canvasDy * along.y;
+  const perpAmt = canvasDx * outward.x + canvasDy * outward.y;
+  const maxAlong = Math.max(halfSpan - 10, 4);
+  return {
+    ...label,
+    lineDx: clampNum((label.lineDx ?? 0) + alongAmt, -maxAlong, maxAlong),
+    lineDy: clampNum((label.lineDy ?? 0) + perpAmt, -160, 160),
+  };
 }
 
 export function toggleRadius(

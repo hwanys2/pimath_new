@@ -3,8 +3,14 @@ export type LabelMode = "auto" | "x" | "hide" | "custom";
 export type MeasLabel = {
   mode: LabelMode;
   custom: string;
+  /** Along the segment, for the length text. */
   dx: number;
+  /** Signed height of the length text. Negative flips to the other side. */
   dy: number;
+  /** Extra along-shift for the dashed dim line only. */
+  lineDx?: number;
+  /** Extra signed height for the dashed dim line only. */
+  lineDy?: number;
 };
 
 export type ChordLock = "length" | "distance";
@@ -82,7 +88,7 @@ export const CARDINAL_ANGLE: Record<Cardinal, number> = {
 };
 
 export function emptyLabel(mode: LabelMode = "auto"): MeasLabel {
-  return { mode, custom: "", dx: 0, dy: 0 };
+  return { mode, custom: "", dx: 0, dy: 0, lineDx: 0, lineDy: 0 };
 }
 
 export function newChordId(): string {

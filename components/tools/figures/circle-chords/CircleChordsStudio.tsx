@@ -524,8 +524,9 @@ export default function CircleChordsStudio() {
               </ul>
             ) : null}
             <p className="mt-2 text-[11px] leading-snug text-foreground/45">
-              끝점을 더블클릭하거나 중심까지 끌면 반지름이 이어집니다. Delete
-              키로도 지울 수 있어요.
+              길이 숫자를 끌면 설명선이 같이 가고, 점선만 잡으면 선만 옮겨요.
+              반대편으로도 넘길 수 있어요. 끝점을 더블클릭하거나 중심까지 끌면
+              반지름이 이어집니다.
             </p>
           </section>
 
