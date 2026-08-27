@@ -3,6 +3,11 @@
  *
  * All puzzle parameters come from curated pools so every answer is a clean
  * number under the Korean grade-3 conventions √2 ≈ 1.4, √3 ≈ 1.7.
+ *
+ * Play order is pedagogical, not dungeon-depth-first:
+ *   tan → area (parallelogram, triangle) → construction (SAS side, two-angle
+ *   height) → diagonal-area finale. The “drop a perpendicular” rooms come
+ *   after students have already used sin in an area formula.
  */
 
 export const CONTENT_KEY = "g3-u3-1-shadow-temple";
@@ -250,7 +255,7 @@ function fmt(n: number): string {
   return Number.isInteger(n) ? String(n) : n.toFixed(1);
 }
 
-/* -------------------------------------------------- Room 1 · 거인의 문 */
+/* -------------------------------------------------- Play 1 · 거인의 문 */
 /** h = d · tanθ */
 
 type GateVariant = { d: number; deg: number; exact: string; val: number };
@@ -320,7 +325,7 @@ function buildGateRoom(): Room {
   };
 }
 
-/* --------------------------------------------- Room 2 · 붕괴하는 바닥 */
+/* --------------------------------------------- Play 4 · 붕괴하는 바닥 */
 /** Two sides + included angle → third side, via perpendicular foot. */
 
 type LavaVariant = { a: number; b: number; deg: 60 | 120; ans: number };
@@ -354,12 +359,12 @@ function buildLavaRoom(): Room {
           `AB² = (${ah})² + ${fmt(hb)}² = ${fmt(ah2)} + ${fmt(hb * hb)} = ${fmt(ah2 + hb * hb)}  →  AB = ${v.ans}`,
         ];
   return {
-    id: 2,
+    id: 4,
     kind: "lavaFloor",
     title: "붕괴하는 바닥",
     objective: "일반 삼각형 — 두 변과 끼인각으로 나머지 변 구하기 (수선 긋기)",
     enterStory: [
-      "문을 지나자 바닥이 스르륵 갈라지며 금빛 용암 함정이 드러난다!",
+      "제단이 열어 준 아래로 발을 들이자, 돌바닥이 스르륵 갈라지며 금빛 용암 함정이 드러난다!",
       "별빛이 「저기 발판으로 건너야 해!」 하고 외친다. 가까스로 좁은 기둥 P 위로 올라섰다.",
       "탈출로는 발판 A 에서 발판 B 로 건너는 고대의 자동 로프. 로프 길이를 정확히 새겨야 발사된다. 단서를 조사하자.",
     ],
@@ -386,13 +391,13 @@ function buildLavaRoom(): Room {
         ],
         input: { kind: "numeric", answer: v.ans, unit: "m", exact: String(v.ans) },
         hintConcept: [
-          "박사의 수첩 2쪽 —",
+          "박사의 수첩 4쪽 —",
           "「끼인각이 특수각이면 두려워 말라. 한 꼭짓점에서 수선을 내려 직각삼각형 두 개로 쪼개라.」",
           "A 에서 직선 PB 에 수선의 발 H 를 내리면 PH = a·cos θ, AH = a·sin θ. 그다음 피타고라스!",
         ],
         hintSolve: steps,
         solvedLine:
-          "로프가 번쩍이며 정확히 발판 B 에 꽂힌다. 별빛이 손을 흔들며 함께 건넌다!",
+          "로프가 번쩍이며 정확히 발판 B 에 꽂힌다. 별빛이 손을 흔들며 함께 건넌다. 앞쪽에 햇살이 새어 드는 협곡이 보인다.",
         weight: 1,
       },
     ],
@@ -400,7 +405,7 @@ function buildLavaRoom(): Room {
   };
 }
 
-/* ------------------------------------------ Room 3 · 끊어진 지혜의 다리 */
+/* ------------------------------------------ Play 5 · 끊어진 지혜의 다리 */
 /** Base d with angles α, β at both ends → perpendicular height h. */
 
 type BridgeVariant = {
@@ -445,12 +450,12 @@ function buildBridgeRoom(): Room {
     );
   }
   return {
-    id: 3,
+    id: 5,
     kind: "brokenBridge",
     title: "끊어진 지혜의 다리",
     objective: "일반 삼각형 — 밑변과 양 끝각으로 높이(수직 거리) 구하기",
     enterStory: [
-      "이번엔 햇살 가득한 협곡. 다리는 오래전에 끊어져 잔해만 매달려 있다.",
+      "용암 방을 벗어나자 햇살 가득한 협곡이 가로놓여 있다. 다리는 오래전에 끊어져 잔해만 매달려 있다.",
       "건너편 절벽에 빛나는 수정 기둥 — 다리를 다시 놓으려면 이쪽 절벽에서 기둥까지의 수직 거리를 알아야 한다.",
       "절벽 가장자리에 고대의 관측소 두 개가 남아 있다. 조사해 보자.",
     ],
@@ -477,13 +482,13 @@ function buildBridgeRoom(): Room {
         ],
         input: { kind: "numeric", answer: v.val, unit: "m", exact: v.exact },
         hintConcept: [
-          "박사의 수첩 3쪽 —",
+          "박사의 수첩 5쪽 —",
           "「강 건너까지의 거리는 건너지 않고도 알 수 있다. 기둥에서 밑변으로 수선을 내려 두 직각삼각형을 만들라.」",
           "AH + HB = AB 라는 사실이 방정식이 된다.",
         ],
         hintSolve: steps,
         solvedLine:
-          "빛의 판자들이 하나씩 허공에 떠올라 협곡을 가로지른다. 지혜의 다리가 복원됐다!",
+          "빛의 판자들이 하나씩 허공에 떠올라 협곡을 가로지른다. 지혜의 다리가 복원되고, 그 끝에서 유리 돔이 희미하게 빛난다.",
         weight: 1,
       },
     ],
@@ -491,7 +496,7 @@ function buildBridgeRoom(): Room {
   };
 }
 
-/* ------------------------------------------- Room 4 · 수호자의 방패 */
+/* ------------------------------------------- Play 2 · 수호자의 방패 */
 /** Parallelogram area S = ab·sinθ — pick the shield with matching area. */
 
 type Pg = { a: number; b: number; deg: number };
@@ -553,12 +558,12 @@ function buildShieldRoom(): Room {
   const g = v.groove;
   const c = v.correct;
   return {
-    id: 4,
+    id: 2,
     kind: "guardianShield",
     title: "수호자의 방패",
     objective: "평행사변형의 넓이 — S = ab × sin θ",
     enterStory: [
-      "다리를 건너자 거대한 수호자 동상이 길을 안내하듯 서 있다. 두 눈이 호기심 있게 빛난다.",
+      "거인의 문이 열리자 넓은 의식의 홀이 나타난다. 한가운데 거대한 수호자 동상이 길을 가로막고 서 있다.",
       "동상의 가슴에 평행사변형 모양의 홈이 파여 있고, 바닥에는 방패 네 개가 흩어져 있다.",
       "「넓이가 홈과 같은 방패만이 수호자의 심장을 채우리라.」 — 같은 넓이의 방패를 찾아 쥐여 주자.",
     ],
@@ -585,7 +590,7 @@ function buildShieldRoom(): Room {
           artifactLabel: "방패",
         },
         hintConcept: [
-          "박사의 수첩 4쪽 —",
+          "박사의 수첩 2쪽 —",
           "「평행사변형은 밑변 × 높이. 높이는 이웃 변 b 와 sin θ 가 만든다.」",
           "S = a × b × sin θ  — 홈의 넓이부터 구한 뒤, 방패들의 넓이와 비교하라.",
         ],
@@ -602,7 +607,7 @@ function buildShieldRoom(): Room {
   };
 }
 
-/* --------------------------------------------- Room 5 · 태양의 제단 */
+/* --------------------------------------------- Play 3 · 태양의 제단 */
 /** Triangle area S = ½ab·sinθ, acute altar then obtuse altar. */
 
 type AltarVariant = {
@@ -682,12 +687,12 @@ function buildAltarPuzzle(v: AltarVariant, which: "acute" | "obtuse"): Puzzle {
     hintConcept:
       which === "acute"
         ? [
-            "박사의 수첩 5쪽 —",
+            "박사의 수첩 3쪽 —",
             "「삼각형의 넓이 = ½ × (한 변) × (이웃 변) × sin (끼인각).」",
             "S = ½ × a × b × sin θ",
           ]
         : [
-            "박사의 수첩 5쪽 (뒷면) —",
+            "박사의 수첩 3쪽 (뒷면) —",
             "「θ 가 둔각이면 sin θ = sin (180° − θ). 공식은 그대로!」",
             "S = ½ × a × b × sin (180° − θ)",
           ],
@@ -698,7 +703,7 @@ function buildAltarPuzzle(v: AltarVariant, which: "acute" | "obtuse"): Puzzle {
     solvedLine:
       which === "acute"
         ? "황금 판이 제단에 녹아들며 방 절반에 태양빛이 번진다. 하지만 제단이 하나 더…!"
-        : "두 번째 판이 빛나자 온 방이 눈부신 태양빛으로 가득 찬다. 숨겨진 통로가 열린다!",
+        : "두 번째 판이 빛나자 온 방이 눈부신 태양빛으로 가득 찬다. 바닥의 금 틈이 갈라지며, 아래로 내려가는 숨겨진 길이 드러난다!",
     weight: 0.5,
   };
 }
@@ -707,14 +712,14 @@ function buildAltarRoom(): Room {
   const acute = pick(ALTAR_ACUTE_POOL);
   const obtuse = pick(ALTAR_OBTUSE_POOL);
   return {
-    id: 5,
+    id: 3,
     kind: "sunAltar",
     title: "태양의 제단",
     objective: "삼각형의 넓이 — S = ½ab × sin θ (둔각이면 보각의 sin)",
     enterStory: [
       "수호자가 비켜 준 길 끝, 비밀의 방 한가운데에 삼각형 제단 두 개가 마주 보고 서 있다.",
       "천장의 틈으로 새벽 별빛이 스며들고, 제단 곁에는 넓이가 새겨진 황금 판들이 놓여 있다.",
-      "두 제단을 모두 깨워야 다음 방으로 가는 통로가 열린다.",
+      "두 제단을 모두 깨워야 더 깊은 길이 열린다.",
     ],
     puzzles: [
       buildAltarPuzzle(acute, "acute"),
@@ -731,7 +736,7 @@ function buildAltarRoom(): Room {
   };
 }
 
-/* ------------------------------------------- Room 6 · 황금의 별 */
+/* ------------------------------------------- Play 6 · 황금의 별 */
 /** Quadrilateral area from diagonals: S = ½·d₁·d₂·sinφ → 2-digit dial code. */
 
 type StarVariant = {
@@ -768,7 +773,7 @@ function buildStarRoom(): Room {
     title: "최후의 암호, 황금의 별",
     objective: "사각형의 넓이 — 두 대각선과 교각으로 S = ½d₁d₂ × sin φ",
     enterStory: [
-      "마지막 방. 천장까지 닿는 유리 돔 안에서 「황금의 별」이 눈부시게 빛나고 있다.",
+      "다리를 건너 다다른 마지막 방. 천장까지 닿는 유리 돔 안에서 「황금의 별」이 눈부시게 빛나고 있다.",
       "돔의 바닥은 불규칙한 사각형 — 두 대각선이 별빛으로 그려져 교차한다.",
       "돔 앞의 거대한 돌 다이얼 두 개. 「바닥의 넓이가 곧 탈출의 암호다.」 시간이 얼마 없다!",
     ],
@@ -816,14 +821,20 @@ function buildStarRoom(): Room {
 
 /* ------------------------------------------------------------ run */
 
+/**
+ * Play order: tan → area (parallelogram, then triangle) →
+ * construction (two sides + included angle, then two angles + base) →
+ * finale (diagonal area). Area formulas come before the harder
+ * “drop a perpendicular” rooms.
+ */
 export function generateRun(): TempleRun {
   return {
     rooms: [
       buildGateRoom(),
-      buildLavaRoom(),
-      buildBridgeRoom(),
       buildShieldRoom(),
       buildAltarRoom(),
+      buildLavaRoom(),
+      buildBridgeRoom(),
       buildStarRoom(),
     ],
   };

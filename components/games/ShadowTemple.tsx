@@ -65,7 +65,7 @@ type Stage = "enter" | "solve";
 type Outcome = "escaped" | "trapped";
 
 const MUTE_KEY = "pm_shadow_temple_mute";
-const ROOM_ICONS = ["문", "용암", "다리", "방패", "제단", "별"];
+const ROOM_ICONS = ["문", "방패", "제단", "용암", "다리", "별"];
 
 type PuzzleLog = {
   room: number;
@@ -1073,7 +1073,11 @@ export default function ShadowTemple() {
         ? "바닥이 뜨거워진다! 다시 계산해 보자."
         : room.kind === "guardianShield"
           ? "방패가 홈에 맞지 않는다. 넓이를 다시 비교해 보자."
-          : "장치가 꿈틀한다. 숫자를 한 번 더 살펴보자.";
+          : room.kind === "sunAltar"
+            ? "황금 판이 제단에 반응하지 않는다. 넓이를 다시 살펴보자."
+            : room.kind === "brokenBridge"
+              ? "협곡이 침묵한다. 두 각과 밑변을 한 번 더 살펴보자."
+              : "장치가 꿈틀한다. 숫자를 한 번 더 살펴보자.";
     setStatusMsg(
       `${flavor} 오답 — 횃불이 ${WRONG_TIME_PENALTY_SEC}초만큼 사그라들었다.`,
     );

@@ -20,7 +20,7 @@ type SceneProps = {
   /** Clue ids already inspected. */
   found: ReadonlySet<string>;
   onFind: (clueId: string) => void;
-  /** For rooms with multiple puzzles (room 5). */
+  /** For rooms with multiple puzzles (sun altar). */
   puzzleIndex: number;
   /** Number of solved puzzles in this room. */
   solvedCount: number;
@@ -235,7 +235,7 @@ function Frame({ children }: { children: React.ReactNode }) {
   );
 }
 
-/* --------------------------------------------------- Room 1 · 거인의 문 */
+/* --------------------------------------------------- Play 1 · 거인의 문 */
 
 function GiantGateScene({ room, found, onFind }: SceneProps) {
   const { d, deg } = room.params as { d: number; deg: number };
@@ -312,7 +312,7 @@ function GiantGateScene({ room, found, onFind }: SceneProps) {
   );
 }
 
-/* ----------------------------------------------- Room 2 · 붕괴하는 바닥 */
+/* ----------------------------------------------- Play 4 · 붕괴하는 바닥 */
 
 function LavaFloorScene({ room, found, onFind }: SceneProps) {
   const { a, b, deg } = room.params as { a: number; b: number; deg: number };
@@ -385,7 +385,7 @@ function LavaFloorScene({ room, found, onFind }: SceneProps) {
   );
 }
 
-/* ------------------------------------------ Room 3 · 끊어진 지혜의 다리 */
+/* ------------------------------------------ Play 5 · 끊어진 지혜의 다리 */
 
 function BrokenBridgeScene({ room, found, onFind }: SceneProps) {
   const { alpha, beta, d } = room.params as {
@@ -460,7 +460,7 @@ function BrokenBridgeScene({ room, found, onFind }: SceneProps) {
   );
 }
 
-/* ------------------------------------------- Room 4 · 수호자의 방패 */
+/* ------------------------------------------- Play 2 · 수호자의 방패 */
 
 function GuardianShieldScene({ room, found, onFind }: SceneProps) {
   const { a, b, deg } = room.params as { a: number; b: number; deg: number };
@@ -626,7 +626,7 @@ function GuardianShieldScene({ room, found, onFind }: SceneProps) {
   );
 }
 
-/* --------------------------------------------- Room 5 · 태양의 제단 */
+/* --------------------------------------------- Play 3 · 태양의 제단 */
 
 /** Stepped wooden altar — triangle rests on the top plank. */
 function WoodAltar({
@@ -799,8 +799,7 @@ function SunAltarScene({ room, found, onFind, puzzleIndex, solvedCount }: SceneP
     x: (acute.V.x + acute.A.x + acute.B.x) / 3,
     y: (acute.V.y + acute.A.y + acute.B.y) / 3,
   };
-  const acuteMidA = sideLabelAway(acute.V, acute.A, acuteCentroid, 20);
-  acuteMidA.y = Math.min(acuteMidA.y, baseY - 12);
+  const acuteMidA = altarBaseLabel(acute.V, acute.A, baseY);
   const acuteMidB = sideLabelAway(acute.V, acute.B, acuteCentroid, 24);
   const acutePanel = {
     l: Math.min(acute.V.x, acute.A.x, acute.B.x, acuteMidB.x, acuteAngleLabel.x) - 20,
@@ -827,18 +826,19 @@ function SunAltarScene({ room, found, onFind, puzzleIndex, solvedCount }: SceneP
     obtuse.along * obtuse.s * 0.18,
     obtuse.rising * obtuse.s * 0.24,
   );
+  // Obtuse badges are wider ("120°") and the wood side is short — keep ∠θ
+  // higher inside the wedge and the base length further down the altar.
   const obtuseAngleLabel = polar(
     obtuse.V.x,
     obtuse.V.y,
-    obtuseArcR + 20,
-    -deg2 / 2,
+    obtuseArcR + 28,
+    -Math.min(80, deg2 / 2 + 14),
   );
   const obtuseCentroid = {
     x: (obtuse.V.x + obtuse.A.x + obtuse.B.x) / 3,
     y: (obtuse.V.y + obtuse.A.y + obtuse.B.y) / 3,
   };
-  const obtuseMidA = sideLabelAway(obtuse.V, obtuse.A, obtuseCentroid, 20);
-  obtuseMidA.y = Math.min(obtuseMidA.y, baseY - 12);
+  const obtuseMidA = altarBaseLabel(obtuse.V, obtuse.A, baseY, 12);
   const obtuseMidB = sideLabelAway(obtuse.V, obtuse.B, obtuseCentroid, 24);
   const obtusePanel = {
     l: Math.min(obtuse.V.x, obtuse.A.x, obtuse.B.x, obtuseMidB.x, obtuseAngleLabel.x) - 20,
@@ -916,11 +916,11 @@ function SunAltarScene({ room, found, onFind, puzzleIndex, solvedCount }: SceneP
               strokeWidth={1.7}
             />
             <MeasureLabel
-              x={acuteMidA.x}
-              y={acuteMidA.y}
-              text={`${acute.labelAlong}`}
-              color={MINT}
-              size={12}
+              x={acuteAngleLabel.x}
+              y={acuteAngleLabel.y}
+              text={`${deg1}°`}
+              color={GOLD}
+              size={11}
             />
             <MeasureLabel
               x={acuteMidB.x}
@@ -930,11 +930,11 @@ function SunAltarScene({ room, found, onFind, puzzleIndex, solvedCount }: SceneP
               size={12}
             />
             <MeasureLabel
-              x={acuteAngleLabel.x}
-              y={acuteAngleLabel.y}
-              text={`${deg1}°`}
-              color={GOLD}
-              size={11}
+              x={acuteMidA.x}
+              y={acuteMidA.y}
+              text={`${acute.labelAlong}`}
+              color={MINT}
+              size={12}
             />
           </>
         ) : null}
@@ -979,11 +979,11 @@ function SunAltarScene({ room, found, onFind, puzzleIndex, solvedCount }: SceneP
               strokeWidth={1.7}
             />
             <MeasureLabel
-              x={obtuseMidA.x}
-              y={obtuseMidA.y}
-              text={`${obtuse.labelAlong}`}
-              color={MINT}
-              size={12}
+              x={obtuseAngleLabel.x}
+              y={obtuseAngleLabel.y}
+              text={`${deg2}°`}
+              color={GOLD}
+              size={11}
             />
             <MeasureLabel
               x={obtuseMidB.x}
@@ -993,11 +993,11 @@ function SunAltarScene({ room, found, onFind, puzzleIndex, solvedCount }: SceneP
               size={12}
             />
             <MeasureLabel
-              x={obtuseAngleLabel.x}
-              y={obtuseAngleLabel.y}
-              text={`${deg2}°`}
-              color={GOLD}
-              size={11}
+              x={obtuseMidA.x}
+              y={obtuseMidA.y}
+              text={`${obtuse.labelAlong}`}
+              color={MINT}
+              size={12}
             />
           </>
         ) : null}
@@ -1036,6 +1036,21 @@ function SunAltarScene({ room, found, onFind, puzzleIndex, solvedCount }: SceneP
   );
 }
 
+/** Base length sits on the wood, below the triangle, so it never covers ∠θ. */
+function altarBaseLabel(
+  vertex: { x: number; y: number },
+  far: { x: number; y: number },
+  baseY: number,
+  extraDown = 0,
+) {
+  const span = far.x - vertex.x;
+  const nudge = Math.sign(span) * Math.min(16, Math.abs(span) * 0.2);
+  return {
+    x: (vertex.x + far.x) / 2 + nudge,
+    y: baseY + 22 + extraDown,
+  };
+}
+
 /** Midpoint of PQ, nudged away from the triangle centroid (outside the figure). */
 function sideLabelAway(
   p: { x: number; y: number },
@@ -1057,7 +1072,7 @@ function sideLabelAway(
   return { x: mx + nx * dist, y: my + ny * dist };
 }
 
-/* --------------------------------------------- Room 6 · 황금의 별 */
+/* --------------------------------------------- Play 6 · 황금의 별 */
 
 function GoldenStarScene({ room, found, onFind }: SceneProps) {
   const { d1, d2, deg } = room.params as { d1: number; d2: number; deg: number };

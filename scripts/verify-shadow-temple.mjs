@@ -14,7 +14,7 @@ const fail = (msg) => {
   console.error("FAIL:", msg);
 };
 
-// Room 1 — h = d·tanθ with √3≈1.7 substituted at the end.
+// Play 1 — h = d·tanθ with √3≈1.7 substituted at the end.
 const GATE = [
   { d: 9, deg: 30, val: 5.1 },
   { d: 12, deg: 30, val: 6.8 },
@@ -31,7 +31,7 @@ for (const v of GATE) {
   if (Math.abs(exact - v.val) > 0.25) fail(`gate exact drift ${JSON.stringify(v)} → ${exact}`);
 }
 
-// Room 2 — third side via included angle (60: −ab, 120: +ab), integer result.
+// Play 4 — third side via included angle (60: −ab, 120: +ab), integer result.
 const LAVA = [
   { a: 8, b: 5, deg: 60, ans: 7 },
   { a: 8, b: 15, deg: 60, ans: 13 },
@@ -45,7 +45,7 @@ for (const v of LAVA) {
   if (sq !== v.ans * v.ans) fail(`lava ${JSON.stringify(v)} → ${sq}`);
 }
 
-// Room 3 — h·(cotα + cotβ) = d; only asymmetric pairs (no isosceles).
+// Play 5 — h·(cotα + cotβ) = d; only asymmetric pairs (no isosceles).
 const BRIDGE = [
   { alpha: 30, beta: 60, d: 12, val: 5.1, via: "d/4*√3" },
   { alpha: 30, beta: 60, d: 16, val: 6.8, via: "d/4*√3" },
@@ -68,7 +68,7 @@ for (const v of BRIDGE) {
     fail(`bridge exact drift ${JSON.stringify(v)} → ${hExact}`);
 }
 
-// Room 4 — parallelogram S = ab·sinθ; correct matches groove, distractors differ.
+// Play 2 — parallelogram S = ab·sinθ; correct matches groove, distractors differ.
 const SHIELD = [
   {
     groove: { a: 6, b: 4, deg: 60 },
@@ -109,7 +109,7 @@ for (const v of SHIELD) {
   }
 }
 
-// Room 5 — triangle S = ½ab·sinθ; exact-form label must equal computed value.
+// Play 3 — triangle S = ½ab·sinθ; exact-form label must equal computed value.
 const parseExact = (s) => {
   const m = /^(\d+)(?:√(\d))?$/.exec(s);
   if (!m) return null;
@@ -136,7 +136,7 @@ for (const v of ALTARS) {
   }
 }
 
-// Room 6 — S = ½d₁d₂·sinφ (√3 → 1.7) must equal the 2-digit dial code.
+// Play 6 — S = ½d₁d₂·sinφ (√3 → 1.7) must equal the 2-digit dial code.
 const STAR = [
   { d1: 12, d2: 10, deg: 30, code: 30 },
   { d1: 16, d2: 14, deg: 30, code: 56 },
