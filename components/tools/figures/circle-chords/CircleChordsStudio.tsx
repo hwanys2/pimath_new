@@ -32,7 +32,7 @@ import {
 } from "@/lib/diagrams/export-image";
 import type { FontFaces } from "@/lib/diagrams/math-label";
 
-const STORAGE_KEY = "pm-diagram-g3-circle-chords-v1";
+const STORAGE_KEY = "pm-diagram-g3-circle-chords-v2";
 
 const storeListeners = new Set<() => void>();
 

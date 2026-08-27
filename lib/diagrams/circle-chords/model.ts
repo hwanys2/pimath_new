@@ -180,8 +180,8 @@ export const CIRCLE_CHORD_PRESETS: {
       centerName: "O",
       unit: "cm",
       unknownLetter: "x",
-      caption: "x를 구하시오.",
-      showCaption: true,
+      caption: "",
+      showCaption: false,
       viewRotationDeg: 0,
       style: { ...DEFAULT_STYLE },
       chords: [
@@ -284,8 +284,8 @@ export const CIRCLE_CHORD_PRESETS: {
       centerName: "O",
       unit: "cm",
       unknownLetter: "x",
-      caption: "x를 구하시오.",
-      showCaption: true,
+      caption: "",
+      showCaption: false,
       viewRotationDeg: 0,
       style: { ...DEFAULT_STYLE },
       chords: [
