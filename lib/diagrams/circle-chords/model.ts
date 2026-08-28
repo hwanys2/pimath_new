@@ -248,7 +248,6 @@ export const CIRCLE_CHORD_PRESETS: {
       chords: [
         snapChordToRadius(
           chordAB({
-            showPoints: false,
             distLabel: emptyLabel("x"),
           }),
           10,
@@ -260,7 +259,6 @@ export const CIRCLE_CHORD_PRESETS: {
             endName: "D",
             midName: "N",
             cardinal: "down",
-            showPoints: false,
             distLabel: emptyLabel("hide"),
             showRadiusEnd: true,
             radiusEndLabel: emptyLabel("auto"),
