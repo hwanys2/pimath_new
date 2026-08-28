@@ -479,7 +479,6 @@ BEGIN
       (v_school IS NOT NULL AND ts.school_info_id = v_school) AS mine
     FROM public.pm_students st
     JOIN public.pm_teacher_schools ts ON ts.teacher_id = st.teacher_id
-    WHERE st.total_xp > 0
     GROUP BY ts.school_info_id
   )
   SELECT r.rnk, r.sid, r.sname, r.sregion, r.xp, r.scount, r.mine
@@ -542,7 +541,6 @@ BEGIN
     FROM public.pm_students st
     JOIN public.pm_classes c ON c.id = st.class_id
     LEFT JOIN public.pm_teacher_schools ts ON ts.teacher_id = st.teacher_id
-    WHERE st.total_xp > 0
     GROUP BY c.id, c.name, c.teacher_id, ts.school_info_id, ts.school_name, ts.region
   )
   SELECT r.rnk, r.cid, r.cname, r.sid, r.sname, r.sregion, r.xp, r.scount, r.mine

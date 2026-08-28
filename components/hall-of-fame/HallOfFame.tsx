@@ -110,19 +110,35 @@ function StudentRows({
   );
 }
 
+type HofMyClass = { id: string; name: string };
+
 type Props = {
   initial: HofBoard;
   lockClassId?: string | null;
+  myClasses?: HofMyClass[];
+  classOnly?: boolean;
+  fillHeight?: boolean;
 };
 
-export default function HallOfFame({ initial, lockClassId = null }: Props) {
+export default function HallOfFame({
+  initial,
+  lockClassId = null,
+  myClasses = [],
+  classOnly = false,
+  fillHeight = false,
+}: Props) {
   const [board, setBoard] = useState(initial);
+  const [activeClassId, setActiveClassId] = useState(
+    lockClassId ?? initial.selectedClassId,
+  );
   const [drillSchool, setDrillSchool] = useState(false);
   const [drillClass, setDrillClass] = useState(
     initial.tab === "class" &&
-      (Boolean(lockClassId) || initial.viewer.kind !== "anon"),
+      (Boolean(lockClassId) || classOnly || initial.viewer.kind !== "anon"),
   );
   const [isPending, startTransition] = useTransition();
+
+  const effectiveLock = classOnly ? activeClassId : lockClassId;
 
   const load = (
     tab: HofTab,
@@ -134,7 +150,7 @@ export default function HallOfFame({ initial, lockClassId = null }: Props) {
         tab,
         schoolInfoId,
         classId,
-        lockClassId,
+        lockClassId: classOnly ? classId : lockClassId,
       });
       setBoard(next);
     });
@@ -145,9 +161,16 @@ export default function HallOfFame({ initial, lockClassId = null }: Props) {
     setDrillSchool(false);
     setDrillClass(
       tab === "class" &&
-        (Boolean(lockClassId) || board.viewer.kind !== "anon"),
+        (Boolean(lockClassId) || classOnly || board.viewer.kind !== "anon"),
     );
-    load(tab, board.selectedSchoolId, lockClassId ?? board.selectedClassId);
+    load(tab, board.selectedSchoolId, effectiveLock ?? board.selectedClassId);
+  };
+
+  const pickClass = (classId: string) => {
+    if (classId === activeClassId && board.tab === "class") return;
+    setActiveClassId(classId);
+    setDrillClass(true);
+    load("class", board.selectedSchoolId, classId);
   };
 
   const selectedSchool = board.schools.find(
@@ -158,16 +181,176 @@ export default function HallOfFame({ initial, lockClassId = null }: Props) {
   );
 
   const showSchoolStudents = board.tab === "school" && drillSchool;
-  const showClassStudents = board.tab === "class" && drillClass;
+  const showClassStudents =
+    board.tab === "class" && (drillClass || classOnly);
+
+  const classChips =
+    myClasses.length > 1 ? (
+      <div
+        className="flex flex-wrap gap-1.5 px-3 pt-3"
+        role="tablist"
+        aria-label="내 학급"
+      >
+        {myClasses.map((klass) => {
+          const selected = klass.id === (activeClassId ?? board.selectedClassId);
+          return (
+            <button
+              key={klass.id}
+              type="button"
+              role="tab"
+              aria-selected={selected}
+              onClick={() => pickClass(klass.id)}
+              className={[
+                "rounded-full px-3 py-1 text-[11px] font-bold transition",
+                selected
+                  ? "bg-wood text-cream"
+                  : "bg-wood/10 text-wood/70 hover:bg-wood/15",
+              ].join(" ")}
+            >
+              {klass.name}
+            </button>
+          );
+        })}
+      </div>
+    ) : null;
+
+  const body = isPending ? (
+    <p className="py-6 text-center text-xs text-foreground/40">불러오는 중…</p>
+  ) : board.tab === "world" && !classOnly ? (
+    <StudentRows rows={board.students} showSchool />
+  ) : board.tab === "school" && !showSchoolStudents && !classOnly ? (
+    board.schools.length === 0 ? (
+      <p className="py-6 text-center text-xs text-foreground/40">
+        학교가 등록되면 대항전이 열려요
+      </p>
+    ) : (
+      <ol className="space-y-1">
+        {board.schools.map((row: HofSchoolRow) => (
+          <li key={row.schoolInfoId}>
+            <button
+              type="button"
+              onClick={() => {
+                setDrillSchool(true);
+                load("school", row.schoolInfoId, board.selectedClassId);
+              }}
+              className={[
+                "flex w-full items-center gap-2 rounded-xl px-2 py-1.5 text-left transition hover:bg-gold/20",
+                row.isMine ? "bg-mint/35 ring-1 ring-mint/50" : "bg-wood/5",
+              ].join(" ")}
+            >
+              <RankBadge rank={row.rank} />
+              <span className="min-w-0 flex-1">
+                <span className="block truncate text-sm font-bold">
+                  {row.schoolName}
+                  {row.isMine ? (
+                    <span className="ml-1 text-[10px] text-wood/60">(우리)</span>
+                  ) : null}
+                </span>
+                <span className="text-[10px] text-foreground/45">
+                  {row.studentCount}명
+                  {row.region ? ` · ${row.region}` : ""}
+                </span>
+              </span>
+              <span className="shrink-0 font-display text-xs tabular-nums text-wood">
+                {formatXp(row.totalXp)}
+              </span>
+            </button>
+          </li>
+        ))}
+      </ol>
+    )
+  ) : board.tab === "class" && !showClassStudents ? (
+    board.classes.length === 0 ? (
+      <p className="py-6 text-center text-xs text-foreground/40">
+        아직 학급 순위가 없어요
+      </p>
+    ) : (
+      <ol className="space-y-1">
+        {board.classes.map((row: HofClassRow) => (
+          <li key={row.classId}>
+            <button
+              type="button"
+              onClick={() => {
+                setDrillClass(true);
+                setActiveClassId(row.classId);
+                load("class", board.selectedSchoolId, row.classId);
+              }}
+              className={[
+                "flex w-full items-center gap-2 rounded-xl px-2 py-1.5 text-left transition hover:bg-gold/20",
+                row.isMine ? "bg-mint/35 ring-1 ring-mint/50" : "bg-wood/5",
+              ].join(" ")}
+            >
+              <RankBadge rank={row.rank} />
+              <span className="min-w-0 flex-1">
+                <span className="block truncate text-sm font-bold">
+                  {row.className}
+                  {row.isMine ? (
+                    <span className="ml-1 text-[10px] text-wood/60">(우리)</span>
+                  ) : null}
+                </span>
+                <span className="block truncate text-[10px] text-foreground/45">
+                  {row.schoolName
+                    ? `${row.schoolName} · ${row.studentCount}명`
+                    : `${row.studentCount}명`}
+                </span>
+              </span>
+              <span className="shrink-0 font-display text-xs tabular-nums text-wood">
+                {formatXp(row.totalXp)}
+              </span>
+            </button>
+          </li>
+        ))}
+      </ol>
+    )
+  ) : (
+    <div>
+      {board.tab === "school" && !lockClassId && !classOnly ? (
+        <button
+          type="button"
+          onClick={() => setDrillSchool(false)}
+          className="mb-2 text-[11px] font-bold text-wood/70 underline-offset-2 hover:underline"
+        >
+          ← 학교 대항전
+        </button>
+      ) : null}
+      {board.tab === "class" && !lockClassId && !classOnly ? (
+        <button
+          type="button"
+          onClick={() => setDrillClass(false)}
+          className="mb-2 text-[11px] font-bold text-wood/70 underline-offset-2 hover:underline"
+        >
+          ← 학급 대항전
+        </button>
+      ) : null}
+      {!classOnly ? (
+        <p className="mb-2 truncate text-[11px] font-semibold text-foreground/50">
+          {board.tab === "school"
+            ? (selectedSchool?.schoolName ?? "학교 학생")
+            : (selectedClass?.className ?? "학급 학생")}
+        </p>
+      ) : null}
+      <StudentRows
+        rows={board.students}
+        showSchool={board.tab !== "class"}
+      />
+    </div>
+  );
 
   return (
-    <article className="quest-card-static overflow-hidden">
+    <article
+      className={[
+        "quest-card-static overflow-hidden",
+        fillHeight ? "flex h-full min-h-0 flex-col" : "",
+      ].join(" ")}
+    >
       <div className="flex flex-wrap items-center justify-between gap-2 border-b border-wood/10 px-4 py-3">
         <div>
           <p className="text-[10px] font-bold tracking-wide text-wood/55">
-            명예의 전당
+            {classOnly ? "학급 랭킹" : "명예의 전당"}
           </p>
-          <h2 className="font-display text-lg text-wood">포인트 랭킹</h2>
+          <h2 className="font-display text-lg text-wood">
+            {classOnly ? "학급 학생 포인트 순위" : "포인트 랭킹"}
+          </h2>
         </div>
         {board.viewer.kind === "student" && board.viewer.worldRank ? (
           <p className="text-[11px] font-bold text-wood/70">
@@ -178,158 +361,44 @@ export default function HallOfFame({ initial, lockClassId = null }: Props) {
         ) : null}
       </div>
 
-      <div
-        className="grid grid-cols-3 gap-1 bg-wood/5 p-1.5"
-        role="tablist"
-        aria-label="랭킹 범위"
-      >
-        {TABS.map((tab) => {
-          const active = board.tab === tab.id;
-          return (
-            <button
-              key={tab.id}
-              type="button"
-              role="tab"
-              aria-selected={active}
-              onClick={() => changeTab(tab.id)}
-              className={[
-                "rounded-lg py-1.5 text-xs font-black transition",
-                active
-                  ? "bg-white text-wood shadow-sm"
-                  : "text-wood/60 hover:bg-white/60",
-              ].join(" ")}
-            >
-              {tab.label}
-            </button>
-          );
-        })}
-      </div>
+      {classOnly ? null : (
+        <div
+          className="grid grid-cols-3 gap-1 bg-wood/5 p-1.5"
+          role="tablist"
+          aria-label="랭킹 범위"
+        >
+          {TABS.map((tab) => {
+            const active = board.tab === tab.id;
+            return (
+              <button
+                key={tab.id}
+                type="button"
+                role="tab"
+                aria-selected={active}
+                onClick={() => changeTab(tab.id)}
+                className={[
+                  "rounded-lg py-1.5 text-xs font-black transition",
+                  active
+                    ? "bg-white text-wood shadow-sm"
+                    : "text-wood/60 hover:bg-white/60",
+                ].join(" ")}
+              >
+                {tab.label}
+              </button>
+            );
+          })}
+        </div>
+      )}
 
-      <div className="max-h-80 overflow-y-auto p-3">
-        {isPending ? (
-          <p className="py-6 text-center text-xs text-foreground/40">
-            불러오는 중…
-          </p>
-        ) : board.tab === "world" ? (
-          <StudentRows rows={board.students} showSchool />
-        ) : board.tab === "school" && !showSchoolStudents ? (
-          board.schools.length === 0 ? (
-            <p className="py-6 text-center text-xs text-foreground/40">
-              학교가 등록되면 대항전이 열려요
-            </p>
-          ) : (
-            <ol className="space-y-1">
-              {board.schools.map((row: HofSchoolRow) => (
-                <li key={row.schoolInfoId}>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setDrillSchool(true);
-                      load("school", row.schoolInfoId, board.selectedClassId);
-                    }}
-                    className={[
-                      "flex w-full items-center gap-2 rounded-xl px-2 py-1.5 text-left transition hover:bg-gold/20",
-                      row.isMine ? "bg-mint/35 ring-1 ring-mint/50" : "bg-wood/5",
-                    ].join(" ")}
-                  >
-                    <RankBadge rank={row.rank} />
-                    <span className="min-w-0 flex-1">
-                      <span className="block truncate text-sm font-bold">
-                        {row.schoolName}
-                        {row.isMine ? (
-                          <span className="ml-1 text-[10px] text-wood/60">
-                            (우리)
-                          </span>
-                        ) : null}
-                      </span>
-                      <span className="text-[10px] text-foreground/45">
-                        {row.studentCount}명
-                        {row.region ? ` · ${row.region}` : ""}
-                      </span>
-                    </span>
-                    <span className="shrink-0 font-display text-xs tabular-nums text-wood">
-                      {formatXp(row.totalXp)}
-                    </span>
-                  </button>
-                </li>
-              ))}
-            </ol>
-          )
-        ) : board.tab === "class" && !showClassStudents ? (
-          board.classes.length === 0 ? (
-            <p className="py-6 text-center text-xs text-foreground/40">
-              아직 학급 순위가 없어요
-            </p>
-          ) : (
-            <ol className="space-y-1">
-              {board.classes.map((row: HofClassRow) => (
-                <li key={row.classId}>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setDrillClass(true);
-                      load("class", board.selectedSchoolId, row.classId);
-                    }}
-                    className={[
-                      "flex w-full items-center gap-2 rounded-xl px-2 py-1.5 text-left transition hover:bg-gold/20",
-                      row.isMine ? "bg-mint/35 ring-1 ring-mint/50" : "bg-wood/5",
-                    ].join(" ")}
-                  >
-                    <RankBadge rank={row.rank} />
-                    <span className="min-w-0 flex-1">
-                      <span className="block truncate text-sm font-bold">
-                        {row.className}
-                        {row.isMine ? (
-                          <span className="ml-1 text-[10px] text-wood/60">
-                            (우리)
-                          </span>
-                        ) : null}
-                      </span>
-                      <span className="block truncate text-[10px] text-foreground/45">
-                        {row.schoolName
-                          ? `${row.schoolName} · ${row.studentCount}명`
-                          : `${row.studentCount}명`}
-                      </span>
-                    </span>
-                    <span className="shrink-0 font-display text-xs tabular-nums text-wood">
-                      {formatXp(row.totalXp)}
-                    </span>
-                  </button>
-                </li>
-              ))}
-            </ol>
-          )
-        ) : (
-          <div>
-            {board.tab === "school" && !lockClassId ? (
-              <button
-                type="button"
-                onClick={() => setDrillSchool(false)}
-                className="mb-2 text-[11px] font-bold text-wood/70 underline-offset-2 hover:underline"
-              >
-                ← 학교 대항전
-              </button>
-            ) : null}
-            {board.tab === "class" && !lockClassId ? (
-              <button
-                type="button"
-                onClick={() => setDrillClass(false)}
-                className="mb-2 text-[11px] font-bold text-wood/70 underline-offset-2 hover:underline"
-              >
-                ← 학급 대항전
-              </button>
-            ) : null}
-            <p className="mb-2 truncate text-[11px] font-semibold text-foreground/50">
-              {board.tab === "school"
-                ? (selectedSchool?.schoolName ?? "학교 학생")
-                : (selectedClass?.className ?? "학급 학생")}
-            </p>
-            <StudentRows
-              rows={board.students}
-              showSchool={board.tab !== "class"}
-            />
-          </div>
-        )}
+      {classChips}
+
+      <div
+        className={[
+          "overflow-y-auto p-3",
+          fillHeight ? "min-h-0 flex-1" : "max-h-80",
+        ].join(" ")}
+      >
+        {body}
       </div>
     </article>
   );

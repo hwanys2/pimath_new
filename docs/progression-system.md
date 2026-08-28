@@ -116,7 +116,7 @@ await submitGameRun({ contentKey: "g1-u1-1-prime-hunt", score });
 
 ### 3.2 명예의 전당 · 누적 XP 랭킹
 
-공개 메인(`/`)·학생 `/adventure`·교사 `/teacher`에서 **누적 `total_xp`** 로 전체·학교·학급 순위를 보여 준다.
+공개 메인(`/`)·학생 `/adventure`에서 **누적 `total_xp`** 로 전체·학교·학급 순위를 보여 준다. 교사 학급 상세의 **포인트 순위** 탭은 해당 학급(여러 학급이면 탭 안 선택) 학생 순위만 보여 준다.
 
 | 구분 | 데이터 | UI |
 |------|--------|-----|
@@ -199,7 +199,7 @@ await submitGameRun({ contentKey: "g1-u1-1-prime-hunt", score });
 | `pm_teacher_schools` | 교사 학교 스냅샷 |
 | `pm_list_hof_*` / `pm_get_hof_viewer` | 명예의 전당 |
 
-UI: `/` · `/adventure` · `/teacher` 명예의 전당. 게임 결과 화면에서 콘텐츠별 월드·학교(같은 선생님)·학급 랭킹.
+UI: `/` · `/adventure`(캐릭터 옆) · 학급 상세 `?tab=ranking`. 게임 결과 화면에서 콘텐츠별 월드·학교(같은 선생님)·학급 랭킹.
 
 ---
 
@@ -224,3 +224,4 @@ UI: `/` · `/adventure` · `/teacher` 명예의 전당. 게임 결과 화면에�
 | 2026-07-21 | 대전 게임 매칭 규칙 → [`content-system.md`](content-system.md) §5.4 참조 |
 | 2026-07-22 | 1:1 대전 구현 가이드 → [`pvp-matchmaking.md`](pvp-matchmaking.md) 참조 |
 | 2026-08-28 | 명예의 전당: 실제 학교 스냅샷 · 학교/학급 대항전 · 타학교 이름 마스킹 |
+| 2026-08-28 | 학교 `student_count`는 등록 전원. 교사 포인트 순위는 학급 탭. 학생은 캐릭터와 같은 행 |

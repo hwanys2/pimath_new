@@ -3,12 +3,13 @@
 import { useRouter, useSearchParams } from "next/navigation";
 import { useCallback, type ReactNode } from "react";
 
-export type ClassDetailTab = "content" | "results" | "roster";
+export type ClassDetailTab = "content" | "results" | "roster" | "ranking";
 
 const TABS: { id: ClassDetailTab; label: string }[] = [
   { id: "content", label: "수업 콘텐츠" },
   { id: "results", label: "학습 결과" },
   { id: "roster", label: "학생 명단" },
+  { id: "ranking", label: "포인트 순위" },
 ];
 
 type Props = {
@@ -16,7 +17,7 @@ type Props = {
 };
 
 function parseTab(raw: string | null): ClassDetailTab {
-  if (raw === "results" || raw === "roster") return raw;
+  if (raw === "results" || raw === "roster" || raw === "ranking") return raw;
   return "content";
 }
 

@@ -49,8 +49,13 @@ export default async function ClassDetailPage({ params }: Props) {
     notFound();
   }
 
-  const [{ data: students, error: studentError }, assignments, origin, hof] =
-    await Promise.all([
+  const [
+    { data: students, error: studentError },
+    assignments,
+    origin,
+    hof,
+    { data: teacherClasses },
+  ] = await Promise.all([
       withStudentRosterOrder(
         supabase
           .from("pm_students")
@@ -60,6 +65,11 @@ export default async function ClassDetailPage({ params }: Props) {
       fetchClassContentAssignments(classId),
       getAuthOrigin(),
       fetchHofBoard({ tab: "class", classId, lockClassId: classId }),
+      supabase
+        .from("pm_classes")
+        .select("id, name")
+        .eq("teacher_id", teacher.id)
+        .order("created_at", { ascending: false }),
     ]);
 
   const activityOverview = await fetchClassActivityOverview(
@@ -90,10 +100,6 @@ export default async function ClassDetailPage({ params }: Props) {
           {klass.grade ? `중${klass.grade} · ` : ""}
           학생 {(students ?? []).length}명
         </p>
-      </div>
-
-      <div className="max-w-sm">
-        <HallOfFame initial={hof} lockClassId={classId} />
       </div>
 
       <section className="quest-card p-5 sm:p-6">
@@ -155,6 +161,25 @@ export default async function ClassDetailPage({ params }: Props) {
                   </div>
                 </div>
                 <BulkStudentImport classId={classId} />
+              </div>
+            ),
+            ranking: (
+              <div>
+                <p className="text-sm text-foreground/65">
+                  학급 학생의 누적 포인트 순위예요. 학급이 여러 개면 위에서
+                  골라 볼 수 있어요.
+                </p>
+                <div className="mt-4 max-w-lg">
+                  <HallOfFame
+                    initial={hof}
+                    lockClassId={classId}
+                    classOnly
+                    myClasses={(teacherClasses ?? []).map((c) => ({
+                      id: c.id,
+                      name: c.name,
+                    }))}
+                  />
+                </div>
               </div>
             ),
           }}

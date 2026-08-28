@@ -1,7 +1,7 @@
 "use client";
 
 import Image from "next/image";
-import { useActionState } from "react";
+import { useActionState, type ReactNode } from "react";
 import {
   selectAvatar,
   type AdventureActionResult,
@@ -32,6 +32,7 @@ type Props = {
   schoolRank: number | null;
   classRank: number | null;
   schoolName: string | null;
+  rankingSlot?: ReactNode;
 };
 
 const empty: AdventureActionResult = {};
@@ -60,6 +61,7 @@ export default function AdventureProfile({
   schoolRank,
   classRank,
   schoolName,
+  rankingSlot,
 }: Props) {
   const [avatarState, avatarAction, avatarPending] = useActionState(
     selectAvatar,
@@ -108,8 +110,15 @@ export default function AdventureProfile({
         </p>
       ) : null}
 
-      <section className="quest-card grid gap-6 p-5 sm:grid-cols-[minmax(0,240px)_1fr] sm:p-8">
-        <div className="relative mx-auto aspect-[3/4] w-full max-w-[220px]">
+      <div
+        className={
+          rankingSlot
+            ? "grid items-stretch gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(16rem,22rem)]"
+            : undefined
+        }
+      >
+        <section className="quest-card grid h-full gap-6 p-5 sm:grid-cols-[minmax(0,240px)_1fr] sm:p-8">
+          <div className="relative mx-auto aspect-[3/4] w-full max-w-[220px]">
             <Image
               src={avatar.image}
               alt={avatar.title}
@@ -163,7 +172,9 @@ export default function AdventureProfile({
               </p>
             )}
           </div>
-      </section>
+        </section>
+        {rankingSlot}
+      </div>
 
       <section className="quest-card overflow-hidden p-5 sm:p-6">
         <div className="flex flex-wrap items-end justify-between gap-2">

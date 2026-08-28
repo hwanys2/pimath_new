@@ -12,6 +12,11 @@ const LINKS = [
     label: "명단 관리",
     href: (classId: string) => `/teacher/classes/${classId}?tab=roster`,
   },
+  {
+    tab: "ranking",
+    label: "포인트 순위",
+    href: (classId: string) => `/teacher/classes/${classId}?tab=ranking`,
+  },
 ] as const;
 
 export default function ClassQuickNav({ classId }: { classId: string }) {
