@@ -12,11 +12,10 @@ import ClassContentManager from "@/components/teacher/ClassContentManager";
 import ClassActivitySummary from "@/components/teacher/ClassActivitySummary";
 import ClassDetailTabs from "@/components/teacher/ClassDetailTabs";
 import DeleteClassButton from "@/components/teacher/DeleteClassButton";
-import HallOfFame from "@/components/hall-of-fame/HallOfFame";
+import ClassPointRanking from "@/components/teacher/ClassPointRanking";
 import { fetchClassActivityOverview } from "@/lib/activity-results";
 import { getAuthOrigin } from "@/lib/auth-origin";
 import { withStudentRosterOrder } from "@/lib/students";
-import { fetchHofBoard } from "@/lib/hall-of-fame";
 
 type Props = {
   params: Promise<{ classId: string }>;
@@ -53,8 +52,6 @@ export default async function ClassDetailPage({ params }: Props) {
     { data: students, error: studentError },
     assignments,
     origin,
-    hof,
-    { data: teacherClasses },
   ] = await Promise.all([
       withStudentRosterOrder(
         supabase
@@ -64,12 +61,6 @@ export default async function ClassDetailPage({ params }: Props) {
       ),
       fetchClassContentAssignments(classId),
       getAuthOrigin(),
-      fetchHofBoard({ tab: "class", classId, lockClassId: classId }),
-      supabase
-        .from("pm_classes")
-        .select("id, name")
-        .eq("teacher_id", teacher.id)
-        .order("created_at", { ascending: false }),
     ]);
 
   const activityOverview = await fetchClassActivityOverview(
@@ -164,23 +155,10 @@ export default async function ClassDetailPage({ params }: Props) {
               </div>
             ),
             ranking: (
-              <div>
-                <p className="text-sm text-foreground/65">
-                  학급 학생의 누적 포인트 순위예요. 학급이 여러 개면 위에서
-                  골라 볼 수 있어요.
-                </p>
-                <div className="mt-4 max-w-lg">
-                  <HallOfFame
-                    initial={hof}
-                    lockClassId={classId}
-                    classOnly
-                    myClasses={(teacherClasses ?? []).map((c) => ({
-                      id: c.id,
-                      name: c.name,
-                    }))}
-                  />
-                </div>
-              </div>
+              <ClassPointRanking
+                className={klass.name}
+                students={students ?? []}
+              />
             ),
           }}
         />

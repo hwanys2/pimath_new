@@ -48,7 +48,7 @@ export default function TeacherSchoolPicker({ initial }: Props) {
   };
 
   return (
-    <section className="quest-card p-5 sm:p-6">
+    <section className="quest-card h-full p-5 sm:p-6">
       <h2 className="font-display text-xl text-wood">우리 학교</h2>
       {school ? (
         <p className="mt-2 text-sm text-foreground/70">

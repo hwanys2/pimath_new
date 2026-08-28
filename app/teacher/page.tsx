@@ -6,8 +6,9 @@ import CreateClassForm from "@/components/teacher/CreateClassForm";
 import ClassQuickNav from "@/components/teacher/ClassQuickNav";
 import DeleteClassButton from "@/components/teacher/DeleteClassButton";
 import TeacherSchoolPicker from "@/components/teacher/TeacherSchoolPicker";
+import HallOfFame from "@/components/hall-of-fame/HallOfFame";
 import { fetchClassTodayActivityCounts } from "@/lib/activity-results";
-import { fetchMyTeacherSchool } from "@/lib/hall-of-fame";
+import { fetchHofBoard, fetchMyTeacherSchool } from "@/lib/hall-of-fame";
 
 export const metadata: Metadata = {
   title: "내 학급 | 수학하는 즐거움",
@@ -18,13 +19,14 @@ export default async function TeacherPage() {
   const teacher = await requireTeacher();
   const supabase = await createClient();
 
-  const [{ data: classes, error }, teacherSchool] = await Promise.all([
+  const [{ data: classes, error }, teacherSchool, hof] = await Promise.all([
     supabase
       .from("pm_classes")
       .select("id, name, grade, created_at")
       .eq("teacher_id", teacher.id)
       .order("created_at", { ascending: false }),
     fetchMyTeacherSchool(),
+    fetchHofBoard({ tab: "world" }),
   ]);
 
   if (error) {
@@ -67,14 +69,21 @@ export default async function TeacherPage() {
         </p>
       </header>
 
-      <div className="grid items-start gap-5 lg:grid-cols-2">
-        <TeacherSchoolPicker initial={teacherSchool} />
-        <section className="quest-card p-5 sm:p-6">
-          <h2 className="font-display text-xl text-wood">새 학급</h2>
-          <div className="mt-4">
-            <CreateClassForm />
-          </div>
-        </section>
+      <div className="grid grid-cols-1 gap-5 lg:grid-cols-2 lg:[grid-template-areas:'school_hof'_'create_hof']">
+        <div className="lg:[grid-area:school]">
+          <TeacherSchoolPicker initial={teacherSchool} />
+        </div>
+        <div className="lg:[grid-area:create]">
+          <section className="quest-card h-full p-5 sm:p-6">
+            <h2 className="font-display text-xl text-wood">새 학급</h2>
+            <div className="mt-4">
+              <CreateClassForm />
+            </div>
+          </section>
+        </div>
+        <div className="flex h-full min-h-[28rem] flex-col lg:[grid-area:hof]">
+          <HallOfFame initial={hof} fillHeight />
+        </div>
       </div>
 
       <section>
