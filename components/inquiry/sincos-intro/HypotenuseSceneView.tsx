@@ -6,6 +6,7 @@ import {
   clampBaseT,
   type HypScene,
 } from "@/lib/inquiry-sincos-intro";
+import { clientToSvgUser } from "@/lib/svg-pointer";
 
 const VB_W = 440;
 const VB_H = 276;
@@ -32,11 +33,7 @@ function clientToVb(
   clientX: number,
   clientY: number,
 ): { x: number; y: number } {
-  const rect = svg.getBoundingClientRect();
-  return {
-    x: ((clientX - rect.left) / rect.width) * VB_W,
-    y: ((clientY - rect.top) / rect.height) * VB_H,
-  };
+  return clientToSvgUser(svg, clientX, clientY) ?? { x: 0, y: 0 };
 }
 
 function KiteArt({ x, y, s = 1 }: { x: number; y: number; s?: number }) {

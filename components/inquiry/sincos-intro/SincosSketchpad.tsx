@@ -37,6 +37,7 @@ import {
   type SketchpadPersisted,
 } from "@/lib/inquiry-sketch-persist";
 import { AngleDegreeMark } from "@/components/inquiry/tangent-intro/SketchOverlays";
+import { clientToSvgUser } from "@/lib/svg-pointer";
 
 type Tool = "segment" | "perp" | "angle" | "measure" | "move" | "erase";
 
@@ -159,11 +160,9 @@ export default function SincosSketchpad({
   const clientToGrid = (e: { clientX: number; clientY: number }): Vec2 | null => {
     const svg = svgRef.current;
     if (!svg) return null;
-    const rect = svg.getBoundingClientRect();
-    if (rect.width < 4 || rect.height < 4) return null;
-    const x = ((e.clientX - rect.left) / rect.width) * VIEW_W + -PAD_X;
-    const y = ((e.clientY - rect.top) / rect.height) * VIEW_H + -PAD_Y;
-    return fromSvg(x, y);
+    const local = clientToSvgUser(svg, e.clientX, e.clientY);
+    if (!local) return null;
+    return fromSvg(local.x, local.y);
   };
 
   const applySnap = useCallback(
