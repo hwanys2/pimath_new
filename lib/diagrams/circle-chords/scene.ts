@@ -102,6 +102,16 @@ function norm(a: Vec): Vec {
   if (l < 1e-9) return { x: 1, y: 0 };
   return { x: a.x / l, y: a.y / l };
 }
+function dot(a: Vec, b: Vec): number {
+  return a.x * b.x + a.y * b.y;
+}
+/** Unit perpendicular to `along`, on the same side as `toward`. */
+function perpToward(along: Vec, toward: Vec): Vec {
+  const dir = norm(along);
+  let p: Vec = { x: -dir.y, y: dir.x };
+  if (dot(p, toward) < 0) p = { x: -p.x, y: -p.y };
+  return p;
+}
 function rot(a: Vec, deg: number): Vec {
   const r = (deg * Math.PI) / 180;
   const c = Math.cos(r);
@@ -195,7 +205,7 @@ function angleOnArc(ang: number, a0: number, a1: number, ccw: boolean): boolean 
   return ccwSpan(a1, ang) <= ccwSpan(a1, a0) + 1e-6;
 }
 
-/** Circular arc through A,B with signed sagitta along unit perpendicular u. */
+/** Circular arc through A,B with signed sagitta on the `u` side of AB. */
 function sagittaArc(
   a: Vec,
   b: Vec,
@@ -205,13 +215,14 @@ function sagittaArc(
   const span = len(sub(b, a));
   const s = sagitta;
   if (span < 2 || Math.abs(s) < 0.75) return null;
+  const n = perpToward(sub(b, a), u);
   const mid = mul(add(a, b), 0.5);
   const half = span / 2;
   const r = (half * half + s * s) / (2 * Math.abs(s));
-  const C = add(mid, mul(u, s - Math.sign(s) * r));
+  const C = add(mid, mul(n, s - Math.sign(s) * r));
   const a0 = Math.atan2(a.y - C.y, a.x - C.x);
   const a1 = Math.atan2(b.y - C.y, b.x - C.x);
-  const peak = add(mid, mul(u, s));
+  const peak = add(mid, mul(n, s));
   const aS = Math.atan2(peak.y - C.y, peak.x - C.x);
   const sOnIncreasing = ccwSpan(a0, aS) <= ccwSpan(a0, a1) + 1e-6;
   const ccw = !sOnIncreasing;
@@ -231,8 +242,8 @@ function dimArc(
   fontSize: number,
 ): void {
   if (!label) return;
-  const u = norm(outward);
   const along = norm(sub(b, a));
+  const u = perpToward(along, outward);
   const span = len(sub(b, a));
   const mid = mul(add(a, b), 0.5);
   const margin = Math.min(span * 0.14, 26);
@@ -771,7 +782,7 @@ export function measureFrame(
     const along = norm(sub(b, a));
     return {
       along,
-      outward: norm(out),
+      outward: perpToward(along, out),
       halfSpan: len(sub(b, a)) / 2,
     };
   }
