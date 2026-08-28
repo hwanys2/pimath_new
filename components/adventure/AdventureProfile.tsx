@@ -173,7 +173,9 @@ export default function AdventureProfile({
             )}
           </div>
         </section>
-        {rankingSlot}
+        {rankingSlot ? (
+          <div className="h-full min-h-0">{rankingSlot}</div>
+        ) : null}
       </div>
 
       <section className="quest-card overflow-hidden p-5 sm:p-6">

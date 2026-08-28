@@ -66,11 +66,7 @@ export default async function AdventurePage() {
         schoolRank={hof.viewer.schoolRank}
         classRank={hof.viewer.classRank}
         schoolName={hof.viewer.schoolName}
-        rankingSlot={
-          <div className="h-full min-h-0">
-            <HallOfFame initial={hof} fillHeight />
-          </div>
-        }
+        rankingSlot={<HallOfFame initial={hof} fillHeight />}
       />
     </div>
   );
