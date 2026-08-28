@@ -392,6 +392,12 @@ export function chordAngleDeg(chord: ChordDraft): number {
   return CARDINAL_ANGLE[chord.cardinal] + chord.tiltDeg;
 }
 
+export function labelUnknownLetter(label: MeasLabel, fallback: string): string {
+  const fromLabel = label.custom.trim();
+  if (/^[A-Za-z]$/.test(fromLabel)) return fromLabel;
+  return fallback.trim() || "x";
+}
+
 export function resolveLabelText(
   label: MeasLabel,
   autoValue: number,
@@ -401,7 +407,7 @@ export function resolveLabelText(
   if (label.mode === "hide") return null;
   if (label.mode === "x") {
     const u = unit.trim();
-    const math = `$${unknownLetter.trim() || "x"}$`;
+    const math = `$${labelUnknownLetter(label, unknownLetter)}$`;
     return u ? `${math} ${u}` : math;
   }
   if (label.mode === "custom") {

@@ -226,6 +226,19 @@ export function LabelModeRow({
           </button>
         ))}
       </div>
+      {mode === "x" ? (
+        <input
+          type="text"
+          maxLength={1}
+          value={/^[A-Za-z]$/.test(custom.trim()) ? custom.trim() : unknownLetter}
+          onChange={(e) => {
+            const next = e.target.value.trim();
+            onCustom(/^[A-Za-z]$/.test(next) ? next : "");
+          }}
+          aria-label={`${title} 문자`}
+          className="mt-1.5 w-12 rounded-lg border-2 border-wood/20 bg-white px-2 py-1.5 text-center text-sm outline-none focus:border-wood"
+        />
+      ) : null}
       {mode === "custom" ? (
         <input
           type="text"

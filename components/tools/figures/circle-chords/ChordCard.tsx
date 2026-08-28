@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  labelUnknownLetter,
   type Cardinal,
   type ChordDraft,
   type ChordLock,
@@ -235,7 +236,7 @@ export default function ChordCard({
           title="현의 길이"
           mode={chord.chordLabel.mode}
           custom={chord.chordLabel.custom}
-          unknownLetter={unknownLetter}
+          unknownLetter={labelUnknownLetter(chord.chordLabel, unknownLetter)}
           onMode={(mode: LabelMode) => setLabel("chordLabel", { mode })}
           onCustom={(custom) => setLabel("chordLabel", { custom })}
         />
@@ -243,7 +244,7 @@ export default function ChordCard({
           title="중심 거리"
           mode={chord.distLabel.mode}
           custom={chord.distLabel.custom}
-          unknownLetter={unknownLetter}
+          unknownLetter={labelUnknownLetter(chord.distLabel, unknownLetter)}
           onMode={(mode) => setLabel("distLabel", { mode })}
           onCustom={(custom) => setLabel("distLabel", { custom })}
         />
@@ -252,7 +253,7 @@ export default function ChordCard({
             title="반길이"
             mode={chord.halfLabel.mode}
             custom={chord.halfLabel.custom}
-            unknownLetter={unknownLetter}
+            unknownLetter={labelUnknownLetter(chord.halfLabel, unknownLetter)}
             onMode={(mode) => setLabel("halfLabel", { mode })}
             onCustom={(custom) => setLabel("halfLabel", { custom })}
           />
@@ -262,7 +263,10 @@ export default function ChordCard({
             title={`${chord.startName} 반지름`}
             mode={chord.radiusStartLabel.mode}
             custom={chord.radiusStartLabel.custom}
-            unknownLetter={unknownLetter}
+            unknownLetter={labelUnknownLetter(
+              chord.radiusStartLabel,
+              unknownLetter,
+            )}
             onMode={(mode) => setLabel("radiusStartLabel", { mode })}
             onCustom={(custom) => setLabel("radiusStartLabel", { custom })}
           />
@@ -272,7 +276,10 @@ export default function ChordCard({
             title={`${chord.endName} 반지름`}
             mode={chord.radiusEndLabel.mode}
             custom={chord.radiusEndLabel.custom}
-            unknownLetter={unknownLetter}
+            unknownLetter={labelUnknownLetter(
+              chord.radiusEndLabel,
+              unknownLetter,
+            )}
             onMode={(mode) => setLabel("radiusEndLabel", { mode })}
             onCustom={(custom) => setLabel("radiusEndLabel", { custom })}
           />

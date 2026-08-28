@@ -16,9 +16,11 @@ import {
   CIRCLE_CHORD_PRESETS,
   cloneState,
   DEFAULT_CIRCLE_CHORDS_STATE,
+  labelUnknownLetter,
   withSnappedChords,
   type CircleChordsState,
   type ChordDraft,
+  type MeasLabel,
 } from "@/lib/diagrams/circle-chords/model";
 import { buildCircleChordsScene } from "@/lib/diagrams/circle-chords/scene";
 import {
@@ -362,10 +364,7 @@ export default function CircleChordsStudio() {
                   >
                     {state.centerName || "O"}
                     {selected.startName} 길이
-                    {labelModeHint(
-                      selected.radiusStartLabel.mode,
-                      state.unknownLetter,
-                    )}
+                    {labelModeHint(selected.radiusStartLabel, state.unknownLetter)}
                   </ChipToggle>
                 ) : null}
                 <ChipToggle
@@ -386,10 +385,7 @@ export default function CircleChordsStudio() {
                   >
                     {state.centerName || "O"}
                     {selected.endName} 길이
-                    {labelModeHint(
-                      selected.radiusEndLabel.mode,
-                      state.unknownLetter,
-                    )}
+                    {labelModeHint(selected.radiusEndLabel, state.unknownLetter)}
                   </ChipToggle>
                 ) : null}
                 <ChipToggle
@@ -455,7 +451,7 @@ export default function CircleChordsStudio() {
                     })
                   }
                 >
-                  길이{labelModeHint(selected.chordLabel.mode, state.unknownLetter)}
+                  길이{labelModeHint(selected.chordLabel, state.unknownLetter)}
                 </ChipToggle>
                 <ChipToggle
                   on={selected.distLabel.mode !== "hide"}
@@ -465,7 +461,7 @@ export default function CircleChordsStudio() {
                     })
                   }
                 >
-                  거리{labelModeHint(selected.distLabel.mode, state.unknownLetter)}
+                  거리{labelModeHint(selected.distLabel, state.unknownLetter)}
                 </ChipToggle>
                 {selected.showHalf ? (
                   <ChipToggle
@@ -477,7 +473,7 @@ export default function CircleChordsStudio() {
                     }
                   >
                     반 길이
-                    {labelModeHint(selected.halfLabel.mode, state.unknownLetter)}
+                    {labelModeHint(selected.halfLabel, state.unknownLetter)}
                   </ChipToggle>
                 ) : null}
               </div>
@@ -689,12 +685,9 @@ export default function CircleChordsStudio() {
   );
 }
 
-function labelModeHint(
-  mode: ChordDraft["chordLabel"]["mode"],
-  unknown: string,
-): string {
-  if (mode === "x") return ` ${unknown}`;
-  if (mode === "hide") return " 숨김";
-  if (mode === "custom") return " 직접";
+function labelModeHint(label: MeasLabel, unknown: string): string {
+  if (label.mode === "x") return ` ${labelUnknownLetter(label, unknown)}`;
+  if (label.mode === "hide") return " 숨김";
+  if (label.mode === "custom") return " 직접";
   return "";
 }

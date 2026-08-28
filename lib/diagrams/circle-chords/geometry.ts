@@ -239,10 +239,6 @@ export function applyEditedLabel(
       radiusKey && parsed.kind === "number" && parsed.value
         ? Math.max(parsed.value, 0.01)
         : state.radius,
-    unknownLetter:
-      parsed.kind === "unknown" && parsed.unknown
-        ? parsed.unknown
-        : state.unknownLetter,
     chords: state.chords.map((c) => {
       if (c.id !== chordId) {
         if (radiusKey && parsed.kind === "number" && parsed.value) {
@@ -283,7 +279,7 @@ function labelFromParse(
   prev: MeasLabel,
 ): MeasLabel {
   if (parsed.kind === "unknown") {
-    return { ...prev, mode: "x", custom: "" };
+    return { ...prev, mode: "x", custom: parsed.unknown ?? "x" };
   }
   if (parsed.kind === "number") {
     return { ...prev, mode: "auto", custom: "" };
@@ -295,9 +291,9 @@ function labelFromParse(
 }
 
 export function cycleLabelMode(label: MeasLabel): MeasLabel {
-  if (label.mode === "auto") return { ...label, mode: "x", custom: "" };
-  if (label.mode === "x") return { ...label, mode: "hide", custom: "" };
-  return { ...label, mode: "auto", custom: "" };
+  if (label.mode === "auto") return { ...label, mode: "x" };
+  if (label.mode === "x") return { ...label, mode: "hide" };
+  return { ...label, mode: "auto" };
 }
 
 export function mapChord(
