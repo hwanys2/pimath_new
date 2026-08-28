@@ -11,6 +11,7 @@ import type { BoardPoint, Stroke } from "./types";
 import type { PlotView } from "../lib/graph-plot";
 import { drawStrokeOn } from "../lib/board-canvas-draw";
 import { boardPointIdsHitByEraser } from "../lib/board-point-erase";
+import { capturePointer, isPrimaryDrawPointer } from "../lib/board-pointer";
 import {
   applyGraphPoint,
   applyGraphStroke,
@@ -250,10 +251,10 @@ function GraphAnnotateOverlay({
   useEffect(() => () => clearSnapTimer(), []);
 
   const onPointerDown = (e: React.PointerEvent) => {
-    if (!active || e.button !== 0) return;
+    if (!active || !isPrimaryDrawPointer(e)) return;
     e.preventDefault();
     e.stopPropagation();
-    (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+    capturePointer(e.currentTarget, e.pointerId);
     const { x, y } = localXY(e);
 
     if (tool === "point") {

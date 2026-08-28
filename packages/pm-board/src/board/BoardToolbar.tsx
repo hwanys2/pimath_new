@@ -171,7 +171,7 @@ function DockBtn({
       aria-label={label}
       disabled={disabled}
       onClick={onClick}
-      className={`flex h-10 w-10 items-center justify-center rounded-xl transition ${
+      className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl transition ${
         active
           ? "bg-cream text-wood-dark shadow-[0_3px_0_rgba(0,0,0,0.25)]"
           : "text-cream hover:bg-black/20"
@@ -282,8 +282,8 @@ export default function BoardToolbar({
       </div>
 
       {/* Top-right control dock */}
-      <div className="absolute top-3 right-3 z-50">
-        <div className="wood-bar flex items-center gap-1 rounded-2xl px-2 py-1.5">
+      <div className="absolute top-3 right-3 z-50 max-w-[calc(100vw-1.5rem)] pt-[env(safe-area-inset-top,0px)]">
+        <div className="wood-bar flex max-w-full items-center gap-1 overflow-x-auto overscroll-x-contain rounded-2xl px-2 py-1.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
           <DockBtn
             label="이미지 넣기"
             onClick={() => imageInputRef.current?.click()}
@@ -349,7 +349,7 @@ export default function BoardToolbar({
             href={brand.homeHref}
             title="나가기"
             aria-label="나가기"
-            className="flex h-10 w-10 items-center justify-center rounded-xl text-cream transition hover:bg-black/20"
+            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-cream transition hover:bg-black/20"
           >
             <HomeIcon />
           </a>
@@ -428,7 +428,8 @@ export default function BoardToolbar({
       </div>
 
       {/* Bottom-center drawing dock */}
-      <div className="absolute bottom-3 left-1/2 z-50 -translate-x-1/2">
+      <div className="absolute inset-x-2 bottom-3 z-50 flex justify-center pb-[env(safe-area-inset-bottom,0px)]">
+        <div className="relative min-w-0 max-w-full">
         {menu === "shapes" ? (
           <div className="absolute bottom-full left-1/2 mb-2 flex -translate-x-1/2 flex-col gap-1.5 rounded-2xl border-2 border-wood/20 bg-cream p-1.5 shadow-xl">
             <div className="flex gap-1">
@@ -533,7 +534,7 @@ export default function BoardToolbar({
           />
         ) : null}
 
-        <div className="wood-bar flex items-center gap-1 rounded-2xl px-2 py-1.5">
+        <div className="wood-bar flex max-w-full items-center gap-1 overflow-x-auto overscroll-x-contain rounded-2xl px-2 py-1.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
           <DockBtn label="선택·이동" active={tool === "cursor"} onClick={() => setTool("cursor")}>
             <CursorIcon />
           </DockBtn>
@@ -592,7 +593,7 @@ export default function BoardToolbar({
             title="색"
             aria-label="색 고르기"
             onClick={() => toggleMenu("color")}
-            className={`flex h-10 w-10 items-center justify-center rounded-xl transition hover:bg-black/20 ${
+            className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl transition hover:bg-black/20 ${
               menu === "color" ? "bg-black/25" : ""
             }`}
           >
@@ -612,7 +613,7 @@ export default function BoardToolbar({
               else if (tool === "point") toggleMenu("pointSize");
               else toggleMenu("size");
             }}
-            className={`flex h-10 w-10 items-center justify-center rounded-xl text-cream transition hover:bg-black/20 ${
+            className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-cream transition hover:bg-black/20 ${
               menu === "size" || menu === "eraserSize" || menu === "pointSize"
                 ? "bg-black/25"
                 : ""
@@ -641,7 +642,7 @@ export default function BoardToolbar({
                 setArmClear(true);
               }
             }}
-            className={`font-display flex h-10 items-center justify-center gap-1 rounded-xl px-2 text-sm transition ${
+            className={`font-display flex h-10 shrink-0 items-center justify-center gap-1 rounded-xl px-2 text-sm transition ${
               armClear
                 ? "bg-red-500 text-white"
                 : "text-cream hover:bg-black/20"
@@ -650,6 +651,7 @@ export default function BoardToolbar({
             <TrashIcon />
             {armClear ? "확인" : null}
           </button>
+        </div>
         </div>
       </div>
     </>

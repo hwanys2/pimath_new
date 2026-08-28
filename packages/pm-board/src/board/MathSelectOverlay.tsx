@@ -2,6 +2,7 @@
 
 import { useCallback, useRef, useState } from "react";
 import type { BoardRect } from "../lib/board-stroke-bounds";
+import { capturePointer, isPrimaryDrawPointer } from "../lib/board-pointer";
 
 const MIN_SIZE = 40;
 
@@ -20,9 +21,9 @@ export default function MathSelectOverlay({
   const startRef = useRef<{ x: number; y: number } | null>(null);
 
   const onPointerDown = (e: React.PointerEvent) => {
-    if (e.button !== 0) return;
+    if (!isPrimaryDrawPointer(e)) return;
     e.preventDefault();
-    (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+    capturePointer(e.currentTarget, e.pointerId);
     startRef.current = { x: e.clientX, y: e.clientY };
     setRect({ x0: e.clientX, y0: e.clientY, x1: e.clientX, y1: e.clientY });
   };

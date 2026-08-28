@@ -1,6 +1,7 @@
 "use client";
 
 import type { BoardPoint } from "./types";
+import { isPrimaryDrawPointer } from "../lib/board-pointer";
 
 type Props = {
   points: BoardPoint[];
@@ -29,7 +30,7 @@ export default function BoardPointsLayer({
       className={`absolute inset-0 z-[11] ${active ? "pointer-events-auto touch-none" : "pointer-events-none"}`}
       style={{ cursor: active ? "crosshair" : undefined }}
       onPointerDown={(e) => {
-        if (!active || e.button !== 0) return;
+        if (!active || !isPrimaryDrawPointer(e)) return;
         e.preventDefault();
         e.stopPropagation();
         onPlace(e.clientX, e.clientY);

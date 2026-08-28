@@ -5,6 +5,7 @@ import type { BoardPoint, DrawTool, LineKind, Stroke, ToolId } from "./types";
 import { drawStrokeOn, strokeWidth } from "../lib/board-canvas-draw";
 import { boardPointIdsHitByEraser } from "../lib/board-point-erase";
 import { isPalmPointer } from "../lib/board-palm-eraser";
+import { capturePointer, isPrimaryDrawPointer } from "../lib/board-pointer";
 
 export type SnapFn = (x: number, y: number) => { x: number; y: number };
 
@@ -28,6 +29,7 @@ type ActiveStroke = {
   size: number;
   points: number[];
   lineKind?: LineKind;
+  pointerId: number;
 };
 
 export default function DrawingCanvas({
@@ -55,10 +57,13 @@ export default function DrawingCanvas({
   const active =
     tool !== "cursor" && tool !== "point" && !disabled;
 
-  const view = () => ({
-    w: window.innerWidth,
-    h: window.innerHeight,
-  });
+  const view = () => {
+    const wrap = committedRef.current?.parentElement;
+    return {
+      w: wrap?.clientWidth || window.innerWidth,
+      h: wrap?.clientHeight || window.innerHeight,
+    };
+  };
 
   const redrawCommitted = useCallback(() => {
     const canvas = committedRef.current;
@@ -75,20 +80,25 @@ export default function DrawingCanvas({
   useEffect(() => {
     const fit = () => {
       const dpr = window.devicePixelRatio || 1;
+      const wrap = committedRef.current?.parentElement;
+      const w = wrap?.clientWidth || window.innerWidth;
+      const h = wrap?.clientHeight || window.innerHeight;
       for (const canvas of [committedRef.current, liveRef.current]) {
         if (!canvas) continue;
-        const w = window.innerWidth;
-        const h = window.innerHeight;
-        if (canvas.width !== w * dpr || canvas.height !== h * dpr) {
-          canvas.width = w * dpr;
-          canvas.height = h * dpr;
+        if (canvas.width !== Math.round(w * dpr) || canvas.height !== Math.round(h * dpr)) {
+          canvas.width = Math.round(w * dpr);
+          canvas.height = Math.round(h * dpr);
         }
       }
       redrawCommitted();
     };
     fit();
     window.addEventListener("resize", fit);
-    return () => window.removeEventListener("resize", fit);
+    window.visualViewport?.addEventListener("resize", fit);
+    return () => {
+      window.removeEventListener("resize", fit);
+      window.visualViewport?.removeEventListener("resize", fit);
+    };
   }, [redrawCommitted]);
 
   useEffect(() => {
@@ -151,9 +161,9 @@ export default function DrawingCanvas({
   };
 
   const onPointerDown = (e: React.PointerEvent) => {
-    if (!active || e.button !== 0) return;
+    if (!active || !isPrimaryDrawPointer(e)) return;
     e.preventDefault();
-    (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+    capturePointer(e.currentTarget, e.pointerId);
     const drawTool = resolveStrokeTool(e);
     const { x, y } = applySnap(
       Math.round(e.clientX),
@@ -169,12 +179,13 @@ export default function DrawingCanvas({
       size: resolveStrokeSize(drawTool),
       points: [x, y],
       lineKind: drawTool === "line" ? lineKind : undefined,
+      pointerId: e.pointerId,
     };
   };
 
   const onPointerMove = (e: React.PointerEvent) => {
     const cur = currentRef.current;
-    if (!cur) return;
+    if (!cur || cur.pointerId !== e.pointerId) return;
     const snapped = applySnap(
       Math.round(e.clientX),
       Math.round(e.clientY),
@@ -235,9 +246,10 @@ export default function DrawingCanvas({
     }
   };
 
-  const onPointerUp = () => {
+  const onPointerUp = (e?: React.PointerEvent) => {
     const cur = currentRef.current;
     if (!cur) return;
+    if (e && cur.pointerId !== e.pointerId) return;
     currentRef.current = null;
     clearLive();
     let points = cur.points;
@@ -280,6 +292,7 @@ export default function DrawingCanvas({
       onPointerMove={onPointerMove}
       onPointerUp={onPointerUp}
       onPointerCancel={onPointerUp}
+      onLostPointerCapture={onPointerUp}
     >
       <canvas ref={committedRef} className="absolute inset-0 h-full w-full" />
       <canvas ref={liveRef} className="absolute inset-0 h-full w-full" />

@@ -21,6 +21,7 @@ import {
   type NetFoldState,
   type OrbitState,
 } from "../../lib/fold-net";
+import { isPrimaryDrawPointer } from "../../lib/board-pointer";
 
 type DragMode =
   | {
@@ -183,7 +184,7 @@ export default function FoldNetCanvas({
 
   const onPointerDown = useCallback(
     (e: React.PointerEvent) => {
-      if (e.button !== 0) return;
+      if (!isPrimaryDrawPointer(e)) return;
       const p = toLocal(e.clientX, e.clientY);
       const target = e.target as SVGElement;
       const handle = target.dataset.handle;
