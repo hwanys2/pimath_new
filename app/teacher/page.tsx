@@ -1,11 +1,9 @@
 import type { Metadata } from "next";
-import Link from "next/link";
 import { requireTeacher } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import CreateClassForm from "@/components/teacher/CreateClassForm";
-import ClassQuickNav from "@/components/teacher/ClassQuickNav";
-import DeleteClassButton from "@/components/teacher/DeleteClassButton";
 import TeacherSchoolPicker from "@/components/teacher/TeacherSchoolPicker";
+import TeacherClassList from "@/components/teacher/TeacherClassList";
 import HallOfFame from "@/components/hall-of-fame/HallOfFame";
 import { fetchClassTodayActivityCounts } from "@/lib/activity-results";
 import { fetchHofBoard, fetchMyTeacherSchool } from "@/lib/hall-of-fame";
@@ -24,6 +22,7 @@ export default async function TeacherPage() {
       .from("pm_classes")
       .select("id, name, grade, created_at")
       .eq("teacher_id", teacher.id)
+      .order("sort_order", { ascending: true })
       .order("created_at", { ascending: false }),
     fetchMyTeacherSchool(),
     fetchHofBoard({ tab: "world" }),
@@ -95,37 +94,15 @@ export default async function TeacherPage() {
             아직 학급이 없어요. 위에서 첫 학급을 만들어 보세요.
           </p>
         ) : (
-          <ul className="mt-4 grid gap-3 sm:grid-cols-2">
-            {(classes ?? []).map((c) => (
-              <li key={c.id} className="quest-card flex flex-col gap-3 p-5">
-                <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <Link
-                      href={`/teacher/classes/${c.id}`}
-                      className="font-display text-xl text-foreground underline-offset-2 hover:underline"
-                    >
-                      {c.name}
-                    </Link>
-                    <p className="mt-1 text-sm text-foreground/60">
-                      {c.grade ? `중${c.grade} · ` : ""}
-                      학생 {counts[c.id] ?? 0}명
-                      {(todayActivity[c.id] ?? 0) > 0 ? (
-                        <span className="ml-2 rounded-full bg-mint/40 px-2 py-0.5 text-[11px] font-bold text-wood">
-                          오늘 {todayActivity[c.id]}건
-                        </span>
-                      ) : null}
-                    </p>
-                  </div>
-                  <DeleteClassButton
-                    classId={c.id}
-                    name={c.name}
-                    studentCount={counts[c.id] ?? 0}
-                  />
-                </div>
-                <ClassQuickNav classId={c.id} />
-              </li>
-            ))}
-          </ul>
+          <TeacherClassList
+            classes={(classes ?? []).map((c) => ({
+              id: c.id,
+              name: c.name,
+              grade: c.grade,
+              studentCount: counts[c.id] ?? 0,
+              todayActivity: todayActivity[c.id] ?? 0,
+            }))}
+          />
         )}
       </section>
     </div>

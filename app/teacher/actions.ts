@@ -130,6 +130,27 @@ export async function deleteClass(formData: FormData): Promise<void> {
   redirect("/teacher");
 }
 
+export async function reorderClasses(classIds: string[]): Promise<ActionResult> {
+  await requireTeacher();
+  if (classIds.length === 0) return {};
+  if (classIds.some((id) => !id)) return { error: "학급 정보가 없어요." };
+
+  const supabase = await createClient();
+  const { error } = await supabase.rpc("pm_reorder_teacher_classes", {
+    p_class_ids: classIds,
+  });
+
+  if (error) {
+    console.error("[pm] reorderClasses failed:", error.message);
+    return { error: `순서를 저장하지 못했어요. (${mapDbError(error.message)})` };
+  }
+
+  revalidatePath("/teacher");
+  revalidatePath("/teacher", "layout");
+  revalidatePath("/board");
+  return {};
+}
+
 export async function createStudent(
   _prev: ActionResult,
   formData: FormData,

@@ -24,6 +24,7 @@ export async function fetchTeacherAssignContext(
     .from("pm_classes")
     .select("id, name, grade")
     .eq("teacher_id", actor.id)
+    .order("sort_order", { ascending: true })
     .order("created_at", { ascending: false });
 
   if (classError) {
@@ -67,6 +68,16 @@ export async function fetchTeacherAssignContext(
   }
 
   return { classes: options, assignedByContent };
+}
+
+/** Classes that already have this content assigned (담아 둔 학급만). */
+export function assignedClassesForContent(
+  ctx: TeacherAssignContext | null,
+  contentKey: string,
+): TeacherClassOption[] {
+  if (!ctx) return [];
+  const ids = new Set(ctx.assignedByContent[contentKey] ?? []);
+  return ctx.classes.filter((c) => ids.has(c.id));
 }
 
 /** @deprecated use fetchTeacherAssignContext */

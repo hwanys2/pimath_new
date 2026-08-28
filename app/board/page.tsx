@@ -22,6 +22,7 @@ async function fetchRosters(): Promise<ClassRoster[]> {
     .from("pm_classes")
     .select("id, name")
     .eq("teacher_id", actor.id)
+    .order("sort_order", { ascending: true })
     .order("created_at", { ascending: false });
 
   if (classError || !classes || classes.length === 0) {
