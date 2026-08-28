@@ -78,6 +78,7 @@ export default function CircleChordsCanvas({
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const sceneRef = useRef<DiagramScene | null>(null);
   const dragRef = useRef<Drag | null>(null);
+  const hoverRef = useRef<FigureHit | null>(null);
   const pendingDrawRef = useRef<{ x: number; y: number } | null>(null);
   const stateRef = useRef(state);
   const toolRef = useRef(tool);
@@ -113,6 +114,7 @@ export default function CircleChordsCanvas({
       scene,
       current,
       selectedRef.current,
+      hoverRef.current,
       dragRef.current,
       pendingDrawRef.current,
     );
@@ -159,6 +161,20 @@ export default function CircleChordsCanvas({
       x: ((e.clientX - rect.left) / rect.width) * SCENE_WIDTH,
       y: ((e.clientY - rect.top) / rect.height) * SCENE_HEIGHT,
     };
+  }
+
+  function hitScale() {
+    const canvas = canvasRef.current;
+    if (!canvas) return 1;
+    const width = canvas.getBoundingClientRect().width;
+    return width > 1 ? SCENE_WIDTH / width : 1;
+  }
+
+  function hitAt(e: { clientX: number; clientY: number }) {
+    const scene = sceneRef.current;
+    if (!scene) return null;
+    const p = scenePoint(e);
+    return hitTestFigure(stateRef.current, scene, p.x, p.y, hitScale());
   }
 
   function setCursor(value: string) {
@@ -226,7 +242,8 @@ export default function CircleChordsCanvas({
           if (!scene) return;
           const p = scenePoint(e);
           const math = canvasToMath(p, scene.layout);
-          const hit = hitTestFigure(stateRef.current, scene, p.x, p.y);
+          const hit = hitAt(e);
+          hoverRef.current = null;
           const drawing = toolRef.current === "draw";
 
           if (drawing && !isKeepSelectHit(hit)) {
@@ -314,10 +331,7 @@ export default function CircleChordsCanvas({
           }
         }}
         onDoubleClick={(e) => {
-          const scene = sceneRef.current;
-          if (!scene) return;
-          const p = scenePoint(e);
-          const hit = hitTestFigure(stateRef.current, scene, p.x, p.y);
+          const hit = hitAt(e);
           if (hit?.kind !== "point") return;
           if (hit.which === "mid") return;
           const which = hit.which;
@@ -335,9 +349,11 @@ export default function CircleChordsCanvas({
           const p = scenePoint(e);
           const drag = dragRef.current;
           if (!drag) {
-            if (!scene) return;
-            const hit = hitTestFigure(stateRef.current, scene, p.x, p.y);
+            const hit = hitAt(e);
+            const changed = !sameHit(hoverRef.current, hit);
+            hoverRef.current = hit;
             setCursor(cursorForHit(hit, toolRef.current));
+            if (changed) paint();
             return;
           }
 
@@ -481,8 +497,15 @@ export default function CircleChordsCanvas({
 
           e.currentTarget.releasePointerCapture(e.pointerId);
         }}
+        onPointerLeave={() => {
+          if (dragRef.current) return;
+          hoverRef.current = null;
+          setCursor("default");
+          paint();
+        }}
         onPointerCancel={() => {
           dragRef.current = null;
+          hoverRef.current = null;
           setCursor("default");
           persist();
           paint();
@@ -529,6 +552,23 @@ function isKeepSelectHit(hit: FigureHit | null): boolean {
   );
 }
 
+function sameHit(a: FigureHit | null, b: FigureHit | null): boolean {
+  if (a === b) return true;
+  if (!a || !b || a.kind !== b.kind) return false;
+  if (a.kind === "label" || a.kind === "dimLine") {
+    return a.id === (b as { id: string }).id;
+  }
+  if (a.kind === "point") {
+    return (
+      b.kind === "point" && a.chordId === b.chordId && a.which === b.which
+    );
+  }
+  if (a.kind === "chord") {
+    return b.kind === "chord" && a.chordId === b.chordId;
+  }
+  return true;
+}
+
 function chordIdFromLabel(id: string): string | null {
   return parseMeasureId(id)?.chordId ?? null;
 }
@@ -538,8 +578,58 @@ function cursorForHit(hit: FigureHit | null, tool: Tool): string {
   if (!hit) return "default";
   if (hit.kind === "circle") return "crosshair";
   if (hit.kind === "label") return "text";
-  if (hit.kind === "dimLine") return "grab";
   return "grab";
+}
+
+function paintHandle(
+  ctx: CanvasRenderingContext2D,
+  p: { x: number; y: number },
+  selected: boolean,
+  hovered: boolean,
+) {
+  ctx.beginPath();
+  ctx.arc(p.x, p.y, hovered ? 10 : selected ? 8.5 : 7, 0, Math.PI * 2);
+  if (selected || hovered) {
+    ctx.fillStyle = hovered
+      ? "rgba(196, 130, 58, 0.28)"
+      : "rgba(196, 130, 58, 0.18)";
+    ctx.strokeStyle = "rgba(196, 130, 58, 0.9)";
+    ctx.lineWidth = 2.2;
+  } else {
+    ctx.fillStyle = "rgba(255, 255, 255, 0.72)";
+    ctx.strokeStyle = "rgba(17, 17, 17, 0.38)";
+    ctx.lineWidth = 1.4;
+  }
+  ctx.fill();
+  ctx.stroke();
+}
+
+function paintDimHover(
+  ctx: CanvasRenderingContext2D,
+  scene: DiagramScene,
+  id: string,
+) {
+  ctx.save();
+  ctx.strokeStyle = "rgba(196, 130, 58, 0.9)";
+  ctx.lineWidth = 3;
+  ctx.lineCap = "butt";
+  ctx.setLineDash([6, 4]);
+  for (const cmd of scene.cmds) {
+    if (!("id" in cmd) || !cmd.id) continue;
+    const target = cmd.id.endsWith(":line") ? cmd.id.slice(0, -5) : cmd.id;
+    if (target !== id) continue;
+    if (cmd.t === "arc") {
+      ctx.beginPath();
+      ctx.arc(cmd.cx, cmd.cy, cmd.r, cmd.a0, cmd.a1, cmd.ccw);
+      ctx.stroke();
+    } else if (cmd.t === "line" && cmd.dashed) {
+      ctx.beginPath();
+      ctx.moveTo(cmd.x1, cmd.y1);
+      ctx.lineTo(cmd.x2, cmd.y2);
+      ctx.stroke();
+    }
+  }
+  ctx.restore();
 }
 
 function paintOverlays(
@@ -547,34 +637,48 @@ function paintOverlays(
   scene: DiagramScene,
   state: CircleChordsState,
   selectedId: string | null,
+  hover: FigureHit | null,
   drag: Drag | null,
   pending: { x: number; y: number } | null,
 ) {
-  const selected = state.chords.find((c) => c.id === selectedId);
-  if (selected) {
-    const { A, B, M } = chordMath(selected, state.radius);
+  ctx.save();
+  for (const chord of state.chords) {
+    const { A, B, M } = chordMath(chord, state.radius);
     const cA = mathToCanvas(A, scene.layout);
     const cB = mathToCanvas(B, scene.layout);
-    const handles = [cA, cB];
-    if (selected.showMidpoint) {
-      handles.push(mathToCanvas(M, scene.layout));
-    }
-    ctx.save();
-    ctx.strokeStyle = "rgba(196, 130, 58, 0.85)";
-    ctx.fillStyle = "rgba(196, 130, 58, 0.18)";
-    ctx.lineWidth = 2.2;
-    ctx.beginPath();
-    ctx.moveTo(cA.x, cA.y);
-    ctx.lineTo(cB.x, cB.y);
-    ctx.stroke();
-    for (const p of handles) {
+    const selected = chord.id === selectedId;
+    if (selected) {
+      ctx.strokeStyle = "rgba(196, 130, 58, 0.85)";
+      ctx.lineWidth = 2.2;
       ctx.beginPath();
-      ctx.arc(p.x, p.y, 7, 0, Math.PI * 2);
-      ctx.fill();
+      ctx.moveTo(cA.x, cA.y);
+      ctx.lineTo(cB.x, cB.y);
       ctx.stroke();
     }
-    ctx.restore();
+    const handles: { p: { x: number; y: number }; which: "start" | "end" | "mid" }[] =
+      [
+        { p: cA, which: "start" },
+        { p: cB, which: "end" },
+      ];
+    if (chord.showMidpoint) {
+      handles.push({ p: mathToCanvas(M, scene.layout), which: "mid" });
+    }
+    for (const handle of handles) {
+      const hovered =
+        hover?.kind === "point" &&
+        hover.chordId === chord.id &&
+        hover.which === handle.which;
+      paintHandle(ctx, handle.p, selected, hovered);
+    }
   }
+
+  if (hover?.kind === "center") {
+    paintHandle(ctx, scene.layout.origin, false, true);
+  }
+  if (hover?.kind === "dimLine") {
+    paintDimHover(ctx, scene, hover.id);
+  }
+  ctx.restore();
 
   const ghost =
     drag?.t === "draw" ? drag : pending ? { a: pending, b: pending } : null;

@@ -667,43 +667,78 @@ function distToSeg(p: Vec, a: Vec, b: Vec): { d: number; t: number } {
   return { d: Math.hypot(p.x - (a.x + t * dx), p.y - (a.y + t * dy)), t };
 }
 
+type HitCandidate = { hit: FigureHit; d: number; weight: number };
+
+function hitBias(kind: FigureHit["kind"]): number {
+  switch (kind) {
+    case "point":
+    case "center":
+      return 0;
+    case "label":
+      return 8;
+    case "chord":
+      return 20;
+    case "dimLine":
+      return 22;
+    case "circle":
+      return 28;
+  }
+}
+
+function considerHit(
+  best: HitCandidate | null,
+  hit: FigureHit,
+  d: number,
+  max: number,
+): HitCandidate | null {
+  if (d > max) return best;
+  const weight = d + hitBias(hit.kind);
+  if (best && weight >= best.weight) return best;
+  return { hit, d, weight };
+}
+
+/**
+ * Pick what the pointer is on. Points beat overlapping 설명선 ticks;
+ * labels still win when the cursor is on the letter itself.
+ * `hitScale` is scene-px per CSS-px (SCENE_WIDTH / canvas client width).
+ */
 export function hitTestFigure(
   state: CircleChordsState,
   scene: DiagramScene,
   x: number,
   y: number,
+  hitScale = 1,
 ): FigureHit | null {
+  const s = Number.isFinite(hitScale) && hitScale > 0 ? hitScale : 1;
   const p = { x, y };
   const layout = scene.layout;
-  const best: { hit: FigureHit; d: number } = { hit: { kind: "circle" }, d: Infinity };
-
-  function consider(hit: FigureHit, d: number, max: number) {
-    if (d > max || d >= best.d) return;
-    best.hit = hit;
-    best.d = d;
-  }
+  let best: HitCandidate | null = null;
 
   for (const text of scene.texts) {
-    consider(
+    best = considerHit(
+      best,
       { kind: "label", id: text.id },
       Math.hypot(text.x - x, text.y - y),
-      28,
+      18 * s,
     );
   }
 
   for (const cmd of scene.cmds) {
     if (cmd.t === "arc" && cmd.id) {
-      consider(
+      best = considerHit(
+        best,
         { kind: "dimLine", id: measureTargetId(cmd.id) },
         distToArc(p, cmd.cx, cmd.cy, cmd.r, cmd.a0, cmd.a1, cmd.ccw),
-        14,
+        12 * s,
       );
     }
-    if (cmd.t === "line" && cmd.id) {
-      consider(
+    // Only the dashed 설명선 — solid ticks start on the points and steal drags.
+    if (cmd.t === "line" && cmd.id && cmd.dashed) {
+      best = considerHit(
+        best,
         { kind: "dimLine", id: measureTargetId(cmd.id) },
         distToSeg(p, { x: cmd.x1, y: cmd.y1 }, { x: cmd.x2, y: cmd.y2 }).d,
-        12,
+        12 * s,
       );
     }
   }
@@ -719,39 +754,50 @@ export function hitTestFigure(
     const cA = mathToCanvas(A, layout);
     const cB = mathToCanvas(B, layout);
     const cM = mathToCanvas(M, layout);
-    consider(
+    best = considerHit(
+      best,
       { kind: "point", chordId: chord.id, which: "start" },
       Math.hypot(p.x - cA.x, p.y - cA.y),
-      26,
+      26 * s,
     );
-    consider(
+    best = considerHit(
+      best,
       { kind: "point", chordId: chord.id, which: "end" },
       Math.hypot(p.x - cB.x, p.y - cB.y),
-      26,
+      26 * s,
     );
     if (chord.showMidpoint) {
-      consider(
+      best = considerHit(
+        best,
         { kind: "point", chordId: chord.id, which: "mid" },
         Math.hypot(p.x - cM.x, p.y - cM.y),
-        16,
+        22 * s,
       );
     }
     const seg = distToSeg(p, cA, cB);
-    consider({ kind: "chord", chordId: chord.id, t: seg.t }, seg.d, 14);
-  }
-
-  const cO = layout.origin;
-  consider({ kind: "center" }, Math.hypot(p.x - cO.x, p.y - cO.y), 16);
-
-  if (best.d > 22) {
-    consider(
-      { kind: "circle" },
-      Math.abs(Math.hypot(p.x - cO.x, p.y - cO.y) - layout.visualR),
-      16,
+    best = considerHit(
+      best,
+      { kind: "chord", chordId: chord.id, t: seg.t },
+      seg.d,
+      12 * s,
     );
   }
 
-  return best.d === Infinity ? null : best.hit;
+  const cO = layout.origin;
+  best = considerHit(
+    best,
+    { kind: "center" },
+    Math.hypot(p.x - cO.x, p.y - cO.y),
+    20 * s,
+  );
+  best = considerHit(
+    best,
+    { kind: "circle" },
+    Math.abs(Math.hypot(p.x - cO.x, p.y - cO.y) - layout.visualR),
+    14 * s,
+  );
+
+  return best?.hit ?? null;
 }
 
 export function measureFrame(
