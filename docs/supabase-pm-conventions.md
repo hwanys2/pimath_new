@@ -150,6 +150,9 @@ PM_STUDENT_SESSION_SECRET=...  # 서버 전용, 긴 랜덤 문자열
 | `pm_list_game_ranking` | 랭킹 — `world`(전체) / `school`(같은 teacher_id) / `class` × `all`/`best` |
 | `pm_list_class_game_ranking` | (레거시) class 스코프 위임 |
 | `pm_list_xp_ranking` | 어드벤처 누적 XP 랭킹 (`world`/`school`/`class`) — 상위 3 + 내 등수 ±1 |
+| `pm_teacher_schools` | 교사 학교 스냅샷 (`school_info_id` + 이름). 포에듀 `school_schoolinfo`는 읽기만 |
+| `pm_sync_teacher_school_from_foreducator` / `pm_search_schools` / `pm_set_teacher_school` / `pm_get_my_teacher_school` | 학교 연동·검색·선택 |
+| `pm_list_hof_schools` / `pm_list_hof_classes` / `pm_list_hof_students` / `pm_get_hof_viewer` | 명예의 전당 (전체·학교 대항전·학급, 이름 마스킹) |
 | `pm_pvp_rematch_block` | 대전 게임 직전 상대 재매칭 방지 (게임별 20초 쿨다운) |
 | `pm_pvp_record_rematch_block` | 대국 종료 시 양방향 블록 기록 (내부 헬퍼) |
 | `pm_omok_*` / `pm_quad_*` / `pm_sq_*` | 1:1 대전 매칭·게임·랭킹 RPC (오목 / 사각형 / 정사각형) |

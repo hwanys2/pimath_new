@@ -5,7 +5,10 @@ import { createClient } from "@/lib/supabase/server";
 import CreateClassForm from "@/components/teacher/CreateClassForm";
 import ClassQuickNav from "@/components/teacher/ClassQuickNav";
 import DeleteClassButton from "@/components/teacher/DeleteClassButton";
+import TeacherSchoolPicker from "@/components/teacher/TeacherSchoolPicker";
+import HallOfFame from "@/components/hall-of-fame/HallOfFame";
 import { fetchClassTodayActivityCounts } from "@/lib/activity-results";
+import { fetchHofBoard, fetchMyTeacherSchool } from "@/lib/hall-of-fame";
 
 export const metadata: Metadata = {
   title: "내 학급 | 수학하는 즐거움",
@@ -16,11 +19,15 @@ export default async function TeacherPage() {
   const teacher = await requireTeacher();
   const supabase = await createClient();
 
-  const { data: classes, error } = await supabase
-    .from("pm_classes")
-    .select("id, name, grade, created_at")
-    .eq("teacher_id", teacher.id)
-    .order("created_at", { ascending: false });
+  const [{ data: classes, error }, teacherSchool, hof] = await Promise.all([
+    supabase
+      .from("pm_classes")
+      .select("id, name, grade, created_at")
+      .eq("teacher_id", teacher.id)
+      .order("created_at", { ascending: false }),
+    fetchMyTeacherSchool(),
+    fetchHofBoard({ tab: "class" }),
+  ]);
 
   if (error) {
     console.error("[pm] list classes failed:", error.message);
@@ -61,6 +68,9 @@ export default async function TeacherPage() {
           회원가입 없이 바로 로그인할 수 있어요.
         </p>
       </header>
+
+      <TeacherSchoolPicker initial={teacherSchool} />
+      <HallOfFame initial={hof} />
 
       <section className="quest-card p-5 sm:p-6">
         <h2 className="font-display text-xl text-wood">새 학급</h2>

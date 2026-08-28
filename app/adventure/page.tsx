@@ -14,7 +14,8 @@ import {
 import { xpProgressInLevel } from "@/lib/xp";
 import AdventureProfile from "@/components/adventure/AdventureProfile";
 import ClassAssignedContents from "@/components/adventure/ClassAssignedContents";
-import { fetchXpRanking } from "@/lib/xp-ranking";
+import HallOfFame from "@/components/hall-of-fame/HallOfFame";
+import { fetchHofBoard } from "@/lib/hall-of-fame";
 
 export const metadata: Metadata = {
   title: "나의 모험 | 수학하는 즐거움",
@@ -40,15 +41,13 @@ export default async function AdventurePage() {
   const equipped = getEquippedCosmetics(level);
   const unlockedCosmeticIds = getUnlockedCosmetics(level).map((c) => c.id);
 
-  const [assignedContents, xpRanking] = session
-    ? await Promise.all([
-        fetchMyClassContents(session.sessionToken),
-        fetchXpRanking({
-          scope: "class",
-          sessionToken: session.sessionToken,
-        }),
-      ])
-    : [[], []];
+  const [assignedContents, hof] = await Promise.all([
+    session ? fetchMyClassContents(session.sessionToken) : Promise.resolve([]),
+    fetchHofBoard({
+      tab: "class",
+      sessionToken: session?.sessionToken ?? null,
+    }),
+  ]);
 
   return (
     <div className="flex flex-col gap-8">
@@ -63,8 +62,12 @@ export default async function AdventurePage() {
         unlockedIds={unlockedIds}
         equipped={equipped}
         unlockedCosmeticIds={unlockedCosmeticIds}
-        xpRanking={xpRanking}
+        worldRank={hof.viewer.worldRank}
+        schoolRank={hof.viewer.schoolRank}
+        classRank={hof.viewer.classRank}
+        schoolName={hof.viewer.schoolName}
       />
+      <HallOfFame initial={hof} />
     </div>
   );
 }

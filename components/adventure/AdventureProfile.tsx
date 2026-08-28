@@ -17,8 +17,6 @@ import {
   type ResolvedAvatar,
 } from "@/lib/progression";
 import type { LevelProgress } from "@/lib/xp";
-import type { XpRankingRow } from "@/lib/game-types";
-import AdventureXpRanking from "@/components/adventure/AdventureXpRanking";
 
 type Props = {
   displayName: string;
@@ -30,7 +28,10 @@ type Props = {
   unlockedIds: AvatarChoice[];
   equipped: Partial<Record<CosmeticSlot, CosmeticDef>>;
   unlockedCosmeticIds: string[];
-  xpRanking: XpRankingRow[];
+  worldRank: number | null;
+  schoolRank: number | null;
+  classRank: number | null;
+  schoolName: string | null;
 };
 
 const empty: AdventureActionResult = {};
@@ -55,7 +56,10 @@ export default function AdventureProfile({
   unlockedIds,
   equipped,
   unlockedCosmeticIds,
-  xpRanking,
+  worldRank,
+  schoolRank,
+  classRank,
+  schoolName,
 }: Props) {
   const [avatarState, avatarAction, avatarPending] = useActionState(
     selectAvatar,
@@ -78,7 +82,19 @@ export default function AdventureProfile({
         <h1 className="font-display text-3xl text-foreground sm:text-4xl">
           {displayName}의 여정
         </h1>
-        <p className="text-sm text-foreground/60">{className}</p>
+        <p className="text-sm text-foreground/60">
+          {className}
+          {schoolName ? ` · ${schoolName}` : ""}
+        </p>
+        {worldRank || schoolRank || classRank ? (
+          <p className="text-sm font-bold text-wood">
+            {worldRank ? `전체 ${worldRank}위` : null}
+            {schoolRank ? `${worldRank ? " · " : ""}학교 ${schoolRank}위` : null}
+            {classRank
+              ? `${worldRank || schoolRank ? " · " : ""}학급 ${classRank}위`
+              : null}
+          </p>
+        ) : null}
       </header>
 
       {avatarState.message ? (
@@ -92,9 +108,8 @@ export default function AdventureProfile({
         </p>
       ) : null}
 
-      <section className="grid gap-4 lg:grid-cols-[7fr_3fr] lg:gap-5">
-        <div className="quest-card grid gap-6 p-5 sm:grid-cols-[minmax(0,240px)_1fr] sm:p-8">
-          <div className="relative mx-auto aspect-[3/4] w-full max-w-[220px]">
+      <section className="quest-card grid gap-6 p-5 sm:grid-cols-[minmax(0,240px)_1fr] sm:p-8">
+        <div className="relative mx-auto aspect-[3/4] w-full max-w-[220px]">
             <Image
               src={avatar.image}
               alt={avatar.title}
@@ -148,11 +163,6 @@ export default function AdventureProfile({
               </p>
             )}
           </div>
-        </div>
-
-        <aside className="min-h-[280px] lg:min-h-0">
-          <AdventureXpRanking initialRows={xpRanking} initialScope="class" />
-        </aside>
       </section>
 
       <section className="quest-card overflow-hidden p-5 sm:p-6">

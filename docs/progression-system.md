@@ -114,17 +114,27 @@ await submitGameRun({ contentKey: "g1-u1-1-prime-hunt", score });
 - UI: 1차 탭(월드/학교/학급) + 2차 토글(개인 최고/전체 기록). 탑3 포디움 + 리스트.
 - 레거시 `pm_list_class_game_ranking`는 `scope='class'` 위임용으로만 유지한다.
 
-### 3.2 어드벤처 누적 XP 랭킹
+### 3.2 명예의 전당 · 누적 XP 랭킹
 
-`/adventure` 프로필에서는 **누적 `total_xp`** 기준으로 월드·학교·학급 랭킹을 보여 준다.
+공개 메인(`/`)·학생 `/adventure`·교사 `/teacher`에서 **누적 `total_xp`** 로 전체·학교·학급 순위를 보여 준다.
 
 | 구분 | 데이터 | UI |
 |------|--------|-----|
-| 게임 결과 | 해당 `content_key` 한 판 점수 | `GameRankingBoard` |
-| 어드벤처 | 학생 `total_xp` / 레벨 | `AdventureXpRanking` |
+| 게임 결과 | 해당 `content_key` 한 판 점수 | `GameRankingBoard` (학교 = 같은 선생님) |
+| 명예의 전당 | 학생 `total_xp` / 학교·학급 합산 | `HallOfFame` |
 
-- RPC: `pm_list_xp_ranking(session, scope)` — `world` / `school` / `class`
-- 표시: 상위 3명 + 내 등수 ±1 (중복 제거). 순위 틈이 있으면 UI에서 `···`로 구분
+#### 스코프
+
+| 탭 | 내용 |
+|----|------|
+| **전체** | 학생 개인 누적 XP. 학교 이름 표시 |
+| **학교** | 위: 같은 실제 학교(`pm_teacher_schools.school_info_id`) 학생 XP **합** 대항전. 아래: 고른 학교의 학생 개인 순위 |
+| **학급** | 위: 학급 XP 합 대항전. 아래: 고른 학급의 학생 개인 순위 |
+
+- 학교는 포에듀케이터 `common_profile.school_id` → `school_schoolinfo`를 **읽어서** `pm_teacher_schools`에 스냅샷한다. 포에듀 테이블은 쓰지 않는다. 미등록 교사는 pimath에서 NEIS 카탈로그를 검색해 고른다.
+- 이름 마스킹: 비로그인·**다른 학교** 학생은 글자 하나 `*` (`홍길동` → `홍*동`). 로그인 후 같은 학교·같은 학급·본인은 실명. `login_id` / 학생 UUID는 공개 응답에 넣지 않는다.
+- RPC: `pm_list_hof_schools` / `pm_list_hof_classes` / `pm_list_hof_students` / `pm_get_hof_viewer`. 상위 20 + (세션 있으면) 내 등수 ±1.
+- 레거시 `pm_list_xp_ranking`은 유지하되 어드벤처 UI는 명예의 전당을 쓴다.
 
 ---
 
@@ -185,9 +195,11 @@ await submitGameRun({ contentKey: "g1-u1-1-prime-hunt", score });
 | `pm_submit_game_run` | 배정·활성일 때 기록 + XP |
 | `pm_list_game_ranking` | 랭킹 — scope `world`/`school`/`class` × mode `all`/`best` |
 | `pm_list_class_game_ranking` | (레거시) class 스코프 위임 |
-| `pm_list_xp_ranking` | 어드벤처 누적 XP 랭킹 (`world`/`school`/`class`) — 상위 3 + 내 등수 ±1 |
+| `pm_list_xp_ranking` | (레거시) compact 누적 XP 랭킹 |
+| `pm_teacher_schools` | 교사 학교 스냅샷 |
+| `pm_list_hof_*` / `pm_get_hof_viewer` | 명예의 전당 |
 
-UI: `/adventure` (폼 도감 + 장비 + **누적 XP 랭킹**). 게임 결과 화면에서 콘텐츠별 월드·학교·학급 랭킹.
+UI: `/` · `/adventure` · `/teacher` 명예의 전당. 게임 결과 화면에서 콘텐츠별 월드·학교(같은 선생님)·학급 랭킹.
 
 ---
 
@@ -211,3 +223,4 @@ UI: `/adventure` (폼 도감 + 장비 + **누적 XP 랭킹**). 게임 결과 화
 | 2026-07-19 | 점수 소프트 캡(1000 이후 +1) · 어드벤처 누적 XP 랭킹 |
 | 2026-07-21 | 대전 게임 매칭 규칙 → [`content-system.md`](content-system.md) §5.4 참조 |
 | 2026-07-22 | 1:1 대전 구현 가이드 → [`pvp-matchmaking.md`](pvp-matchmaking.md) 참조 |
+| 2026-08-28 | 명예의 전당: 실제 학교 스냅샷 · 학교/학급 대항전 · 타학교 이름 마스킹 |

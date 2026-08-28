@@ -25,4 +25,14 @@ export async function syncForeducatorAccount(
   if (error) {
     console.error("[pm] foreducator account sync failed:", error.message);
   }
+
+  const { error: schoolError } = await supabase.rpc(
+    "pm_sync_teacher_school_from_foreducator",
+  );
+  if (schoolError) {
+    console.error(
+      "[pm] teacher school sync failed:",
+      schoolError.message,
+    );
+  }
 }

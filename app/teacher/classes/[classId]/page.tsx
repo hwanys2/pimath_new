@@ -12,9 +12,11 @@ import ClassContentManager from "@/components/teacher/ClassContentManager";
 import ClassActivitySummary from "@/components/teacher/ClassActivitySummary";
 import ClassDetailTabs from "@/components/teacher/ClassDetailTabs";
 import DeleteClassButton from "@/components/teacher/DeleteClassButton";
+import HallOfFame from "@/components/hall-of-fame/HallOfFame";
 import { fetchClassActivityOverview } from "@/lib/activity-results";
 import { getAuthOrigin } from "@/lib/auth-origin";
 import { withStudentRosterOrder } from "@/lib/students";
+import { fetchHofBoard } from "@/lib/hall-of-fame";
 
 type Props = {
   params: Promise<{ classId: string }>;
@@ -47,7 +49,7 @@ export default async function ClassDetailPage({ params }: Props) {
     notFound();
   }
 
-  const [{ data: students, error: studentError }, assignments, origin] =
+  const [{ data: students, error: studentError }, assignments, origin, hof] =
     await Promise.all([
       withStudentRosterOrder(
         supabase
@@ -57,6 +59,7 @@ export default async function ClassDetailPage({ params }: Props) {
       ),
       fetchClassContentAssignments(classId),
       getAuthOrigin(),
+      fetchHofBoard({ tab: "class", classId, lockClassId: classId }),
     ]);
 
   const activityOverview = await fetchClassActivityOverview(
@@ -88,6 +91,8 @@ export default async function ClassDetailPage({ params }: Props) {
           학생 {(students ?? []).length}명
         </p>
       </div>
+
+      <HallOfFame initial={hof} lockClassId={classId} />
 
       <section className="quest-card p-5 sm:p-6">
         <div className="flex flex-wrap items-center justify-between gap-3">
