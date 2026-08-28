@@ -80,7 +80,11 @@ export default async function TeacherPage() {
           </section>
         </div>
         <div className="flex max-h-[24rem] min-h-0 flex-col overflow-hidden lg:h-0 lg:max-h-none lg:min-h-full">
-          <HallOfFame initial={hof} fillHeight />
+          <HallOfFame
+            initial={hof}
+            fillHeight
+            myClasses={(classes ?? []).map((c) => ({ id: c.id, name: c.name }))}
+          />
         </div>
       </div>
 

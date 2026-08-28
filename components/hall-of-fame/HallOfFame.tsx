@@ -129,16 +129,21 @@ export default function HallOfFame({
 }: Props) {
   const [board, setBoard] = useState(initial);
   const [activeClassId, setActiveClassId] = useState(
-    lockClassId ?? initial.selectedClassId,
+    lockClassId ?? myClasses[0]?.id ?? initial.selectedClassId,
   );
   const [drillSchool, setDrillSchool] = useState(false);
   const [drillClass, setDrillClass] = useState(
     initial.tab === "class" &&
-      (Boolean(lockClassId) || classOnly || initial.viewer.kind !== "anon"),
+      (Boolean(lockClassId) ||
+        classOnly ||
+        initial.viewer.kind === "student" ||
+        myClasses.length > 0),
   );
   const [isPending, startTransition] = useTransition();
 
-  const effectiveLock = classOnly ? activeClassId : lockClassId;
+  const teacherClassId =
+    activeClassId ?? myClasses[0]?.id ?? null;
+  const effectiveLock = classOnly ? teacherClassId : lockClassId;
 
   const load = (
     tab: HofTab,
@@ -159,10 +164,18 @@ export default function HallOfFame({
   const changeTab = (tab: HofTab) => {
     if (tab === board.tab) return;
     setDrillSchool(false);
-    setDrillClass(
-      tab === "class" &&
-        (Boolean(lockClassId) || classOnly || board.viewer.kind !== "anon"),
-    );
+    if (tab === "class") {
+      const classId =
+        lockClassId ??
+        teacherClassId ??
+        (board.viewer.kind === "student" ? board.selectedClassId : null);
+      const shouldDrill = Boolean(classId) || classOnly;
+      setDrillClass(shouldDrill);
+      if (classId) setActiveClassId(classId);
+      load(tab, board.selectedSchoolId, classId);
+      return;
+    }
+    setDrillClass(false);
     load(tab, board.selectedSchoolId, effectiveLock ?? board.selectedClassId);
   };
 
@@ -184,34 +197,29 @@ export default function HallOfFame({
   const showClassStudents =
     board.tab === "class" && (drillClass || classOnly);
 
-  const classChips =
-    myClasses.length > 1 ? (
-      <div
-        className="flex flex-wrap gap-1.5 px-3 pt-3"
-        role="tablist"
-        aria-label="내 학급"
-      >
-        {myClasses.map((klass) => {
-          const selected = klass.id === (activeClassId ?? board.selectedClassId);
-          return (
-            <button
-              key={klass.id}
-              type="button"
-              role="tab"
-              aria-selected={selected}
-              onClick={() => pickClass(klass.id)}
-              className={[
-                "rounded-full px-3 py-1 text-[11px] font-bold transition",
-                selected
-                  ? "bg-wood text-cream"
-                  : "bg-wood/10 text-wood/70 hover:bg-wood/15",
-              ].join(" ")}
-            >
+  const selectedClassName =
+    myClasses.find((klass) => klass.id === (activeClassId ?? board.selectedClassId))
+      ?.name ??
+    selectedClass?.className ??
+    "학급 학생";
+
+  const classSelect =
+    myClasses.length > 0 && board.tab === "class" && showClassStudents ? (
+      <label className="flex min-w-0 max-w-[11.5rem] shrink-0 items-center">
+        <span className="sr-only">학급 선택</span>
+        <select
+          value={activeClassId ?? myClasses[0]?.id ?? ""}
+          onChange={(event) => pickClass(event.target.value)}
+          disabled={isPending || Boolean(lockClassId) || myClasses.length < 2}
+          className="w-full truncate rounded-lg border-2 border-wood/15 bg-white px-2 py-1 text-xs font-bold text-wood outline-none focus:border-sky focus:ring-2 focus:ring-sky/30 disabled:opacity-80"
+        >
+          {myClasses.map((klass) => (
+            <option key={klass.id} value={klass.id}>
               {klass.name}
-            </button>
-          );
-        })}
-      </div>
+            </option>
+          ))}
+        </select>
+      </label>
     ) : null;
 
   const body = isPending ? (
@@ -313,22 +321,27 @@ export default function HallOfFame({
           ← 학교 대항전
         </button>
       ) : null}
-      {board.tab === "class" && !lockClassId && !classOnly ? (
-        <button
-          type="button"
-          onClick={() => setDrillClass(false)}
-          className="mb-2 text-[11px] font-bold text-wood/70 underline-offset-2 hover:underline"
-        >
-          ← 학급 대항전
-        </button>
-      ) : null}
-      {!classOnly ? (
-        <p className="mb-2 truncate text-[11px] font-semibold text-foreground/50">
-          {board.tab === "school"
-            ? (selectedSchool?.schoolName ?? "학교 학생")
-            : (selectedClass?.className ?? "학급 학생")}
-        </p>
-      ) : null}
+      <div className="mb-2 flex items-center justify-between gap-2">
+        <div className="min-w-0">
+          {board.tab === "class" && !lockClassId && !classOnly ? (
+            <button
+              type="button"
+              onClick={() => setDrillClass(false)}
+              className="text-[11px] font-bold text-wood/70 underline-offset-2 hover:underline"
+            >
+              ← 학급 대항전
+            </button>
+          ) : null}
+          {!classSelect && !classOnly ? (
+            <p className="truncate text-[11px] font-semibold text-foreground/50">
+              {board.tab === "school"
+                ? (selectedSchool?.schoolName ?? "학교 학생")
+                : selectedClassName}
+            </p>
+          ) : null}
+        </div>
+        {classSelect}
+      </div>
       <StudentRows
         rows={board.students}
         showSchool={board.tab !== "class"}
@@ -390,7 +403,7 @@ export default function HallOfFame({
         </div>
       )}
 
-      {classChips}
+      )}
 
       <div
         className={[
