@@ -403,8 +403,6 @@ export default function HallOfFame({
         </div>
       )}
 
-      )}
-
       <div
         className={[
           "overflow-y-auto p-3",
