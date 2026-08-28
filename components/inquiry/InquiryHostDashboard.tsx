@@ -299,6 +299,7 @@ export default function InquiryHostDashboard({
   const createSession = () => {
     if (!selectedClassId || !validKey) return;
     setMessage(null);
+    const replacing = foreignSession;
     const actions = getActions(validKey);
     startTransition(async () => {
       const result = await actions.inquiryCreateSessionAction({
@@ -310,9 +311,31 @@ export default function InquiryHostDashboard({
       }
       setSessionId(result.sessionId);
       setForeignSession(null);
-      if ("recorded" in result && result.recorded > 0) {
+
+      if (replacing) {
+        const started = await actions.inquiryStartAction({
+          sessionId: result.sessionId,
+        });
+        if ("error" in started) {
+          setMessage(
+            started.error ??
+              "이전 수업은 저장했지만 이 수업을 시작하지 못했어요.",
+          );
+          await poll(result.sessionId);
+          return;
+        }
+      }
+
+      const recorded = "recorded" in result ? result.recorded : 0;
+      if (replacing) {
         setMessage(
-          `이전 수업 결과 ${result.recorded}명을 저장한 뒤 새 수업을 준비했어요.`,
+          recorded > 0
+            ? `「${replacing.title}」 점수를 ${recorded}명 저장하고 이 수업을 시작했어요.`
+            : `「${replacing.title}」를 종료하고 이 수업을 시작했어요.`,
+        );
+      } else if (recorded > 0) {
+        setMessage(
+          `이전 수업 결과 ${recorded}명을 저장한 뒤 새 수업을 준비했어요.`,
         );
       }
       await poll(result.sessionId);
@@ -379,30 +402,32 @@ export default function InquiryHostDashboard({
             {!sessionId ? (
               <div className="flex flex-col gap-3">
                 {foreignSession ? (
-                  <div className="flex flex-wrap items-center gap-2">
-                    <p className="text-sm font-semibold text-wood">
-                      이 학급은 「{foreignSession.title}」 수업이 아직 진행
-                      중이에요. 먼저 종료해야 이 활동을 시작할 수 있어요.
-                    </p>
-                    <button
-                      type="button"
-                      onClick={closeForeignSession}
-                      disabled={isPending}
-                      className="rounded-xl bg-[#e85d4c] px-4 py-2 text-sm font-bold text-cream disabled:opacity-50"
-                    >
-                      그 수업 종료
-                    </button>
-                  </div>
-                ) : (
+                  <p className="text-sm font-semibold text-wood">
+                    이 학급은 「{foreignSession.title}」 수업이 아직 진행
+                    중이에요. 이 수업을 시작하면 그 수업을 종료하고 점수를
+                    저장합니다.
+                  </p>
+                ) : null}
+                <div className="flex flex-wrap items-center gap-2">
                   <button
                     type="button"
                     onClick={createSession}
                     disabled={isPending || !selectedClassId}
                     className="rounded-xl bg-wood px-5 py-2.5 text-sm font-bold text-cream disabled:opacity-50"
                   >
-                    수업 준비
+                    {foreignSession ? "이 수업 시작" : "수업 준비"}
                   </button>
-                )}
+                  {foreignSession ? (
+                    <button
+                      type="button"
+                      onClick={closeForeignSession}
+                      disabled={isPending}
+                      className="rounded-xl border-2 border-wood/20 px-4 py-2 text-sm font-bold text-wood disabled:opacity-50"
+                    >
+                      그 수업만 종료
+                    </button>
+                  ) : null}
+                </div>
               </div>
             ) : (
               <div className="flex flex-wrap items-center gap-2">
