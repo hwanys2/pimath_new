@@ -69,19 +69,17 @@ export default async function TeacherPage() {
         </p>
       </header>
 
-      <div className="grid grid-cols-1 gap-5 lg:grid-cols-2 lg:[grid-template-areas:'school_hof'_'create_hof']">
-        <div className="lg:[grid-area:school]">
+      <div className="grid grid-cols-1 gap-5 lg:grid-cols-2 lg:items-stretch">
+        <div className="flex flex-col gap-5">
           <TeacherSchoolPicker initial={teacherSchool} />
-        </div>
-        <div className="lg:[grid-area:create]">
-          <section className="quest-card h-full p-5 sm:p-6">
+          <section className="quest-card p-5 sm:p-6">
             <h2 className="font-display text-xl text-wood">새 학급</h2>
             <div className="mt-4">
               <CreateClassForm />
             </div>
           </section>
         </div>
-        <div className="flex h-full min-h-[28rem] flex-col lg:[grid-area:hof]">
+        <div className="flex max-h-[24rem] min-h-0 flex-col overflow-hidden lg:h-0 lg:max-h-none lg:min-h-full">
           <HallOfFame initial={hof} fillHeight />
         </div>
       </div>
