@@ -1,37 +1,16 @@
-type Student = {
-  id: string;
-  student_number: number | null;
-  display_name: string;
-  level: number;
-  total_xp: number;
-};
+import {
+  rankClassStudents,
+  type ClassRankStudent,
+  type RankedClassStudent,
+} from "@/lib/class-point-ranking";
 
-type Ranked = Student & { rank: number };
+type Ranked = RankedClassStudent;
 
 function formatXp(n: number): string {
-  return n.toLocaleString();
+  return Number(n).toLocaleString();
 }
 
-function rankStudents(students: Student[]): Ranked[] {
-  const sorted = [...students].sort((a, b) => {
-    if (b.total_xp !== a.total_xp) return b.total_xp - a.total_xp;
-    const an = a.student_number ?? 9999;
-    const bn = b.student_number ?? 9999;
-    if (an !== bn) return an - bn;
-    return a.display_name.localeCompare(b.display_name, "ko");
-  });
-
-  let lastXp: number | null = null;
-  let lastRank = 0;
-  return sorted.map((student, index) => {
-    const rank = lastXp === student.total_xp ? lastRank : index + 1;
-    lastXp = student.total_xp;
-    lastRank = rank;
-    return { ...student, rank };
-  });
-}
-
-function studentLabel(student: Student): string {
+function studentLabel(student: ClassRankStudent): string {
   return student.student_number != null
     ? `${student.student_number}번 ${student.display_name}`
     : student.display_name;
@@ -102,13 +81,13 @@ export default function ClassPointRanking({
   students,
 }: {
   className: string;
-  students: Student[];
+  students: ClassRankStudent[];
 }) {
-  const ranked = rankStudents(students);
-  const first = ranked.find((s) => s.rank === 1);
-  const second = ranked.find((s) => s.rank === 2);
-  const third = ranked.find((s) => s.rank === 3);
-  const rest = ranked.filter((s) => s.rank > 3);
+  const ranked = rankClassStudents(students);
+  const first = ranked[0];
+  const second = ranked[1];
+  const third = ranked[2];
+  const rest = ranked.slice(3);
 
   return (
     <div>
