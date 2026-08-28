@@ -92,7 +92,9 @@ export default async function ClassDetailPage({ params }: Props) {
         </p>
       </div>
 
-      <HallOfFame initial={hof} lockClassId={classId} />
+      <div className="max-w-sm">
+        <HallOfFame initial={hof} lockClassId={classId} />
+      </div>
 
       <section className="quest-card p-5 sm:p-6">
         <div className="flex flex-wrap items-center justify-between gap-3">

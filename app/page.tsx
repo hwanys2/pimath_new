@@ -1,6 +1,6 @@
 import HeroBanner from "@/components/HeroBanner";
 import QuestCard from "@/components/QuestCard";
-import HallOfFame from "@/components/hall-of-fame/HallOfFame";
+import HallOfFamePreview from "@/components/hall-of-fame/HallOfFamePreview";
 import { GRADES } from "@/lib/grades";
 import { redirectStudentToAdventure } from "@/lib/auth";
 import { fetchHofBoard } from "@/lib/hall-of-fame";
@@ -33,7 +33,7 @@ export default async function HomePage() {
         </div>
       </section>
 
-      <HallOfFame initial={hof} showStudentLoginCta />
+      <HallOfFamePreview board={hof} showStudentLoginCta />
     </div>
   );
 }

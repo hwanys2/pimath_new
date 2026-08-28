@@ -52,22 +52,26 @@ export default async function AdventurePage() {
   return (
     <div className="flex flex-col gap-8">
       <ClassAssignedContents items={assignedContents} />
-      <AdventureProfile
-        displayName={progressRow?.displayName ?? student.name}
-        className={progressRow?.className ?? student.className}
-        progress={progress}
-        avatar={avatar}
-        activeAvatar={activeAvatar}
-        nextUnlock={nextUnlock}
-        unlockedIds={unlockedIds}
-        equipped={equipped}
-        unlockedCosmeticIds={unlockedCosmeticIds}
-        worldRank={hof.viewer.worldRank}
-        schoolRank={hof.viewer.schoolRank}
-        classRank={hof.viewer.classRank}
-        schoolName={hof.viewer.schoolName}
-      />
-      <HallOfFame initial={hof} />
+      <div className="grid items-start gap-5 xl:grid-cols-[minmax(0,1fr)_22rem]">
+        <AdventureProfile
+          displayName={progressRow?.displayName ?? student.name}
+          className={progressRow?.className ?? student.className}
+          progress={progress}
+          avatar={avatar}
+          activeAvatar={activeAvatar}
+          nextUnlock={nextUnlock}
+          unlockedIds={unlockedIds}
+          equipped={equipped}
+          unlockedCosmeticIds={unlockedCosmeticIds}
+          worldRank={hof.viewer.worldRank}
+          schoolRank={hof.viewer.schoolRank}
+          classRank={hof.viewer.classRank}
+          schoolName={hof.viewer.schoolName}
+        />
+        <div className="xl:sticky xl:top-4">
+          <HallOfFame initial={hof} />
+        </div>
+      </div>
     </div>
   );
 }

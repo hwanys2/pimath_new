@@ -69,8 +69,10 @@ export default async function TeacherPage() {
         </p>
       </header>
 
-      <TeacherSchoolPicker initial={teacherSchool} />
-      <HallOfFame initial={hof} />
+      <div className="grid items-start gap-5 lg:grid-cols-2">
+        <TeacherSchoolPicker initial={teacherSchool} />
+        <HallOfFame initial={hof} />
+      </div>
 
       <section className="quest-card p-5 sm:p-6">
         <h2 className="font-display text-xl text-wood">새 학급</h2>
