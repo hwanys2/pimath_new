@@ -4,10 +4,13 @@ import {
   axisLabelStride,
   axisTicks,
   autoAxisScale,
+  effectiveMafsView,
   formatAxisLabel,
+  MAFS_VIEW_PADDING,
   niceCeilStep,
   resolveAxisScale,
 } from "./graph-plot";
+import { mathToNormalized, normalizedToMath } from "./graph-annotate";
 import { mergeGraphSettings } from "../board/graph-types";
 
 describe("axisTicks", () => {
@@ -65,6 +68,27 @@ describe("formatAxisLabel", () => {
     assert.equal(formatAxisLabel(5), "5");
     assert.equal(formatAxisLabel(-3), "-3");
     assert.equal(formatAxisLabel(0), "0");
+  });
+});
+
+describe("effectiveMafsView", () => {
+  it("expands x when the pane is wider than the plot aspect", () => {
+    const view = { xMin: -8, xMax: 8, yMin: -6, yMax: 6 };
+    const pane = effectiveMafsView(view, 400, 200, true, MAFS_VIEW_PADDING);
+    assert.ok(pane.xMax - pane.xMin > view.xMax - view.xMin + MAFS_VIEW_PADDING * 2);
+    const origin = mathToNormalized(0, 0, pane);
+    const back = normalizedToMath(origin.nx, origin.ny, pane);
+    assert.ok(Math.abs(back.x) < 1e-9);
+    assert.ok(Math.abs(back.y) < 1e-9);
+  });
+
+  it("only adds padding when equalAxes is off", () => {
+    const view = { xMin: -8, xMax: 8, yMin: -6, yMax: 6 };
+    const pane = effectiveMafsView(view, 400, 200, false, MAFS_VIEW_PADDING);
+    assert.equal(pane.xMin, view.xMin - MAFS_VIEW_PADDING);
+    assert.equal(pane.xMax, view.xMax + MAFS_VIEW_PADDING);
+    assert.equal(pane.yMin, view.yMin - MAFS_VIEW_PADDING);
+    assert.equal(pane.yMax, view.yMax + MAFS_VIEW_PADDING);
   });
 });
 

@@ -871,7 +871,7 @@ export default function BoardApp({
             })}
           </div>
 
-          <div className="pointer-events-none absolute inset-0 z-30">
+          <div className="pointer-events-none absolute inset-0 z-[15]">
             {overlays.ruler ? (
               <RulerOverlay
                 pose={overlays.ruler}
@@ -916,6 +916,9 @@ export default function BoardApp({
                 }
               />
             ) : null}
+          </div>
+
+          <div className="pointer-events-none absolute inset-0 z-30">
             {boardImages.map((img) => {
               const src = imageUrls[img.id];
               if (!src) return null;

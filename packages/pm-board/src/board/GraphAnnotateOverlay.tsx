@@ -63,14 +63,12 @@ function GraphPointMark({
   cy,
   r,
   color,
-  snap,
   preview = false,
 }: {
   cx: number;
   cy: number;
   r: number;
   color: string;
-  snap?: boolean;
   preview?: boolean;
 }) {
   return (
@@ -83,24 +81,6 @@ function GraphPointMark({
         stroke="#fff"
         strokeWidth={1.2}
       />
-      {snap ? (
-        <>
-          <circle
-            cx={cx}
-            cy={cy}
-            r={r + 3.5}
-            fill="none"
-            stroke={color}
-            strokeWidth={1.4}
-          />
-          <path
-            d={`M ${cx - r - 3} ${cy} L ${cx + r + 3} ${cy} M ${cx} ${cy - r - 3} L ${cx} ${cy + r + 3}`}
-            stroke="#fff"
-            strokeWidth={1.2}
-            strokeLinecap="round"
-          />
-        </>
-      ) : null}
     </g>
   );
 }
@@ -113,6 +93,7 @@ function GraphAnnotateOverlay({
   view,
   xScale,
   yScale,
+  equalAxes,
   onStroke,
   onPoint,
 }: {
@@ -123,6 +104,7 @@ function GraphAnnotateOverlay({
   view: PlotView;
   xScale: number;
   yScale: number;
+  equalAxes: boolean;
   onStroke: (stroke: Stroke, deletedPointIds?: string[]) => void;
   onPoint: (point: BoardPoint) => void;
 }) {
@@ -282,6 +264,7 @@ function GraphAnnotateOverlay({
           GRAPH_POINT_SNAP_HOLD_MS,
           dims.w,
           dims.h,
+          equalAxes,
         );
         pendingPoint.current = {
           ...pending,
@@ -330,6 +313,7 @@ function GraphAnnotateOverlay({
         snap ? GRAPH_POINT_SNAP_HOLD_MS : 0,
         dims.w,
         dims.h,
+        equalAxes,
       );
       pendingPoint.current = {
         ...pending,
@@ -423,6 +407,7 @@ function GraphAnnotateOverlay({
           GRAPH_POINT_SNAP_HOLD_MS,
           dims.w,
           dims.h,
+          equalAxes,
         );
         pendingPoint.current = {
           ...pending,
@@ -480,7 +465,6 @@ function GraphAnnotateOverlay({
               cy={pt.y * dims.h}
               r={pt.r ?? 4}
               color={color}
-              snap={pt.snap}
             />
           ))}
           {preview ? (
@@ -489,7 +473,6 @@ function GraphAnnotateOverlay({
               cy={preview.ny * dims.h}
               r={Math.max(3, size)}
               color={color}
-              snap={preview.snap}
               preview
             />
           ) : null}
@@ -505,6 +488,7 @@ type HostProps = {
   view: PlotView;
   xScale: number;
   yScale: number;
+  equalAxes: boolean;
   children: (opts: { allowPanZoom: boolean }) => ReactNode;
 };
 
@@ -514,6 +498,7 @@ export default function GraphAnnotateHost({
   view,
   xScale,
   yScale,
+  equalAxes,
   children,
 }: HostProps) {
   const [tool, setTool] = useState<GraphDrawTool>("cursor");
@@ -540,6 +525,7 @@ export default function GraphAnnotateHost({
           view={view}
           xScale={xScale}
           yScale={yScale}
+          equalAxes={equalAxes}
           onStroke={(stroke, deleted) =>
             commit(applyGraphStroke(annotations, stroke, deleted))
           }

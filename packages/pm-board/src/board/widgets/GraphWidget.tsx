@@ -196,6 +196,7 @@ export default function GraphWidget({ state, setState }: Props) {
           view={graphSettings.view}
           xScale={graphSettings.xScale}
           yScale={graphSettings.yScale}
+          equalAxes={graphSettings.equalAxes}
         >
           {({ allowPanZoom }) => (
             <>

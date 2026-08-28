@@ -215,6 +215,7 @@ export default function MathCardOverlay({
                 view={graphSettings.view}
                 xScale={graphSettings.xScale}
                 yScale={graphSettings.yScale}
+                equalAxes={graphSettings.equalAxes}
               >
                 {({ allowPanZoom }) => (
                   <>
