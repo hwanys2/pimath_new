@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  EXTREME_ANGLES,
   isDefineStep,
   isTableStep,
   scoreForAttempts,
@@ -20,10 +21,11 @@ function softMessage(
 ): string {
   switch (notice.reason) {
     case "incomplete":
-      if (kind === "table") return "열여덟 칸을 모두 채워 주세요.";
+      if (kind === "table") return "표의 빈 칸을 모두 채워 주세요.";
       if (kind === "define") return "두 수의 이름을 모두 적어 주세요.";
       return "수평거리와 높이를 모두 입력해 주세요.";
     case "incomplete_method":
+      if (kind === "table") return "그렇게 생각한 이유를 적어 주세요.";
       return "어떻게 계산했는지 적어 주세요.";
     case "invalid":
       return "양의 수를 입력해 주세요. (예: 23 또는 0.87)";
@@ -175,7 +177,7 @@ export default function InquirySincosIntroStep({
             </div>
           ) : null}
           {kind === "table" ? (
-            <div className="overflow-x-auto overflow-hidden rounded-2xl border-2 border-wood/15 bg-cream/70">
+            <div className="overflow-x-auto rounded-2xl border-2 border-wood/15 bg-cream/70">
               <table className="w-full min-w-[20rem] text-sm">
                 <thead>
                   <tr className="border-b border-wood/15 bg-lavender/30 text-wood">
@@ -278,6 +280,95 @@ export default function InquirySincosIntroStep({
                 </tbody>
               </table>
             </div>
+          ) : null}
+          {kind === "table" ? (
+            <div className="mt-4 overflow-x-auto rounded-2xl border-2 border-wood/15 bg-cream/70 p-3">
+              <p className="text-sm font-bold text-wood">
+                0°일 때와 90°일 때 사인과 코사인 값은 무엇일까요?
+              </p>
+              <table className="mt-2 w-full min-w-[16rem] text-sm">
+                <thead>
+                  <tr className="border-b border-wood/15 text-wood">
+                    <th className="px-3 py-2 text-left font-bold">각</th>
+                    <th className="px-3 py-2 text-left font-bold">사인</th>
+                    <th className="px-3 py-2 text-left font-bold">코사인</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {EXTREME_ANGLES.map((angle) => {
+                    const sinVal = workspace.sinRatios?.[String(angle)] ?? "";
+                    const cosVal = workspace.cosRatios?.[String(angle)] ?? "";
+                    const sinMarked =
+                      (softNotice?.reason === "incomplete" &&
+                        !sinVal.trim()) ||
+                      wrongSet.has(`sin:${angle}`);
+                    const cosMarked =
+                      (softNotice?.reason === "incomplete" &&
+                        !cosVal.trim()) ||
+                      wrongSet.has(`cos:${angle}`);
+                    return (
+                      <tr key={angle} className="border-b border-wood/8 last:border-b-0">
+                        <td className="px-3 py-1.5 font-bold tabular-nums text-wood">
+                          {angle}°
+                        </td>
+                        <td className="px-2 py-1.5">
+                          <input
+                            type="text"
+                            inputMode="decimal"
+                            autoComplete="off"
+                            spellCheck={false}
+                            disabled={locked}
+                            aria-label={`${angle}도 사인`}
+                            value={sinVal}
+                            onChange={(e) =>
+                              onWorkspaceChange({
+                                ...workspace,
+                                sinRatios: {
+                                  ...(workspace.sinRatios ?? {}),
+                                  [String(angle)]: e.target.value,
+                                },
+                              })
+                            }
+                            className={[
+                              "w-full max-w-[7.5rem] rounded-lg border-2 bg-white px-2 py-1 font-mono text-sm font-semibold tabular-nums outline-none",
+                              sinMarked
+                                ? "border-[#e85d4c] bg-[#e85d4c]/8"
+                                : "border-wood/20 focus:border-wood/45",
+                            ].join(" ")}
+                          />
+                        </td>
+                        <td className="px-2 py-1.5">
+                          <input
+                            type="text"
+                            inputMode="decimal"
+                            autoComplete="off"
+                            spellCheck={false}
+                            disabled={locked}
+                            aria-label={`${angle}도 코사인`}
+                            value={cosVal}
+                            onChange={(e) =>
+                              onWorkspaceChange({
+                                ...workspace,
+                                cosRatios: {
+                                  ...(workspace.cosRatios ?? {}),
+                                  [String(angle)]: e.target.value,
+                                },
+                              })
+                            }
+                            className={[
+                              "w-full max-w-[7.5rem] rounded-lg border-2 bg-white px-2 py-1 font-mono text-sm font-semibold tabular-nums outline-none",
+                              cosMarked
+                                ? "border-[#e85d4c] bg-[#e85d4c]/8"
+                                : "border-wood/20 focus:border-wood/45",
+                            ].join(" ")}
+                          />
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
           ) : kind === "define" ? (
             <SincosDefineFigure />
           ) : sceneForView ? (
@@ -356,7 +447,6 @@ export default function InquirySincosIntroStep({
                   spellCheck={false}
                   disabled={locked}
                   aria-label="높이를 구하는 수의 이름"
-                  placeholder="예: 사인"
                   value={sinNameText}
                   onChange={(e) =>
                     onWorkspaceChange({
@@ -365,7 +455,7 @@ export default function InquirySincosIntroStep({
                     })
                   }
                   className={[
-                    "mt-1.5 w-full max-w-xs rounded-xl border-2 bg-white px-3 py-2 text-sm font-semibold outline-none placeholder:text-foreground/40",
+                    "mt-1.5 w-full max-w-xs rounded-xl border-2 bg-white px-3 py-2 text-sm font-semibold outline-none",
                     sinNameMarked
                       ? "border-[#e85d4c] bg-[#e85d4c]/8"
                       : "border-wood/20 focus:border-wood/45",
@@ -382,7 +472,6 @@ export default function InquirySincosIntroStep({
                   spellCheck={false}
                   disabled={locked}
                   aria-label="수평거리를 구하는 수의 이름"
-                  placeholder="예: 코사인"
                   value={cosNameText}
                   onChange={(e) =>
                     onWorkspaceChange({
@@ -394,7 +483,7 @@ export default function InquirySincosIntroStep({
                     if (e.key === "Enter" && onSubmit && !locked) onSubmit();
                   }}
                   className={[
-                    "mt-1.5 w-full max-w-xs rounded-xl border-2 bg-white px-3 py-2 text-sm font-semibold outline-none placeholder:text-foreground/40",
+                    "mt-1.5 w-full max-w-xs rounded-xl border-2 bg-white px-3 py-2 text-sm font-semibold outline-none",
                     cosNameMarked
                       ? "border-[#e85d4c] bg-[#e85d4c]/8"
                       : "border-wood/20 focus:border-wood/45",
@@ -402,6 +491,27 @@ export default function InquirySincosIntroStep({
                 />
               </label>
             </div>
+          ) : kind === "table" ? (
+            <label className="mt-4 block">
+              <span className="text-sm font-bold text-wood">
+                그렇게 생각한 이유를 적어 주세요
+              </span>
+              <textarea
+                rows={3}
+                disabled={locked}
+                aria-label="0도와 90도 사인 코사인 값을 그렇게 생각한 이유"
+                value={workspace.methodText}
+                onChange={(e) =>
+                  onWorkspaceChange({ ...workspace, methodText: e.target.value })
+                }
+                className={[
+                  "mt-1.5 w-full resize-y rounded-xl border-2 bg-white px-3 py-2 text-sm font-semibold leading-relaxed text-foreground/85 outline-none",
+                  methodMarked
+                    ? "border-[#e85d4c] bg-[#e85d4c]/8"
+                    : "border-wood/20 focus:border-wood/45",
+                ].join(" ")}
+              />
+            </label>
           ) : (
             <label className="mt-4 block">
               <span className="text-sm font-bold text-wood">어떻게 계산했나요?</span>
@@ -409,11 +519,7 @@ export default function InquirySincosIntroStep({
                 rows={3}
                 disabled={locked}
                 aria-label="계산 방법 설명"
-                placeholder={
-                  kind === "table"
-                    ? "예: 각도마다 빗변 10칸 직각삼각형을 그려, 빗변에 곱하면 높이·수평거리가 되는 수를 구했어요."
-                    : "예: 오른쪽에 비슷한 직각삼각형을 그려 비를 구한 뒤, 실제 빗변에 곱했어요."
-                }
+                placeholder="예: 오른쪽에 비슷한 직각삼각형을 그려 비를 구한 뒤, 실제 빗변에 곱했어요."
                 value={workspace.methodText}
                 onChange={(e) =>
                   onWorkspaceChange({ ...workspace, methodText: e.target.value })

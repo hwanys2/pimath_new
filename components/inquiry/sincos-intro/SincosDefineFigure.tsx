@@ -16,6 +16,51 @@ function renderLatex(latex: string, display = true): string {
   }
 }
 
+function SegmentLabel({
+  x,
+  y,
+  letters,
+  caption,
+  fill,
+  anchor = "start",
+}: {
+  x: number;
+  y: number;
+  letters: string;
+  caption: string;
+  fill: string;
+  anchor?: "start" | "middle";
+}) {
+  const letterWidth = letters.length * 8.6;
+  const startX = anchor === "middle" ? x - letterWidth / 2 : x;
+  return (
+    <g>
+      <line
+        x1={startX}
+        y1={y - 13}
+        x2={startX + letterWidth}
+        y2={y - 13}
+        stroke={fill}
+        strokeWidth={1.6}
+        strokeLinecap="round"
+      />
+      <text
+        x={x}
+        y={y}
+        fill={fill}
+        fontSize={12}
+        fontWeight={800}
+        textAnchor={anchor}
+      >
+        {letters}
+        <tspan dx={4} fontSize={11} fontWeight={700}>
+          {caption}
+        </tspan>
+      </text>
+    </g>
+  );
+}
+
 /**
  * Right triangle ABC with the right angle at C.
  * A = angle on the ground. C = foot (right angle). B = top.
@@ -31,11 +76,19 @@ export default function SincosDefineFigure() {
     [],
   );
   const sinMeaningHtml = useMemo(
-    () => renderLatex("= \\dfrac{\\text{높이}}{\\text{빗변}}", false),
+    () =>
+      renderLatex(
+        "\\dfrac{\\text{높이}}{\\text{빗변}}\\;\\rightarrow\\;\\text{높이}=\\text{빗변}\\times\\sin A",
+        false,
+      ),
     [],
   );
   const cosMeaningHtml = useMemo(
-    () => renderLatex("= \\dfrac{\\text{밑변}}{\\text{빗변}}", false),
+    () =>
+      renderLatex(
+        "\\dfrac{\\text{밑변}}{\\text{빗변}}\\;\\rightarrow\\;\\text{밑변}=\\text{빗변}\\times\\cos A",
+        false,
+      ),
     [],
   );
 
@@ -101,59 +154,28 @@ export default function SincosDefineFigure() {
         <text x={cx + 8} y={cy + 20} fill="#6b4423" fontSize={15} fontWeight={800}>
           C
         </text>
-        <text
-          x={(ax + bx) / 2 - 8}
-          y={(ay + by) / 2 - 10}
+        <SegmentLabel
+          x={(ax + bx) / 2 - 18}
+          y={(ay + by) / 2 - 8}
+          letters="AB"
+          caption="빗변"
           fill="#5a3d8a"
-          fontSize={12}
-          fontWeight={800}
-        >
-          AB 빗변
-        </text>
-        <line
-          x1={cx + 14}
-          y1={(by + cy) / 2 - 18}
-          x2={cx + 36}
-          y2={(by + cy) / 2 - 18}
-          stroke="#5a3d8a"
-          strokeWidth={1.6}
         />
-        <text
-          x={cx + 40}
-          y={(by + cy) / 2 - 4}
+        <SegmentLabel
+          x={cx + 14}
+          y={(by + cy) / 2 + 4}
+          letters="BC"
+          caption="높이"
           fill="#5a3d8a"
-          fontSize={12}
-          fontWeight={800}
-        >
-          BC
-        </text>
-        <text
-          x={cx + 40}
-          y={(by + cy) / 2 + 12}
-          fill="#5a3d8a"
-          fontSize={11}
-          fontWeight={700}
-        >
-          높이
-        </text>
-        <line
-          x1={(ax + cx) / 2 - 22}
-          y1={ay + 10}
-          x2={(ax + cx) / 2 + 2}
-          y2={ay + 10}
-          stroke="#8B5E3C"
-          strokeWidth={1.6}
         />
-        <text
+        <SegmentLabel
           x={(ax + cx) / 2}
           y={ay + 26}
-          textAnchor="middle"
+          letters="AC"
+          caption="밑변"
           fill="#8B5E3C"
-          fontSize={12}
-          fontWeight={800}
-        >
-          AC 밑변
-        </text>
+          anchor="middle"
+        />
       </svg>
       <div className="space-y-3 border-t border-wood/10 bg-white/70 px-3 py-3 text-center">
         <div>
@@ -161,28 +183,20 @@ export default function SincosDefineFigure() {
             className="text-wood [&_.katex]:text-[1.05rem] sm:[&_.katex]:text-[1.15rem]"
             dangerouslySetInnerHTML={{ __html: sinFormulaHtml }}
           />
-          <p className="mt-1 flex flex-wrap items-center justify-center gap-1 text-sm font-semibold text-foreground/70">
-            <span>곧</span>
-            <span
-              className="text-wood [&_.katex]:text-[0.95rem]"
-              dangerouslySetInnerHTML={{ __html: sinMeaningHtml }}
-            />
-            <span className="text-[#6b4a9e]">→ 높이 = 빗변 × sin A</span>
-          </p>
+          <p
+            className="mt-1 text-wood [&_.katex]:text-[0.95rem]"
+            dangerouslySetInnerHTML={{ __html: sinMeaningHtml }}
+          />
         </div>
         <div className="border-t border-wood/8 pt-3">
           <div
             className="text-wood [&_.katex]:text-[1.05rem] sm:[&_.katex]:text-[1.15rem]"
             dangerouslySetInnerHTML={{ __html: cosFormulaHtml }}
           />
-          <p className="mt-1 flex flex-wrap items-center justify-center gap-1 text-sm font-semibold text-foreground/70">
-            <span>곧</span>
-            <span
-              className="text-wood [&_.katex]:text-[0.95rem]"
-              dangerouslySetInnerHTML={{ __html: cosMeaningHtml }}
-            />
-            <span className="text-[#6b4a9e]">→ 밑변 = 빗변 × cos A</span>
-          </p>
+          <p
+            className="mt-1 text-wood [&_.katex]:text-[0.95rem]"
+            dangerouslySetInnerHTML={{ __html: cosMeaningHtml }}
+          />
         </div>
       </div>
     </div>

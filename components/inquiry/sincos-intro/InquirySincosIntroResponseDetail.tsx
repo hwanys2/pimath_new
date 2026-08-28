@@ -1,5 +1,5 @@
 import type { SincosResponsePayload } from "@/lib/inquiry-sincos-intro";
-import { TABLE_ANGLES } from "@/lib/inquiry-sincos-intro";
+import { EXTREME_ANGLES, TABLE_ANGLES } from "@/lib/inquiry-sincos-intro";
 import type { InquiryResult } from "@/lib/inquiry-types";
 
 type Props = {
@@ -49,7 +49,7 @@ export default function InquirySincosIntroResponseDetail({
         </ul>
       ) : kind === "table" ? (
         <ul className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1 font-mono text-xs text-foreground/80">
-          {TABLE_ANGLES.map((a) => (
+          {[...TABLE_ANGLES, ...EXTREME_ANGLES].map((a) => (
             <li key={a}>
               {a}° sin {cell(response.sinRatios, a)} · cos{" "}
               {cell(response.cosRatios, a)}
@@ -67,7 +67,9 @@ export default function InquirySincosIntroResponseDetail({
       typeof response.methodText === "string" &&
       response.methodText ? (
         <p className="mt-2 rounded-lg bg-wood/5 px-2 py-1.5 text-xs leading-relaxed text-foreground/75">
-          <span className="font-bold text-wood">계산 방법: </span>
+          <span className="font-bold text-wood">
+            {kind === "table" ? "생각한 이유: " : "계산 방법: "}
+          </span>
           {response.methodText}
         </p>
       ) : null}

@@ -10,6 +10,7 @@ export const PROBLEM_COUNT = 5;
 export const TABLE_STEP_INDEX = 3;
 export const DEFINE_STEP_INDEX = 4;
 export const TABLE_ANGLES = [10, 20, 30, 40, 45, 50, 60, 70, 80] as const;
+export const EXTREME_ANGLES = [0, 90] as const;
 export type TableAngle = (typeof TABLE_ANGLES)[number];
 
 export const WRONG_PENALTY = 15;
@@ -160,7 +161,9 @@ export function hypSceneAt(stepIndex: number): HypScene | null {
 }
 
 function emptyRatios(): Record<string, string> {
-  return Object.fromEntries(TABLE_ANGLES.map((a) => [String(a), ""]));
+  return Object.fromEntries(
+    [...TABLE_ANGLES, ...EXTREME_ANGLES].map((a) => [String(a), ""]),
+  );
 }
 
 /** Stable integer in [min, max] from a string seed (FNV-1a). */
@@ -310,7 +313,7 @@ export function lengthIsCorrect(
 }
 
 export function sinRatioIsCorrect(angleDeg: number, submitted: number): boolean {
-  if (!(submitted > 0)) return false;
+  if (!Number.isFinite(submitted) || submitted < 0) return false;
   return withinTolerance(
     submitted,
     sinDeg(angleDeg),
@@ -320,7 +323,7 @@ export function sinRatioIsCorrect(angleDeg: number, submitted: number): boolean 
 }
 
 export function cosRatioIsCorrect(angleDeg: number, submitted: number): boolean {
-  if (!(submitted > 0)) return false;
+  if (!Number.isFinite(submitted) || submitted < 0) return false;
   return withinTolerance(
     submitted,
     cosDeg(angleDeg),
@@ -383,7 +386,7 @@ function checkRatioCell(
 ): "empty" | "invalid" | "wrong" | "ok" {
   if (!text.trim()) return "empty";
   const n = parseStudentNumber(text);
-  if (n == null || !(n > 0)) return "invalid";
+  if (n == null || n < 0) return "invalid";
   const ok =
     kind === "sin" ? sinRatioIsCorrect(angle, n) : cosRatioIsCorrect(angle, n);
   return ok ? "ok" : "wrong";
@@ -408,7 +411,7 @@ export function validateSincosSubmit(
     const wrongKeys: string[] = [];
     let empty = false;
     let invalid = false;
-    for (const angle of TABLE_ANGLES) {
+    for (const angle of [...TABLE_ANGLES, ...EXTREME_ANGLES]) {
       const key = String(angle);
       for (const kind of ["sin", "cos"] as const) {
         const text =

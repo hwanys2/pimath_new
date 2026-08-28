@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
   DEFINE_STEP_INDEX,
+  EXTREME_ANGLES,
   HYP_SCENES,
   PROBLEM_COUNT,
   TABLE_ANGLES,
@@ -63,6 +64,7 @@ describe("sincos intro scenes", () => {
     assert.equal(hypSceneAt(2)?.id, "tablet");
     assert.equal(hypSceneAt(3), null);
     assert.ok(TABLE_ANGLES.includes(45));
+    assert.deepEqual([...EXTREME_ANGLES], [0, 90]);
   });
 
   it("uses updated hypotenuse lengths and fixed angles for kite and ladder", () => {
@@ -152,6 +154,15 @@ describe("ratio grading", () => {
     assert.equal(sinRatioIsCorrect(30, 1), false);
   });
 
+  it("accepts exact 0° and 90° values including zero", () => {
+    assert.equal(sinRatioIsCorrect(0, 0), true);
+    assert.equal(cosRatioIsCorrect(0, 1), true);
+    assert.equal(sinRatioIsCorrect(90, 1), true);
+    assert.equal(cosRatioIsCorrect(90, 0), true);
+    assert.equal(sinRatioIsCorrect(0, 1), false);
+    assert.equal(cosRatioIsCorrect(90, 1), false);
+  });
+
   it("accepts approximate sin 45° and cos 45°", () => {
     const s = Math.SQRT1_2;
     assert.equal(sinRatioIsCorrect(45, s), true);
@@ -205,6 +216,8 @@ describe("validate and grade", () => {
     assert.equal(normalized.methodText, "old draft");
     assert.equal(normalized.sinRatios["10"], "");
     assert.equal(normalized.cosRatios["45"], "");
+    assert.equal(normalized.sinRatios["0"], "");
+    assert.equal(normalized.cosRatios["90"], "");
     assert.equal(normalized.sinNameText, "");
     assert.equal(normalized.cosNameText, "");
     assert.doesNotThrow(() =>
@@ -216,16 +229,31 @@ describe("validate and grade", () => {
     );
   });
 
-  it("grades a full sin/cos table", () => {
+  it("grades a full sin/cos table including 0° and 90°", () => {
     const ws = emptySincosWorkspace(TABLE_STEP_INDEX);
     for (const a of TABLE_ANGLES) {
       ws.sinRatios[String(a)] = String(sinDeg(a));
       ws.cosRatios[String(a)] = String(cosDeg(a));
     }
-    ws.methodText = "빗변 10칸 직각삼각형을 그려, 빗변에 곱하면 높이·수평거리가 되는 수를 적었어요.";
+    ws.sinRatios["0"] = "0";
+    ws.cosRatios["0"] = "1";
+    ws.sinRatios["90"] = "1";
+    ws.cosRatios["90"] = "0";
+    ws.methodText = "0도는 높이가 없고 90도는 밑변이 없어서요.";
     assert.equal(validateSincosSubmit(TABLE_STEP_INDEX, ws), null);
     const graded = gradeSincosStep(TABLE_STEP_INDEX, ws, 0);
     assert.equal(graded.result, "correct");
+  });
+
+  it("requires 0° and 90° cells after the measured table is filled", () => {
+    const ws = emptySincosWorkspace(TABLE_STEP_INDEX);
+    for (const a of TABLE_ANGLES) {
+      ws.sinRatios[String(a)] = String(sinDeg(a));
+      ws.cosRatios[String(a)] = String(cosDeg(a));
+    }
+    ws.methodText = "이유를 적었어요.";
+    const notice = validateSincosSubmit(TABLE_STEP_INDEX, ws);
+    assert.equal(notice?.reason, "incomplete");
   });
 
   it("lists wrong sin and cos cells separately", () => {
@@ -234,10 +262,28 @@ describe("validate and grade", () => {
       ws.sinRatios[String(a)] = "1";
       ws.cosRatios[String(a)] = String(cosDeg(a));
     }
+    ws.sinRatios["0"] = "0";
+    ws.cosRatios["0"] = "1";
+    ws.sinRatios["90"] = "1";
+    ws.cosRatios["90"] = "0";
     const notice = validateSincosSubmit(TABLE_STEP_INDEX, ws);
     assert.equal(notice?.reason, "wrong");
     assert.ok(notice?.wrongKeys?.includes("sin:10"));
     assert.ok(!notice?.wrongKeys?.includes("cos:60"));
+  });
+
+  it("flags missing 0°/90° reason after a filled table", () => {
+    const ws = emptySincosWorkspace(TABLE_STEP_INDEX);
+    for (const a of TABLE_ANGLES) {
+      ws.sinRatios[String(a)] = String(sinDeg(a));
+      ws.cosRatios[String(a)] = String(cosDeg(a));
+    }
+    ws.sinRatios["0"] = "0";
+    ws.cosRatios["0"] = "1";
+    ws.sinRatios["90"] = "1";
+    ws.cosRatios["90"] = "0";
+    const notice = validateSincosSubmit(TABLE_STEP_INDEX, ws);
+    assert.equal(notice?.reason, "incomplete_method");
   });
 
   it("flags missing define names as incomplete", () => {
