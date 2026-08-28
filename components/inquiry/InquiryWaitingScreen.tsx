@@ -1,11 +1,13 @@
 type Props = {
   className?: string;
   studentName?: string | null;
+  message?: string;
 };
 
 export default function InquiryWaitingScreen({
   className = "",
   studentName,
+  message,
 }: Props) {
   return (
     <section
@@ -16,7 +18,9 @@ export default function InquiryWaitingScreen({
     >
       <p className="font-display text-2xl text-wood sm:text-3xl">대기 중</p>
       <p className="mt-4 max-w-md text-sm font-semibold leading-relaxed text-foreground/70">
-        {studentName ? (
+        {message ? (
+          message
+        ) : studentName ? (
           <>
             <span className="text-wood">{studentName}</span>님, 선생님이 수업을
             시작할 때까지 기다려 주세요.

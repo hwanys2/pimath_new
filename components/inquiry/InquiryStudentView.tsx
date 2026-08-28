@@ -131,6 +131,9 @@ export default function InquiryStudentView({
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [state, setState] = useState<InquiryPollState>(IDLE);
   const [waitingForSession, setWaitingForSession] = useState(true);
+  const [otherActivityTitle, setOtherActivityTitle] = useState<string | null>(
+    null,
+  );
   const [texts, setTexts] = useState<TermTexts[]>([]);
   const [balanceWorkspace, setBalanceWorkspace] = useState<TileWorkspace>({
     left: [],
@@ -347,6 +350,7 @@ export default function InquiryStudentView({
         setSessionId(null);
         setState(IDLE);
         setWaitingForSession(true);
+        setOtherActivityTitle(null);
         setSyncError(null);
         prevPhaseRef.current = "idle";
         return;
@@ -359,6 +363,7 @@ export default function InquiryStudentView({
           setSessionId(null);
           setState(IDLE);
           setWaitingForSession(true);
+          setOtherActivityTitle(null);
           setSyncError(null);
           prevPhaseRef.current = "idle";
         } else {
@@ -376,6 +381,23 @@ export default function InquiryStudentView({
         return;
       }
 
+      if (
+        poll.contentKey &&
+        validKey &&
+        poll.contentKey !== validKey
+      ) {
+        setOtherActivityTitle(
+          getInquiryContent(poll.contentKey)?.title ?? "다른 탐구 활동",
+        );
+        setSessionId(null);
+        setState(IDLE);
+        setWaitingForSession(true);
+        setSyncError(null);
+        prevPhaseRef.current = "idle";
+        return;
+      }
+
+      setOtherActivityTitle(null);
       setSyncError(null);
       setState(poll);
 
@@ -452,6 +474,10 @@ export default function InquiryStudentView({
       }
 
       writeInquiryLocalDraft(validKey, sessionId, state.stepIndex, draft);
+
+      // Server draft upsert used to wipe graded `result` to null.
+      // After a submit, keep the grade and only persist locally.
+      if (submitted) return;
 
       const sketch = currentSketchKey ? readSketchDraft(currentSketchKey) : null;
 
@@ -699,11 +725,20 @@ export default function InquiryStudentView({
             {contentTitle}
           </h1>
         </section>
-        <InquiryWaitingScreen studentName={studentName} />
+        <InquiryWaitingScreen
+          studentName={studentName}
+          message={
+            otherActivityTitle
+              ? `선생님이 지금 「${otherActivityTitle}」 수업을 진행 중이에요. 그 활동 페이지에서 참여해 주세요.`
+              : undefined
+          }
+        />
         <p className="text-center text-xs font-medium text-foreground/50">
-          {sessionId
-            ? "접속 확인됨 · 선생님이 수업을 시작하면 문제가 열려요."
-            : "선생님이 수업을 준비할 때까지 기다려 주세요."}
+          {otherActivityTitle
+            ? "이 활동 수업이 시작되면 여기로 문제가 열려요."
+            : sessionId
+              ? "접속 확인됨 · 선생님이 수업을 시작하면 문제가 열려요."
+              : "선생님이 수업을 준비할 때까지 기다려 주세요."}
         </p>
         {syncError ? (
           <p className="text-center text-xs font-bold text-[#a63a1a]" role="alert">

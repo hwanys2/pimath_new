@@ -38,6 +38,10 @@ import {
   PROBLEM_COUNT as TANGENT_COUNT,
   type TangentResponsePayload,
 } from "@/lib/inquiry-tangent-intro";
+import {
+  inferInquiryScoringKey,
+  withResolvedInquiryResults,
+} from "@/lib/inquiry-score";
 import { PROBLEM_COUNT as BALANCE_COUNT } from "@/lib/linear-equation-balance-math";
 import { PROBLEM_COUNT as RADICAL_COUNT } from "@/lib/radical-fill-math";
 import type { InquiryResult } from "@/lib/inquiry-types";
@@ -396,17 +400,18 @@ export function inquiryBuildRunsForContent(
     response: Record<string, unknown>;
   }>,
 ): RunPayload[] {
+  const graded = withResolvedInquiryResults(contentKey, responses);
   switch (contentKey) {
     case "g3-u1-radical-fill":
-      return buildRadicalRuns(responses);
+      return buildRadicalRuns(graded);
     case "g1-u2-2-linear-equation-balance":
-      return buildBalanceRuns(responses);
+      return buildBalanceRuns(graded);
     case "g1-u2-2-linear-equation-race":
-      return buildRaceRuns(responses);
+      return buildRaceRuns(graded);
     case "g3-u3-1-tangent-intro":
-      return buildTangentRuns(responses);
+      return buildTangentRuns(graded);
     case "g3-u3-1-sincos-intro":
-      return buildSincosRuns(responses);
+      return buildSincosRuns(graded);
   }
 }
 
@@ -419,12 +424,19 @@ export async function inquiryFinalizeSession(input: {
   contentKey?: string | null;
 }): Promise<InquiryFinalizeResult> {
   try {
-    let contentKey = input.contentKey ?? null;
-    if (!contentKey || !isInquiryContentKey(contentKey)) {
-      const state = await inquiryTeacherPoll({ sessionId: input.sessionId });
-      contentKey = state.contentKey;
-    }
-    if (!contentKey || !isInquiryContentKey(contentKey)) {
+    const state = await inquiryTeacherPoll({ sessionId: input.sessionId });
+    const { responses } = await inquiryListResponses({
+      sessionId: input.sessionId,
+    });
+    const contentKey =
+      inferInquiryScoringKey(state.contentKey, responses) ??
+      (state.contentKey && isInquiryContentKey(state.contentKey)
+        ? state.contentKey
+        : null) ??
+      (input.contentKey && isInquiryContentKey(input.contentKey)
+        ? input.contentKey
+        : null);
+    if (!contentKey) {
       const closeOnly = await inquiryClose({ sessionId: input.sessionId });
       if ("error" in closeOnly) {
         return { error: closeOnly.error ?? "수업을 종료하지 못했어요." };
@@ -432,9 +444,6 @@ export async function inquiryFinalizeSession(input: {
       return { ok: true, recorded: 0, closed: true };
     }
 
-    const { responses } = await inquiryListResponses({
-      sessionId: input.sessionId,
-    });
     const runs = inquiryBuildRunsForContent(contentKey, responses);
 
     let recorded = 0;
@@ -442,6 +451,7 @@ export async function inquiryFinalizeSession(input: {
       const record = await inquiryRecordSessionRuns({
         sessionId: input.sessionId,
         runs,
+        contentKey,
       });
       if ("error" in record && record.error) {
         return { error: record.error, recorded: record.recorded ?? 0 };

@@ -20,7 +20,7 @@
 |------|------|
 | 비로그인 / 미배정 / 비활성 | **연습 모드** — DB 기록 없음 (`game`·`simulation`) |
 | `inquiry` 학생, 세션 없음 | 참여 불가 또는 대기 — 기록 없음 |
-| `inquiry` 학생, 세션 종료 | `pm_inquiry_record_session_runs` (배정·활성 시) |
+| `inquiry` 학생, 세션 종료 | `pm_inquiry_record_session_runs` (`pm_game_runs`는 항상, XP는 배정·활성 시) |
 | 학생 로그인 + 배정·활성 | **공식 기록** |
 
 ---

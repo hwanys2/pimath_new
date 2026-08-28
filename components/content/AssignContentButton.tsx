@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import {
   assignContentToClassActive,
   unassignContentFromClass,
@@ -25,6 +26,7 @@ export default function AssignContentButton({
   classes,
   assignedClassIds = [],
 }: Props) {
+  const router = useRouter();
   const [open, setOpen] = useState(false);
   const [assigned, setAssigned] = useState<Set<string>>(
     () => new Set(assignedClassIds),
@@ -74,6 +76,7 @@ export default function AssignContentButton({
         setFeedback({
           message: result.message ?? "배정을 취소했어요.",
         });
+        router.refresh();
       });
       return;
     }
@@ -95,9 +98,10 @@ export default function AssignContentButton({
         setFeedback({ error: result.error });
         return;
       }
-      setFeedback({
-        message: result.message ?? "학급에 배정했어요.",
-      });
+        setFeedback({
+          message: result.message ?? "학급에 배정했어요.",
+        });
+        router.refresh();
     });
   }
 

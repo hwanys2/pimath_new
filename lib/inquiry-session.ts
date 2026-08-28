@@ -355,6 +355,7 @@ export async function inquiryRecordSessionRuns(input: {
     score: number;
     details: Record<string, unknown>;
   }>;
+  contentKey?: string | null;
 }) {
   const supabase = await createClient();
   const payload = input.runs.map((r) => ({
@@ -366,6 +367,7 @@ export async function inquiryRecordSessionRuns(input: {
   const { data, error } = await supabase.rpc("pm_inquiry_record_session_runs", {
     p_session_id: input.sessionId,
     p_runs: payload,
+    p_content_key: input.contentKey ?? null,
   });
 
   if (error) {

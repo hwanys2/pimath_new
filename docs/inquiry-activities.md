@@ -124,7 +124,7 @@ setup → live → closed
 
 ## 8. 점수 (`inquiry.scoring`)
 
-`g3-u1-radical-fill`: `scoring: true` — 수업 종료 시 참가자별 집계 → `pm_inquiry_record_session_runs` → `pm_game_runs` + XP (배정·활성 시).
+`inquiry` 세션 종료 시 `pm_inquiry_record_session_runs`로 `pm_game_runs`를 남긴다. XP는 배정·활성일 때만. 초안 자동저장은 채점 `result`를 덮어쓰지 않으며, 종료 시 초안/미채점 응답은 payload로 다시 채점한다.
 
 ---
 
@@ -152,4 +152,5 @@ setup → live → closed
 | 2026-08-24 | `g3-u3-1-tangent-intro` — 나무 밑변 23m·등대 밑변 67m 고정, 건물만 거리 조절 |
 | 2026-08-24 | `g3-u3-1-tangent-intro` — 표에 45° 추가(9칸), 5페이지에서 탄젠트를 이름 붙임 |
 | 2026-08-25 | 수업 재준비 시 점수 미집계 버그 수정 · 종료 전 점수 저장 · 결과 복구 |
+| 2026-08-28 | 초안 저장이 채점을 지워 점수가 0이 되던 버그 수정 · 비활성 배정이어도 기록 저장 · 학급당 활성 세션이 다른 탐구면 섞지 않음 |
 

@@ -108,6 +108,11 @@ export default function InquiryHostDashboard({
   const [selectedStep, setSelectedStep] = useState(0);
   const [message, setMessage] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
+  const [foreignSession, setForeignSession] = useState<{
+    sessionId: string;
+    contentKey: string;
+    title: string;
+  } | null>(null);
 
   const [previewTexts, setPreviewTexts] = useState(
     validKey === "g3-u1-radical-fill"
@@ -130,6 +135,15 @@ export default function InquiryHostDashboard({
   const [previewSincos, setPreviewSincos] = useState(() =>
     sincosInitialState(0),
   );
+
+  useEffect(() => {
+    const stillValid = teacherClasses.some((c) => c.id === selectedClassId);
+    if (stillValid) return;
+    setSelectedClassId(teacherClasses[0]?.id ?? "");
+    setSessionId(null);
+    setState(IDLE);
+    setForeignSession(null);
+  }, [teacherClasses, selectedClassId]);
 
   useEffect(() => {
     if (!validKey) return;
@@ -170,10 +184,28 @@ export default function InquiryHostDashboard({
         classId: selectedClassId,
       });
       if (cancelled) return;
-      if (found.sessionId) {
-        setSessionId(found.sessionId);
-        await poll(found.sessionId);
+      if (!found.sessionId) {
+        setForeignSession(null);
+        return;
       }
+      const next = await actions.inquiryTeacherPollAction({
+        sessionId: found.sessionId,
+      });
+      if (cancelled) return;
+      if (next.contentKey && next.contentKey !== validKey) {
+        setForeignSession({
+          sessionId: found.sessionId,
+          contentKey: next.contentKey,
+          title: getInquiryContent(next.contentKey)?.title ?? next.contentKey,
+        });
+        setSessionId(null);
+        setState(IDLE);
+        setResponses([]);
+        return;
+      }
+      setForeignSession(null);
+      setSessionId(found.sessionId);
+      await poll(found.sessionId);
     })();
 
     return () => {
@@ -238,6 +270,29 @@ export default function InquiryHostDashboard({
       setSessionId(null);
       setState(IDLE);
       setResponses([]);
+      setForeignSession(null);
+    });
+  };
+
+  const closeForeignSession = () => {
+    if (!foreignSession || !validKey) return;
+    setMessage(null);
+    const actions = getActions(validKey);
+    startTransition(async () => {
+      const result = await actions.inquiryCloseAndScoreAction({
+        sessionId: foreignSession.sessionId,
+      });
+      if ("error" in result) {
+        setMessage(result.error ?? "오류가 발생했어요.");
+        return;
+      }
+      const recorded = "recorded" in result ? result.recorded : 0;
+      setMessage(
+        recorded > 0
+          ? `「${foreignSession.title}」 수업을 종료했어요. ${recorded}명의 점수가 반영됐어요.`
+          : `「${foreignSession.title}」 수업을 종료했어요.`,
+      );
+      setForeignSession(null);
     });
   };
 
@@ -254,6 +309,7 @@ export default function InquiryHostDashboard({
         return;
       }
       setSessionId(result.sessionId);
+      setForeignSession(null);
       if ("recorded" in result && result.recorded > 0) {
         setMessage(
           `이전 수업 결과 ${result.recorded}명을 저장한 뒤 새 수업을 준비했어요.`,
@@ -293,80 +349,109 @@ export default function InquiryHostDashboard({
       </section>
 
       <section className="quest-card flex flex-wrap items-end gap-4 p-4 sm:p-5">
-        <label className="flex flex-col gap-1 text-sm font-bold text-wood">
-          학급
-          <select
-            value={selectedClassId}
-            onChange={(e) => {
-              setSelectedClassId(e.target.value);
-              setSessionId(null);
-              setState(IDLE);
-            }}
-            className="rounded-lg border-2 border-wood/20 bg-cream px-3 py-2 font-semibold"
-          >
-            {teacherClasses.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.name}
-              </option>
-            ))}
-          </select>
-        </label>
-
-        {!sessionId ? (
-          <button
-            type="button"
-            onClick={createSession}
-            disabled={isPending || !selectedClassId}
-            className="rounded-xl bg-wood px-5 py-2.5 text-sm font-bold text-cream disabled:opacity-50"
-          >
-            수업 준비
-          </button>
+        {teacherClasses.length === 0 ? (
+          <p className="text-sm font-semibold text-foreground/70">
+            이 활동을 학급에 담아야 수업을 시작할 수 있어요. 위쪽 「배정」에서
+            학급을 선택해 주세요.
+          </p>
         ) : (
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="rounded-lg bg-lavender/40 px-3 py-1.5 text-sm font-bold text-wood">
-              {state.className ?? "학급"} · {phaseLabel(state.phase)}
-            </span>
-            {state.phase === "setup" ? (
-              <button
-                type="button"
-                onClick={startSession}
-                disabled={isPending}
-                className="rounded-xl bg-mint px-5 py-2.5 text-sm font-bold text-wood disabled:opacity-50"
+          <>
+            <label className="flex flex-col gap-1 text-sm font-bold text-wood">
+              학급
+              <select
+                value={selectedClassId}
+                onChange={(e) => {
+                  setSelectedClassId(e.target.value);
+                  setSessionId(null);
+                  setState(IDLE);
+                  setForeignSession(null);
+                }}
+                className="rounded-lg border-2 border-wood/20 bg-cream px-3 py-2 font-semibold"
               >
-                수업 시작
-              </button>
-            ) : null}
-            {state.phase === "live" ? (
-              <>
+                {teacherClasses.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            {!sessionId ? (
+              <div className="flex flex-col gap-3">
+                {foreignSession ? (
+                  <div className="flex flex-wrap items-center gap-2">
+                    <p className="text-sm font-semibold text-wood">
+                      이 학급은 「{foreignSession.title}」 수업이 아직 진행
+                      중이에요. 먼저 종료해야 이 활동을 시작할 수 있어요.
+                    </p>
+                    <button
+                      type="button"
+                      onClick={closeForeignSession}
+                      disabled={isPending}
+                      className="rounded-xl bg-[#e85d4c] px-4 py-2 text-sm font-bold text-cream disabled:opacity-50"
+                    >
+                      그 수업 종료
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={createSession}
+                    disabled={isPending || !selectedClassId}
+                    className="rounded-xl bg-wood px-5 py-2.5 text-sm font-bold text-cream disabled:opacity-50"
+                  >
+                    수업 준비
+                  </button>
+                )}
+              </div>
+            ) : (
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="rounded-lg bg-lavender/40 px-3 py-1.5 text-sm font-bold text-wood">
+                  {state.className ?? "학급"} · {phaseLabel(state.phase)}
+                </span>
+                {state.phase === "setup" ? (
+                  <button
+                    type="button"
+                    onClick={startSession}
+                    disabled={isPending}
+                    className="rounded-xl bg-mint px-5 py-2.5 text-sm font-bold text-wood disabled:opacity-50"
+                  >
+                    수업 시작
+                  </button>
+                ) : null}
+                {state.phase === "live" ? (
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => advance(-1)}
+                      disabled={isPending || state.stepIndex <= 0}
+                      className="rounded-xl border-2 border-wood/20 px-4 py-2 text-sm font-bold text-wood disabled:opacity-40"
+                    >
+                      이전
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => advance(1)}
+                      disabled={
+                        isPending || state.stepIndex >= stepCount - 1
+                      }
+                      className="rounded-xl border-2 border-wood/20 px-4 py-2 text-sm font-bold text-wood disabled:opacity-40"
+                    >
+                      다음
+                    </button>
+                  </>
+                ) : null}
                 <button
                   type="button"
-                  onClick={() => advance(-1)}
-                  disabled={isPending || state.stepIndex <= 0}
-                  className="rounded-xl border-2 border-wood/20 px-4 py-2 text-sm font-bold text-wood disabled:opacity-40"
+                  onClick={closeSession}
+                  disabled={isPending}
+                  className="rounded-xl bg-[#e85d4c] px-4 py-2 text-sm font-bold text-cream disabled:opacity-50"
                 >
-                  이전
+                  수업 종료
                 </button>
-                <button
-                  type="button"
-                  onClick={() => advance(1)}
-                  disabled={
-                    isPending || state.stepIndex >= stepCount - 1
-                  }
-                  className="rounded-xl border-2 border-wood/20 px-4 py-2 text-sm font-bold text-wood disabled:opacity-40"
-                >
-                  다음
-                </button>
-              </>
-            ) : null}
-            <button
-              type="button"
-              onClick={closeSession}
-              disabled={isPending}
-              className="rounded-xl bg-[#e85d4c] px-4 py-2 text-sm font-bold text-cream disabled:opacity-50"
-            >
-              수업 종료
-            </button>
-          </div>
+              </div>
+            )}
+          </>
         )}
       </section>
 

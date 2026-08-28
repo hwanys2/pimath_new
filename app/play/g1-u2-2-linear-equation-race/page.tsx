@@ -7,7 +7,7 @@ import InquiryStudentView from "@/components/inquiry/InquiryStudentView";
 import { getActor } from "@/lib/auth";
 import { fetchMyClassContents } from "@/lib/class-contents";
 import { getContent } from "@/lib/contents";
-import { fetchTeacherAssignContext } from "@/lib/teacher-classes";
+import { assignedClassesForContent, fetchTeacherAssignContext } from "@/lib/teacher-classes";
 
 const CONTENT_KEY = "g1-u2-2-linear-equation-race";
 
@@ -61,7 +61,7 @@ export default async function LinearEquationRacePage({
       {actor?.type === "teacher" ? (
         <InquiryHostDashboard
           contentKey={CONTENT_KEY}
-          teacherClasses={assignCtx?.classes ?? []}
+          teacherClasses={assignedClassesForContent(assignCtx, CONTENT_KEY)}
           initialClassId={initialClassId}
         />
       ) : actor?.type === "student" ? (
