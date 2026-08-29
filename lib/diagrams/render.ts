@@ -176,14 +176,15 @@ function paintCmd(
     }
     case "text": {
       const t = cmd.text;
+      const fill = t.fill ?? INK;
       if (t.rotate) {
         ctx.save();
         ctx.translate(t.x, t.y);
         ctx.rotate(t.rotate);
-        fillRuns(ctx, t.runs, 0, 0, t.size, fonts, t.anchor);
+        fillRuns(ctx, t.runs, 0, 0, t.size, fonts, t.anchor, fill);
         ctx.restore();
       } else {
-        fillRuns(ctx, t.runs, t.x, t.y, t.size, fonts, t.anchor);
+        fillRuns(ctx, t.runs, t.x, t.y, t.size, fonts, t.anchor, fill);
       }
       break;
     }
@@ -354,7 +355,7 @@ function textToSvg(t: SceneText, fonts: FontFaces): string {
   if (!hasFrac) {
     const anchor =
       t.anchor === "middle" ? "middle" : t.anchor === "end" ? "end" : "start";
-    return `<text x="${t.x.toFixed(2)}" y="${t.y.toFixed(2)}" text-anchor="${anchor}" dominant-baseline="middle" fill="${INK}" font-size="${t.size}"${transform}>${runsToTspans(t.runs, fonts)}</text>`;
+    return `<text x="${t.x.toFixed(2)}" y="${t.y.toFixed(2)}" text-anchor="${anchor}" dominant-baseline="middle" fill="${escapeXml(t.fill ?? INK)}" font-size="${t.size}"${transform}>${runsToTspans(t.runs, fonts)}</text>`;
   }
   // Approximate frac layout with a group; canvas PNG is the primary export.
   return `<g${transform}>${fracGroupSvg(t, fonts)}</g>`;
@@ -363,6 +364,7 @@ function textToSvg(t: SceneText, fonts: FontFaces): string {
 function fracGroupSvg(t: SceneText, fonts: FontFaces): string {
   // We cannot measure in SVG export without a canvas; place tspans sequentially
   // and draw frac as nested texts. Widths are estimated from character counts.
+  const fill = t.fill ?? INK;
   const parts: string[] = [];
   const est = estimateRunsWidth(t.runs, t.size);
   let cursor =
@@ -378,17 +380,17 @@ function fracGroupSvg(t: SceneText, fonts: FontFaces): string {
       const fracSize = t.size * 0.72;
       const lineW = Math.max(w - t.size * 0.1, t.size * 0.4);
       parts.push(
-        `<text x="${mid.toFixed(2)}" y="${(t.y - fracSize * 0.58).toFixed(2)}" text-anchor="middle" dominant-baseline="middle" fill="${INK}" font-size="${fracSize}">${runsToTspans(run.fracNum, fonts)}</text>`,
+        `<text x="${mid.toFixed(2)}" y="${(t.y - fracSize * 0.58).toFixed(2)}" text-anchor="middle" dominant-baseline="middle" fill="${escapeXml(fill)}" font-size="${fracSize}">${runsToTspans(run.fracNum, fonts)}</text>`,
       );
       parts.push(
-        `<text x="${mid.toFixed(2)}" y="${(t.y + fracSize * 0.58).toFixed(2)}" text-anchor="middle" dominant-baseline="middle" fill="${INK}" font-size="${fracSize}">${runsToTspans(run.fracDen, fonts)}</text>`,
+        `<text x="${mid.toFixed(2)}" y="${(t.y + fracSize * 0.58).toFixed(2)}" text-anchor="middle" dominant-baseline="middle" fill="${escapeXml(fill)}" font-size="${fracSize}">${runsToTspans(run.fracDen, fonts)}</text>`,
       );
       parts.push(
-        `<line x1="${(mid - lineW / 2).toFixed(2)}" y1="${t.y.toFixed(2)}" x2="${(mid + lineW / 2).toFixed(2)}" y2="${t.y.toFixed(2)}" stroke="${INK}" stroke-width="${Math.max(1, t.size * 0.06)}"/>`,
+        `<line x1="${(mid - lineW / 2).toFixed(2)}" y1="${t.y.toFixed(2)}" x2="${(mid + lineW / 2).toFixed(2)}" y2="${t.y.toFixed(2)}" stroke="${escapeXml(fill)}" stroke-width="${Math.max(1, t.size * 0.06)}"/>`,
       );
     } else {
       parts.push(
-        `<text x="${cursor.toFixed(2)}" y="${t.y.toFixed(2)}" text-anchor="start" dominant-baseline="middle" fill="${INK}" font-size="${t.size}">${runsToTspans([run], fonts)}</text>`,
+        `<text x="${cursor.toFixed(2)}" y="${t.y.toFixed(2)}" text-anchor="start" dominant-baseline="middle" fill="${escapeXml(fill)}" font-size="${t.size}">${runsToTspans([run], fonts)}</text>`,
       );
     }
     cursor += w;

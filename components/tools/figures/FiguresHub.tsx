@@ -82,14 +82,14 @@ export default function FiguresHub() {
               {meta.label} 도구는 아직 없어요
             </p>
             <p className="mx-auto mt-2 max-w-md text-sm text-foreground/60">
-              소재별로 하나씩 추가할 예정이에요. 지금은 중1 「수직선」·「좌표평면」·「다각형」·「원과 부채꼴」·「겨냥도」,
-              중3 「원의 현」부터 사용할 수 있어요.
+              소재별로 하나씩 추가할 예정이에요. 지금은 중1 「수직선」·「좌표평면」·「다각형」·「원과 부채꼴」·「겨냥도」·「히스토그램」,
+              중2 「순환소수 나눗셈」·「일차부등식」, 중3 「원의 현」부터 사용할 수 있어요.
             </p>
             <Link
-              href="/tools/figures?grade=3"
+              href="/tools/figures?grade=1"
               className="font-display mt-5 inline-block rounded-xl bg-wood px-4 py-2.5 text-sm text-cream"
             >
-              중3 도구 보기
+              중1 도구 보기
             </Link>
           </div>
         ) : (
@@ -127,6 +127,10 @@ function ToolCard({ tool }: { tool: DiagramToolMeta }) {
             <SectorThumb />
           ) : tool.id === "g1-histogram" ? (
             <HistogramThumb />
+          ) : tool.id === "g2-repeating-decimal" ? (
+            <DivisionThumb />
+          ) : tool.id === "g2-linear-inequality" ? (
+            <InequalityThumb />
           ) : (
             tool.emoji
           )}
@@ -226,6 +230,25 @@ function SectorThumb() {
   );
 }
 
+function InequalityThumb() {
+  return (
+    <svg viewBox="0 0 48 48" className="h-10 w-10" aria-hidden>
+      <line x1="6" y1="30" x2="42" y2="30" stroke="#6b4423" strokeWidth="1.5" />
+      <polygon points="6,30 11,27.4 11,32.6" fill="#6b4423" />
+      <polygon points="42,30 37,27.4 37,32.6" fill="#6b4423" />
+      <line x1="14" y1="27" x2="14" y2="33" stroke="#6b4423" strokeWidth="1.2" />
+      <line x1="22" y1="27" x2="22" y2="33" stroke="#6b4423" strokeWidth="1.2" />
+      <line x1="30" y1="27" x2="30" y2="33" stroke="#6b4423" strokeWidth="1.2" />
+      <line x1="38" y1="27" x2="38" y2="33" stroke="#6b4423" strokeWidth="1.2" />
+      <rect x="22" y="16" width="16" height="14" fill="#f4c4d4" />
+      <line x1="22" y1="16" x2="22" y2="30" stroke="#6b4423" strokeWidth="1.3" />
+      <line x1="22" y1="16" x2="40" y2="16" stroke="#6b4423" strokeWidth="1.3" />
+      <polygon points="40,16 36,13.6 36,18.4" fill="#6b4423" />
+      <circle cx="22" cy="30" r="2.4" fill="#fff" stroke="#6b4423" strokeWidth="1.4" />
+    </svg>
+  );
+}
+
 function HistogramThumb() {
   return (
     <svg viewBox="0 0 48 48" className="h-10 w-10" aria-hidden>
@@ -241,6 +264,28 @@ function HistogramThumb() {
         stroke="#c45a7a"
         strokeWidth="1.4"
       />
+    </svg>
+  );
+}
+
+function DivisionThumb() {
+  return (
+    <svg viewBox="0 0 48 48" className="h-10 w-10" aria-hidden>
+      <line x1="16" y1="12" x2="42" y2="12" stroke="#6b4423" strokeWidth="1.5" />
+      <line x1="16" y1="12" x2="16" y2="20" stroke="#6b4423" strokeWidth="1.5" />
+      <text x="8" y="22" fontSize="11" fill="#6b4423" fontFamily="serif">
+        7
+      </text>
+      <text x="20" y="22" fontSize="11" fill="#6b4423" fontFamily="serif">
+        1
+      </text>
+      <text x="22" y="10" fontSize="9" fill="#6b4423" fontFamily="serif">
+        0.14
+      </text>
+      <circle cx="20" cy="19" r="5" fill="#f4c5d4" />
+      <text x="20" y="22" fontSize="11" fill="#6b4423" fontFamily="serif">
+        1
+      </text>
     </svg>
   );
 }

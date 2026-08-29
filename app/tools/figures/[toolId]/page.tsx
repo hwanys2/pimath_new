@@ -5,8 +5,10 @@ import CircleChordsStudio from "@/components/tools/figures/circle-chords/CircleC
 import CircleSectorsStudio from "@/components/tools/figures/circle-sectors/CircleSectorsStudio";
 import CoordinatePlaneStudio from "@/components/tools/figures/coordinate-plane/CoordinatePlaneStudio";
 import HistogramStudio from "@/components/tools/figures/histogram/HistogramStudio";
+import InequalityStudio from "@/components/tools/figures/linear-inequality/InequalityStudio";
 import NumberLineStudio from "@/components/tools/figures/number-line/NumberLineStudio";
 import PolygonStudio from "@/components/tools/figures/polygon/PolygonStudio";
+import RepeatingDecimalStudio from "@/components/tools/figures/repeating-decimal/RepeatingDecimalStudio";
 import SolidSketchStudio from "@/components/tools/figures/solid-sketch/SolidSketchStudio";
 import DiagramToolShell from "@/components/tools/figures/DiagramToolShell";
 import { DIAGRAM_TOOLS, getDiagramTool } from "@/lib/diagrams/catalog";
@@ -46,6 +48,10 @@ function renderDiagramStudio(toolId: string): ReactNode {
       return <CircleSectorsStudio />;
     case "g1-histogram":
       return <HistogramStudio />;
+    case "g2-repeating-decimal":
+      return <RepeatingDecimalStudio />;
+    case "g2-linear-inequality":
+      return <InequalityStudio />;
     case "g3-circle-chords":
       return <CircleChordsStudio />;
     default:

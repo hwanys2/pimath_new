@@ -13,6 +13,7 @@ export type SceneText = {
   anchor: TextAnchor;
   /** Radians. Rotates around (x, y). */
   rotate?: number;
+  fill?: string;
 };
 
 export type StrokeOpts = {

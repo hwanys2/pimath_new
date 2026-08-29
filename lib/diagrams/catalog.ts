@@ -88,6 +88,28 @@ export const DIAGRAM_TOOLS: DiagramToolMeta[] = [
     status: "ready",
   },
   {
+    id: "g2-repeating-decimal",
+    grade: 2,
+    title: "순환소수 나눗셈",
+    description:
+      "피제수·제수를 넣으면 순환소수로 바꾸는 나눗셈 과정이 그려집니다. 몫·나머지 색·같다 표시를 켜고 끄고 PNG로 저장해요.",
+    unitHint: "1. 유리수와 순환소수",
+    emoji: "÷",
+    href: "/tools/figures/g2-repeating-decimal",
+    status: "ready",
+  },
+  {
+    id: "g2-linear-inequality",
+    grade: 2,
+    title: "일차부등식",
+    description:
+      "빈 수직선부터 x>a, a≤x<b까지, 빈 점·칠한 점과 색으로 해의 범위를 그리고 PNG로 저장해요.",
+    unitHint: "2.2 일차부등식",
+    emoji: "≥",
+    href: "/tools/figures/g2-linear-inequality",
+    status: "ready",
+  },
+  {
     id: "g3-circle-chords",
     grade: 3,
     title: "원의 현",

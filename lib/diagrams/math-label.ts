@@ -197,16 +197,17 @@ export function fillRuns(
   size: number,
   fonts: FontFaces,
   anchor: "start" | "middle" | "end" = "middle",
+  fill = "#111",
 ): { width: number; left: number } {
   const width = measureRuns(ctx, runs, size, fonts);
   let cursor =
     anchor === "middle" ? x - width / 2 : anchor === "end" ? x - width : x;
   const left = cursor;
-  ctx.fillStyle = "#111";
-  ctx.strokeStyle = "#111";
+  ctx.fillStyle = fill;
+  ctx.strokeStyle = fill;
   ctx.textBaseline = "middle";
   for (const run of runs) {
-    cursor += fillRun(ctx, run, cursor, y, size, fonts);
+    cursor += fillRun(ctx, run, cursor, y, size, fonts, fill);
   }
   return { width, left };
 }
@@ -218,16 +219,35 @@ function fillRun(
   y: number,
   size: number,
   fonts: FontFaces,
+  fill: string,
 ): number {
   if (run.fracNum && run.fracDen) {
     const w = measureRun(ctx, run, size, fonts);
     const fracSize = size * 0.72;
     const mid = x + w / 2;
     const gap = size * 0.08;
-    fillRuns(ctx, run.fracNum, mid, y - fracSize * 0.58 - gap, fracSize, fonts, "middle");
-    fillRuns(ctx, run.fracDen, mid, y + fracSize * 0.58 + gap, fracSize, fonts, "middle");
+    fillRuns(
+      ctx,
+      run.fracNum,
+      mid,
+      y - fracSize * 0.58 - gap,
+      fracSize,
+      fonts,
+      "middle",
+      fill,
+    );
+    fillRuns(
+      ctx,
+      run.fracDen,
+      mid,
+      y + fracSize * 0.58 + gap,
+      fracSize,
+      fonts,
+      "middle",
+      fill,
+    );
     ctx.save();
-    ctx.strokeStyle = "#111";
+    ctx.strokeStyle = fill;
     ctx.lineWidth = Math.max(1, size * 0.06);
     ctx.lineCap = "butt";
     const lineW = Math.max(w - size * 0.1, size * 0.4);
@@ -238,7 +258,7 @@ function fillRun(
     ctx.restore();
     return w;
   }
-  ctx.fillStyle = "#111";
+  ctx.fillStyle = fill;
   ctx.font = canvasFont(run.italic, size, fonts);
   ctx.fillText(run.text, x, y);
   return ctx.measureText(run.text).width;
