@@ -238,8 +238,8 @@ export default function PolygonStudio() {
             다각형
           </h1>
           <p className="mt-1 max-w-2xl text-sm text-foreground/65">
-            꼭짓점을 끌어 모양을 잡고, 칩으로 내각·외각·길이·대각선을 켭니다.
-            글자를 누르면 바로 고칠 수 있어요.
+            꼭짓점을 끌어 모양을 잡고, 변을 누르면 길이가 켜집니다. 칩으로
+            내각·외각·대각선을 켭니다. 글자를 누르면 바로 고칠 수 있어요.
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -479,8 +479,8 @@ export default function PolygonStudio() {
             ) : null}
 
             <p className="mt-2 text-[11px] leading-snug text-foreground/45">
-              꼭짓점을 끌어 모양을 바꾸고, 변을 눌러 고른 뒤 길이를 켜세요.
-              글자를 누르면 숫자나 x로 고칠 수 있어요.
+              꼭짓점을 끌어 모양을 바꾸고, 변을 누르면 길이가 켜지거나
+              꺼집니다. 글자를 누르면 숫자나 x로 고칠 수 있어요.
             </p>
 
             {activeMarks.length > 0 ? (

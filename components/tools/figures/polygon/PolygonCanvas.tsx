@@ -193,7 +193,9 @@ export default function PolygonCanvas({
             return;
           }
           if (hit?.kind === "edge") {
-            onSelect({ t: "edge", i: hit.index });
+            const index = hit.index;
+            onSelect({ t: "edge", i: index });
+            setState((prev) => toggleEdgeLength(prev, index));
             return;
           }
           onSelect(null);
@@ -243,6 +245,13 @@ export default function PolygonCanvas({
               });
             }
           }
+          if (drag?.t === "dimLine" && !drag.moved) {
+            const index = edgeIndexFromLabelId(drag.id);
+            if (index != null) {
+              onSelect({ t: "edge", i: index });
+              setState((prev) => toggleEdgeLength(prev, index));
+            }
+          }
           e.currentTarget.releasePointerCapture(e.pointerId);
         }}
         onPointerLeave={() => {
@@ -288,6 +297,21 @@ export default function PolygonCanvas({
       ) : null}
     </div>
   );
+}
+
+function toggleEdgeLength(state: PolygonState, index: number): PolygonState {
+  return {
+    ...state,
+    edges: state.edges.map((edge, i) =>
+      i === index ? { ...edge, showLength: !edge.showLength } : edge,
+    ),
+  };
+}
+
+function edgeIndexFromLabelId(id: string): number | null {
+  const match = /^e:(\d+):length$/.exec(id);
+  if (!match) return null;
+  return Number(match[1]);
 }
 
 function sameHit(a: PolygonHit | null, b: PolygonHit | null): boolean {
