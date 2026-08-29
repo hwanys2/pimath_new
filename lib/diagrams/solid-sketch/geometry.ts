@@ -1,7 +1,7 @@
 import { hitTestText } from "@/lib/diagrams/scene";
 import { emptyLabel, familyHasSlant, type MeasLabel, type SolidSketchState, vertexNameVisible } from "./model";
 import type { SolidScene } from "./scene";
-import { isLateralEdge, withSlantLength } from "./solids";
+import { isLateralEdge, withFaceHeight, withSlantLength } from "./solids";
 
 export type SolidHit =
   | { kind: "vertex"; index: number }
@@ -196,6 +196,12 @@ export function nudgeMeasure(
   if (id === "slant") {
     return { ...state, slantLabel: nudgeMeas(state.slantLabel, dx, dy, { x: 1, y: 0 }, { x: 0, y: -1 }, lineOnly) };
   }
+  if (id === "faceHeight") {
+    return {
+      ...state,
+      faceHeightLabel: nudgeMeas(state.faceHeightLabel, dx, dy, { x: 1, y: 0 }, { x: 0, y: -1 }, lineOnly),
+    };
+  }
   if (id === "baseEdge") {
     return { ...state, baseEdgeLabel: nudgeMeas(state.baseEdgeLabel, dx, dy, { x: 1, y: 0 }, { x: 0, y: -1 }, lineOnly) };
   }
@@ -300,6 +306,13 @@ export function applyEditedLabel(
       return { ...withSlantLength(state, parsed.value), slantLabel };
     }
     return { ...state, slantLabel };
+  }
+  if (id === "faceHeight") {
+    const faceHeightLabel = labelFromParse(parsed, text, state.faceHeightLabel);
+    if (parsed.kind === "number" && parsed.value != null) {
+      return { ...withFaceHeight(state, parsed.value), faceHeightLabel };
+    }
+    return { ...state, faceHeightLabel };
   }
   if (id === "baseEdge") {
     const baseEdgeLabel = labelFromParse(parsed, text, state.baseEdgeLabel);

@@ -31,6 +31,7 @@ import {
   buildSolidMesh,
   circleBasis,
   firstBaseEdgeLength,
+  faceHeightLength,
   pointOnCircle,
   slantLength,
   type Circle3,
@@ -38,7 +39,7 @@ import {
   type SideBand,
   type SolidMesh,
 } from "./solids";
-import { add3, dot3, mul3, norm3, sub3, type Vec3 } from "./vec3";
+import { add3, centroid3, cross3, dot3, mul3, norm3, sub3, type Vec3 } from "./vec3";
 
 export type SolidScene = SharedDiagramScene & {
   layout: SolidLayout;
@@ -201,6 +202,33 @@ function dimArc(
   });
 }
 
+function pushRightAngle(
+  cmds: SceneCmd[],
+  origin: Vec3,
+  dirU: Vec3,
+  dirV: Vec3,
+  cam: Cam,
+  map: (p: Proj) => Vec,
+  size: number,
+): void {
+  const foot = map(project3(origin, cam));
+  const u2 = sub(map(project3(add3(origin, dirU), cam)), foot);
+  const v2 = sub(map(project3(add3(origin, dirV), cam)), foot);
+  if (len(u2) <= 2 || len(v2) <= 2) return;
+  const uu = norm(u2);
+  const vv = norm(v2);
+  cmds.push({
+    t: "rightAngle",
+    x: foot.x,
+    y: foot.y,
+    ux: uu.x,
+    uy: uu.y,
+    vx: vv.x,
+    vy: vv.y,
+    size,
+  });
+}
+
 function collectFitPoints(mesh: SolidMesh, cam: Cam): Proj[] {
   const pts: Proj[] = mesh.vertices.map((p) => project3(p, cam));
   for (const circle of mesh.circles) {
@@ -314,6 +342,73 @@ function slantEndpoints(
     };
   }
   return null;
+}
+
+function mid3(a: Vec3, b: Vec3): Vec3 {
+  return mul3(add3(a, b), 0.5);
+}
+
+type FaceHeightSeg = {
+  lower: Vec3;
+  upper: Vec3;
+  baseDir: Vec3;
+  topDir: Vec3 | null;
+  outward: Vec3;
+};
+
+function faceHeightSegment(
+  state: SolidSketchState,
+  mesh: SolidMesh,
+  cam: Cam,
+): FaceHeightSeg | null {
+  if (state.family !== "pyramid" && state.family !== "frustum") return null;
+  const n = state.sides;
+  const verts = mesh.vertices;
+  if (state.family === "pyramid" && (mesh.apexIndex == null || verts.length < n + 1)) {
+    return null;
+  }
+  if (state.family === "frustum" && verts.length < n * 2) return null;
+
+  let best: FaceHeightSeg | null = null;
+  let bestDot = -Infinity;
+  for (let i = 0; i < n; i++) {
+    const j = (i + 1) % n;
+    let pts: Vec3[];
+    let lower: Vec3;
+    let upper: Vec3;
+    let baseDir: Vec3;
+    let topDir: Vec3 | null;
+    if (state.family === "pyramid") {
+      const a = verts[i]!;
+      const b = verts[j]!;
+      const apex = verts[mesh.apexIndex!]!;
+      pts = [apex, a, b];
+      lower = mid3(a, b);
+      upper = apex;
+      baseDir = sub3(b, a);
+      topDir = null;
+    } else {
+      const t0 = verts[i]!;
+      const t1 = verts[j]!;
+      const b0 = verts[n + i]!;
+      const b1 = verts[n + j]!;
+      pts = [t0, t1, b1, b0];
+      lower = mid3(b0, b1);
+      upper = mid3(t0, t1);
+      baseDir = sub3(b1, b0);
+      topDir = sub3(t1, t0);
+    }
+    let nrm = norm3(cross3(sub3(pts[1]!, pts[0]!), sub3(pts[2]!, pts[0]!)));
+    const c = centroid3(pts);
+    const radial = { x: c.x, y: 0, z: c.z };
+    if (dot3(nrm, radial) < 0) nrm = mul3(nrm, -1);
+    const d = dot3(nrm, cam.eye);
+    if (d > bestDot) {
+      bestDot = d;
+      best = { lower, upper, baseDir, topDir, outward: nrm };
+    }
+  }
+  return best;
 }
 
 function fillCircleDisk(
@@ -737,6 +832,59 @@ export function buildSolidSketchScene(state: SolidSketchState): SolidScene {
             size: style.rightAngleSize,
           });
         }
+      }
+    }
+  }
+
+  if (state.showFaceHeight) {
+    const seg = faceHeightSegment(state, mesh, cam);
+    if (seg) {
+      const a = map(project3(seg.lower, cam));
+      const b = map(project3(seg.upper, cam));
+      cmds.push({
+        t: "line",
+        x1: a.x,
+        y1: a.y,
+        x2: b.x,
+        y2: b.y,
+        id: "faceHeight:line",
+      });
+      const origin = mid3(seg.lower, seg.upper);
+      const n2 = sub(
+        map(project3(add3(origin, seg.outward), cam)),
+        map(project3(origin, cam)),
+      );
+      const outward = len(n2) > 2 ? n2 : outwardUp;
+      const txt = resolveLabelText(
+        state.faceHeightLabel,
+        faceHeightLength(state),
+        unit,
+        unk,
+      );
+      dimArc(
+        cmds,
+        texts,
+        a,
+        b,
+        outward,
+        style.dimOffset,
+        txt,
+        "faceHeight",
+        state.faceHeightLabel,
+        style.fontSize,
+      );
+      const alt = norm3(sub3(seg.upper, seg.lower));
+      pushRightAngle(cmds, seg.lower, alt, norm3(seg.baseDir), cam, map, style.rightAngleSize);
+      if (seg.topDir) {
+        pushRightAngle(
+          cmds,
+          seg.upper,
+          mul3(alt, -1),
+          norm3(seg.topDir),
+          cam,
+          map,
+          style.rightAngleSize,
+        );
       }
     }
   }

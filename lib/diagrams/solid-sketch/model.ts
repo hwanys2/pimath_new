@@ -66,6 +66,7 @@ export type SolidSketchState = {
   showHidden: boolean;
   showHeight: boolean;
   showHeightRightAngle: boolean;
+  showFaceHeight: boolean;
   showRadius: boolean;
   showSlant: boolean;
   showBaseEdge: boolean;
@@ -75,6 +76,7 @@ export type SolidSketchState = {
   nameDy: number[];
   hiddenVertexNames: boolean[];
   heightLabel: MeasLabel;
+  faceHeightLabel: MeasLabel;
   radiusLabel: MeasLabel;
   slantLabel: MeasLabel;
   baseEdgeLabel: MeasLabel;
@@ -132,6 +134,7 @@ function baseState(
     showHidden: true,
     showHeight: false,
     showHeightRightAngle: false,
+    showFaceHeight: false,
     showRadius: false,
     showSlant: false,
     showBaseEdge: false,
@@ -141,6 +144,7 @@ function baseState(
     nameDy: [],
     hiddenVertexNames: [],
     heightLabel: emptyLabel("auto"),
+    faceHeightLabel: emptyLabel("auto"),
     radiusLabel: emptyLabel("auto"),
     slantLabel: emptyLabel("auto"),
     baseEdgeLabel: emptyLabel("auto"),
@@ -178,6 +182,21 @@ export const SOLID_SKETCH_PRESETS: SolidPreset[] = [
       showVertexNames: true,
       showHeight: true,
       showHeightRightAngle: true,
+      showBaseEdge: true,
+    }),
+  },
+  {
+    id: "square-frustum",
+    title: "사각뿔대",
+    hint: "옆면 높이",
+    state: baseState({
+      family: "frustum",
+      sides: 4,
+      baseSize: 5,
+      topSize: 3,
+      height: 3.873,
+      showVertexNames: true,
+      showFaceHeight: true,
       showBaseEdge: true,
     }),
   },
@@ -364,6 +383,7 @@ export function normalizeState(state: SolidSketchState): SolidSketchState {
       : [],
     edgeLabels: state.edgeLabels ?? {},
     heightLabel: { ...emptyLabel(), ...state.heightLabel },
+    faceHeightLabel: { ...emptyLabel(), ...state.faceHeightLabel },
     radiusLabel: { ...emptyLabel(), ...state.radiusLabel },
     slantLabel: { ...emptyLabel(), ...state.slantLabel },
     baseEdgeLabel: { ...emptyLabel(), ...state.baseEdgeLabel },
@@ -471,6 +491,11 @@ export function familyIsSmooth(family: SolidFamily): boolean {
   );
 }
 
+/** 각뿔·각뿔대: 옆면(이등변삼각형·사다리꼴)의 수선 높이. */
+export function familyHasFaceHeight(family: SolidFamily): boolean {
+  return family === "pyramid" || family === "frustum";
+}
+
 /** 원뿔·각뿔·뿔대: 모선(옆면 모서리)으로 높이를 잡을 수 있다. */
 export function familyHasSlant(family: SolidFamily): boolean {
   return (
@@ -507,6 +532,7 @@ export function withFamily(
     showCenter: familyIsSmooth(family),
     showHeight: false,
     showHeightRightAngle: false,
+    showFaceHeight: false,
     showRadius: familyIsSmooth(family),
     showSlant: false,
     showBaseEdge: false,

@@ -14,8 +14,10 @@ import { applyEditedLabel } from "./geometry";
 import { buildSolidSketchScene } from "./scene";
 import {
   buildSolidMesh,
+  faceHeightLength,
   isLateralEdge,
   slantLength,
+  withFaceHeight,
   withSlantLength,
 } from "./solids";
 
@@ -149,6 +151,83 @@ describe("slant length drives height", () => {
     });
     const next = applyEditedLabel(start, "edge:0-4", "9");
     assert.ok(Math.abs(slantLength(next) - 9) < 1e-6);
+  });
+});
+
+describe("face altitude of pyramid and frustum", () => {
+  it("pyramid: 옆면 높이 is the altitude to a base edge and drives the solid height", () => {
+    const start = normalizeState({
+      ...DEFAULT_SOLID_SKETCH_STATE,
+      family: "pyramid",
+      sides: 4,
+      baseSize: 6,
+      height: 5,
+    });
+    const mesh = buildSolidMesh(start);
+    const a = mesh.vertices[0]!;
+    const b = mesh.vertices[1]!;
+    const apex = mesh.vertices[mesh.apexIndex!]!;
+    const mid = {
+      x: (a.x + b.x) / 2,
+      y: (a.y + b.y) / 2,
+      z: (a.z + b.z) / 2,
+    };
+    const edge = Math.hypot(apex.x - mid.x, apex.y - mid.y, apex.z - mid.z);
+    assert.ok(Math.abs(faceHeightLength(start) - edge) < 1e-6);
+    assert.ok(faceHeightLength(start) > start.height);
+
+    const next = withFaceHeight(start, 8);
+    assert.ok(Math.abs(faceHeightLength(next) - 8) < 1e-6);
+    assert.ok(next.height !== start.height);
+    assert.equal(next.baseSize, start.baseSize);
+  });
+
+  it("frustum: 옆면 높이 4 with bases 5 and 3 sets the trapezoid altitude", () => {
+    const start = normalizeState({
+      ...DEFAULT_SOLID_SKETCH_STATE,
+      family: "frustum",
+      sides: 4,
+      baseSize: 5,
+      topSize: 3,
+      height: 5,
+    });
+    const next = applyEditedLabel(start, "faceHeight", "4");
+    assert.ok(Math.abs(faceHeightLength(next) - 4) < 1e-6);
+    assert.ok(Math.abs(next.height - Math.sqrt(15)) < 1e-3);
+    assert.equal(next.baseSize, 5);
+    assert.equal(next.topSize, 3);
+  });
+
+  it("draws the face altitude with right-angle marks and a label", () => {
+    const pyramid = buildSolidSketchScene(
+      normalizeState({
+        ...DEFAULT_SOLID_SKETCH_STATE,
+        family: "pyramid",
+        sides: 3,
+        showFaceHeight: true,
+        showVertexNames: false,
+      }),
+    );
+    assert.ok(pyramid.texts.some((t) => t.id === "faceHeight"));
+    assert.ok(pyramid.cmds.some((c) => c.t === "rightAngle"));
+    assert.ok(
+      pyramid.cmds.some((c) => c.t === "line" && "id" in c && c.id === "faceHeight:line" && !c.dashed),
+    );
+
+    const frustum = buildSolidSketchScene(
+      normalizeState({
+        ...DEFAULT_SOLID_SKETCH_STATE,
+        family: "frustum",
+        sides: 4,
+        baseSize: 5,
+        topSize: 3,
+        showFaceHeight: true,
+        showVertexNames: false,
+      }),
+    );
+    const rights = frustum.cmds.filter((c) => c.t === "rightAngle");
+    assert.ok(rights.length >= 2, "trapezoid altitude is perpendicular at both bases");
+    assert.ok(frustum.texts.some((t) => t.id === "faceHeight"));
   });
 });
 

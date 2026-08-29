@@ -26,6 +26,7 @@ import {
   cloneState,
   DEFAULT_SOLID_SKETCH_STATE,
   defaultVertexNames,
+  familyHasFaceHeight,
   familyHasSlant,
   familyIsRound,
   familyIsSmooth,
@@ -41,8 +42,11 @@ import {
 import { buildSolidSketchScene } from "@/lib/diagrams/solid-sketch/scene";
 import {
   buildSolidMesh,
+  faceHeightLength,
+  faceHeightSpan,
   slantLength,
   slantSpan,
+  withFaceHeight,
   withSlantLength,
 } from "@/lib/diagrams/solid-sketch/solids";
 import { renderSceneToCanvas, sceneToSvg } from "@/lib/diagrams/render";
@@ -352,6 +356,14 @@ export default function SolidSketchStudio() {
                   모선
                 </ChipToggle>
               ) : null}
+              {familyHasFaceHeight(state.family) ? (
+                <ChipToggle
+                  on={state.showFaceHeight}
+                  onClick={() => set({ showFaceHeight: !state.showFaceHeight })}
+                >
+                  옆면 높이
+                </ChipToggle>
+              ) : null}
               {!smooth ? (
                 <ChipToggle
                   on={state.showBaseEdge}
@@ -433,6 +445,22 @@ export default function SolidSketchStudio() {
                   }
                   onCustom={(custom) =>
                     set({ slantLabel: { ...state.slantLabel, custom } })
+                  }
+                />
+              </div>
+            ) : null}
+            {state.showFaceHeight ? (
+              <div className="mt-3">
+                <LabelModeRow
+                  title="옆면 높이"
+                  mode={state.faceHeightLabel.mode}
+                  custom={state.faceHeightLabel.custom}
+                  unknownLetter={state.unknownLetter}
+                  onMode={(mode) =>
+                    set({ faceHeightLabel: { ...state.faceHeightLabel, mode } })
+                  }
+                  onCustom={(custom) =>
+                    set({ faceHeightLabel: { ...state.faceHeightLabel, custom } })
                   }
                 />
               </div>
@@ -686,6 +714,19 @@ export default function SolidSketchStudio() {
                       onChange={(capHeight) => set({ capHeight })}
                       min={0.5}
                       max={40}
+                      suffix="cm"
+                    />
+                  ) : null}
+                  {familyHasFaceHeight(state.family) ? (
+                    <NumberField
+                      label="옆면 높이"
+                      value={Number(faceHeightLength(state).toFixed(3))}
+                      onChange={(length) =>
+                        setState((prev) => withFaceHeight(prev, length))
+                      }
+                      min={Number((faceHeightSpan(state) + 0.1).toFixed(2))}
+                      max={50}
+                      step={0.1}
                       suffix="cm"
                     />
                   ) : null}

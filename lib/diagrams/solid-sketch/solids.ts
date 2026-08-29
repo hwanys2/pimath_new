@@ -1,5 +1,6 @@
 import {
   defaultVertexNames,
+  familyHasFaceHeight,
   familyHasSlant,
   familyIsSmooth,
   type SolidSketchState,
@@ -602,6 +603,41 @@ export function withSlantLength(
   if (!familyHasSlant(state.family)) return state;
   const h = heightFromSlant(state, slant);
   if (state.family === "cylinderCone") return { ...state, capHeight: h };
+  return { ...state, height: h };
+}
+
+function polygonApothem(n: number, side: number): number {
+  return side / (2 * Math.tan(Math.PI / n));
+}
+
+/** 옆면 수선이 밑면(과 윗면)과 이루는 수평 거리. */
+export function faceHeightSpan(state: SolidSketchState): number {
+  if (state.family === "pyramid") {
+    return polygonApothem(state.sides, state.baseSize);
+  }
+  if (state.family === "frustum") {
+    return Math.abs(
+      polygonApothem(state.sides, state.baseSize) -
+        polygonApothem(state.sides, state.topSize),
+    );
+  }
+  return 0;
+}
+
+/** 각뿔 이등변삼각형·각뿔대 사다리꼴의 높이. */
+export function faceHeightLength(state: SolidSketchState): number {
+  if (!familyHasFaceHeight(state.family)) return state.height;
+  return Math.hypot(state.height, faceHeightSpan(state));
+}
+
+export function withFaceHeight(
+  state: SolidSketchState,
+  length: number,
+): SolidSketchState {
+  if (!familyHasFaceHeight(state.family)) return state;
+  const gap = faceHeightSpan(state);
+  const s = Math.max(length, gap + 0.1, 0.5);
+  const h = Math.min(40, Math.sqrt(Math.max(0.25, s * s - gap * gap)));
   return { ...state, height: h };
 }
 
