@@ -33,7 +33,7 @@ import {
   type NumberLineState,
 } from "@/lib/diagrams/number-line/model";
 import { buildNumberLineScene } from "@/lib/diagrams/number-line/scene";
-import { formatPointValue } from "@/lib/diagrams/number-line/parse";
+import { formatPointValue, parseNumberLineValue } from "@/lib/diagrams/number-line/parse";
 import { renderSceneToCanvas, sceneToSvg } from "@/lib/diagrams/render";
 import type { FontFaces } from "@/lib/diagrams/math-label";
 
@@ -161,17 +161,16 @@ export default function NumberLineStudio() {
     [setState],
   );
 
-  const patchSelected = useCallback(
-    (patch: Partial<NumberLinePoint>) => {
-      if (!selected) return;
+  const patchPoint = useCallback(
+    (pointId: string, patch: Partial<NumberLinePoint>) => {
       setState((prev) => ({
         ...prev,
         points: prev.points.map((p) =>
-          p.id === selected.id ? { ...p, ...patch } : p,
+          p.id === pointId ? { ...p, ...patch } : p,
         ),
       }));
     },
-    [selected, setState],
+    [setState],
   );
 
   const deleteSelected = useCallback(() => {
@@ -244,8 +243,6 @@ export default function NumberLineStudio() {
     setNewName("");
   }
 
-  const autoN = selected ? resolvedN(selected) : null;
-
   return (
     <div className={`${notoSerif.variable} ${notoSerifKr.variable} space-y-4`}>
       <span
@@ -309,16 +306,133 @@ export default function NumberLineStudio() {
       ) : null}
 
       <div className="grid items-start gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(16rem,20rem)]">
-        <div className="overflow-hidden rounded-3xl border-2 border-wood/10 bg-white shadow-[0_12px_40px_rgba(61,44,30,0.08)]">
-          <NumberLineCanvas
-            state={state}
-            fonts={fonts}
-            selectedId={selected?.id ?? null}
-            setState={setState}
-            persist={persistCachedState}
-            onSelect={setSelectedId}
-            onDeleteSelected={deleteSelected}
-          />
+        <div className="space-y-4">
+          <div className="overflow-hidden rounded-3xl border-2 border-wood/10 bg-white shadow-[0_12px_40px_rgba(61,44,30,0.08)]">
+            <NumberLineCanvas
+              state={state}
+              fonts={fonts}
+              selectedId={selected?.id ?? null}
+              setState={setState}
+              persist={persistCachedState}
+              onSelect={setSelectedId}
+              onDeleteSelected={deleteSelected}
+            />
+          </div>
+
+          <section className="rounded-2xl border-2 border-wood/10 bg-white/80 p-3.5">
+            <h2 className="font-display text-sm text-wood-dark">점</h2>
+            <div className="mt-2.5 grid grid-cols-[4.5rem_1fr_auto] items-end gap-1.5">
+              <TextField
+                label="이름"
+                value={newName}
+                onChange={setNewName}
+                placeholder={nextPointName(state.points)}
+              />
+              <TextField
+                label="값"
+                value={newValue}
+                onChange={(v) => {
+                  setNewValue(v);
+                  setAddError(null);
+                }}
+                placeholder="-4 1/4, 3/4, +1.5"
+              />
+              <button
+                type="button"
+                onClick={addPoint}
+                className="rounded-xl bg-wood px-3 py-2 text-xs font-semibold text-cream"
+              >
+                추가
+              </button>
+            </div>
+            {addError ? (
+              <p className="mt-1.5 text-[11px] text-red-700">{addError}</p>
+            ) : (
+              <p className="mt-1.5 text-[11px] text-foreground/45">
+                분수·소수·대분수를 그대로 넣어요. 축을 눌러도 점이 생겨요.
+              </p>
+            )}
+
+            {state.points.length === 0 ? (
+              <p className="mt-3 text-xs text-foreground/45">
+                아직 점이 없어요. 값을 넣고 추가하세요.
+              </p>
+            ) : (
+              <div className="mt-3 grid gap-2.5 sm:grid-cols-2">
+                {state.points.map((point) => (
+                  <PointCard
+                    key={point.id}
+                    point={point}
+                    selected={point.id === selected?.id}
+                    range={{ min: state.min, max: state.max }}
+                    onSelect={() => setSelectedId(point.id)}
+                    onPatch={(patch) => patchPoint(point.id, patch)}
+                    onRemove={() => {
+                      setState((prev) => ({
+                        ...prev,
+                        points: prev.points.filter((p) => p.id !== point.id),
+                      }));
+                      if (selectedId === point.id) {
+                        const remaining = state.points.filter(
+                          (p) => p.id !== point.id,
+                        );
+                        setSelectedId(remaining[0]?.id ?? null);
+                      }
+                    }}
+                  />
+                ))}
+              </div>
+            )}
+          </section>
+
+          <section className="rounded-2xl border-2 border-wood/10 bg-white/80 p-3.5">
+            <h2 className="font-display text-sm text-wood-dark">등분 구간</h2>
+            <p className="mt-1 text-[11px] text-foreground/45">
+              점 없이 단위 구간만 n등분할 수 있어요.
+            </p>
+            <ul className="mt-2 space-y-1">
+              {state.bands.map((band) => (
+                <li
+                  key={band.id}
+                  className="flex items-center justify-between gap-2 text-xs"
+                >
+                  <span className="text-foreground/70">
+                    [{band.start}, {band.start + 1}] · {band.n}등분
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      set({
+                        bands: state.bands.filter((b) => b.id !== band.id),
+                      })
+                    }
+                    className="font-semibold text-foreground/40 hover:text-foreground"
+                  >
+                    지우기
+                  </button>
+                </li>
+              ))}
+            </ul>
+            <button
+              type="button"
+              onClick={() =>
+                set({
+                  bands: [
+                    ...state.bands,
+                    {
+                      id: newBandId(),
+                      start: Math.floor((state.min + state.max) / 2),
+                      n: 4,
+                      equalMarks: defaultEqualMarks(4),
+                    },
+                  ],
+                })
+              }
+              className="mt-2 rounded-xl bg-black/5 px-3 py-1.5 text-xs font-semibold text-foreground/70 hover:bg-black/10"
+            >
+              등분 구간 추가
+            </button>
+          </section>
         </div>
 
         <div className="space-y-4">
@@ -407,251 +521,6 @@ export default function NumberLineStudio() {
           </section>
 
           <section className="rounded-2xl border-2 border-wood/10 bg-white/80 p-3.5">
-            <div className="flex items-center justify-between gap-2">
-              <h2 className="font-display text-sm text-wood-dark">
-                {selected ? `점 ${selected.name}` : "점"}
-              </h2>
-              {selected ? (
-                <button
-                  type="button"
-                  onClick={deleteSelected}
-                  className="rounded-lg bg-black/5 px-2.5 py-1 text-xs font-semibold text-foreground/70 hover:bg-black/10"
-                >
-                  삭제
-                </button>
-              ) : null}
-            </div>
-
-            <div className="mt-2.5 grid grid-cols-[4.5rem_1fr_auto] items-end gap-1.5">
-              <TextField
-                label="이름"
-                value={newName}
-                onChange={setNewName}
-                placeholder={nextPointName(state.points)}
-              />
-              <TextField
-                label="값"
-                value={newValue}
-                onChange={(v) => {
-                  setNewValue(v);
-                  setAddError(null);
-                }}
-                placeholder="-4 1/4, 3/4, +1.5"
-              />
-              <button
-                type="button"
-                onClick={addPoint}
-                className="rounded-xl bg-wood px-3 py-2 text-xs font-semibold text-cream"
-              >
-                추가
-              </button>
-            </div>
-            {addError ? (
-              <p className="mt-1.5 text-[11px] text-red-700">{addError}</p>
-            ) : (
-              <p className="mt-1.5 text-[11px] text-foreground/45">
-                분수·소수·대분수를 그대로 넣어요.
-              </p>
-            )}
-
-            {selected ? (
-              <div className="mt-3 space-y-2">
-                <div className="grid grid-cols-2 gap-2">
-                  <TextField
-                    label="이름"
-                    value={selected.name}
-                    onChange={(name) => patchSelected({ name })}
-                  />
-                  <TextField
-                    label="값"
-                    value={selected.inputRaw}
-                    onChange={(inputRaw) => {
-                      const result = addPointFromRaw(
-                        { ...state, points: [] },
-                        inputRaw,
-                        selected.name,
-                      );
-                      if ("error" in result) {
-                        patchSelected({ inputRaw });
-                        return;
-                      }
-                      const next = result.points[0];
-                      if (!next) return;
-                      patchSelected({
-                        inputRaw,
-                        value: next.value,
-                        n: next.n,
-                        showDivision: next.showDivision,
-                        equalMarks: next.equalMarks,
-                      });
-                    }}
-                  />
-                </div>
-                <div className="flex flex-wrap gap-1.5">
-                  <ChipToggle
-                    on={selected.showName}
-                    onClick={() =>
-                      patchSelected({ showName: !selected.showName })
-                    }
-                  >
-                    이름
-                  </ChipToggle>
-                  <ChipToggle
-                    on={selected.showValue}
-                    onClick={() =>
-                      patchSelected({ showValue: !selected.showValue })
-                    }
-                  >
-                    값 표시
-                  </ChipToggle>
-                  <ChipToggle
-                    on={selected.showDivision}
-                    onClick={() =>
-                      patchSelected({ showDivision: !selected.showDivision })
-                    }
-                  >
-                    n등분
-                  </ChipToggle>
-                </div>
-                {selected.showDivision ? (
-                  <div className="grid grid-cols-2 gap-2">
-                    <NumberField
-                      label="n등분"
-                      value={selected.n ?? autoN ?? 4}
-                      onChange={(n) =>
-                        patchSelected({
-                          n: Math.min(12, Math.max(2, Math.round(n))),
-                        })
-                      }
-                      min={2}
-                      max={12}
-                      step={1}
-                      hint={
-                        selected.n == null && autoN
-                          ? `자동 ${autoN}`
-                          : undefined
-                      }
-                    />
-                    <div>
-                      <p className="text-xs font-semibold text-foreground/60">
-                        등분 빗금
-                      </p>
-                      <div className="mt-1">
-                        <Segmented
-                          value={String(selected.equalMarks)}
-                          onChange={(v) =>
-                            patchSelected({
-                              equalMarks: Number(v) as EqualMarks,
-                            })
-                          }
-                          options={[
-                            { id: "1", label: "1" },
-                            { id: "2", label: "2" },
-                            { id: "3", label: "3" },
-                          ]}
-                        />
-                      </div>
-                    </div>
-                  </div>
-                ) : null}
-                <p className="text-[11px] text-foreground/45">
-                  현재 값 {formatPointValue(selected.value)}
-                </p>
-              </div>
-            ) : null}
-
-            {state.points.length > 0 ? (
-              <ul className="mt-3 space-y-1">
-                {state.points.map((point) => (
-                  <li key={point.id} className="flex items-center gap-2">
-                    <button
-                      type="button"
-                      onClick={() => setSelectedId(point.id)}
-                      className={`flex-1 rounded-lg px-2 py-1 text-left text-xs font-semibold ${
-                        point.id === selected?.id
-                          ? "bg-wood/15 text-wood-dark"
-                          : "text-foreground/55 hover:bg-black/5"
-                      }`}
-                    >
-                      {point.name}
-                      <span className="ml-1 font-normal text-foreground/45">
-                        {formatPointValue(point.value)}
-                      </span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setState((prev) => ({
-                          ...prev,
-                          points: prev.points.filter((p) => p.id !== point.id),
-                        }));
-                        if (selectedId === point.id) {
-                          const remaining = state.points.filter(
-                            (p) => p.id !== point.id,
-                          );
-                          setSelectedId(remaining[0]?.id ?? null);
-                        }
-                      }}
-                      className="text-xs font-semibold text-foreground/40 hover:text-foreground"
-                    >
-                      지우기
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            ) : null}
-          </section>
-
-          <section className="rounded-2xl border-2 border-wood/10 bg-white/80 p-3.5">
-            <h2 className="font-display text-sm text-wood-dark">등분 구간</h2>
-            <p className="mt-1 text-[11px] text-foreground/45">
-              점 없이 단위 구간만 n등분할 수 있어요.
-            </p>
-            <ul className="mt-2 space-y-1">
-              {state.bands.map((band) => (
-                <li
-                  key={band.id}
-                  className="flex items-center justify-between gap-2 text-xs"
-                >
-                  <span className="text-foreground/70">
-                    [{band.start}, {band.start + 1}] · {band.n}등분
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() =>
-                      set({
-                        bands: state.bands.filter((b) => b.id !== band.id),
-                      })
-                    }
-                    className="font-semibold text-foreground/40 hover:text-foreground"
-                  >
-                    지우기
-                  </button>
-                </li>
-              ))}
-            </ul>
-            <button
-              type="button"
-              onClick={() =>
-                set({
-                  bands: [
-                    ...state.bands,
-                    {
-                      id: newBandId(),
-                      start: Math.floor((state.min + state.max) / 2),
-                      n: 4,
-                      equalMarks: defaultEqualMarks(4),
-                    },
-                  ],
-                })
-              }
-              className="mt-2 rounded-xl bg-black/5 px-3 py-1.5 text-xs font-semibold text-foreground/70 hover:bg-black/10"
-            >
-              등분 구간 추가
-            </button>
-          </section>
-
-          <section className="rounded-2xl border-2 border-wood/10 bg-white/80 p-3.5">
             <h2 className="font-display text-sm text-wood-dark">그림 스타일</h2>
             <div className="mt-3 space-y-3">
               <SliderField
@@ -729,5 +598,149 @@ export default function NumberLineStudio() {
         </div>
       </div>
     </div>
+  );
+}
+
+function PointCard({
+  point,
+  selected,
+  range,
+  onSelect,
+  onPatch,
+  onRemove,
+}: {
+  point: NumberLinePoint;
+  selected: boolean;
+  range: { min: number; max: number };
+  onSelect: () => void;
+  onPatch: (patch: Partial<NumberLinePoint>) => void;
+  onRemove: () => void;
+}) {
+  const autoN = resolvedN(point);
+  return (
+    <article
+      className={`rounded-xl border-2 p-2.5 ${
+        selected
+          ? "border-wood/40 bg-wood/5"
+          : "border-wood/10 bg-white"
+      }`}
+    >
+      <div className="flex items-center justify-between gap-2">
+        <button
+          type="button"
+          onClick={onSelect}
+          className="min-w-0 flex-1 text-left"
+        >
+          <p className="font-display text-sm text-wood-dark">
+            점 {point.name}
+          </p>
+          <p className="text-[11px] text-foreground/45">
+            {formatPointValue(point.value)}
+          </p>
+        </button>
+        <button
+          type="button"
+          onClick={onRemove}
+          className="rounded-lg bg-black/5 px-2 py-1 text-xs font-semibold text-foreground/70 hover:bg-black/10"
+        >
+          삭제
+        </button>
+      </div>
+      <div className="mt-2 grid grid-cols-2 gap-2">
+        <TextField
+          label="이름"
+          value={point.name}
+          onChange={(name) => {
+            onSelect();
+            onPatch({ name });
+          }}
+        />
+        <TextField
+          label="값"
+          value={point.inputRaw}
+          onChange={(inputRaw) => {
+            onSelect();
+            const parsed = parseNumberLineValue(inputRaw);
+            if (
+              !parsed ||
+              parsed.value < range.min - 1e-9 ||
+              parsed.value > range.max + 1e-9
+            ) {
+              onPatch({ inputRaw });
+              return;
+            }
+            onPatch({
+              inputRaw,
+              value: parsed.value,
+              n: parsed.nHint,
+              showDivision: parsed.nHint != null,
+              equalMarks: defaultEqualMarks(parsed.nHint ?? 4),
+            });
+          }}
+        />
+      </div>
+      <div className="mt-2 flex flex-wrap gap-1.5">
+        <ChipToggle
+          on={point.showName}
+          onClick={() => {
+            onSelect();
+            onPatch({ showName: !point.showName });
+          }}
+        >
+          이름
+        </ChipToggle>
+        <ChipToggle
+          on={point.showValue}
+          onClick={() => {
+            onSelect();
+            onPatch({ showValue: !point.showValue });
+          }}
+        >
+          값 표시
+        </ChipToggle>
+        <ChipToggle
+          on={point.showDivision}
+          onClick={() => {
+            onSelect();
+            onPatch({ showDivision: !point.showDivision });
+          }}
+        >
+          n등분
+        </ChipToggle>
+      </div>
+      {point.showDivision ? (
+        <div className="mt-2 grid grid-cols-2 gap-2">
+          <NumberField
+            label="n등분"
+            value={point.n ?? autoN ?? 4}
+            onChange={(n) => {
+              onSelect();
+              onPatch({ n: Math.min(12, Math.max(2, Math.round(n))) });
+            }}
+            min={2}
+            max={12}
+            step={1}
+            hint={point.n == null && autoN ? `자동 ${autoN}` : undefined}
+          />
+          <div>
+            <p className="text-xs font-semibold text-foreground/60">등분 빗금</p>
+            <div className="mt-1">
+              <Segmented
+                value={String(point.equalMarks)}
+                onChange={(v) => {
+                  onSelect();
+                  onPatch({ equalMarks: Number(v) as EqualMarks });
+                }}
+                options={[
+                  { id: "1", label: "1" },
+                  { id: "2", label: "2" },
+                  { id: "3", label: "3" },
+                ]}
+              />
+            </div>
+          </div>
+        </div>
+      ) : null}
+    </article>
   );
 }
