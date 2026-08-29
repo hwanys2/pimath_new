@@ -342,10 +342,8 @@ function clamp(n: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, n));
 }
 
-export function vertexDotsVisible(state: SolidSketchState, index: number): boolean {
-  if (state.vertexDisplay === "hidden") return false;
-  if (state.vertexDisplay === "dots") return true;
-  return !state.hiddenVertexNames[index];
+export function vertexDotsVisible(state: SolidSketchState): boolean {
+  return state.vertexDisplay !== "hidden";
 }
 
 export function vertexNameVisible(state: SolidSketchState, index: number): boolean {
@@ -360,9 +358,9 @@ export function cycleVertexDisplay(mode: VertexDisplayMode): VertexDisplayMode {
 }
 
 export function vertexDisplayChipLabel(mode: VertexDisplayMode): string {
-  if (mode === "names") return "꼭짓점 이름";
-  if (mode === "dots") return "꼭짓점";
-  return "꼭짓점";
+  if (mode === "names") return "점 이름";
+  if (mode === "dots") return "점";
+  return "안보임";
 }
 
 export function toggleVertexNameHidden(

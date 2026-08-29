@@ -6,7 +6,6 @@ import {
   familyIsSphere,
   resolveLabelText,
   vertexNameVisible,
-  vertexDotsVisible,
   type MeasLabel,
   type SolidSketchState,
 } from "./model";
@@ -769,7 +768,6 @@ export function buildSolidSketchScene(state: SolidSketchState): SolidScene {
         }
       : { x: width / 2, y: height / 2 };
     mesh.vertices.forEach((_, i) => {
-      if (!vertexDotsVisible(state, i)) return;
       const p = verts2[i]!;
       cmds.push({ t: "dot", x: p.x, y: p.y, r: style.pointRadius });
       if (!vertexNameVisible(state, i)) return;

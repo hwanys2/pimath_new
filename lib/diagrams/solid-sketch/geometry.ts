@@ -1,5 +1,5 @@
 import { hitTestText } from "@/lib/diagrams/scene";
-import { emptyLabel, familyHasSlant, type MeasLabel, type SolidSketchState, vertexDotsVisible } from "./model";
+import { emptyLabel, familyHasSlant, type MeasLabel, type SolidSketchState } from "./model";
 import type { SolidScene } from "./scene";
 import { isLateralEdge, withFaceHeight, withSlantLength } from "./solids";
 
@@ -47,7 +47,6 @@ export function hitTestSolid(
     let bestI = -1;
     let bestD = pointR;
     scene.layout.vertices.forEach((p, i) => {
-      if (!vertexDotsVisible(state, i)) return;
       const d = Math.hypot(p.x - x, p.y - y);
       if (d < bestD) {
         bestD = d;

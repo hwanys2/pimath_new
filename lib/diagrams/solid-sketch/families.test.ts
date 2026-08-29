@@ -411,9 +411,26 @@ describe("per-vertex names", () => {
     const hidden = toggleVertexNameHidden(start, 0);
     const scene = buildSolidSketchScene(hidden);
     const labels = scene.texts.filter((t) => t.id.startsWith("vertex:"));
+    const dots = scene.cmds.filter((c) => c.t === "dot");
     assert.equal(labels.length, 7);
+    assert.equal(dots.length, 8, "hiding a name must not hide the vertex dot");
     assert.ok(!labels.some((t) => t.id === "vertex:0"));
     assert.ok(labels.some((t) => t.id === "vertex:1"));
+  });
+
+  it("shows all dots without labels in dots mode even when some names were hidden", () => {
+    const start = normalizeState({
+      ...DEFAULT_SOLID_SKETCH_STATE,
+      family: "frustum",
+      sides: 3,
+      vertexDisplay: "names",
+    });
+    const withHidden = toggleVertexNameHidden(start, 0);
+    const scene = buildSolidSketchScene({ ...withHidden, vertexDisplay: "dots" });
+    const labels = scene.texts.filter((t) => t.id.startsWith("vertex:"));
+    const dots = scene.cmds.filter((c) => c.t === "dot");
+    assert.equal(labels.length, 0);
+    assert.equal(dots.length, 6);
   });
 
   it("shows dots without labels in dots mode", () => {

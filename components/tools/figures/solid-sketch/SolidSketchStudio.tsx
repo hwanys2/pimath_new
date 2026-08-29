@@ -54,7 +54,7 @@ import {
 import { renderSceneToCanvas, sceneToSvg } from "@/lib/diagrams/render";
 import type { FontFaces } from "@/lib/diagrams/math-label";
 
-const STORAGE_KEY = "pm-diagram-g1-solid-sketch-v2";
+const STORAGE_KEY = "pm-diagram-g1-solid-sketch-v3";
 
 const storeListeners = new Set<() => void>();
 
