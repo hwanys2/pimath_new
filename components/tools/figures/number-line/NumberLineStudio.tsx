@@ -33,7 +33,7 @@ import {
   type NumberLineState,
 } from "@/lib/diagrams/number-line/model";
 import { buildNumberLineScene } from "@/lib/diagrams/number-line/scene";
-import { formatPointValue, parseNumberLineValue } from "@/lib/diagrams/number-line/parse";
+import { formatPointLabel, parseNumberLineValue } from "@/lib/diagrams/number-line/parse";
 import { renderSceneToCanvas, sceneToSvg } from "@/lib/diagrams/render";
 import type { FontFaces } from "@/lib/diagrams/math-label";
 
@@ -635,7 +635,7 @@ function PointCard({
             점 {point.name}
           </p>
           <p className="text-[11px] text-foreground/45">
-            {formatPointValue(point.value)}
+            {formatPointLabel(point.inputRaw, point.value)}
           </p>
         </button>
         <button

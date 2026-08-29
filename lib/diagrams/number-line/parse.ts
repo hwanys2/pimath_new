@@ -187,3 +187,68 @@ export function formatPointValue(
   if (kind === "math") return `${sign}\\frac{${absNum}}{${rat.den}}`;
   return `${sign}${absNum}/${rat.den}`;
 }
+
+export function inputLooksLikeFraction(raw: string): boolean {
+  return normalizeInput(raw).includes("/");
+}
+
+export function inputLooksLikeDecimal(raw: string): boolean {
+  const t = normalizeInput(raw);
+  return t.includes(".") && !t.includes("/");
+}
+
+function fractionRawToMath(raw: string): string | null {
+  const t = normalizeInput(raw);
+  const mixed = t.match(/^([+-])?(\d+)\s+(\d+)\s*\/\s*(\d+)$/);
+  if (mixed) {
+    const sign = mixed[1] === "-" ? "-" : mixed[1] === "+" ? "+" : "";
+    return `${sign}${mixed[2]}\\frac{${mixed[3]}}{${mixed[4]}}`;
+  }
+  const frac = t.match(/^([+-])?(\d+)\s*\/\s*(\d+)$/);
+  if (frac) {
+    const sign = frac[1] === "-" ? "-" : frac[1] === "+" ? "+" : "";
+    return `${sign}\\frac{${frac[2]}}{${frac[3]}}`;
+  }
+  return null;
+}
+
+/** Keep the teacher's writing: decimal stays decimal, `/` stays a fraction. */
+export function formatPointLabel(
+  inputRaw: string,
+  value: number,
+  kind: "plain" | "math" = "plain",
+): string {
+  const parsed = parseNumberLineValue(inputRaw);
+  if (parsed && Math.abs(parsed.value - value) < 1e-8) {
+    if (kind === "math" && inputLooksLikeFraction(inputRaw)) {
+      return fractionRawToMath(inputRaw) ?? formatPointValue(value, "math");
+    }
+    return normalizeInput(inputRaw);
+  }
+  const rewritten = rewriteInputRaw(inputRaw, value);
+  if (kind === "math" && inputLooksLikeFraction(rewritten)) {
+    return fractionRawToMath(rewritten) ?? formatPointValue(value, "math");
+  }
+  return rewritten;
+}
+
+export function rewriteInputRaw(previousRaw: string, value: number): string {
+  const parsed = parseNumberLineValue(previousRaw);
+  if (parsed && Math.abs(parsed.value - value) < 1e-8) {
+    return previousRaw.trim() || previousRaw;
+  }
+  const wantPlus = normalizeInput(previousRaw).startsWith("+");
+  if (isNearInteger(value)) {
+    const n = Math.round(value);
+    if (n > 0 && wantPlus) return `+${n}`;
+    return String(n);
+  }
+  if (inputLooksLikeFraction(previousRaw)) {
+    const frac = formatPointValue(value, "plain");
+    if (wantPlus && !frac.startsWith("-")) return `+${frac}`;
+    return frac;
+  }
+  let s = formatNice(value);
+  if (wantPlus && !s.startsWith("-") && s !== "0") return `+${s}`;
+  return s;
+}

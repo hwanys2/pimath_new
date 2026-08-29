@@ -6,7 +6,7 @@ import {
   type ResolvedBand,
 } from "@/lib/diagrams/number-line/model";
 import {
-  formatPointValue,
+  formatPointLabel,
   formatTickLabel,
 } from "@/lib/diagrams/number-line/parse";
 import type {
@@ -259,7 +259,7 @@ export function buildNumberLineScene(state: NumberLineState): NumberLineScene {
         id: `point:${point.id}:value`,
         x: x + point.labelDx,
         y: axisY + 40 + (point.showName ? 0 : -8),
-        runs: parseMathRuns(formatPointValue(point.value, "math")),
+        runs: parseMathRuns(formatPointLabel(point.inputRaw, point.value, "math")),
         size: style.fontSize,
         anchor: "middle",
       });

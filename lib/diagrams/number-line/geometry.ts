@@ -4,7 +4,10 @@ import {
   type NumberLinePoint,
   type NumberLineState,
 } from "@/lib/diagrams/number-line/model";
-import { isNearInteger } from "@/lib/diagrams/number-line/parse";
+import {
+  parseNumberLineValue,
+  rewriteInputRaw,
+} from "@/lib/diagrams/number-line/parse";
 import {
   canvasXFromValue,
   valueFromCanvasX,
@@ -154,7 +157,14 @@ export function applyEditedLabel(
     points: state.points.map((p) => {
       if (p.id !== parsed.pointId) return p;
       if (parsed.which === "name") return { ...p, name: next.trim() || p.name };
-      return p;
+      const parsedNum = parseNumberLineValue(next);
+      if (!parsedNum) return { ...p, inputRaw: next };
+      return {
+        ...p,
+        inputRaw: next.trim(),
+        value: Math.min(state.max, Math.max(state.min, parsedNum.value)),
+        n: parsedNum.nHint,
+      };
     }),
   };
 }
@@ -192,9 +202,7 @@ export function movePointValue(
         ? {
             ...p,
             value: snapped,
-            inputRaw: isNearInteger(snapped)
-              ? String(Math.round(snapped))
-              : p.inputRaw,
+            inputRaw: rewriteInputRaw(p.inputRaw, snapped),
           }
         : p,
     ),

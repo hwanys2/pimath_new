@@ -6,6 +6,7 @@ import {
   hitTestNumberLine,
   movePointValue,
   nudgePointLabel,
+  parsePointLabelId,
   snapValue,
   type NumberLineHit,
 } from "@/lib/diagrams/number-line/geometry";
@@ -259,9 +260,16 @@ export default function NumberLineCanvas({
             const scene = sceneRef.current;
             const text = scene?.texts.find((t) => t.id === drag.id);
             if (text) {
+              const which = parsePointLabelId(drag.id);
+              const point = which
+                ? stateRef.current.points.find((pt) => pt.id === which.pointId)
+                : undefined;
               setEdit({
                 id: drag.id,
-                value: sceneTextPlain(text),
+                value:
+                  which?.which === "value" && point
+                    ? point.inputRaw
+                    : sceneTextPlain(text),
                 x: text.x,
                 y: text.y,
               });

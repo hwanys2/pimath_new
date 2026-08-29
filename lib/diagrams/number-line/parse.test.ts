@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
+  formatPointLabel,
   formatPointValue,
   formatTickLabel,
   nHintFromRational,
@@ -12,6 +13,7 @@ import {
   NUMBER_LINE_PRESETS,
   addPointAtValue,
   cloneState,
+  makePoint,
   resolveBands,
 } from "./model";
 import { parseMathRuns } from "@/lib/diagrams/math-label";
@@ -53,6 +55,16 @@ describe("number line value parsing", () => {
     assert.equal(formatPointValue(0.5, "plain"), "1/2");
     assert.equal(formatPointValue(-4.25, "plain"), "-4 1/4");
   });
+
+  it("keeps decimals as decimals and slash input as fractions", () => {
+    assert.equal(formatPointLabel("-0.2", -0.2, "math"), "-0.2");
+    assert.equal(formatPointLabel("-0.2", -0.2, "plain"), "-0.2");
+    assert.equal(formatPointLabel("+1.5", 1.5, "math"), "+1.5");
+    assert.equal(formatPointLabel("3/4", 0.75, "math"), "\\frac{3}{4}");
+    assert.equal(formatPointLabel("-17/4", -4.25, "math"), "-\\frac{17}{4}");
+    assert.equal(formatPointLabel("-4 1/4", -4.25, "math"), "-4\\frac{1}{4}");
+    assert.equal(formatPointLabel("2/4", 0.5, "math"), "\\frac{2}{4}");
+  });
 });
 
 describe("number line scene", () => {
@@ -86,6 +98,26 @@ describe("number line scene", () => {
     assert.ok(
       parseMathRuns("\\frac{1}{2}").some((r) => r.fracNum && r.fracDen),
     );
+  });
+
+  it("draws a typed decimal instead of converting it to a fraction", () => {
+    const state = {
+      ...NUMBER_LINE_PRESETS[0]!.state,
+      points: [
+        makePoint({
+          name: "A",
+          value: -0.2,
+          inputRaw: "-0.2",
+          showValue: true,
+          showName: true,
+        }),
+      ],
+    };
+    const scene = buildNumberLineScene(state);
+    const value = scene.texts.find((t) => t.id.endsWith(":value"));
+    assert.ok(value);
+    assert.equal(value?.runs.map((r) => r.text).join(""), "-0.2");
+    assert.ok(!value?.runs.some((r) => r.fracNum && r.fracDen));
   });
 
   it("builds n-division bands for the default exam figure", () => {
