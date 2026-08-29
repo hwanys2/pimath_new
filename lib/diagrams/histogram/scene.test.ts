@@ -9,6 +9,7 @@ import {
   classMid,
   classWidthOptions,
   cloneState,
+  makeSeries,
   normalizeState,
   polygonVertices,
   sameClassWidth,
@@ -66,6 +67,53 @@ describe("histogram classes", () => {
     const next = setFrequency(DEFAULT_HISTOGRAM_STATE, "s-a", 0, 13);
     assert.equal(next.series[0]!.frequencies[0], 14);
     assert.ok(next.yMax >= 14);
+  });
+
+  it("allows yMax of 1 and 0.5 for relative frequency", () => {
+    const freqs = [0.2, 0.5, 0.3, 0.1, 0.05];
+    const one = normalizeState({
+      ...DEFAULT_HISTOGRAM_STATE,
+      yMax: 1,
+      yTick: 2,
+      series: [makeSeries({ id: "s-a", frequencies: freqs })],
+    });
+    assert.equal(one.yMax, 1);
+    assert.ok(one.yTick <= 1);
+    assert.ok(one.yTick > 0);
+
+    const half = normalizeState({
+      ...DEFAULT_HISTOGRAM_STATE,
+      yMax: 0.5,
+      yTick: 2,
+      series: [makeSeries({ id: "s-a", frequencies: freqs })],
+    });
+    assert.equal(half.yMax, 0.5);
+    assert.ok(half.yTick <= 0.5);
+
+    const keep = normalizeState({
+      ...DEFAULT_HISTOGRAM_STATE,
+      yMax: 1,
+      yTick: 0.1,
+      series: [makeSeries({ id: "s-a", frequencies: freqs })],
+    });
+    assert.equal(keep.yMax, 1);
+    assert.equal(keep.yTick, 0.1);
+
+    const fromCounts = normalizeState({
+      ...DEFAULT_HISTOGRAM_STATE,
+      yMax: 1,
+      yTick: 2,
+    });
+    assert.equal(fromCounts.yMax, 1);
+    assert.ok(fromCounts.yTick <= 1);
+  });
+
+  it("keeps relative frequencies that sit between y ticks", () => {
+    const start = HISTOGRAM_PRESETS.find((p) => p.id === "two-schools")!.state;
+    const next = setFrequency(start, "s-a", 0, 0.05);
+    assert.ok(Math.abs(next.series[0]!.frequencies[0]! - 0.05) < 1e-9);
+    const mid = setFrequency(start, "s-a", 3, 0.22);
+    assert.ok(Math.abs(mid.series[0]!.frequencies[3]! - 0.22) < 1e-9);
   });
 
   it("lists range divisors as class widths with a usable bar count", () => {

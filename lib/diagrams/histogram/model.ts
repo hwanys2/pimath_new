@@ -284,10 +284,31 @@ export function maxFrequency(state: Pick<HistogramState, "series">): number {
   return max;
 }
 
+export const MIN_Y_MAX = 0.01;
+export const MIN_Y_TICK = 0.01;
+
 export function niceYMax(needed: number, tick: number): number {
   const step = tick > 1e-12 ? tick : 1;
   const floor = Math.max(step, needed);
   return Math.ceil((floor - 1e-9) / step) * step;
+}
+
+/** When 눈금 > 최댓값, pick a tick that still fits (상대도수 1·0.5). */
+export function niceTickForMax(max: number): number {
+  if (!(max > 0)) return 0.1;
+  const raw = max / 5;
+  const pow = 10 ** Math.floor(Math.log10(raw));
+  const n = raw / pow;
+  if (n <= 1) return pow;
+  if (n <= 2) return 2 * pow;
+  if (n <= 5) return 5 * pow;
+  return 10 * pow;
+}
+
+export function frequencySnapStep(yTick: number): number {
+  if (!(yTick > 0)) return 1;
+  if (yTick >= 1) return yTick;
+  return Math.min(0.01, yTick);
 }
 
 export function normalizeState(state: HistogramState): HistogramState {
@@ -297,7 +318,7 @@ export function normalizeState(state: HistogramState): HistogramState {
   );
   const classWidth = Math.max(0.01, finiteOr(state.classWidth, 1));
   const classStart = finiteOr(state.classStart, 0);
-  const yTick = Math.max(0.001, finiteOr(state.yTick, 1));
+  let yTick = Math.max(MIN_Y_TICK, finiteOr(state.yTick, 1));
   const seriesRaw = Array.isArray(state.series) && state.series.length > 0
     ? state.series.slice(0, 2)
     : [makeSeries({ frequencies: Array.from({ length: classCount }, () => 0) })];
@@ -311,8 +332,8 @@ export function normalizeState(state: HistogramState): HistogramState {
     }),
   );
   const needed = maxFrequency({ series });
-  let yMax = Math.max(yTick, finiteOr(state.yMax, niceYMax(needed, yTick)));
-  if (yMax + 1e-9 < needed) yMax = niceYMax(needed, yTick);
+  let yMax = Math.max(MIN_Y_MAX, finiteOr(state.yMax, niceYMax(needed, yTick)));
+  if (yTick > yMax + 1e-12) yTick = niceTickForMax(yMax);
   const xBreak = classStart > 1e-9 && Boolean(state.xBreak);
   return {
     kind: state.kind === "polygon" ? "polygon" : "histogram",
@@ -551,7 +572,7 @@ export function setFrequency(
   index: number,
   value: number,
 ): HistogramState {
-  const snapped = Math.max(0, snapValue(value, state.yTick));
+  const snapped = Math.max(0, snapValue(value, frequencySnapStep(state.yTick)));
   const series = state.series.map((s) => {
     if (s.id !== seriesId) return s;
     const frequencies = s.frequencies.slice();
@@ -559,7 +580,12 @@ export function setFrequency(
     frequencies[index] = snapped;
     return { ...s, frequencies };
   });
-  return normalizeState({ ...state, series });
+  const next = normalizeState({ ...state, series });
+  if (snapped <= next.yMax + 1e-9) return next;
+  return normalizeState({
+    ...next,
+    yMax: niceYMax(snapped, next.yTick),
+  });
 }
 
 export function patchSeries(

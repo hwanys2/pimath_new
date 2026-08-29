@@ -30,6 +30,7 @@ import {
   FILL_CYAN,
   FILL_PINK,
   formatTick,
+  frequencySnapStep,
   GRAPH_CYAN,
   GRAPH_PINK,
   HISTOGRAM_PRESETS,
@@ -421,16 +422,19 @@ export default function HistogramStudio() {
                 label="최댓값"
                 value={state.yMax}
                 onChange={(yMax) => set({ yMax })}
-                min={state.yTick}
-                step={state.yTick}
+                min={0.01}
+                step={0.01}
               />
               <CompactNumber
                 label="눈금"
                 value={state.yTick}
                 onChange={(yTick) => set({ yTick })}
-                min={0.001}
-                step={0.1}
+                min={0.01}
+                step={0.01}
               />
+              <p className="col-span-2 text-[11px] text-foreground/45">
+                상대도수는 최댓값 1·0.5, 눈금 0.1처럼 소수로 두면 다각형도 그릴 수 있어요.
+              </p>
             </div>
           </section>
         </div>
@@ -557,7 +561,7 @@ export default function HistogramStudio() {
                           ariaLabel={`${formatTick(classBound(state, i))} 계급 도수`}
                           value={freq}
                           min={0}
-                          step={state.yTick}
+                          step={frequencySnapStep(state.yTick)}
                           className="min-w-0 flex-1"
                           onChange={(n) =>
                             setState((prev) =>
