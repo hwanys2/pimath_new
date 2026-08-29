@@ -161,6 +161,62 @@ export function Segmented<T extends string>({
   );
 }
 
+export function InlineNumber({
+  value,
+  onChange,
+  min,
+  max,
+  step = 1,
+  ariaLabel,
+  className = "w-14",
+}: {
+  value: number;
+  onChange: (n: number) => void;
+  min?: number;
+  max?: number;
+  step?: number;
+  ariaLabel: string;
+  className?: string;
+}) {
+  return (
+    <input
+      type="number"
+      aria-label={ariaLabel}
+      value={Number.isFinite(value) ? value : 0}
+      min={min}
+      max={max}
+      step={step}
+      onChange={(e) => onChange(Number(e.target.value))}
+      className={`rounded-lg border-2 border-wood/20 bg-white px-1.5 py-1 text-center text-sm tabular-nums outline-none focus:border-wood ${className}`}
+    />
+  );
+}
+
+export function InlineText({
+  value,
+  onChange,
+  placeholder,
+  ariaLabel,
+  className = "min-w-0 flex-1",
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  placeholder?: string;
+  ariaLabel: string;
+  className?: string;
+}) {
+  return (
+    <input
+      type="text"
+      aria-label={ariaLabel}
+      value={value}
+      placeholder={placeholder}
+      onChange={(e) => onChange(e.target.value)}
+      className={`rounded-lg border-2 border-wood/20 bg-white px-2 py-1 text-sm outline-none focus:border-wood ${className}`}
+    />
+  );
+}
+
 export function ChipToggle({
   on,
   onClick,

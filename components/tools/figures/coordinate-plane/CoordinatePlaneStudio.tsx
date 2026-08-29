@@ -5,6 +5,8 @@ import Link from "next/link";
 import { useCallback, useMemo, useState, useSyncExternalStore } from "react";
 import {
   ChipToggle,
+  InlineNumber,
+  InlineText,
   NumberField,
   Segmented,
   SliderField,
@@ -409,106 +411,171 @@ export default function CoordinatePlaneStudio() {
           </section>
 
           <section className="rounded-2xl border-2 border-wood/10 bg-white/80 p-3.5">
-            <h2 className="font-display text-sm text-wood-dark">좌표평면</h2>
-            <div className="mt-3 grid grid-cols-2 gap-2">
-              <NumberField
-                label="x 시작"
-                value={state.xMin}
-                onChange={(xMin) => set({ xMin })}
-                step={1}
-              />
-              <NumberField
-                label="x 끝"
-                value={state.xMax}
-                onChange={(xMax) => set({ xMax })}
-                step={1}
-              />
-              <NumberField
-                label="y 시작"
-                value={state.yMin}
-                onChange={(yMin) => set({ yMin })}
-                step={1}
-              />
-              <NumberField
-                label="y 끝"
-                value={state.yMax}
-                onChange={(yMax) => set({ yMax })}
-                step={1}
-              />
-              <NumberField
-                label="x 간격"
-                value={state.xTick}
-                onChange={(xTick) => set({ xTick })}
-                min={0.25}
-                max={20}
-                step={0.25}
-              />
-              <NumberField
-                label="y 간격"
-                value={state.yTick}
-                onChange={(yTick) => set({ yTick })}
-                min={0.25}
-                max={20}
-                step={0.25}
-              />
-              <NumberField
-                label="x 숫자"
-                value={state.xLabelEvery}
-                onChange={(xLabelEvery) => set({ xLabelEvery })}
-                min={1}
-                max={10}
-                step={1}
-                hint="몇 칸마다"
-              />
-              <NumberField
-                label="y 숫자"
-                value={state.yLabelEvery}
-                onChange={(yLabelEvery) => set({ yLabelEvery })}
-                min={1}
-                max={10}
-                step={1}
-                hint="몇 칸마다"
-              />
+            <div className="flex items-center justify-between gap-2">
+              <h2 className="font-display text-sm text-wood-dark">좌표평면</h2>
+              <ChipToggle
+                on={state.xMin >= -1e-9 && state.yMin >= -1e-9}
+                onClick={() => {
+                  const first = state.xMin >= -1e-9 && state.yMin >= -1e-9;
+                  if (first) {
+                    set({
+                      xMin: -Math.abs(state.xMax),
+                      yMin: -Math.abs(state.yMax),
+                    });
+                  } else {
+                    set({ xMin: 0, yMin: 0 });
+                  }
+                }}
+              >
+                1사분면
+              </ChipToggle>
             </div>
-            <div className="mt-3 grid grid-cols-1 gap-2">
-              <TextField
-                label="x축 이름"
-                value={state.xAxisLabel}
-                onChange={(xAxisLabel) => set({ xAxisLabel })}
-                placeholder="$x$  또는  시간"
-              />
-              <TextField
-                label="y축 이름"
-                value={state.yAxisLabel}
-                onChange={(yAxisLabel) => set({ yAxisLabel })}
-                placeholder="$y$  또는  $y$(°C)"
-              />
-              <TextField
-                label="원점 이름"
-                value={state.originLabel}
-                onChange={(originLabel) => set({ originLabel })}
-                placeholder="O"
-              />
+            <div className="mt-3 space-y-1.5 text-xs font-semibold text-foreground/55">
+              <div className="flex items-center gap-1.5">
+                <span className="w-7 shrink-0 text-wood-dark">x축</span>
+                <span>시작</span>
+                <InlineNumber
+                  ariaLabel="x 시작"
+                  value={state.xMin}
+                  onChange={(xMin) => set({ xMin })}
+                  className="min-w-0 flex-1"
+                />
+                <span>끝</span>
+                <InlineNumber
+                  ariaLabel="x 끝"
+                  value={state.xMax}
+                  onChange={(xMax) => set({ xMax })}
+                  className="min-w-0 flex-1"
+                />
+              </div>
+              <div className="flex items-center gap-1.5">
+                <span className="w-7 shrink-0 text-wood-dark">y축</span>
+                <span>시작</span>
+                <InlineNumber
+                  ariaLabel="y 시작"
+                  value={state.yMin}
+                  onChange={(yMin) => set({ yMin })}
+                  className="min-w-0 flex-1"
+                />
+                <span>끝</span>
+                <InlineNumber
+                  ariaLabel="y 끝"
+                  value={state.yMax}
+                  onChange={(yMax) => set({ yMax })}
+                  className="min-w-0 flex-1"
+                />
+              </div>
+              <div className="flex items-center gap-1.5">
+                <span className="w-7 shrink-0 text-wood-dark">간격</span>
+                <span>x</span>
+                <InlineNumber
+                  ariaLabel="x 간격"
+                  value={state.xTick}
+                  onChange={(xTick) => set({ xTick })}
+                  min={0.25}
+                  max={20}
+                  step={0.25}
+                  className="min-w-0 flex-1"
+                />
+                <span>y</span>
+                <InlineNumber
+                  ariaLabel="y 간격"
+                  value={state.yTick}
+                  onChange={(yTick) => set({ yTick })}
+                  min={0.25}
+                  max={20}
+                  step={0.25}
+                  className="min-w-0 flex-1"
+                />
+              </div>
+              <div className="flex items-center gap-1.5">
+                <span className="w-7 shrink-0 text-wood-dark">숫자</span>
+                <span>x</span>
+                <InlineNumber
+                  ariaLabel="x 숫자 몇 칸마다"
+                  value={state.xLabelEvery}
+                  onChange={(xLabelEvery) => set({ xLabelEvery })}
+                  min={1}
+                  max={10}
+                  step={1}
+                  className="min-w-0 flex-1"
+                />
+                <span>y</span>
+                <InlineNumber
+                  ariaLabel="y 숫자 몇 칸마다"
+                  value={state.yLabelEvery}
+                  onChange={(yLabelEvery) => set({ yLabelEvery })}
+                  min={1}
+                  max={10}
+                  step={1}
+                  className="min-w-0 flex-1"
+                />
+                <span className="shrink-0 font-normal text-foreground/45">
+                  칸마다
+                </span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <span className="w-7 shrink-0 text-wood-dark">이름</span>
+                <span>x</span>
+                <InlineText
+                  ariaLabel="x축 이름"
+                  value={state.xAxisLabel}
+                  onChange={(xAxisLabel) => set({ xAxisLabel })}
+                  placeholder="$x$"
+                />
+                <span>y</span>
+                <InlineText
+                  ariaLabel="y축 이름"
+                  value={state.yAxisLabel}
+                  onChange={(yAxisLabel) => set({ yAxisLabel })}
+                  placeholder="$y$"
+                />
+                <span>O</span>
+                <InlineText
+                  ariaLabel="원점 이름"
+                  value={state.originLabel}
+                  onChange={(originLabel) => set({ originLabel })}
+                  placeholder="O"
+                  className="w-12 shrink-0"
+                />
+              </div>
             </div>
-            <p className="mt-3 text-[11px] font-semibold text-foreground/50">
-              표시
-            </p>
-            <p className="mt-0.5 text-[11px] text-foreground/45">
-              격자를 끄면 축만 남아요. 눈금 숫자·화살표·원점도 각각 켤 수
-              있어요.
-            </p>
-            <div className="mt-2 flex flex-wrap gap-1.5">
+            <div className="mt-3 flex flex-wrap gap-1.5">
               <ChipToggle
                 on={state.showGrid}
                 onClick={() => set({ showGrid: !state.showGrid })}
               >
                 격자
               </ChipToggle>
+              {state.showGrid ? (
+                <>
+                  <ChipToggle
+                    on={state.style.gridColor === GRID_COLOR}
+                    onClick={() =>
+                      set({
+                        style: { ...state.style, gridColor: GRID_COLOR },
+                      })
+                    }
+                  >
+                    청록
+                  </ChipToggle>
+                  <ChipToggle
+                    on={state.style.gridColor === GRID_GRAY}
+                    onClick={() =>
+                      set({
+                        style: { ...state.style, gridColor: GRID_GRAY },
+                      })
+                    }
+                  >
+                    회색
+                  </ChipToggle>
+                </>
+              ) : null}
               <ChipToggle
                 on={state.showOrigin}
                 onClick={() => set({ showOrigin: !state.showOrigin })}
               >
-                원점 O
+                원점
               </ChipToggle>
               <ChipToggle
                 on={state.showArrows}
@@ -532,71 +599,27 @@ export default function CoordinatePlaneStudio() {
                 on={state.yLabelVertical}
                 onClick={() => set({ yLabelVertical: !state.yLabelVertical })}
               >
-                y축 이름 세로
+                y 세로
               </ChipToggle>
               <ChipToggle
                 on={state.yBreak}
                 onClick={() => set({ yBreak: !state.yBreak })}
               >
-                y축 끊기
-              </ChipToggle>
-              <ChipToggle
-                on={state.xMin >= -1e-9 && state.yMin >= -1e-9}
-                onClick={() => {
-                  const first = state.xMin >= -1e-9 && state.yMin >= -1e-9;
-                  if (first) {
-                    set({
-                      xMin: -Math.abs(state.xMax),
-                      yMin: -Math.abs(state.yMax),
-                    });
-                  } else {
-                    set({ xMin: 0, yMin: 0 });
-                  }
-                }}
-              >
-                1사분면
+                y 끊기
               </ChipToggle>
             </div>
-            {state.showGrid ? (
-              <div className="mt-2">
-                <p className="text-[11px] font-semibold text-foreground/50">
-                  격자 색
-                </p>
-                <div className="mt-1 flex flex-wrap gap-1.5">
-                  <ChipToggle
-                    on={state.style.gridColor === GRID_COLOR}
-                    onClick={() =>
-                      set({
-                        style: { ...state.style, gridColor: GRID_COLOR },
-                      })
-                    }
-                  >
-                    청록
-                  </ChipToggle>
-                  <ChipToggle
-                    on={state.style.gridColor === GRID_GRAY}
-                    onClick={() =>
-                      set({
-                        style: { ...state.style, gridColor: GRID_GRAY },
-                      })
-                    }
-                  >
-                    회색
-                  </ChipToggle>
-                </div>
-              </div>
-            ) : null}
             {state.yBreak ? (
-              <div className="mt-2">
-                <NumberField
-                  label="끊은 뒤 첫 값"
+              <div className="mt-2 flex items-center gap-1.5 text-xs font-semibold text-foreground/55">
+                <span>끊은 뒤</span>
+                <InlineNumber
+                  ariaLabel="끊은 뒤 첫 값"
                   value={state.yBreakTo}
                   onChange={(yBreakTo) => set({ yBreakTo })}
-                  step={1}
+                  className="w-16"
                 />
               </div>
             ) : null}
-            <div className="mt-3">
+            <div className="mt-2.5">
               <SliderField
                 label="그림 여백"
                 value={state.style.padding}
