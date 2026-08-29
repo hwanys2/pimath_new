@@ -44,9 +44,9 @@ export type PolygonState = {
   vertices: VertexMark[];
   edges: EdgeMark[];
   diagonals: [number, number][];
-  /** 꼭짓점별 내각(°). 마지막 꼭짓점은 (n-2)×180 − 나머지 합 */
+  /** 꼭짓점별 내각(°). 점 배열에서 파생 — 모양의 진실 원천은 points */
   interiorAnglesDeg: number[];
-  /** 변 0 길이(cm). 길이 수정 시 전체가 닮음 비율로 확대·축소 */
+  /** 변 0 길이(cm). 점 배열에서 파생 */
   referenceEdgeLength: number;
   showVertexNames: boolean;
   showDots: boolean;
@@ -134,29 +134,8 @@ function interiorAngleAt(points: Vec[], i: number): number {
   return (Math.acos(Math.min(1, Math.max(-1, dot))) * 180) / Math.PI;
 }
 
-function interiorAngleSum(n: number): number {
-  return (n - 2) * 180;
-}
-
-function computeLastAngle(angles: number[], n: number): number {
-  const sum = angles.slice(0, n - 1).reduce((s, a) => s + a, 0);
-  return interiorAngleSum(n) - sum;
-}
-
-function finalizeAngles(angles: number[], n: number): number[] {
-  const out = angles.slice(0, n);
-  while (out.length < n) out.push(interiorAngleSum(n) / n);
-  for (let i = 0; i < n - 1; i += 1) out[i] = clamp(out[i]!, 1, 179);
-  out[n - 1] = computeLastAngle(out, n);
-  return out;
-}
-
 function anglesFromPointsLocal(points: Vec[]): number[] {
   return points.map((_, i) => interiorAngleAt(points, i));
-}
-
-export function computeLastInteriorAngle(angles: number[], n = angles.length): number {
-  return computeLastAngle(angles, n);
 }
 
 export function cloneState(state: PolygonState): PolygonState {
@@ -180,13 +159,7 @@ export function normalizeState(state: Partial<PolygonState> & Pick<PolygonState,
     return d !== 1 && d !== n - 1;
   }).map(([a, b]) => (a < b ? ([a, b] as [number, number]) : ([b, a] as [number, number])));
   const style = { ...DEFAULT_STYLE, ...state.style };
-  let interiorAnglesDeg = Array.isArray(state.interiorAnglesDeg)
-    ? state.interiorAnglesDeg.slice(0, n)
-    : [];
-  if (interiorAnglesDeg.length < n) {
-    interiorAnglesDeg = anglesFromPointsLocal(points);
-  }
-  interiorAnglesDeg = finalizeAngles(interiorAnglesDeg, n);
+  const interiorAnglesDeg = anglesFromPointsLocal(points);
   const referenceEdgeLength = clamp(
     state.referenceEdgeLength != null && Number.isFinite(state.referenceEdgeLength)
       ? state.referenceEdgeLength

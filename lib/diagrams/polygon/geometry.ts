@@ -379,8 +379,15 @@ export function applyEditedLabel(
     const i = Number(angMatch[1]);
     const which = angMatch[2] as "interior" | "exterior";
     const parsed = parseAngleInput(text);
-    if (which === "interior" && parsed.kind === "number" && parsed.value != null) {
-      return applyInteriorAngleChange(state, i, parsed.value);
+    if (parsed.kind === "number" && parsed.value != null) {
+      const interiorDeg =
+        which === "interior" ? parsed.value : 180 - parsed.value;
+      const updated = applyInteriorAngleChange(state, i, interiorDeg);
+      const vertices = updated.vertices.map((v, idx) => {
+        if (idx !== i) return v;
+        return { ...v, [which]: labelFromParse(parsed, text, v[which], true) };
+      });
+      return { ...updated, vertices };
     }
     const vertices = state.vertices.map((v, idx) => {
       if (idx !== i) return v;
@@ -393,7 +400,7 @@ export function applyEditedLabel(
     const i = Number(edgeMatch[1]);
     const parsed = parseMeasureInput(text);
     if (parsed.kind === "number" && parsed.value != null) {
-      const scaled = applyEdgeLengthScale(state, i, parsed.value);
+      const scaled = applyEdgeLengthChange(state, i, parsed.value);
       const edges = scaled.edges.map((e, idx) =>
         idx === i ? { ...e, length: labelFromParse(parsed, text, e.length, false) } : e,
       );
@@ -502,23 +509,6 @@ export function interiorAngleSumTarget(n: number): number {
   return (n - 2) * 180;
 }
 
-export function computeLastInteriorAngle(angles: number[], n = angles.length): number {
-  const sum = angles.slice(0, n - 1).reduce((s, a) => s + a, 0);
-  return interiorAngleSumTarget(n) - sum;
-}
-
-export function finalizeInteriorAngles(angles: number[], n: number): number[] {
-  const out = angles.slice(0, n);
-  while (out.length < n) {
-    out.push(interiorAngleSumTarget(n) / n);
-  }
-  for (let i = 0; i < n - 1; i += 1) {
-    out[i] = clamp(out[i]!, 1, 179);
-  }
-  out[n - 1] = computeLastInteriorAngle(out, n);
-  return out;
-}
-
 export function anglesFromPoints(points: Vec[]): number[] {
   return points.map((_, i) => vertexAngles(points, i).interior);
 }
@@ -526,93 +516,289 @@ export function anglesFromPoints(points: Vec[]): number[] {
 export function syncShapeFromPoints(state: PolygonState): PolygonState {
   return {
     ...state,
-    interiorAnglesDeg: finalizeInteriorAngles(anglesFromPoints(state.points), state.points.length),
+    interiorAnglesDeg: anglesFromPoints(state.points),
     referenceEdgeLength: edgeLength(state.points, 0),
   };
 }
 
-function computeEdgeHeadings(interiorAnglesDeg: number[]): number[] {
-  const n = interiorAnglesDeg.length;
-  const headings: number[] = [];
-  let dir = 0;
+const MIN_EDGE = 0.35;
+const CONSTRAINT_TOL = 0.2;
+
+type ShapeConstraints = {
+  interiorAngles: Map<number, number>;
+  edgeLengths: Map<number, number>;
+};
+
+type ConstraintEdit =
+  | { kind: "interior"; index: number; value: number }
+  | { kind: "exterior"; index: number; value: number }
+  | { kind: "length"; index: number; value: number };
+
+function lockedNumericFromLabel(text: string, asAngle: boolean): number | null {
+  const parsed = asAngle ? parseAngleInput(text) : parseMeasureInput(text);
+  if (parsed.kind === "number" && parsed.value != null) return parsed.value;
+  return null;
+}
+
+/** 숫자로 고정된 각·길이 라벨(직접 입력)을 제약으로 모은다. */
+export function collectLockedConstraints(
+  state: PolygonState,
+  edit?: ConstraintEdit,
+): ShapeConstraints {
+  const interiorAngles = new Map<number, number>();
+  const edgeLengths = new Map<number, number>();
+  const n = state.points.length;
+
   for (let i = 0; i < n; i += 1) {
-    headings.push(dir);
-    dir += Math.PI - (interiorAnglesDeg[(i + 1) % n]! * Math.PI) / 180;
-  }
-  return headings;
-}
+    const v = state.vertices[i]!;
+    if (edit?.kind === "interior" && edit.index === i) continue;
+    if (edit?.kind === "exterior" && edit.index === i) continue;
 
-function closureFromLengths(lengths: number[], headings: number[]): Vec {
-  let x = 0;
-  let y = 0;
-  for (let i = 0; i < lengths.length; i += 1) {
-    x += lengths[i]! * Math.cos(headings[i]!);
-    y += lengths[i]! * Math.sin(headings[i]!);
-  }
-  return { x, y };
-}
-
-function solveEdgeLengthRatios(interiorAnglesDeg: number[]): number[] {
-  const n = interiorAnglesDeg.length;
-  const headings = computeEdgeHeadings(interiorAnglesDeg);
-  if (n === 3) {
-    const c1 = Math.cos(headings[1]!);
-    const s1 = Math.sin(headings[1]!);
-    const c2 = Math.cos(headings[2]!);
-    const s2 = Math.sin(headings[2]!);
-    const det = c1 * s2 - s1 * c2;
-    if (Math.abs(det) < 1e-9) return [1, 1, 1];
-    const l1 = -s2 / det;
-    const l2 = s1 / det;
-    if (l1 <= 0 || l2 <= 0) return [1, 1, 1];
-    return [1, l1, l2];
-  }
-  const lengths = Array.from({ length: n }, () => 1);
-  lengths[0] = 1;
-  for (let iter = 0; iter < 900; iter += 1) {
-    const err = closureFromLengths(lengths, headings);
-    const mag = len(err);
-    if (mag < 1e-8) break;
-    const delta = 0.04 * Math.min(mag, 1);
-    for (let j = 1; j < n; j += 1) {
-      const base = lengths[j]!;
-      lengths[j] = base + delta;
-      const up = len(closureFromLengths(lengths, headings));
-      lengths[j] = base - delta;
-      const down = len(closureFromLengths(lengths, headings));
-      lengths[j] = base;
-      const grad = (up - down) / (2 * delta);
-      lengths[j] = Math.max(0.08, base - grad * 0.35);
+    if (v.showInterior && v.interior.mode === "custom") {
+      const val = lockedNumericFromLabel(v.interior.custom, true);
+      if (val != null) interiorAngles.set(i, val);
+    }
+    if (v.showExterior && v.exterior.mode === "custom" && !interiorAngles.has(i)) {
+      const val = lockedNumericFromLabel(v.exterior.custom, true);
+      if (val != null) interiorAngles.set(i, 180 - val);
     }
   }
-  return lengths;
+
+  for (let i = 0; i < n; i += 1) {
+    if (edit?.kind === "length" && edit.index === i) continue;
+    const e = state.edges[i]!;
+    if (e.showLength && e.length.mode === "custom") {
+      const val = lockedNumericFromLabel(e.length.custom, false);
+      if (val != null) edgeLengths.set(i, val);
+    }
+  }
+
+  if (edit?.kind === "interior") {
+    interiorAngles.set(edit.index, clamp(edit.value, 1, 179));
+  } else if (edit?.kind === "exterior") {
+    interiorAngles.set(edit.index, clamp(180 - edit.value, 1, 179));
+  } else if (edit?.kind === "length") {
+    edgeLengths.set(edit.index, clamp(edit.value, MIN_EDGE, 40));
+  }
+
+  return { interiorAngles, edgeLengths };
 }
 
-export function buildPointsFromAngles(
-  interiorAnglesDeg: number[],
-  referenceEdgeLength: number,
-): Vec[] {
-  const n = interiorAnglesDeg.length;
-  if (n < 3) return [];
-  const angles = finalizeInteriorAngles(interiorAnglesDeg, n);
-  const ratios = solveEdgeLengthRatios(angles);
-  if (ratios.some((r) => !Number.isFinite(r) || r <= 0)) {
-    return regularPolygon(n);
+function constraintError(points: Vec[], constraints: ShapeConstraints): number {
+  let err = 0;
+  for (const [i, deg] of constraints.interiorAngles) {
+    const delta = vertexAngles(points, i).interior - deg;
+    err += delta * delta;
   }
-  const scale = referenceEdgeLength / ratios[0]!;
-  const lengths = ratios.map((r) => r * scale);
-  const headings = computeEdgeHeadings(angles);
-  const pts: Vec[] = [{ x: 0, y: 0 }];
-  for (let i = 0; i < n; i += 1) {
-    const prev = pts[pts.length - 1]!;
-    pts.push({
-      x: prev.x + lengths[i]! * Math.cos(headings[i]!),
-      y: prev.y + lengths[i]! * Math.sin(headings[i]!),
-    });
+  for (const [i, target] of constraints.edgeLengths) {
+    const delta = edgeLength(points, i) - target;
+    err += delta * delta;
   }
-  pts.pop();
-  const c = centroid(pts);
-  return pts.map((p) => sub(p, c));
+  return err;
+}
+
+function satisfiesConstraints(points: Vec[], constraints: ShapeConstraints): boolean {
+  if (!isValidPolygon(points)) return false;
+  return constraintError(points, constraints) <= CONSTRAINT_TOL * CONSTRAINT_TOL;
+}
+
+function displacementCost(a: Vec[], b: Vec[]): number {
+  let s = 0;
+  for (let i = 0; i < a.length; i += 1) {
+    const dx = a[i]!.x - b[i]!.x;
+    const dy = a[i]!.y - b[i]!.y;
+    s += dx * dx + dy * dy;
+  }
+  return s;
+}
+
+function pickBestCandidate(candidates: Vec[][], start: Vec[]): Vec | null {
+  let best: Vec[] | null = null;
+  let bestCost = Infinity;
+  for (const candidate of candidates) {
+    const cost = displacementCost(candidate, start);
+    if (cost < bestCost) {
+      best = candidate;
+      bestCost = cost;
+    }
+  }
+  return best;
+}
+
+function isValidPolygon(points: Vec[]): boolean {
+  if (!isConvex(points)) return false;
+  for (let i = 0; i < points.length; i += 1) {
+    if (edgeLength(points, i) < MIN_EDGE) return false;
+  }
+  return true;
+}
+
+function rotateVec2(v: Vec, deg: number): Vec {
+  const rad = (deg * Math.PI) / 180;
+  const c = Math.cos(rad);
+  const s = Math.sin(rad);
+  return { x: v.x * c - v.y * s, y: v.x * s + v.y * c };
+}
+
+function trySetInteriorAngle(
+  points: Vec[],
+  vIndex: number,
+  moveIndex: number,
+  targetDeg: number,
+): Vec[] | null {
+  const n = points.length;
+  const V = points[vIndex]!;
+  const prev = prevIndex(vIndex, n);
+  const next = nextIndex(vIndex, n);
+  if (moveIndex !== prev && moveIndex !== next) return null;
+
+  const target = clamp(targetDeg, 1, 179);
+
+  if (moveIndex === next) {
+    const P = points[prev]!;
+    const N = points[next]!;
+    const u = norm(sub(P, V));
+    const w = sub(N, V);
+    const dist = len(w);
+    if (dist < 1e-9) return null;
+    const sign = Math.sign(cross(u, norm(w))) || 1;
+    const wDir = rotateVec2(u, sign * target);
+    const moved = add(V, mul(wDir, dist));
+    const newPoints = points.map((p, i) => (i === next ? moved : p));
+    return isValidPolygon(newPoints) ? newPoints : null;
+  }
+
+  const P = points[prev]!;
+  const N = points[next]!;
+  const w = norm(sub(N, V));
+  const u = sub(P, V);
+  const dist = len(u);
+  if (dist < 1e-9) return null;
+  const sign = Math.sign(cross(norm(u), w)) || 1;
+  const uDir = rotateVec2(w, -sign * target);
+  const moved = add(V, mul(uDir, dist));
+  const newPoints = points.map((p, i) => (i === prev ? moved : p));
+  return isValidPolygon(newPoints) ? newPoints : null;
+}
+
+function trySetEdgeLength(
+  points: Vec[],
+  edgeIndex: number,
+  moveEndIndex: number,
+  targetLength: number,
+): Vec[] | null {
+  const n = points.length;
+  const start = edgeIndex;
+  const end = nextIndex(edgeIndex, n);
+  if (moveEndIndex !== start && moveEndIndex !== end) return null;
+
+  const A = points[start]!;
+  const B = points[end]!;
+  const target = clamp(targetLength, MIN_EDGE, 40);
+  const dir = norm(sub(B, A));
+
+  if (moveEndIndex === end) {
+    const moved = add(A, mul(dir, target));
+    const newPoints = points.map((p, i) => (i === end ? moved : p));
+    return isValidPolygon(newPoints) ? newPoints : null;
+  }
+
+  const moved = sub(B, mul(dir, target));
+  const newPoints = points.map((p, i) => (i === start ? moved : p));
+  return isValidPolygon(newPoints) ? newPoints : null;
+}
+
+function localMoveCandidates(
+  points: Vec[],
+  edit: ConstraintEdit,
+): Vec[][] {
+  const n = points.length;
+  const out: Vec[][] = [];
+
+  if (edit.kind === "interior" || edit.kind === "exterior") {
+    const index = edit.index;
+    const deg = edit.kind === "interior" ? edit.value : 180 - edit.value;
+    for (const moveIndex of [nextIndex(index, n), prevIndex(index, n)]) {
+      const trial = trySetInteriorAngle(points, index, moveIndex, deg);
+      if (trial) out.push(trial);
+    }
+    return out;
+  }
+
+  const end = nextIndex(edit.index, n);
+  for (const moveIndex of [end, edit.index]) {
+    const trial = trySetEdgeLength(points, edit.index, moveIndex, edit.value);
+    if (trial) out.push(trial);
+  }
+  return out;
+}
+
+function optimizeForConstraints(
+  start: Vec[],
+  constraints: ShapeConstraints,
+): Vec[] | null {
+  const n = start.length;
+  let best = start.map((p) => ({ ...p }));
+  let bestObj = constraintError(best, constraints) + 0.003 * displacementCost(best, start);
+
+  const stepSizes = [0.12, 0.06, 0.03, 0.015];
+  for (const step of stepSizes) {
+    for (let iter = 0; iter < 160; iter += 1) {
+      let improved = false;
+      for (let vi = 0; vi < n; vi += 1) {
+        for (const [dx, dy] of [
+          [step, 0],
+          [-step, 0],
+          [0, step],
+          [0, -step],
+          [step, step],
+          [-step, step],
+          [step, -step],
+          [-step, -step],
+        ] as const) {
+          const trial = best.map((p, i) =>
+            i === vi ? { x: p.x + dx, y: p.y + dy } : p,
+          );
+          if (!isValidPolygon(trial)) continue;
+          const obj =
+            constraintError(trial, constraints) + 0.003 * displacementCost(trial, start);
+          if (obj < bestObj - 1e-9) {
+            best = trial;
+            bestObj = obj;
+            improved = true;
+          }
+        }
+      }
+      if (!improved) break;
+    }
+  }
+
+  return satisfiesConstraints(best, constraints) ? best : null;
+}
+
+function solveWithConstraints(
+  state: PolygonState,
+  edit: ConstraintEdit,
+): Vec[] | null {
+  const start = state.points;
+  const constraints = collectLockedConstraints(state, edit);
+
+  const localValid = localMoveCandidates(start, edit).filter((candidate) =>
+    satisfiesConstraints(candidate, constraints),
+  );
+  const localBest = pickBestCandidate(localValid, start);
+  if (localBest) return localBest;
+
+  const chained: Vec[][] = [];
+  for (const first of localMoveCandidates(start, edit)) {
+    for (const second of localMoveCandidates(first, edit)) {
+      if (satisfiesConstraints(second, constraints)) chained.push(second);
+    }
+  }
+  const chainedBest = pickBestCandidate(chained, start);
+  if (chainedBest) return chainedBest;
+
+  return optimizeForConstraints(start, constraints);
 }
 
 export function applyInteriorAngleChange(
@@ -621,38 +807,37 @@ export function applyInteriorAngleChange(
   deg: number,
 ): PolygonState {
   const n = state.points.length;
-  if (index < 0 || index >= n - 1) return state;
-  const angles = finalizeInteriorAngles(state.interiorAnglesDeg, n);
-  angles[index] = clamp(deg, 1, 179);
-  const last = computeLastInteriorAngle(angles, n);
-  if (last < 1 || last > 179) return state;
-  angles[n - 1] = last;
-  const points = buildPointsFromAngles(angles, state.referenceEdgeLength);
-  if (points.length !== n || !isConvex(points)) return state;
-  return {
-    ...state,
-    points,
-    interiorAnglesDeg: finalizeInteriorAngles(angles, n),
-    referenceEdgeLength: edgeLength(points, 0),
-  };
+  if (index < 0 || index >= n) return state;
+  const points = solveWithConstraints(state, {
+    kind: "interior",
+    index,
+    value: deg,
+  });
+  if (!points) return state;
+  return syncShapeFromPoints({ ...state, points });
 }
 
-export function applyEdgeLengthScale(
+export function applyEdgeLengthChange(
   state: PolygonState,
   edgeIndex: number,
   newLength: number,
 ): PolygonState {
   const n = state.points.length;
   if (edgeIndex < 0 || edgeIndex >= n) return state;
-  const current = edgeLength(state.points, edgeIndex);
-  if (current < 1e-9) return state;
-  const target = clamp(newLength, 0.5, 40);
-  const factor = target / current;
-  const c = centroid(state.points);
-  const points = state.points.map((p) => add(c, mul(sub(p, c), factor)));
-  return syncShapeFromPoints({
-    ...state,
-    points,
-    referenceEdgeLength: clamp(state.referenceEdgeLength * factor, 0.5, 40),
+  const points = solveWithConstraints(state, {
+    kind: "length",
+    index: edgeIndex,
+    value: newLength,
   });
+  if (!points) return state;
+  return syncShapeFromPoints({ ...state, points });
+}
+
+/** @deprecated Use applyEdgeLengthChange. */
+export function applyEdgeLengthScale(
+  state: PolygonState,
+  edgeIndex: number,
+  newLength: number,
+): PolygonState {
+  return applyEdgeLengthChange(state, edgeIndex, newLength);
 }

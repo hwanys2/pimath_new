@@ -22,10 +22,13 @@ import {
 } from "@/lib/diagrams/export-image";
 import {
   allDiagonalsOn,
+  applyEdgeLengthChange,
   applyInteriorAngleChange,
   clearSelectionMarks,
+  edgeLength,
   toggleAllDiagonals,
   toggleVertexDiagonals,
+  vertexAngles,
   vertexDiagonalsOn,
 } from "@/lib/diagrams/polygon/geometry";
 import {
@@ -35,7 +38,6 @@ import {
   allExteriorsOn,
   allInteriorsOn,
   allLengthsOn,
-  computeLastInteriorAngle,
   normalizeState,
   setAllExteriors,
   setAllInteriors,
@@ -238,8 +240,8 @@ export default function PolygonStudio() {
             다각형
           </h1>
           <p className="mt-1 max-w-2xl text-sm text-foreground/65">
-            꼭짓점을 끌어 모양을 잡고, 변을 누르면 길이가 켜집니다. 칩으로
-            내각·외각·대각선을 켭니다. 글자를 누르면 바로 고칠 수 있어요.
+            꼭짓점을 끌어 모양을 잡고, 숫자를 넣으면 그 각·변만 맞춥니다. 이미
+            넣은 값은 유지되고 나머지만 최소한 바뀝니다.
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -404,40 +406,108 @@ export default function PolygonStudio() {
                   ) : null}
                 </div>
                 {selVertex.showInterior ? (
-                  <LabelModeRow
-                    title="내각"
-                    mode={selVertex.interior.mode}
-                    custom={selVertex.interior.custom}
-                    unknownLetter={state.unknownLetter}
-                    onMode={(mode) =>
-                      patchVertex(setState, selected.i, {
-                        interior: { ...selVertex.interior, mode },
-                      })
-                    }
-                    onCustom={(custom) =>
-                      patchVertex(setState, selected.i, {
-                        interior: { ...selVertex.interior, custom },
-                      })
-                    }
-                  />
+                  <>
+                    <NumberField
+                      label="내각 값"
+                      value={Number(
+                        vertexAngles(state.points, selected.i).interior.toFixed(1),
+                      )}
+                      onChange={(deg) =>
+                        setState((prev) => {
+                          const next = applyInteriorAngleChange(prev, selected.i, deg);
+                          return {
+                            ...next,
+                            vertices: next.vertices.map((v, idx) =>
+                              idx === selected.i
+                                ? {
+                                    ...v,
+                                    interior: {
+                                      ...v.interior,
+                                      mode: "custom" as const,
+                                      custom: `${deg}°`,
+                                    },
+                                  }
+                                : v,
+                            ),
+                          };
+                        })
+                      }
+                      min={1}
+                      max={179}
+                      step={1}
+                      suffix="°"
+                    />
+                    <LabelModeRow
+                      title="내각 표시"
+                      mode={selVertex.interior.mode}
+                      custom={selVertex.interior.custom}
+                      unknownLetter={state.unknownLetter}
+                      onMode={(mode) =>
+                        patchVertex(setState, selected.i, {
+                          interior: { ...selVertex.interior, mode },
+                        })
+                      }
+                      onCustom={(custom) =>
+                        patchVertex(setState, selected.i, {
+                          interior: { ...selVertex.interior, custom },
+                        })
+                      }
+                    />
+                  </>
                 ) : null}
                 {selVertex.showExterior ? (
-                  <LabelModeRow
-                    title="외각"
-                    mode={selVertex.exterior.mode}
-                    custom={selVertex.exterior.custom}
-                    unknownLetter={state.unknownLetter}
-                    onMode={(mode) =>
-                      patchVertex(setState, selected.i, {
-                        exterior: { ...selVertex.exterior, mode },
-                      })
-                    }
-                    onCustom={(custom) =>
-                      patchVertex(setState, selected.i, {
-                        exterior: { ...selVertex.exterior, custom },
-                      })
-                    }
-                  />
+                  <>
+                    <NumberField
+                      label="외각 값"
+                      value={Number(
+                        vertexAngles(state.points, selected.i).exterior.toFixed(1),
+                      )}
+                      onChange={(deg) =>
+                        setState((prev) => {
+                          const next = applyInteriorAngleChange(
+                            prev,
+                            selected.i,
+                            180 - deg,
+                          );
+                          return {
+                            ...next,
+                            vertices: next.vertices.map((v, idx) =>
+                              idx === selected.i
+                                ? {
+                                    ...v,
+                                    exterior: {
+                                      ...v.exterior,
+                                      mode: "custom" as const,
+                                      custom: `${deg}°`,
+                                    },
+                                  }
+                                : v,
+                            ),
+                          };
+                        })
+                      }
+                      min={1}
+                      max={179}
+                      step={1}
+                      suffix="°"
+                    />
+                    <LabelModeRow
+                      title="외각 표시"
+                      mode={selVertex.exterior.mode}
+                      custom={selVertex.exterior.custom}
+                      unknownLetter={state.unknownLetter}
+                      onMode={(mode) =>
+                        patchVertex(setState, selected.i, {
+                          exterior: { ...selVertex.exterior, mode },
+                        })
+                      }
+                      onCustom={(custom) =>
+                        patchVertex(setState, selected.i, {
+                          exterior: { ...selVertex.exterior, custom },
+                        })
+                      }
+                    />
+                  </>
                 ) : null}
               </div>
             ) : null}
@@ -458,29 +528,61 @@ export default function PolygonStudio() {
                   길이
                 </ChipToggle>
                 {selEdge.showLength ? (
-                  <LabelModeRow
-                    title="길이"
-                    mode={selEdge.length.mode}
-                    custom={selEdge.length.custom}
-                    unknownLetter={state.unknownLetter}
-                    onMode={(mode) =>
-                      patchEdge(setState, selected.i, {
-                        length: { ...selEdge.length, mode },
-                      })
-                    }
-                    onCustom={(custom) =>
-                      patchEdge(setState, selected.i, {
-                        length: { ...selEdge.length, custom },
-                      })
-                    }
-                  />
+                  <>
+                    <NumberField
+                      label="길이 값"
+                      value={Number(
+                        edgeLength(state.points, selected.i).toFixed(2),
+                      )}
+                      onChange={(len) =>
+                        setState((prev) => {
+                          const next = applyEdgeLengthChange(prev, selected.i, len);
+                          return {
+                            ...next,
+                            edges: next.edges.map((e, idx) =>
+                              idx === selected.i
+                                ? {
+                                    ...e,
+                                    length: {
+                                      ...e.length,
+                                      mode: "custom" as const,
+                                      custom: String(len),
+                                    },
+                                  }
+                                : e,
+                            ),
+                          };
+                        })
+                      }
+                      min={0.5}
+                      max={40}
+                      step={0.1}
+                      suffix={state.unit.trim() || "cm"}
+                    />
+                    <LabelModeRow
+                      title="길이 표시"
+                      mode={selEdge.length.mode}
+                      custom={selEdge.length.custom}
+                      unknownLetter={state.unknownLetter}
+                      onMode={(mode) =>
+                        patchEdge(setState, selected.i, {
+                          length: { ...selEdge.length, mode },
+                        })
+                      }
+                      onCustom={(custom) =>
+                        patchEdge(setState, selected.i, {
+                          length: { ...selEdge.length, custom },
+                        })
+                      }
+                    />
+                  </>
                 ) : null}
               </div>
             ) : null}
 
             <p className="mt-2 text-[11px] leading-snug text-foreground/45">
-              꼭짓점을 끌어 모양을 바꾸고, 변을 누르면 길이가 켜지거나
-              꺼집니다. 글자를 누르면 숫자나 x로 고칠 수 있어요.
+              점을 끌어 모양을 잡고, 각·변을 켠 뒤 숫자를 넣으면 그 값만
+              맞춥니다. 앞서 넣은 숫자는 유지되고 나머지만 최소한 바뀝니다.
             </p>
 
             {activeMarks.length > 0 ? (
@@ -527,38 +629,6 @@ export default function PolygonStudio() {
             >
               정다각형
             </button>
-            <div className="mt-3 space-y-2">
-              <p className="text-xs font-semibold text-foreground/60">내각 (°)</p>
-              <p className="text-[11px] leading-snug text-foreground/45">
-                마지막 꼭짓점 각은 (n−2)×180°에서 나머지 합을 뺀 값으로
-                자동 맞춰집니다. 길이를 바꾸면 모든 변이 같은 비율로
-                커지거나 작아집니다.
-              </p>
-              <div className="grid grid-cols-2 gap-2">
-                {state.vertices.map((v, i) => {
-                  const name = v.name.trim() || defaultName(i);
-                  const isLast = i === n - 1;
-                  const value = isLast
-                    ? computeLastInteriorAngle(state.interiorAnglesDeg, n)
-                    : state.interiorAnglesDeg[i] ?? 0;
-                  return (
-                    <NumberField
-                      key={`angle-${i}`}
-                      label={isLast ? `∠${name} (자동)` : `∠${name}`}
-                      value={Number(value.toFixed(1))}
-                      onChange={(deg) =>
-                        setState((prev) => applyInteriorAngleChange(prev, i, deg))
-                      }
-                      min={1}
-                      max={179}
-                      step={1}
-                      suffix="°"
-                      disabled={isLast}
-                    />
-                  );
-                })}
-              </div>
-            </div>
             <div className="mt-3 grid grid-cols-2 gap-2">
               <TextField
                 label="단위"
