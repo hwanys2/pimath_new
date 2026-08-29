@@ -26,6 +26,7 @@ import {
   cloneState,
   DEFAULT_SOLID_SKETCH_STATE,
   defaultVertexNames,
+  cycleVertexMode,
   familyHasFaceHeight,
   familyHasSlant,
   familyIsRound,
@@ -35,10 +36,10 @@ import {
   familyNeedsSides,
   normalizeState,
   resetView,
-  toggleVertexNameHidden,
+  vertexMode,
+  vertexModeTitle,
   withFamily,
   type SolidSketchState,
-  type VertexDisplayMode,
 } from "@/lib/diagrams/solid-sketch/model";
 import { buildSolidSketchScene } from "@/lib/diagrams/solid-sketch/scene";
 import {
@@ -53,7 +54,7 @@ import {
 import { renderSceneToCanvas, sceneToSvg } from "@/lib/diagrams/render";
 import type { FontFaces } from "@/lib/diagrams/math-label";
 
-const STORAGE_KEY = "pm-diagram-g1-solid-sketch-v3";
+const STORAGE_KEY = "pm-diagram-g1-solid-sketch-v4";
 
 const storeListeners = new Set<() => void>();
 
@@ -307,19 +308,6 @@ export default function SolidSketchStudio() {
               >
                 숨은 선
               </ChipToggle>
-              {!smooth ? (
-                <div className="w-full">
-                  <Segmented<VertexDisplayMode>
-                    value={state.vertexDisplay}
-                    onChange={(vertexDisplay) => set({ vertexDisplay })}
-                    options={[
-                      { id: "names", label: "점 이름" },
-                      { id: "dots", label: "점" },
-                      { id: "hidden", label: "안보임" },
-                    ]}
-                  />
-                </div>
-              ) : null}
               {!sphere && !hemisphere ? (
                 <ChipToggle
                   on={state.showHeight}
@@ -379,28 +367,34 @@ export default function SolidSketchStudio() {
                 </ChipToggle>
               ) : null}
             </div>
-            {state.vertexDisplay === "names" && vertexLabels.length > 0 ? (
-              <div className="mt-2 flex flex-wrap gap-1">
-                {vertexLabels.map((name, i) => {
-                  const on = !state.hiddenVertexNames[i];
-                  return (
-                    <button
-                      key={`${name}-${i}`}
-                      type="button"
-                      onClick={() =>
-                        setState((prev) => toggleVertexNameHidden(prev, i))
-                      }
-                      className={`min-w-[1.5rem] rounded-full px-1.5 py-0.5 text-[11px] font-semibold italic transition ${
-                        on
-                          ? "bg-wood text-cream"
-                          : "bg-black/8 text-foreground/35 line-through"
-                      }`}
-                      aria-pressed={on}
-                    >
-                      {name}
-                    </button>
-                  );
-                })}
+            {!smooth && vertexLabels.length > 0 ? (
+              <div className="mt-2">
+                <p className="mb-1 text-[11px] leading-snug text-foreground/45">
+                  꼭짓점 버튼을 누르면 점 이름 → 점 → 안보임
+                </p>
+                <div className="flex flex-wrap gap-1">
+                  {vertexLabels.map((name, i) => {
+                    const mode = vertexMode(state, i);
+                    return (
+                      <button
+                        key={`${name}-${i}`}
+                        type="button"
+                        onClick={() => setState((prev) => cycleVertexMode(prev, i))}
+                        className={`min-w-[1.5rem] rounded-full px-1.5 py-0.5 text-[11px] font-semibold italic transition ${
+                          mode === "names"
+                            ? "bg-wood text-cream"
+                            : mode === "dots"
+                              ? "bg-gold text-[#6b4a00]"
+                              : "bg-black/8 text-foreground/35 line-through"
+                        }`}
+                        aria-pressed={mode !== "hidden"}
+                        title={vertexModeTitle(mode)}
+                      >
+                        {name}
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
             ) : null}
             <p className="mt-2 text-[11px] leading-snug text-foreground/45">

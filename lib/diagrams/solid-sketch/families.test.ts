@@ -5,10 +5,10 @@ import {
   SOLID_SKETCH_PRESETS,
   cloneState,
   cycleVertexDisplay,
+  cycleVertexMode,
   familyHasSlant,
   familyIsSmooth,
   normalizeState,
-  toggleVertexNameHidden,
   type SolidFamily,
 } from "./model";
 import { applyEditedLabel } from "./geometry";
@@ -47,7 +47,7 @@ describe("all families build a scene", () => {
         sides: 6,
         cylinderLie: "horizontal",
         showFill: true,
-        vertexDisplay: !familyIsSmooth(family) ? "names" : "hidden",
+        vertexModesDefault: !familyIsSmooth(family) ? "names" : "hidden",
         showHeight: family !== "sphere" && family !== "hemisphere",
         showRadius: familyIsSmooth(family),
         showSlant: familyHasSlant(family),
@@ -206,7 +206,7 @@ describe("face altitude of pyramid and frustum", () => {
         family: "pyramid",
         sides: 3,
         showFaceHeight: true,
-        vertexDisplay: "hidden",
+        vertexModesDefault: "hidden",
       }),
     );
     assert.ok(pyramid.texts.some((t) => t.id === "faceHeight"));
@@ -223,7 +223,7 @@ describe("face altitude of pyramid and frustum", () => {
         baseSize: 5,
         topSize: 3,
         showFaceHeight: true,
-        vertexDisplay: "hidden",
+        vertexModesDefault: "hidden",
       }),
     );
     const rights = frustum.cmds.filter((c) => c.t === "rightAngle");
@@ -239,7 +239,7 @@ describe("round fills and sphere", () => {
         ...DEFAULT_SOLID_SKETCH_STATE,
         family: "cylinder",
         showFill: true,
-        vertexDisplay: "hidden",
+        vertexModesDefault: "hidden",
       }),
     );
     const fills = scene.cmds.filter((c) => c.t === "polygon");
@@ -252,7 +252,7 @@ describe("round fills and sphere", () => {
         ...DEFAULT_SOLID_SKETCH_STATE,
         family: "coneFrustum",
         showFill: true,
-        vertexDisplay: "hidden",
+        vertexModesDefault: "hidden",
       }),
     );
     const fills = scene.cmds.filter((c) => c.t === "polygon");
@@ -269,7 +269,7 @@ describe("round fills and sphere", () => {
         showCenter: true,
         showRadius: true,
         showHidden: true,
-        vertexDisplay: "hidden",
+        vertexModesDefault: "hidden",
       }),
     );
     assert.ok(scene.texts.some((t) => t.id === "center-name"));
@@ -289,7 +289,7 @@ describe("round fills and sphere", () => {
         showCenter: true,
         showRadius: true,
         showHidden: true,
-        vertexDisplay: "hidden",
+        vertexModesDefault: "hidden",
       }),
     );
     assert.ok(scene.texts.some((t) => t.id === "center-name"));
@@ -310,7 +310,7 @@ describe("round fills and sphere", () => {
         showCenter: true,
         showRadius: true,
         showHidden: true,
-        vertexDisplay: "hidden",
+        vertexModesDefault: "hidden",
       }),
     );
     const mesh = buildSolidMesh(
@@ -339,7 +339,7 @@ describe("same-radius stacked solids", () => {
       showCenter: true,
       showRadius: true,
       showSlant: true,
-      vertexDisplay: "hidden",
+      vertexModesDefault: "hidden",
     });
     const mesh = buildSolidMesh(state);
     assert.equal(mesh.circles.length, 1);
@@ -394,53 +394,65 @@ describe("same-radius stacked solids", () => {
         ...start,
         showFill: true,
         showSlant: true,
-        vertexDisplay: "hidden",
+        vertexModesDefault: "hidden",
       }),
     );
     assert.ok(scene.cmds.filter((c) => c.t === "line").length >= 2);
   });
 });
 
-describe("per-vertex names", () => {
-  it("hides only the chosen vertex label", () => {
+describe("per-vertex display modes", () => {
+  it("cycles one vertex through names, dots, and hidden independently", () => {
     const start = normalizeState({
       ...DEFAULT_SOLID_SKETCH_STATE,
       family: "prism",
       sides: 4,
-      vertexDisplay: "names",
     });
-    const hidden = toggleVertexNameHidden(start, 0);
-    const scene = buildSolidSketchScene(hidden);
+    const dotsOnly = cycleVertexMode(start, 0);
+    assert.deepEqual(dotsOnly.vertexModes[0], "dots");
+    const hidden = cycleVertexMode(dotsOnly, 0);
+    assert.deepEqual(hidden.vertexModes[0], "hidden");
+    const namesAgain = cycleVertexMode(hidden, 0);
+    assert.deepEqual(namesAgain.vertexModes[0], "names");
+  });
+
+  it("shows dot only for a vertex in dots mode", () => {
+    const start = normalizeState({
+      ...DEFAULT_SOLID_SKETCH_STATE,
+      family: "prism",
+      sides: 4,
+      vertexModes: ["dots"],
+    });
+    const scene = buildSolidSketchScene(start);
     const labels = scene.texts.filter((t) => t.id.startsWith("vertex:"));
     const dots = scene.cmds.filter((c) => c.t === "dot");
     assert.equal(labels.length, 7);
-    assert.equal(dots.length, 8, "hiding a name must not hide the vertex dot");
     assert.ok(!labels.some((t) => t.id === "vertex:0"));
-    assert.ok(labels.some((t) => t.id === "vertex:1"));
+    assert.equal(dots.length, 8);
   });
 
-  it("shows all dots without labels in dots mode even when some names were hidden", () => {
+  it("hides one vertex completely in hidden mode", () => {
     const start = normalizeState({
       ...DEFAULT_SOLID_SKETCH_STATE,
       family: "frustum",
       sides: 3,
-      vertexDisplay: "names",
+      vertexModes: [, "hidden"],
     });
-    const withHidden = toggleVertexNameHidden(start, 0);
-    const scene = buildSolidSketchScene({ ...withHidden, vertexDisplay: "dots" });
+    const scene = buildSolidSketchScene(start);
     const labels = scene.texts.filter((t) => t.id.startsWith("vertex:"));
     const dots = scene.cmds.filter((c) => c.t === "dot");
-    assert.equal(labels.length, 0);
-    assert.equal(dots.length, 6);
+    assert.equal(labels.length, 5);
+    assert.equal(dots.length, 5);
+    assert.ok(!labels.some((t) => t.id === "vertex:1"));
   });
 
-  it("shows dots without labels in dots mode", () => {
+  it("applies dots default to all vertices without overrides", () => {
     const scene = buildSolidSketchScene(
       normalizeState({
         ...DEFAULT_SOLID_SKETCH_STATE,
         family: "prism",
         sides: 4,
-        vertexDisplay: "dots",
+        vertexModesDefault: "dots",
       }),
     );
     const labels = scene.texts.filter((t) => t.id.startsWith("vertex:"));
@@ -449,13 +461,13 @@ describe("per-vertex names", () => {
     assert.equal(dots.length, 8);
   });
 
-  it("hides all vertex dots and labels in hidden mode", () => {
+  it("applies hidden default to all vertices without overrides", () => {
     const scene = buildSolidSketchScene(
       normalizeState({
         ...DEFAULT_SOLID_SKETCH_STATE,
         family: "frustum",
         sides: 3,
-        vertexDisplay: "hidden",
+        vertexModesDefault: "hidden",
       }),
     );
     const labels = scene.texts.filter((t) => t.id.startsWith("vertex:"));
@@ -470,11 +482,22 @@ describe("per-vertex names", () => {
     assert.equal(cycleVertexDisplay("hidden"), "names");
   });
 
-  it("migrates legacy showVertexNames=false to hidden", () => {
+  it("migrates legacy showVertexNames=false to hidden default", () => {
     const legacy = { ...DEFAULT_SOLID_SKETCH_STATE } as Record<string, unknown>;
-    delete legacy.vertexDisplay;
+    delete legacy.vertexModes;
     legacy.showVertexNames = false;
     const state = normalizeState(legacy as typeof DEFAULT_SOLID_SKETCH_STATE);
-    assert.equal(state.vertexDisplay, "hidden");
+    assert.equal(state.vertexModesDefault, "hidden");
+  });
+
+  it("migrates legacy hiddenVertexNames to per-vertex dots mode", () => {
+    const state = normalizeState({
+      ...DEFAULT_SOLID_SKETCH_STATE,
+      family: "prism",
+      sides: 4,
+      hiddenVertexNames: [true, false],
+    } as typeof DEFAULT_SOLID_SKETCH_STATE);
+    assert.equal(state.vertexModes[0], "dots");
+    assert.equal(state.vertexModes[1], undefined);
   });
 });

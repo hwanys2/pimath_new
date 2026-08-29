@@ -6,6 +6,7 @@ import {
   familyIsSphere,
   resolveLabelText,
   vertexNameVisible,
+  vertexDotsVisible,
   type MeasLabel,
   type SolidSketchState,
 } from "./model";
@@ -760,34 +761,33 @@ export function buildSolidSketchScene(state: SolidSketchState): SolidScene {
     });
   }
 
-  if (state.vertexDisplay !== "hidden") {
-    const cloud = verts2.length
-      ? {
-          x: verts2.reduce((s, p) => s + p.x, 0) / verts2.length,
-          y: verts2.reduce((s, p) => s + p.y, 0) / verts2.length,
-        }
-      : { x: width / 2, y: height / 2 };
-    mesh.vertices.forEach((_, i) => {
-      const p = verts2[i]!;
-      cmds.push({ t: "dot", x: p.x, y: p.y, r: style.pointRadius });
-      if (!vertexNameVisible(state, i)) return;
-      const name = mesh.names[i]?.trim();
-      if (!name) return;
-      const away = norm(sub(p, cloud));
-      const pos = add(add(p, mul(away, 14)), {
-        x: state.nameDx[i] ?? 0,
-        y: state.nameDy[i] ?? 0,
-      });
-      pushText(texts, cmds, {
-        id: `vertex:${i}`,
-        x: pos.x,
-        y: pos.y,
-        runs: parseNameRuns(name),
-        size: style.pointLabelSize,
-        anchor: "middle",
-      });
+  const cloud = verts2.length
+    ? {
+        x: verts2.reduce((s, p) => s + p.x, 0) / verts2.length,
+        y: verts2.reduce((s, p) => s + p.y, 0) / verts2.length,
+      }
+    : { x: width / 2, y: height / 2 };
+  mesh.vertices.forEach((_, i) => {
+    if (!vertexDotsVisible(state, i)) return;
+    const p = verts2[i]!;
+    cmds.push({ t: "dot", x: p.x, y: p.y, r: style.pointRadius });
+    if (!vertexNameVisible(state, i)) return;
+    const name = mesh.names[i]?.trim();
+    if (!name) return;
+    const away = norm(sub(p, cloud));
+    const pos = add(add(p, mul(away, 14)), {
+      x: state.nameDx[i] ?? 0,
+      y: state.nameDy[i] ?? 0,
     });
-  }
+    pushText(texts, cmds, {
+      id: `vertex:${i}`,
+      x: pos.x,
+      y: pos.y,
+      runs: parseNameRuns(name),
+      size: style.pointLabelSize,
+      anchor: "middle",
+    });
+  });
 
   const outwardUp = { x: 0, y: -1 };
   const unit = state.unit;

@@ -63,7 +63,9 @@ export type SolidSketchState = {
   edgeLength: number;
   cylinderLie: CylinderLie;
   hemisphereFlip: boolean;
-  vertexDisplay: VertexDisplayMode;
+  /** 인덱스별 표시. 비어 있으면 vertexModesDefault 사용 */
+  vertexModes: VertexDisplayMode[];
+  vertexModesDefault: VertexDisplayMode;
   azimuthDeg: number;
   elevationDeg: number;
   showFill: boolean;
@@ -78,7 +80,6 @@ export type SolidSketchState = {
   vertexNames: string[];
   nameDx: number[];
   nameDy: number[];
-  hiddenVertexNames: boolean[];
   heightLabel: MeasLabel;
   faceHeightLabel: MeasLabel;
   radiusLabel: MeasLabel;
@@ -132,7 +133,8 @@ function baseState(
     edgeLength: 5,
     cylinderLie: "vertical",
     hemisphereFlip: false,
-    vertexDisplay: "names",
+    vertexModes: [],
+    vertexModesDefault: "names",
     azimuthDeg: DEFAULT_AZIMUTH,
     elevationDeg: DEFAULT_ELEVATION,
     showFill: true,
@@ -147,7 +149,6 @@ function baseState(
     vertexNames: [],
     nameDx: [],
     nameDy: [],
-    hiddenVertexNames: [],
     heightLabel: emptyLabel("auto"),
     faceHeightLabel: emptyLabel("auto"),
     radiusLabel: emptyLabel("auto"),
@@ -172,7 +173,6 @@ export const SOLID_SKETCH_PRESETS: SolidPreset[] = [
       width: 6,
       depth: 4,
       height: 5,
-      vertexDisplay: "names",
     }),
   },
   {
@@ -184,7 +184,6 @@ export const SOLID_SKETCH_PRESETS: SolidPreset[] = [
       sides: 3,
       baseSize: 8,
       height: 9,
-      vertexDisplay: "names",
       showHeight: true,
       showHeightRightAngle: true,
       showBaseEdge: true,
@@ -200,7 +199,6 @@ export const SOLID_SKETCH_PRESETS: SolidPreset[] = [
       baseSize: 5,
       topSize: 3,
       height: 3.873,
-      vertexDisplay: "names",
       showFaceHeight: true,
       showBaseEdge: true,
     }),
@@ -214,7 +212,6 @@ export const SOLID_SKETCH_PRESETS: SolidPreset[] = [
       sides: 5,
       baseSize: 4,
       height: 7,
-      vertexDisplay: "names",
     }),
   },
   {
@@ -226,7 +223,7 @@ export const SOLID_SKETCH_PRESETS: SolidPreset[] = [
       radius: 2,
       height: 5,
       cylinderLie: "horizontal",
-      vertexDisplay: "hidden",
+      vertexModesDefault: "hidden",
       showCenter: true,
       showRadius: true,
       showHeight: true,
@@ -240,7 +237,7 @@ export const SOLID_SKETCH_PRESETS: SolidPreset[] = [
       family: "cone",
       radius: 6,
       height: 6.708,
-      vertexDisplay: "hidden",
+      vertexModesDefault: "hidden",
       showCenter: true,
       showRadius: true,
       showSlant: true,
@@ -253,7 +250,7 @@ export const SOLID_SKETCH_PRESETS: SolidPreset[] = [
     state: baseState({
       family: "sphere",
       radius: 5,
-      vertexDisplay: "hidden",
+      vertexModesDefault: "hidden",
       showCenter: true,
       showRadius: true,
     }),
@@ -265,7 +262,7 @@ export const SOLID_SKETCH_PRESETS: SolidPreset[] = [
     state: baseState({
       family: "hemisphere",
       radius: 5,
-      vertexDisplay: "hidden",
+      vertexModesDefault: "hidden",
       showCenter: true,
       showRadius: true,
     }),
@@ -278,7 +275,7 @@ export const SOLID_SKETCH_PRESETS: SolidPreset[] = [
       family: "coneHemisphere",
       radius: 4,
       height: 6,
-      vertexDisplay: "hidden",
+      vertexModesDefault: "hidden",
       showCenter: true,
       showRadius: true,
       showHeight: true,
@@ -293,7 +290,7 @@ export const SOLID_SKETCH_PRESETS: SolidPreset[] = [
       family: "cylinderHemisphere",
       radius: 3,
       height: 5,
-      vertexDisplay: "hidden",
+      vertexModesDefault: "hidden",
       showCenter: true,
       showRadius: true,
       showHeight: true,
@@ -308,7 +305,7 @@ export const SOLID_SKETCH_PRESETS: SolidPreset[] = [
       radius: 3,
       height: 5,
       capHeight: 4,
-      vertexDisplay: "hidden",
+      vertexModesDefault: "hidden",
       showCenter: true,
       showRadius: true,
       showHeight: true,
@@ -323,7 +320,6 @@ export const SOLID_SKETCH_PRESETS: SolidPreset[] = [
       family: "platonic",
       platonic: "tetrahedron",
       edgeLength: 6,
-      vertexDisplay: "names",
       showBaseEdge: true,
     }),
   },
@@ -342,13 +338,22 @@ function clamp(n: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, n));
 }
 
-export function vertexDotsVisible(state: SolidSketchState): boolean {
-  return state.vertexDisplay !== "hidden";
+function isVertexDisplayMode(value: unknown): value is VertexDisplayMode {
+  return value === "names" || value === "dots" || value === "hidden";
+}
+
+export function vertexMode(state: SolidSketchState, index: number): VertexDisplayMode {
+  const override = state.vertexModes[index];
+  if (isVertexDisplayMode(override)) return override;
+  return state.vertexModesDefault;
+}
+
+export function vertexDotsVisible(state: SolidSketchState, index: number): boolean {
+  return vertexMode(state, index) !== "hidden";
 }
 
 export function vertexNameVisible(state: SolidSketchState, index: number): boolean {
-  if (state.vertexDisplay !== "names") return false;
-  return !state.hiddenVertexNames[index];
+  return vertexMode(state, index) === "names";
 }
 
 export function cycleVertexDisplay(mode: VertexDisplayMode): VertexDisplayMode {
@@ -357,20 +362,19 @@ export function cycleVertexDisplay(mode: VertexDisplayMode): VertexDisplayMode {
   return "names";
 }
 
-export function vertexDisplayChipLabel(mode: VertexDisplayMode): string {
+export function vertexModeTitle(mode: VertexDisplayMode): string {
   if (mode === "names") return "점 이름";
   if (mode === "dots") return "점";
   return "안보임";
 }
 
-export function toggleVertexNameHidden(
+export function cycleVertexMode(
   state: SolidSketchState,
   index: number,
 ): SolidSketchState {
-  const hiddenVertexNames = [...state.hiddenVertexNames];
-  while (hiddenVertexNames.length <= index) hiddenVertexNames.push(false);
-  hiddenVertexNames[index] = !hiddenVertexNames[index];
-  return { ...state, hiddenVertexNames };
+  const vertexModes = [...state.vertexModes];
+  vertexModes[index] = cycleVertexDisplay(vertexMode(state, index));
+  return { ...state, vertexModes };
 }
 
 export function defaultVertexNames(count: number): string[] {
@@ -379,17 +383,74 @@ export function defaultVertexNames(count: number): string[] {
   );
 }
 
-function normalizeVertexDisplay(raw: Partial<SolidSketchState>): VertexDisplayMode {
-  const mode = raw.vertexDisplay;
-  if (mode === "names" || mode === "dots" || mode === "hidden") return mode;
-  const legacy = (raw as { showVertexNames?: boolean }).showVertexNames;
-  if (legacy === false) return "hidden";
-  return "names";
+function normalizeVertexModesArray(raw: unknown): VertexDisplayMode[] {
+  if (!Array.isArray(raw)) return [];
+  const modes: VertexDisplayMode[] = [];
+  for (let i = 0; i < raw.length; i++) {
+    const mode = raw[i];
+    if (isVertexDisplayMode(mode)) modes[i] = mode;
+  }
+  return modes;
+}
+
+function migrateLegacyVertexModes(raw: Partial<SolidSketchState>): {
+  vertexModes: VertexDisplayMode[];
+  vertexModesDefault: VertexDisplayMode;
+} {
+  const legacyGlobal = (() => {
+    const mode = (raw as { vertexDisplay?: unknown }).vertexDisplay;
+    if (isVertexDisplayMode(mode)) return mode;
+    const showVertexNames = (raw as { showVertexNames?: boolean }).showVertexNames;
+    if (showVertexNames === false) return "hidden" as const;
+    return "names" as const;
+  })();
+
+  const hidden = Array.isArray(raw.hiddenVertexNames) ? raw.hiddenVertexNames : [];
+  if (legacyGlobal === "names") {
+    const vertexModes: VertexDisplayMode[] = [];
+    for (let i = 0; i < hidden.length; i++) {
+      if (hidden[i]) vertexModes[i] = "dots";
+    }
+    return { vertexModes, vertexModesDefault: "names" };
+  }
+
+  return { vertexModes: [], vertexModesDefault: legacyGlobal };
+}
+
+function resolveVertexModes(state: SolidSketchState): {
+  vertexModes: VertexDisplayMode[];
+  vertexModesDefault: VertexDisplayMode;
+} {
+  const vertexModes = normalizeVertexModesArray(state.vertexModes ?? []);
+  const hasOverrides = vertexModes.some((mode) => isVertexDisplayMode(mode));
+  const legacy = state as SolidSketchState & {
+    vertexDisplay?: VertexDisplayMode;
+    showVertexNames?: boolean;
+    hiddenVertexNames?: boolean[];
+  };
+  const hasLegacy =
+    isVertexDisplayMode(legacy.vertexDisplay) ||
+    legacy.showVertexNames === false ||
+    (Array.isArray(legacy.hiddenVertexNames) && legacy.hiddenVertexNames.some(Boolean));
+
+  if (!hasOverrides && hasLegacy) {
+    return migrateLegacyVertexModes(state);
+  }
+
+  return {
+    vertexModes,
+    vertexModesDefault: isVertexDisplayMode(state.vertexModesDefault)
+      ? state.vertexModesDefault
+      : "names",
+  };
 }
 
 export function normalizeState(state: SolidSketchState): SolidSketchState {
   const sides = Math.round(clamp(state.sides, 3, 8));
   const style = { ...DEFAULT_STYLE, ...state.style };
+  const migratedVertexModes = resolveVertexModes(state);
+  const vertexModesDefault = migratedVertexModes.vertexModesDefault;
+
   return {
     ...state,
     sides,
@@ -403,15 +464,13 @@ export function normalizeState(state: SolidSketchState): SolidSketchState {
     capHeight: clamp(state.capHeight ?? 5, 0.5, 40),
     edgeLength: clamp(state.edgeLength, 0.5, 40),
     hemisphereFlip: Boolean(state.hemisphereFlip),
-    vertexDisplay: normalizeVertexDisplay(state),
+    vertexModes: migratedVertexModes.vertexModes,
+    vertexModesDefault,
     azimuthDeg: ((state.azimuthDeg % 360) + 360) % 360,
     elevationDeg: clamp(state.elevationDeg, 6, 82),
     vertexNames: Array.isArray(state.vertexNames) ? state.vertexNames : [],
     nameDx: Array.isArray(state.nameDx) ? state.nameDx : [],
     nameDy: Array.isArray(state.nameDy) ? state.nameDy : [],
-    hiddenVertexNames: Array.isArray(state.hiddenVertexNames)
-      ? state.hiddenVertexNames.map(Boolean)
-      : [],
     edgeLabels: state.edgeLabels ?? {},
     heightLabel: { ...emptyLabel(), ...state.heightLabel },
     faceHeightLabel: { ...emptyLabel(), ...state.faceHeightLabel },
@@ -557,9 +616,9 @@ export function withFamily(
     vertexNames: [],
     nameDx: [],
     nameDy: [],
-    hiddenVertexNames: [],
+    vertexModes: [],
+    vertexModesDefault: "names",
     edgeLabels: {},
-    vertexDisplay: !familyIsSmooth(family) ? "names" : "hidden",
     showCenter: familyIsSmooth(family),
     showHeight: false,
     showHeightRightAngle: false,
