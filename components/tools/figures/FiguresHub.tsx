@@ -78,8 +78,8 @@ export default function FiguresHub({ grade }: { grade: GradeId }) {
               {meta.label} 도구는 아직 없어요
             </p>
             <p className="mx-auto mt-2 max-w-md text-sm text-foreground/60">
-              소재별로 하나씩 추가할 예정이에요. 지금은 중1 「수직선」, 중3
-              「원의 현」부터 사용할 수 있어요.
+              소재별로 하나씩 추가할 예정이에요. 지금은 중1 「수직선」·「좌표평면」,
+              중3 「원의 현」부터 사용할 수 있어요.
             </p>
             <Link
               href="/tools/figures?grade=3"
@@ -115,6 +115,10 @@ function ToolCard({ tool }: { tool: DiagramToolMeta }) {
             <ChordThumb />
           ) : tool.id === "g1-number-line" ? (
             <NumberLineThumb />
+          ) : tool.id === "g1-coordinate-plane" ? (
+            <CoordinatePlaneThumb />
+          ) : tool.id === "g1-solid-sketch" ? (
+            <SolidThumb />
           ) : (
             tool.emoji
           )}
@@ -177,3 +181,30 @@ function NumberLineThumb() {
     </svg>
   );
 }
+
+function CoordinatePlaneThumb() {
+  return (
+    <svg viewBox="0 0 48 48" className="h-10 w-10" aria-hidden>
+      <line x1="8" y1="24" x2="42" y2="24" stroke="#6b4423" strokeWidth="1.5" />
+      <line x1="24" y1="40" x2="24" y2="8" stroke="#6b4423" strokeWidth="1.5" />
+      <polygon points="42,24 37,21.4 37,26.6" fill="#6b4423" />
+      <polygon points="24,8 21.4,13 26.6,13" fill="#6b4423" />
+      <line x1="24" y1="24" x2="36" y2="12" stroke="#c45a7a" strokeWidth="1.6" />
+      <circle cx="32" cy="16" r="1.7" fill="#6b4423" />
+    </svg>
+  );
+}
+
+function SolidThumb() {
+  return (
+    <svg viewBox="0 0 48 48" className="h-10 w-10" aria-hidden>
+      <polygon points="14,16 28,12 40,18 26,22" fill="#efe7dc" stroke="#6b4423" strokeWidth="1.4" />
+      <polygon points="14,16 26,22 26,36 14,30" fill="#e4d8c8" stroke="#6b4423" strokeWidth="1.4" />
+      <polygon points="26,22 40,18 40,32 26,36" fill="#f4eee6" stroke="#6b4423" strokeWidth="1.4" />
+      <line x1="14" y1="16" x2="14" y2="30" stroke="#6b4423" strokeWidth="1.3" strokeDasharray="2.4 1.8" />
+      <line x1="14" y1="30" x2="26" y2="36" stroke="#6b4423" strokeWidth="1.3" />
+      <line x1="14" y1="30" x2="28" y2="26" stroke="#6b4423" strokeWidth="1.2" strokeDasharray="2.4 1.8" />
+    </svg>
+  );
+}
+

@@ -2,7 +2,9 @@ import type { ReactNode } from "react";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import CircleChordsStudio from "@/components/tools/figures/circle-chords/CircleChordsStudio";
+import CoordinatePlaneStudio from "@/components/tools/figures/coordinate-plane/CoordinatePlaneStudio";
 import NumberLineStudio from "@/components/tools/figures/number-line/NumberLineStudio";
+import SolidSketchStudio from "@/components/tools/figures/solid-sketch/SolidSketchStudio";
 import DiagramToolShell from "@/components/tools/figures/DiagramToolShell";
 import { DIAGRAM_TOOLS, getDiagramTool } from "@/lib/diagrams/catalog";
 import { redirectStudentToAdventure } from "@/lib/auth";
@@ -32,6 +34,10 @@ function renderDiagramStudio(toolId: string): ReactNode {
   switch (toolId) {
     case "g1-number-line":
       return <NumberLineStudio />;
+    case "g1-coordinate-plane":
+      return <CoordinatePlaneStudio />;
+    case "g1-solid-sketch":
+      return <SolidSketchStudio />;
     case "g3-circle-chords":
       return <CircleChordsStudio />;
     default:

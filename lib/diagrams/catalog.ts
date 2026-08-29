@@ -33,6 +33,28 @@ export const DIAGRAM_TOOLS: DiagramToolMeta[] = [
     status: "ready",
   },
   {
+    id: "g1-coordinate-plane",
+    grade: 1,
+    title: "좌표평면",
+    description:
+      "격자·축·점을 맞추고 정비례·반비례 그래프까지, 시험용 좌표평면을 바로 그려 PNG로 저장해요.",
+    unitHint: "2.3 좌표평면과 그래프",
+    emoji: "+",
+    href: "/tools/figures/g1-coordinate-plane",
+    status: "ready",
+  },
+  {
+    id: "g1-solid-sketch",
+    grade: 1,
+    title: "겨냥도",
+    description:
+      "각기둥·각뿔·뿔대·원기둥·원뿔·정다면체를 겨냥도로 그리고, 점 이름과 길이를 붙여 PNG로 저장해요.",
+    unitHint: "3.4 입체도형의 성질",
+    emoji: "◇",
+    href: "/tools/figures/g1-solid-sketch",
+    status: "ready",
+  },
+  {
     id: "g3-circle-chords",
     grade: 3,
     title: "원의 현",

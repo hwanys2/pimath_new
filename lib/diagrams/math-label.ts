@@ -47,13 +47,15 @@ function readFrac(
  */
 export function parseMathRuns(text: string): TextRun[] {
   const runs: TextRun[] = [];
-  const tokenRe = /(\$([^$]*)\$)|(\\frac\{)|([A-Za-z]+)|([^A-Za-z$\\]+)|(\$|\\)/g;
+  const tokenRe =
+    /(\$([^$]*)\$)|(\\frac\{)|(℃|°C)|([A-Za-z]+)|([^A-Za-z$\\]+)|(\$|\\)/g;
   let match: RegExpExecArray | null;
   while ((match = tokenRe.exec(text)) !== null) {
     const mathInner = match[2];
     const fracOpen = match[3];
-    const word = match[4];
-    const rest = match[5] ?? match[6];
+    const degreeC = match[4];
+    const word = match[5];
+    const rest = match[6] ?? match[7];
     if (mathInner != null) {
       runs.push(...parseMathRuns(mathInner));
     } else if (fracOpen) {
@@ -69,6 +71,8 @@ export function parseMathRuns(text: string): TextRun[] {
       } else {
         runs.push({ text: match[0], italic: false });
       }
+    } else if (degreeC) {
+      runs.push({ text: degreeC, italic: false });
     } else if (word) {
       runs.push({ text: word, italic: !UNIT_WORDS.has(word) });
     } else if (rest) {
