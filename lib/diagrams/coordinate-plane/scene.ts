@@ -655,23 +655,23 @@ export function buildCoordPlaneScene(state: CoordPlaneState): CoordPlaneScene {
   }
 
   if (state.xAxisLabel.trim()) {
-    const nameSize = state.style.pointLabelSize;
+    const nameSize = state.style.axisNameSize;
     pushText(texts, cmds, {
       id: "axis-x",
-      x: xEnd - 2,
-      y: oy + 12 + state.style.fontSize * 0.95,
+      x: xEnd - 2 + state.xAxisLabelDx,
+      y: oy + 12 + state.style.fontSize * 0.95 + state.xAxisLabelDy,
       runs: parseMathRuns(state.xAxisLabel.trim()),
       size: nameSize,
       anchor: "end",
     });
   }
   if (state.yAxisLabel.trim()) {
-    const nameSize = state.style.pointLabelSize;
+    const nameSize = state.style.axisNameSize;
     if (state.yLabelVertical) {
       pushText(texts, cmds, {
         id: "axis-y",
-        x: ox - 10,
-        y: yEnd + 6,
+        x: ox - 10 + state.yAxisLabelDx,
+        y: yEnd + 6 + state.yAxisLabelDy,
         runs: parseMathRuns(state.yAxisLabel.trim()),
         size: nameSize,
         anchor: "end",
@@ -680,8 +680,8 @@ export function buildCoordPlaneScene(state: CoordPlaneState): CoordPlaneScene {
     } else {
       pushText(texts, cmds, {
         id: "axis-y",
-        x: ox - 8,
-        y: yEnd + nameSize * 0.48,
+        x: ox - 8 + state.yAxisLabelDx,
+        y: yEnd + nameSize * 0.48 + state.yAxisLabelDy,
         runs: parseMathRuns(state.yAxisLabel.trim()),
         size: nameSize,
         anchor: "end",

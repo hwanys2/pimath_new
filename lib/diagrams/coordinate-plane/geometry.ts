@@ -60,7 +60,20 @@ export function hitTestCoordPlane(
   let best: Candidate | null = null;
 
   for (const text of scene.texts) {
-    if (text.id === "origin" || text.id.startsWith("tick-") || text.id.startsWith("axis-")) {
+    if (text.id === "origin" || text.id.startsWith("tick-")) {
+      continue;
+    }
+    if (text.id === "axis-x" || text.id === "axis-y") {
+      const hitX =
+        text.anchor === "end" ? text.x - text.size * 0.7 : text.x;
+      const hitY = text.y;
+      best = consider(
+        best,
+        { kind: "label", id: text.id, targetId: text.id },
+        Math.hypot(hitX - x, hitY - y),
+        28 * s,
+        1,
+      );
       continue;
     }
     const parsedPoint = parsePointLabelId(text.id);
@@ -154,6 +167,29 @@ export function nudgeGraphLabel(
         : g,
     ),
   };
+}
+
+export function nudgeAxisLabel(
+  state: CoordPlaneState,
+  id: string,
+  dx: number,
+  dy: number,
+): CoordPlaneState {
+  if (id === "axis-x") {
+    return {
+      ...state,
+      xAxisLabelDx: state.xAxisLabelDx + dx,
+      xAxisLabelDy: state.xAxisLabelDy + dy,
+    };
+  }
+  if (id === "axis-y") {
+    return {
+      ...state,
+      yAxisLabelDx: state.yAxisLabelDx + dx,
+      yAxisLabelDy: state.yAxisLabelDy + dy,
+    };
+  }
+  return state;
 }
 
 export function movePoint(

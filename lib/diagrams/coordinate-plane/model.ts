@@ -12,6 +12,7 @@ export type CoordStyle = {
   lineWidth: number;
   fontSize: number;
   pointLabelSize: number;
+  axisNameSize: number;
   equationSize: number;
   pointRadius: number;
   graphWidth: number;
@@ -97,6 +98,10 @@ export type CoordPlaneState = {
   xAxisLabel: string;
   yAxisLabel: string;
   originLabel: string;
+  xAxisLabelDx: number;
+  xAxisLabelDy: number;
+  yAxisLabelDx: number;
+  yAxisLabelDy: number;
   yLabelVertical: boolean;
   yBreak: boolean;
   yBreakTo: number;
@@ -109,6 +114,7 @@ const DEFAULT_STYLE: CoordStyle = {
   lineWidth: 1.55,
   fontSize: 15,
   pointLabelSize: 20,
+  axisNameSize: 20,
   equationSize: 18,
   pointRadius: 3.3,
   graphWidth: 2.15,
@@ -216,6 +222,11 @@ export function makePolyline(
   };
 }
 
+function clampOffset(value: number | undefined): number {
+  if (!Number.isFinite(value)) return 0;
+  return Math.min(80, Math.max(-80, value as number));
+}
+
 export function clampRange(min: number, max: number, tick: number) {
   let a = Number.isFinite(min) ? min : -5;
   let b = Number.isFinite(max) ? max : 5;
@@ -248,6 +259,10 @@ export function normalizeState(state: CoordPlaneState): CoordPlaneState {
     xLabelEvery,
     yLabelEvery,
     yBreakTo,
+    xAxisLabelDx: clampOffset(state.xAxisLabelDx),
+    xAxisLabelDy: clampOffset(state.xAxisLabelDy),
+    yAxisLabelDx: clampOffset(state.yAxisLabelDx),
+    yAxisLabelDy: clampOffset(state.yAxisLabelDy),
     points: state.points.map((p) => ({
       ...p,
       x: Math.min(xs.max, Math.max(xs.min, p.x)),
@@ -275,6 +290,10 @@ export function normalizeState(state: CoordPlaneState): CoordPlaneState {
       ...state.style,
       padding: Math.min(96, Math.max(40, state.style?.padding ?? DEFAULT_STYLE.padding)),
       pointRadius: Math.min(6, Math.max(2, state.style?.pointRadius ?? DEFAULT_STYLE.pointRadius)),
+      axisNameSize: Math.min(
+        36,
+        Math.max(12, state.style?.axisNameSize ?? DEFAULT_STYLE.axisNameSize),
+      ),
     },
   };
 }
@@ -344,6 +363,10 @@ function baseState(partial: Partial<CoordPlaneState> = {}): CoordPlaneState {
     xAxisLabel: "$x$",
     yAxisLabel: "$y$",
     originLabel: "O",
+    xAxisLabelDx: 0,
+    xAxisLabelDy: 0,
+    yAxisLabelDx: 0,
+    yAxisLabelDy: 0,
     yLabelVertical: false,
     yBreak: false,
     yBreakTo: 0,

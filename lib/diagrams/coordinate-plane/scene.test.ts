@@ -9,6 +9,7 @@ import {
   makeInverse,
   removePolylineVertex,
 } from "./model";
+import { nudgeAxisLabel } from "./geometry";
 import {
   buildCoordPlaneScene,
   canvasXFromValue,
@@ -177,5 +178,22 @@ describe("equation labels", () => {
     assert.ok(axisY.y >= layout.plotTop - 1e-6);
     assert.ok(axisX.x < scene.width - 4);
     assert.ok(axisY.y > 4);
+  });
+
+  it("nudges axis names and uses a separate axis name size", () => {
+    const base = COORD_PLANE_PRESETS.find((p) => p.id === "ordered-pairs")!.state;
+    const moved = nudgeAxisLabel(base, "axis-x", 12, -5);
+    const before = buildCoordPlaneScene(base).texts.find((t) => t.id === "axis-x")!;
+    const after = buildCoordPlaneScene(moved).texts.find((t) => t.id === "axis-x")!;
+    assert.equal(after.x, before.x + 12);
+    assert.equal(after.y, before.y - 5);
+    const bigger = buildCoordPlaneScene({
+      ...base,
+      style: { ...base.style, axisNameSize: 28 },
+    });
+    const name = bigger.texts.find((t) => t.id === "axis-x")!;
+    assert.equal(name.size, 28);
+    const point = bigger.texts.find((t) => t.id.endsWith(":name"));
+    if (point) assert.equal(point.size, base.style.pointLabelSize);
   });
 });

@@ -539,6 +539,9 @@ export default function CoordinatePlaneStudio() {
                   className="w-12 shrink-0"
                 />
               </div>
+              <p className="font-normal text-[11px] text-foreground/45">
+                그림에서 축 이름을 끌어 위치를 조절할 수 있어요.
+              </p>
             </div>
             <div className="mt-3 flex flex-wrap gap-1.5">
               <ChipToggle
@@ -1154,12 +1157,22 @@ export default function CoordinatePlaneStudio() {
                   step={1}
                 />
                 <SliderField
-                  label="점·축 이름"
+                  label="점 이름"
                   value={state.style.pointLabelSize}
                   onChange={(pointLabelSize) =>
                     set({ style: { ...state.style, pointLabelSize } })
                   }
                   min={14}
+                  max={36}
+                  step={1}
+                />
+                <SliderField
+                  label="축 이름"
+                  value={state.style.axisNameSize}
+                  onChange={(axisNameSize) =>
+                    set({ style: { ...state.style, axisNameSize } })
+                  }
+                  min={12}
                   max={36}
                   step={1}
                 />

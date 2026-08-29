@@ -8,6 +8,7 @@ import {
   hitTestCoordPlane,
   movePoint,
   moveVertex,
+  nudgeAxisLabel,
   nudgeGraphLabel,
   nudgePointLabel,
   parseGraphLabelId,
@@ -273,6 +274,9 @@ export default function CoordinatePlaneCanvas({
             drag.x = p.x;
             drag.y = p.y;
             setState((prev) => {
+              if (drag.id === "axis-x" || drag.id === "axis-y") {
+                return nudgeAxisLabel(prev, drag.id, dx, dy);
+              }
               if (drag.isGraph) return nudgeGraphLabel(prev, drag.targetId, dx, dy);
               return nudgePointLabel(prev, drag.targetId, dx, dy);
             }, false);
