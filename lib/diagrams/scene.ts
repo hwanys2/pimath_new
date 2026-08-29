@@ -1,4 +1,4 @@
-import type { TextRun } from "@/lib/diagrams/math-label";
+import { runsToPlain, type TextRun } from "@/lib/diagrams/math-label";
 
 export type Vec = { x: number; y: number };
 
@@ -11,20 +11,27 @@ export type SceneText = {
   runs: TextRun[];
   size: number;
   anchor: TextAnchor;
+  /** Radians. Rotates around (x, y). */
+  rotate?: number;
+};
+
+export type StrokeOpts = {
+  stroke?: string;
+  width?: number;
+  dashed?: boolean;
+  id?: string;
 };
 
 export type SceneCmd =
-  | { t: "circle"; x: number; y: number; r: number }
-  | {
+  | ({ t: "circle"; x: number; y: number; r: number } & StrokeOpts)
+  | ({
       t: "line";
       x1: number;
       y1: number;
       x2: number;
       y2: number;
-      dashed?: boolean;
-      id?: string;
-    }
-  | {
+    } & StrokeOpts)
+  | ({
       t: "quad";
       x1: number;
       y1: number;
@@ -32,10 +39,12 @@ export type SceneCmd =
       cy: number;
       x2: number;
       y2: number;
-      dashed?: boolean;
-      id?: string;
-    }
-  | {
+    } & StrokeOpts)
+  | ({
+      t: "polyline";
+      pts: Vec[];
+    } & StrokeOpts)
+  | ({
       t: "arc";
       cx: number;
       cy: number;
@@ -43,10 +52,24 @@ export type SceneCmd =
       a0: number;
       a1: number;
       ccw: boolean;
-      dashed?: boolean;
-      id?: string;
+    } & StrokeOpts)
+  | ({ t: "dot"; x: number; y: number; r: number } & Pick<StrokeOpts, "stroke">)
+  | {
+      t: "polygon";
+      points: Vec[];
+      fill: string;
     }
-  | { t: "dot"; x: number; y: number; r: number }
+  | ({
+      t: "ellipseArc";
+      cx: number;
+      cy: number;
+      ux: number;
+      uy: number;
+      vx: number;
+      vy: number;
+      a0: number;
+      a1: number;
+    } & StrokeOpts)
   | {
       t: "rightAngle";
       x: number;
@@ -64,6 +87,7 @@ export type SceneCmd =
       ux: number;
       uy: number;
       size: number;
+      stroke?: string;
     }
   | { t: "text"; text: SceneText };
 
@@ -75,7 +99,7 @@ export type DiagramScene = {
 };
 
 export function sceneTextPlain(text: SceneText): string {
-  return text.runs.map((run) => run.text).join("");
+  return runsToPlain(text.runs);
 }
 
 export function hitTestText(

@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
+  formatPointValue,
   formatTickLabel,
   nHintFromRational,
   nHintFromValue,
@@ -11,6 +12,7 @@ import {
   NUMBER_LINE_PRESETS,
   resolveBands,
 } from "./model";
+import { parseMathRuns } from "@/lib/diagrams/math-label";
 import { buildNumberLineScene, canvasXFromValue } from "./scene";
 
 describe("number line value parsing", () => {
@@ -39,6 +41,15 @@ describe("number line value parsing", () => {
     assert.equal(formatTickLabel(1, true), "+1");
     assert.equal(formatTickLabel(-5, true), "-5");
     assert.equal(formatTickLabel(2, false), "2");
+    assert.equal(formatTickLabel(0.5, true), "+\\frac{1}{2}");
+  });
+
+  it("formats point values as stacked fractions for the figure", () => {
+    assert.equal(formatPointValue(0.5, "math"), "\\frac{1}{2}");
+    assert.equal(formatPointValue(-1.5, "math"), "-1\\frac{1}{2}");
+    assert.equal(formatPointValue(-4.25, "math"), "-4\\frac{1}{4}");
+    assert.equal(formatPointValue(0.5, "plain"), "1/2");
+    assert.equal(formatPointValue(-4.25, "plain"), "-4 1/4");
   });
 });
 
@@ -56,6 +67,23 @@ describe("number line scene", () => {
     const neg4 = canvasXFromValue(-4, scene.layout);
     assert.ok(xs[0]! > left && xs[0]! < neg4);
     assert.equal(a.name, "A");
+  });
+
+  it("draws stacked fractions for shown values", () => {
+    const preset = NUMBER_LINE_PRESETS.find((p) => p.id === "unit-interval")!;
+    const state = {
+      ...preset.state,
+      points: preset.state.points.map((p) => ({ ...p, showValue: true })),
+    };
+    const scene = buildNumberLineScene(state);
+    const value = scene.texts.find((t) => t.id.endsWith(":value"));
+    const frac = value?.runs.find((r) => r.fracNum && r.fracDen);
+    assert.ok(frac);
+    assert.equal(frac?.fracNum?.map((r) => r.text).join(""), "3");
+    assert.equal(frac?.fracDen?.map((r) => r.text).join(""), "4");
+    assert.ok(
+      parseMathRuns("\\frac{1}{2}").some((r) => r.fracNum && r.fracDen),
+    );
   });
 
   it("builds n-division bands for the default exam figure", () => {

@@ -146,11 +146,17 @@ export function unitStart(value: number): number {
 
 export function formatTickLabel(value: number, plusOnPositive: boolean): string {
   if (!Number.isFinite(value)) return "";
-  const rounded = Math.round(value * 1000) / 1000;
-  if (Math.abs(rounded) < 1e-9) return "0";
-  const body = formatNice(Math.abs(rounded));
-  if (rounded < 0) return `-${body}`;
-  return plusOnPositive ? `+${body}` : body;
+  const rat = valueToRational(value);
+  if (rat && rat.den === 1) {
+    if (rat.num === 0) return "0";
+    if (rat.num > 0 && plusOnPositive) return `+${rat.num}`;
+    return String(rat.num);
+  }
+  const stacked = formatPointValue(value, "math");
+  if (plusOnPositive && stacked && stacked[0] !== "-" && stacked !== "0") {
+    return `+${stacked}`;
+  }
+  return stacked;
 }
 
 export function formatNice(value: number): string {
@@ -162,7 +168,10 @@ export function formatNice(value: number): string {
   return String(Math.round(rounded * 100) / 100);
 }
 
-export function formatPointValue(value: number): string {
+export function formatPointValue(
+  value: number,
+  kind: "plain" | "math" = "plain",
+): string {
   const rat = valueToRational(value);
   if (!rat) return formatNice(value);
   if (rat.den === 1) return formatTickLabel(rat.num, false);
@@ -172,7 +181,9 @@ export function formatPointValue(value: number): string {
     const whole = Math.floor(absNum / rat.den);
     const rem = absNum % rat.den;
     if (rem === 0) return `${sign}${whole}`;
+    if (kind === "math") return `${sign}${whole}\\frac{${rem}}{${rat.den}}`;
     return `${sign}${whole} ${rem}/${rat.den}`;
   }
+  if (kind === "math") return `${sign}\\frac{${absNum}}{${rat.den}}`;
   return `${sign}${absNum}/${rat.den}`;
 }

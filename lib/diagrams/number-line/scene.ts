@@ -258,8 +258,8 @@ export function buildNumberLineScene(state: NumberLineState): NumberLineScene {
       pushText(texts, cmds, {
         id: `point:${point.id}:value`,
         x: x + point.labelDx,
-        y: axisY + 36 + (point.showName ? 0 : -8),
-        runs: parseMathRuns(formatPointValue(point.value)),
+        y: axisY + 40 + (point.showName ? 0 : -8),
+        runs: parseMathRuns(formatPointValue(point.value, "math")),
         size: style.fontSize,
         anchor: "middle",
       });

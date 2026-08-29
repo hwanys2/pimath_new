@@ -1,8 +1,9 @@
 import {
   fillRuns,
   type FontFaces,
+  type TextRun,
 } from "@/lib/diagrams/math-label";
-import type { DiagramScene, SceneCmd } from "@/lib/diagrams/scene";
+import type { DiagramScene, SceneCmd, SceneText } from "@/lib/diagrams/scene";
 
 const INK = "#111111";
 
@@ -22,7 +23,7 @@ export function paintDiagramScene(
   ctx.lineJoin = "round";
 
   for (const cmd of scene.cmds) {
-    paintCmd(ctx, cmd, fonts);
+    paintCmd(ctx, cmd, fonts, lineWidth);
   }
   ctx.restore();
 }
@@ -34,15 +35,20 @@ function paintCmd(
   ctx: CanvasRenderingContext2D,
   cmd: SceneCmd,
   fonts: FontFaces,
+  defaultWidth: number,
 ): void {
   switch (cmd.t) {
     case "circle":
+      ctx.save();
+      applyStroke(ctx, cmd, defaultWidth);
       ctx.beginPath();
       ctx.arc(cmd.x, cmd.y, cmd.r, 0, Math.PI * 2);
       ctx.stroke();
+      ctx.restore();
       break;
     case "line":
       ctx.save();
+      applyStroke(ctx, cmd, defaultWidth);
       if (cmd.dashed) ctx.setLineDash([4.2, 3.2]);
       if (cmd.id) ctx.lineCap = "butt";
       ctx.beginPath();
@@ -51,8 +57,35 @@ function paintCmd(
       ctx.stroke();
       ctx.restore();
       break;
+    case "quad":
+      ctx.save();
+      applyStroke(ctx, cmd, defaultWidth);
+      if (cmd.dashed) ctx.setLineDash([4.2, 3.2]);
+      if (cmd.id) ctx.lineCap = "butt";
+      ctx.beginPath();
+      ctx.moveTo(cmd.x1, cmd.y1);
+      ctx.quadraticCurveTo(cmd.cx, cmd.cy, cmd.x2, cmd.y2);
+      ctx.stroke();
+      ctx.restore();
+      break;
+    case "polyline": {
+      if (cmd.pts.length < 2) break;
+      ctx.save();
+      applyStroke(ctx, cmd, defaultWidth);
+      if (cmd.dashed) ctx.setLineDash([4.2, 3.2]);
+      if (cmd.id) ctx.lineCap = "butt";
+      ctx.beginPath();
+      ctx.moveTo(cmd.pts[0]!.x, cmd.pts[0]!.y);
+      for (let i = 1; i < cmd.pts.length; i += 1) {
+        ctx.lineTo(cmd.pts[i]!.x, cmd.pts[i]!.y);
+      }
+      ctx.stroke();
+      ctx.restore();
+      break;
+    }
     case "arc":
       ctx.save();
+      applyStroke(ctx, cmd, defaultWidth);
       if (cmd.dashed) {
         const sweep = arcSweep(cmd.a0, cmd.a1, cmd.ccw);
         const arcLen = Math.max(cmd.r * sweep, 1);
@@ -66,10 +99,43 @@ function paintCmd(
       ctx.stroke();
       ctx.restore();
       break;
+    case "polygon": {
+      if (cmd.points.length < 3) break;
+      ctx.save();
+      ctx.beginPath();
+      ctx.moveTo(cmd.points[0]!.x, cmd.points[0]!.y);
+      for (let i = 1; i < cmd.points.length; i++) {
+        ctx.lineTo(cmd.points[i]!.x, cmd.points[i]!.y);
+      }
+      ctx.closePath();
+      ctx.fillStyle = cmd.fill;
+      ctx.fill();
+      ctx.restore();
+      break;
+    }
+    case "ellipseArc": {
+      const pts = ellipseArcPoints(cmd);
+      if (pts.length < 2) break;
+      ctx.save();
+      applyStroke(ctx, cmd, defaultWidth);
+      if (cmd.dashed) ctx.setLineDash([4.2, 3.2]);
+      if (cmd.id) ctx.lineCap = "butt";
+      ctx.beginPath();
+      ctx.moveTo(pts[0]!.x, pts[0]!.y);
+      for (let i = 1; i < pts.length; i++) {
+        ctx.lineTo(pts[i]!.x, pts[i]!.y);
+      }
+      ctx.stroke();
+      ctx.restore();
+      break;
+    }
     case "dot":
+      ctx.save();
+      ctx.fillStyle = cmd.stroke ?? INK;
       ctx.beginPath();
       ctx.arc(cmd.x, cmd.y, cmd.r, 0, Math.PI * 2);
       ctx.fill();
+      ctx.restore();
       break;
     case "rightAngle": {
       const s = cmd.size;
@@ -85,28 +151,46 @@ function paintCmd(
     }
     case "arrowhead": {
       const pts = arrowheadPoints(cmd);
+      ctx.save();
+      ctx.fillStyle = cmd.stroke ?? INK;
       ctx.beginPath();
       ctx.moveTo(pts[0]!.x, pts[0]!.y);
       ctx.lineTo(pts[1]!.x, pts[1]!.y);
       ctx.lineTo(pts[2]!.x, pts[2]!.y);
       ctx.closePath();
       ctx.fill();
+      ctx.restore();
       break;
     }
-    case "text":
-      fillRuns(
-        ctx,
-        cmd.text.runs,
-        cmd.text.x,
-        cmd.text.y,
-        cmd.text.size,
-        fonts,
-        cmd.text.anchor,
-      );
+    case "text": {
+      const t = cmd.text;
+      if (t.rotate) {
+        ctx.save();
+        ctx.translate(t.x, t.y);
+        ctx.rotate(t.rotate);
+        fillRuns(ctx, t.runs, 0, 0, t.size, fonts, t.anchor);
+        ctx.restore();
+      } else {
+        fillRuns(ctx, t.runs, t.x, t.y, t.size, fonts, t.anchor);
+      }
       break;
+    }
     default:
       break;
   }
+}
+
+function applyStroke(
+  ctx: CanvasRenderingContext2D,
+  cmd: { stroke?: string; width?: number },
+  defaultWidth: number,
+): void {
+  if (cmd.stroke) {
+    ctx.strokeStyle = cmd.stroke;
+    ctx.fillStyle = cmd.stroke;
+  }
+  if (cmd.width != null) ctx.lineWidth = cmd.width;
+  else ctx.lineWidth = defaultWidth;
 }
 
 export function sceneToSvg(
@@ -118,45 +202,84 @@ export function sceneToSvg(
     `<?xml version="1.0" encoding="UTF-8"?>`,
     `<svg xmlns="http://www.w3.org/2000/svg" width="${scene.width}" height="${scene.height}" viewBox="0 0 ${scene.width} ${scene.height}">`,
     `<rect width="100%" height="100%" fill="#ffffff"/>`,
-    `<g fill="none" stroke="${INK}" stroke-width="${lineWidth}" stroke-linecap="round" stroke-linejoin="round">`,
   ];
 
   for (const cmd of scene.cmds) {
-    if (cmd.t === "text") continue;
-    parts.push(cmdToSvg(cmd));
+    if (cmd.t !== "polygon") continue;
+    parts.push(polygonToSvg(cmd));
+  }
+  parts.push(
+    `<g fill="none" stroke="${INK}" stroke-width="${lineWidth}" stroke-linecap="round" stroke-linejoin="round">`,
+  );
+  for (const cmd of scene.cmds) {
+    if (cmd.t === "text" || cmd.t === "polygon") continue;
+    parts.push(cmdToSvg(cmd, lineWidth));
   }
   parts.push(`</g>`);
 
   for (const cmd of scene.cmds) {
     if (cmd.t !== "text") continue;
-    const t = cmd.text;
-    const anchor =
-      t.anchor === "middle" ? "middle" : t.anchor === "end" ? "end" : "start";
-    const tspans = t.runs
-      .map((run) => {
-        const style = run.italic ? "italic" : "normal";
-        const family = run.italic
-          ? `'Times New Roman', ${escapeXml(fonts.math)}, serif`
-          : `${escapeXml(fonts.math)}, ${escapeXml(fonts.korean)}, 'Times New Roman', Batang, serif`;
-        return `<tspan font-style="${style}" font-family="${family}">${escapeXml(run.text)}</tspan>`;
-      })
-      .join("");
-    parts.push(
-      `<text x="${t.x.toFixed(2)}" y="${t.y.toFixed(2)}" text-anchor="${anchor}" dominant-baseline="middle" fill="${INK}" font-size="${t.size}">${tspans}</text>`,
-    );
+    parts.push(textToSvg(cmd.text, fonts));
   }
 
   parts.push(`</svg>`);
   return parts.join("\n");
 }
 
-function cmdToSvg(cmd: SceneCmd): string {
-  const dash = "stroke-dasharray=\"4.2 3.2\"";
+function polygonToSvg(cmd: Extract<SceneCmd, { t: "polygon" }>): string {
+  if (cmd.points.length < 3) return "";
+  const pts = cmd.points.map((p) => `${p.x.toFixed(2)},${p.y.toFixed(2)}`).join(" ");
+  return `<polygon points="${pts}" fill="${escapeXml(cmd.fill)}" stroke="none"/>`;
+}
+
+function ellipseArcPoints(cmd: Extract<SceneCmd, { t: "ellipseArc" }>): {
+  x: number;
+  y: number;
+}[] {
+  let a0 = cmd.a0;
+  let a1 = cmd.a1;
+  while (a1 < a0) a1 += Math.PI * 2;
+  const sweep = a1 - a0;
+  if (sweep < 1e-9) return [];
+  const n = Math.max(12, Math.ceil(sweep / (Math.PI / 24)));
+  const pts: { x: number; y: number }[] = [];
+  for (let i = 0; i <= n; i++) {
+    const t = a0 + (sweep * i) / n;
+    pts.push({
+      x: cmd.cx + cmd.ux * Math.cos(t) + cmd.vx * Math.sin(t),
+      y: cmd.cy + cmd.uy * Math.cos(t) + cmd.vy * Math.sin(t),
+    });
+  }
+  return pts;
+}
+
+function strokeAttrs(cmd: {
+  stroke?: string;
+  width?: number;
+  dashed?: boolean;
+}): string {
+  const parts: string[] = [];
+  if (cmd.stroke) parts.push(`stroke="${escapeXml(cmd.stroke)}"`);
+  if (cmd.width != null) parts.push(`stroke-width="${cmd.width}"`);
+  if (cmd.dashed) parts.push(`stroke-dasharray="4.2 3.2"`);
+  return parts.length ? ` ${parts.join(" ")}` : "";
+}
+
+function cmdToSvg(cmd: SceneCmd, defaultWidth: number): string {
   switch (cmd.t) {
     case "circle":
-      return `<circle cx="${cmd.x}" cy="${cmd.y}" r="${cmd.r}"/>`;
+      return `<circle cx="${cmd.x}" cy="${cmd.y}" r="${cmd.r}"${strokeAttrs(cmd)}/>`;
     case "line":
-      return `<line x1="${cmd.x1}" y1="${cmd.y1}" x2="${cmd.x2}" y2="${cmd.y2}"${cmd.dashed ? ` ${dash}` : ""}/>`;
+      return `<line x1="${cmd.x1}" y1="${cmd.y1}" x2="${cmd.x2}" y2="${cmd.y2}"${strokeAttrs(cmd)}/>`;
+    case "quad":
+      return `<path d="M ${cmd.x1.toFixed(2)} ${cmd.y1.toFixed(2)} Q ${cmd.cx.toFixed(2)} ${cmd.cy.toFixed(2)} ${cmd.x2.toFixed(2)} ${cmd.y2.toFixed(2)}"${strokeAttrs(cmd)}/>`;
+    case "polyline": {
+      if (cmd.pts.length < 2) return "";
+      const d = cmd.pts
+        .map((p, i) => `${i === 0 ? "M" : "L"} ${p.x.toFixed(2)} ${p.y.toFixed(2)}`)
+        .join(" ");
+      return `<path d="${d}"${strokeAttrs(cmd)}/>`;
+    }
     case "arc": {
       const x0 = cmd.cx + cmd.r * Math.cos(cmd.a0);
       const y0 = cmd.cy + cmd.r * Math.sin(cmd.a0);
@@ -165,10 +288,20 @@ function cmdToSvg(cmd: SceneCmd): string {
       const sweep = arcSweep(cmd.a0, cmd.a1, cmd.ccw);
       const large = sweep > Math.PI ? 1 : 0;
       const sweepFlag = cmd.ccw ? 0 : 1;
-      return `<path d="M ${x0.toFixed(2)} ${y0.toFixed(2)} A ${cmd.r.toFixed(2)} ${cmd.r.toFixed(2)} 0 ${large} ${sweepFlag} ${x1.toFixed(2)} ${y1.toFixed(2)}"${cmd.dashed ? ` ${dash}` : ""}/>`;
+      return `<path d="M ${x0.toFixed(2)} ${y0.toFixed(2)} A ${cmd.r.toFixed(2)} ${cmd.r.toFixed(2)} 0 ${large} ${sweepFlag} ${x1.toFixed(2)} ${y1.toFixed(2)}"${strokeAttrs(cmd)}/>`;
     }
-    case "dot":
-      return `<circle cx="${cmd.x}" cy="${cmd.y}" r="${cmd.r}" fill="${INK}" stroke="none"/>`;
+    case "ellipseArc": {
+      const pts = ellipseArcPoints(cmd);
+      if (pts.length < 2) return "";
+      const d = pts
+        .map((p, i) => `${i === 0 ? "M" : "L"} ${p.x.toFixed(2)} ${p.y.toFixed(2)}`)
+        .join(" ");
+      return `<path d="${d}"${strokeAttrs(cmd)}/>`;
+    }
+    case "dot": {
+      const fill = cmd.stroke ?? INK;
+      return `<circle cx="${cmd.x}" cy="${cmd.y}" r="${cmd.r}" fill="${fill}" stroke="none"/>`;
+    }
     case "rightAngle": {
       const s = cmd.size;
       const x1 = cmd.x + cmd.ux * s;
@@ -181,11 +314,91 @@ function cmdToSvg(cmd: SceneCmd): string {
     }
     case "arrowhead": {
       const pts = arrowheadPoints(cmd);
-      return `<path d="M ${pts[0]!.x.toFixed(2)} ${pts[0]!.y.toFixed(2)} L ${pts[1]!.x.toFixed(2)} ${pts[1]!.y.toFixed(2)} L ${pts[2]!.x.toFixed(2)} ${pts[2]!.y.toFixed(2)} Z" fill="${INK}" stroke="none"/>`;
+      const fill = cmd.stroke ?? INK;
+      return `<path d="M ${pts[0]!.x.toFixed(2)} ${pts[0]!.y.toFixed(2)} L ${pts[1]!.x.toFixed(2)} ${pts[1]!.y.toFixed(2)} L ${pts[2]!.x.toFixed(2)} ${pts[2]!.y.toFixed(2)} Z" fill="${fill}" stroke="none"/>`;
     }
     default:
       return "";
   }
+}
+
+function textToSvg(t: SceneText, fonts: FontFaces): string {
+  const transform = t.rotate
+    ? ` transform="rotate(${((t.rotate * 180) / Math.PI).toFixed(2)} ${t.x.toFixed(2)} ${t.y.toFixed(2)})"`
+    : "";
+  const hasFrac = t.runs.some((r) => r.fracNum && r.fracDen);
+  if (!hasFrac) {
+    const anchor =
+      t.anchor === "middle" ? "middle" : t.anchor === "end" ? "end" : "start";
+    return `<text x="${t.x.toFixed(2)}" y="${t.y.toFixed(2)}" text-anchor="${anchor}" dominant-baseline="middle" fill="${INK}" font-size="${t.size}"${transform}>${runsToTspans(t.runs, fonts)}</text>`;
+  }
+  // Approximate frac layout with a group; canvas PNG is the primary export.
+  return `<g${transform}>${fracGroupSvg(t, fonts)}</g>`;
+}
+
+function fracGroupSvg(t: SceneText, fonts: FontFaces): string {
+  // We cannot measure in SVG export without a canvas; place tspans sequentially
+  // and draw frac as nested texts. Widths are estimated from character counts.
+  const parts: string[] = [];
+  const est = estimateRunsWidth(t.runs, t.size);
+  let cursor =
+    t.anchor === "middle"
+      ? t.x - est / 2
+      : t.anchor === "end"
+        ? t.x - est
+        : t.x;
+  for (const run of t.runs) {
+    const w = estimateRunWidth(run, t.size);
+    if (run.fracNum && run.fracDen) {
+      const mid = cursor + w / 2;
+      const fracSize = t.size * 0.72;
+      const lineW = Math.max(w - t.size * 0.1, t.size * 0.4);
+      parts.push(
+        `<text x="${mid.toFixed(2)}" y="${(t.y - fracSize * 0.58).toFixed(2)}" text-anchor="middle" dominant-baseline="middle" fill="${INK}" font-size="${fracSize}">${runsToTspans(run.fracNum, fonts)}</text>`,
+      );
+      parts.push(
+        `<text x="${mid.toFixed(2)}" y="${(t.y + fracSize * 0.58).toFixed(2)}" text-anchor="middle" dominant-baseline="middle" fill="${INK}" font-size="${fracSize}">${runsToTspans(run.fracDen, fonts)}</text>`,
+      );
+      parts.push(
+        `<line x1="${(mid - lineW / 2).toFixed(2)}" y1="${t.y.toFixed(2)}" x2="${(mid + lineW / 2).toFixed(2)}" y2="${t.y.toFixed(2)}" stroke="${INK}" stroke-width="${Math.max(1, t.size * 0.06)}"/>`,
+      );
+    } else {
+      parts.push(
+        `<text x="${cursor.toFixed(2)}" y="${t.y.toFixed(2)}" text-anchor="start" dominant-baseline="middle" fill="${INK}" font-size="${t.size}">${runsToTspans([run], fonts)}</text>`,
+      );
+    }
+    cursor += w;
+  }
+  return parts.join("");
+}
+
+function estimateRunsWidth(runs: TextRun[], size: number): number {
+  let w = 0;
+  for (const run of runs) w += estimateRunWidth(run, size);
+  return w;
+}
+
+function estimateRunWidth(run: TextRun, size: number): number {
+  if (run.fracNum && run.fracDen) {
+    const nw = estimateRunsWidth(run.fracNum, size * 0.72);
+    const dw = estimateRunsWidth(run.fracDen, size * 0.72);
+    return Math.max(nw, dw, size * 0.45) + size * 0.22;
+  }
+  const italic = run.italic ? 0.52 : 0.56;
+  return Math.max(run.text.length, 0.4) * size * italic;
+}
+
+function runsToTspans(runs: TextRun[], fonts: FontFaces): string {
+  return runs
+    .filter((run) => !run.fracNum)
+    .map((run) => {
+      const style = run.italic ? "italic" : "normal";
+      const family = run.italic
+        ? `'Times New Roman', ${escapeXml(fonts.math)}, serif`
+        : `${escapeXml(fonts.math)}, ${escapeXml(fonts.korean)}, 'Times New Roman', Batang, serif`;
+      return `<tspan font-style="${style}" font-family="${family}">${escapeXml(run.text)}</tspan>`;
+    })
+    .join("");
 }
 
 function arrowheadPoints(cmd: Extract<SceneCmd, { t: "arrowhead" }>): {
