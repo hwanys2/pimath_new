@@ -43,7 +43,7 @@ import {
 import { renderSceneToCanvas, sceneToSvg } from "@/lib/diagrams/render";
 import type { FontFaces } from "@/lib/diagrams/math-label";
 
-const STORAGE_KEY = "pm-diagram-g1-solid-sketch-v1";
+const STORAGE_KEY = "pm-diagram-g1-solid-sketch-v2";
 
 const storeListeners = new Set<() => void>();
 
@@ -650,7 +650,7 @@ export default function SolidSketchStudio() {
             </div>
           </section>
 
-          <details className="rounded-2xl border-2 border-wood/10 bg-white/80 p-3.5">
+          <details open className="rounded-2xl border-2 border-wood/10 bg-white/80 p-3.5">
             <summary className="font-display cursor-pointer text-sm text-wood-dark">
               그림 스타일
             </summary>
@@ -662,7 +662,7 @@ export default function SolidSketchStudio() {
                   set({ style: { ...state.style, fontSize } })
                 }
                 min={12}
-                max={36}
+                max={64}
                 step={1}
               />
               <SliderField
@@ -672,8 +672,19 @@ export default function SolidSketchStudio() {
                   set({ style: { ...state.style, pointLabelSize } })
                 }
                 min={14}
-                max={48}
+                max={72}
                 step={1}
+              />
+              <SliderField
+                label="점 크기"
+                value={state.style.pointRadius}
+                onChange={(pointRadius) =>
+                  set({ style: { ...state.style, pointRadius } })
+                }
+                min={2}
+                max={10}
+                step={0.5}
+                display={state.style.pointRadius.toFixed(1)}
               />
               <SliderField
                 label="선 굵기"

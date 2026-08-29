@@ -93,9 +93,9 @@ export function emptyLabel(mode: LabelMode = "auto"): MeasLabel {
 
 const DEFAULT_STYLE: DiagramStyle = {
   lineWidth: 1.7,
-  fontSize: 18,
-  pointLabelSize: 20,
-  pointRadius: 3,
+  fontSize: 24,
+  pointLabelSize: 28,
+  pointRadius: 4.5,
   rightAngleSize: 11,
   dimOffset: 22,
   padding: 56,
@@ -275,9 +275,9 @@ export function normalizeState(state: SolidSketchState): SolidSketchState {
     style: {
       ...style,
       lineWidth: clamp(style.lineWidth, 1, 3.5),
-      fontSize: clamp(style.fontSize, 12, 36),
-      pointLabelSize: clamp(style.pointLabelSize, 14, 48),
-      pointRadius: clamp(style.pointRadius, 2, 6),
+      fontSize: clamp(style.fontSize, 12, 64),
+      pointLabelSize: clamp(style.pointLabelSize, 14, 72),
+      pointRadius: clamp(style.pointRadius, 2, 10),
       padding: clamp(style.padding, 28, 90),
       exportScale: clamp(style.exportScale, 2, 4),
     },
