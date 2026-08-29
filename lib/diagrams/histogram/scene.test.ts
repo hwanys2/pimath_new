@@ -9,6 +9,7 @@ import {
   polygonVertices,
   setFrequency,
 } from "./model";
+import { nudgeMovableLabel } from "./geometry";
 import {
   buildHistogramScene,
   canvasXFromValue,
@@ -166,9 +167,57 @@ describe("histogram scene", () => {
     const title = sceneOn.texts.find((t) => t.id === "title");
     assert.ok(title);
     assert.ok(title.y < sceneOn.layout.plotTop);
+    assert.ok(title.y + title.size * 0.5 < sceneOn.layout.plotTopInner);
     assert.ok(sceneOn.layout.plotTop > sceneOff.layout.plotTop);
     assert.equal(sceneOn.layout.xMin, sceneOff.layout.xMin);
     assert.ok(sceneOn.texts.some((t) => t.id === "tick-x:0"));
+  });
+
+  it("keeps axis names inside the figure at the inner corners", () => {
+    const state = DEFAULT_HISTOGRAM_STATE;
+    const scene = buildHistogramScene(state);
+    const layout = scene.layout;
+    const axisX = scene.texts.find((t) => t.id === "axis-x");
+    const axisY = scene.texts.find((t) => t.id === "axis-y");
+    assert.ok(axisX);
+    assert.ok(axisY);
+    assert.equal(axisX.anchor, "end");
+    assert.equal(axisY.anchor, "end");
+    assert.ok(axisX.x <= layout.plotRight + 1e-6);
+    assert.ok(axisX.y > layout.originY);
+    assert.ok(axisX.x < scene.width - 4);
+    assert.ok(axisX.y < scene.height - 2);
+    assert.ok(axisY.x < layout.originX);
+    assert.ok(axisY.y >= layout.plotTop - 1e-6);
+    assert.ok(axisY.y > 4);
+  });
+
+  it("nudges title and axis names and keeps their sizes independent", () => {
+    const base = normalizeState({
+      ...DEFAULT_HISTOGRAM_STATE,
+      showTitle: true,
+      title: "하하호호",
+    });
+    const movedX = nudgeMovableLabel(base, "axis-x", 12, -5);
+    const beforeX = buildHistogramScene(base).texts.find((t) => t.id === "axis-x")!;
+    const afterX = buildHistogramScene(movedX).texts.find((t) => t.id === "axis-x")!;
+    assert.equal(afterX.x, beforeX.x + 12);
+    assert.equal(afterX.y, beforeX.y - 5);
+
+    const movedTitle = nudgeMovableLabel(base, "title", -8, 6);
+    const beforeTitle = buildHistogramScene(base).texts.find((t) => t.id === "title")!;
+    const afterTitle = buildHistogramScene(movedTitle).texts.find((t) => t.id === "title")!;
+    assert.equal(afterTitle.x, beforeTitle.x - 8);
+    assert.equal(afterTitle.y, beforeTitle.y + 6);
+
+    const bigger = buildHistogramScene({
+      ...base,
+      style: { ...base.style, axisNameSize: 28, titleSize: 32, pointLabelSize: 16 },
+    });
+    assert.equal(bigger.texts.find((t) => t.id === "axis-x")!.size, 28);
+    assert.equal(bigger.texts.find((t) => t.id === "title")!.size, 32);
+    const seriesName = bigger.texts.find((t) => t.id.endsWith(":name"));
+    if (seriesName) assert.equal(seriesName.size, 16);
   });
 
   it("draws horizontal grid only at labeled y ticks", () => {

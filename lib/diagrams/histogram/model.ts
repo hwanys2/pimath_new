@@ -11,6 +11,8 @@ export type HistogramStyle = {
   lineWidth: number;
   fontSize: number;
   pointLabelSize: number;
+  axisNameSize: number;
+  titleSize: number;
   pointRadius: number;
   graphWidth: number;
   padding: number;
@@ -38,6 +40,12 @@ export type HistogramState = {
   yAxisLabel: string;
   title: string;
   showTitle: boolean;
+  xAxisLabelDx: number;
+  xAxisLabelDy: number;
+  yAxisLabelDx: number;
+  yAxisLabelDy: number;
+  titleDx: number;
+  titleDy: number;
   yMax: number;
   yTick: number;
   showGrid: boolean;
@@ -50,6 +58,8 @@ const DEFAULT_STYLE: HistogramStyle = {
   lineWidth: 1.5,
   fontSize: 14,
   pointLabelSize: 16,
+  axisNameSize: 18,
+  titleSize: 20,
   pointRadius: 3.2,
   graphWidth: 2.1,
   padding: 56,
@@ -191,6 +201,12 @@ export function normalizeState(state: HistogramState): HistogramState {
     yAxisLabel: typeof state.yAxisLabel === "string" ? state.yAxisLabel : "",
     title: typeof state.title === "string" ? state.title : "",
     showTitle: Boolean(state.showTitle),
+    xAxisLabelDx: finiteOr(state.xAxisLabelDx, 0),
+    xAxisLabelDy: finiteOr(state.xAxisLabelDy, 0),
+    yAxisLabelDx: finiteOr(state.yAxisLabelDx, 0),
+    yAxisLabelDy: finiteOr(state.yAxisLabelDy, 0),
+    titleDx: finiteOr(state.titleDx, 0),
+    titleDy: finiteOr(state.titleDy, 0),
     yMax,
     yTick,
     showGrid: state.showGrid !== false,
@@ -199,8 +215,16 @@ export function normalizeState(state: HistogramState): HistogramState {
     style: {
       ...DEFAULT_STYLE,
       ...state.style,
-      padding: Math.min(88, Math.max(40, state.style?.padding ?? DEFAULT_STYLE.padding)),
+      padding: Math.min(96, Math.max(40, state.style?.padding ?? DEFAULT_STYLE.padding)),
       pointRadius: Math.min(6, Math.max(2, state.style?.pointRadius ?? DEFAULT_STYLE.pointRadius)),
+      axisNameSize: Math.min(
+        36,
+        Math.max(12, state.style?.axisNameSize ?? DEFAULT_STYLE.axisNameSize),
+      ),
+      titleSize: Math.min(
+        40,
+        Math.max(12, state.style?.titleSize ?? DEFAULT_STYLE.titleSize),
+      ),
       exportScale: [2, 3, 4].includes(state.style?.exportScale)
         ? state.style.exportScale
         : DEFAULT_STYLE.exportScale,
@@ -220,6 +244,12 @@ function baseState(partial: Partial<HistogramState> = {}): HistogramState {
     yAxisLabel: "(명)",
     title: "",
     showTitle: false,
+    xAxisLabelDx: 0,
+    xAxisLabelDy: 0,
+    yAxisLabelDx: 0,
+    yAxisLabelDy: 0,
+    titleDx: 0,
+    titleDy: 0,
     yMax: 10,
     yTick: 2,
     showGrid: true,

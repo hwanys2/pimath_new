@@ -67,12 +67,26 @@ export function hitTestHistogram(
       }
       continue;
     }
-    if (seriesId || text.id === "axis-x" || text.id === "axis-y") {
+    if (text.id === "axis-x" || text.id === "axis-y") {
+      const raw =
+        text.id === "axis-x" ? state.xAxisLabel.trim() : state.yAxisLabel.trim();
+      const w = Math.max(text.size * 1.8, raw.length * text.size * 0.5);
+      const hitX = text.anchor === "end" ? text.x - w / 2 : text.x;
       best = consider(
         best,
-        { kind: "label", id: text.id, targetId: seriesId ?? text.id },
+        { kind: "label", id: text.id, targetId: text.id },
+        Math.hypot(hitX - x, text.y - y),
+        Math.max(28, w * 0.55) * s,
+        1,
+      );
+      continue;
+    }
+    if (seriesId) {
+      best = consider(
+        best,
+        { kind: "label", id: text.id, targetId: seriesId },
         Math.hypot(text.x - x, text.y - y),
-        (seriesId ? 26 : 22) * s,
+        26 * s,
         2,
       );
     }
@@ -176,6 +190,38 @@ export function nudgeSeriesLabel(
         : s,
     ),
   };
+}
+
+export function nudgeMovableLabel(
+  state: HistogramState,
+  id: string,
+  dx: number,
+  dy: number,
+): HistogramState {
+  if (id === "axis-x") {
+    return {
+      ...state,
+      xAxisLabelDx: state.xAxisLabelDx + dx,
+      xAxisLabelDy: state.xAxisLabelDy + dy,
+    };
+  }
+  if (id === "axis-y") {
+    return {
+      ...state,
+      yAxisLabelDx: state.yAxisLabelDx + dx,
+      yAxisLabelDy: state.yAxisLabelDy + dy,
+    };
+  }
+  if (id === "title") {
+    return {
+      ...state,
+      titleDx: state.titleDx + dx,
+      titleDy: state.titleDy + dy,
+    };
+  }
+  const seriesId = parseSeriesLabelId(id);
+  if (seriesId) return nudgeSeriesLabel(state, seriesId, dx, dy);
+  return state;
 }
 
 export function applyEditedLabel(

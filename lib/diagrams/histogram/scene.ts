@@ -14,7 +14,9 @@ import {
 } from "@/lib/diagrams/histogram/model";
 
 export const SCENE_WIDTH = 560;
-export const SCENE_HEIGHT = 420;
+export const SCENE_HEIGHT = 456;
+/** Keep labels inside the rounded canvas card (`rounded-3xl` + overflow). */
+const CORNER_INSET = 48;
 
 export type HistLayout = {
   width: number;
@@ -44,16 +46,37 @@ export function dataXRange(state: HistogramState): { xMin: number; xMax: number 
   return { xMin: state.classStart, xMax: classEnd(state) };
 }
 
+function estimateLabelWidth(text: string, size: number): number {
+  let w = 0;
+  for (const ch of text) {
+    w += ch.charCodeAt(0) > 0x2ff ? size * 0.95 : size * 0.58;
+  }
+  return w;
+}
+
 export function getHistLayout(state: HistogramState): HistLayout {
   const pad = Math.max(40, state.style.padding);
-  const plotLeft = pad;
-  const plotRight = SCENE_WIDTH - Math.max(36, pad * 0.55);
+  const nameSize = state.style.axisNameSize;
+  const fontSize = state.style.fontSize;
+  const titleSize = state.style.titleSize;
+  const yName = state.yAxisLabel.trim();
+  const xName = state.xAxisLabel.trim();
+  const yNameW = yName ? estimateLabelWidth(yName, nameSize) : 0;
+  const plotLeft = Math.max(pad, CORNER_INSET + 8 + yNameW);
+  const plotRight = SCENE_WIDTH - Math.max(CORNER_INSET, pad * 0.42);
   const titleBand = hasChartTitle(state)
-    ? Math.max(22, state.style.pointLabelSize + 10)
+    ? Math.max(26, titleSize * 1.2 + 10)
     : 0;
-  const plotTop = Math.max(28, pad * 0.55) + titleBand;
+  const plotTop = hasChartTitle(state)
+    ? titleBand + Math.max(18, nameSize * 0.5 + 6)
+    : Math.max(CORNER_INSET, nameSize * 0.55 + 8, pad * 0.38);
   const plotTopInner = plotTop + 10;
-  const plotBottom = SCENE_HEIGHT - Math.max(28, pad * 0.48);
+  const tickDrop = 12 + fontSize * 0.7;
+  const xNameDrop = xName
+    ? 12 + fontSize * 0.95 + nameSize * 0.55
+    : 0;
+  const bottomNeed = Math.max(tickDrop, xNameDrop) + CORNER_INSET;
+  const plotBottom = SCENE_HEIGHT - Math.max(CORNER_INSET, pad * 0.42, bottomNeed);
   const range = dataXRange(state);
   const xBreak = state.xBreak && range.xMin > 1e-9;
   const stubW = xBreak ? 16 : 0;
@@ -386,32 +409,35 @@ export function buildHistogramScene(state: HistogramState): HistogramScene {
   }
 
   if (state.xAxisLabel.trim()) {
+    const nameSize = state.style.axisNameSize;
     pushText(texts, cmds, {
       id: "axis-x",
-      x: Math.min(layout.plotRight + 6, SCENE_WIDTH - 8),
-      y: oy + 1,
+      x: layout.plotRight - 2 + state.xAxisLabelDx,
+      y: oy + 12 + state.style.fontSize * 0.95 + state.xAxisLabelDy,
       runs: parseMathRuns(state.xAxisLabel.trim()),
-      size: state.style.pointLabelSize,
-      anchor: "start",
+      size: nameSize,
+      anchor: "end",
     });
   }
   if (state.yAxisLabel.trim()) {
+    const nameSize = state.style.axisNameSize;
     pushText(texts, cmds, {
       id: "axis-y",
-      x: ox + 2,
-      y: Math.max(layout.plotTop - 4, 14),
+      x: ox - 8 + state.yAxisLabelDx,
+      y: layout.plotTop + nameSize * 0.48 + state.yAxisLabelDy,
       runs: parseMathRuns(state.yAxisLabel.trim()),
-      size: state.style.pointLabelSize,
-      anchor: "middle",
+      size: nameSize,
+      anchor: "end",
     });
   }
   if (hasChartTitle(state)) {
+    const titleSize = state.style.titleSize;
     pushText(texts, cmds, {
       id: "title",
-      x: SCENE_WIDTH / 2,
-      y: Math.max(16, state.style.pointLabelSize * 0.75),
+      x: SCENE_WIDTH / 2 + state.titleDx,
+      y: Math.max(titleSize * 0.62, 14) + state.titleDy,
       runs: parseMathRuns(state.title.trim()),
-      size: state.style.pointLabelSize,
+      size: titleSize,
       anchor: "middle",
     });
   }

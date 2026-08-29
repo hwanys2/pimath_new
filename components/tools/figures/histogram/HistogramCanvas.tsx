@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import {
   applyEditedLabel,
   hitTestHistogram,
-  nudgeSeriesLabel,
+  nudgeMovableLabel,
   parseSeriesLabelId,
   setFrequencyFromCanvas,
   type HistHit,
@@ -220,14 +220,10 @@ export default function HistogramCanvas({
             const dx = p.x - drag.x;
             const dy = p.y - drag.y;
             if (!drag.moved && Math.hypot(dx, dy) < 3) return;
-            if (!parseSeriesLabelId(drag.id)) return;
             drag.moved = true;
             drag.x = p.x;
             drag.y = p.y;
-            setState(
-              (prev) => nudgeSeriesLabel(prev, drag.targetId, dx, dy),
-              false,
-            );
+            setState((prev) => nudgeMovableLabel(prev, drag.id, dx, dy), false);
             return;
           }
 

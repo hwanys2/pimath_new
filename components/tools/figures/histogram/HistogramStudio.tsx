@@ -409,6 +409,9 @@ export default function HistogramStudio() {
                   className={`mt-1 w-full min-w-0 rounded-xl border-2 border-wood/20 bg-white px-2 py-1.5 text-sm outline-none focus:border-wood`}
                 />
               </label>
+              <p className="col-span-2 text-[11px] text-foreground/45">
+                그림에서 축 이름·제목을 끌어 위치를 조절할 수 있어요.
+              </p>
               <CompactNumber
                 label="최댓값"
                 value={state.yMax}
@@ -654,13 +657,33 @@ export default function HistogramStudio() {
                 step={1}
               />
               <SliderField
-                label="축·이름 글자"
+                label="이름"
                 value={state.style.pointLabelSize}
                 onChange={(pointLabelSize) =>
                   set({ style: { ...state.style, pointLabelSize } })
                 }
                 min={12}
                 max={36}
+                step={1}
+              />
+              <SliderField
+                label="축 이름"
+                value={state.style.axisNameSize}
+                onChange={(axisNameSize) =>
+                  set({ style: { ...state.style, axisNameSize } })
+                }
+                min={12}
+                max={36}
+                step={1}
+              />
+              <SliderField
+                label="제목"
+                value={state.style.titleSize}
+                onChange={(titleSize) =>
+                  set({ style: { ...state.style, titleSize } })
+                }
+                min={12}
+                max={40}
                 step={1}
               />
               <SliderField
@@ -703,7 +726,7 @@ export default function HistogramStudio() {
                   set({ style: { ...state.style, padding } })
                 }
                 min={40}
-                max={88}
+                max={96}
                 step={2}
               />
               <div>
