@@ -228,7 +228,7 @@ export default function CircleChordsStudio() {
       <header className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <p className="text-xs font-semibold text-wood">
-            <Link href="/tools/figures" className="hover:underline">
+            <Link href="/tools/figures?grade=3" className="hover:underline">
               문제 그림 그리기
             </Link>
             <span className="mx-1.5 text-foreground/30">/</span>

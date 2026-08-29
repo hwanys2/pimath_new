@@ -16,8 +16,8 @@ type Props = {
 export default async function FiguresPage({ searchParams }: Props) {
   await redirectStudentToAdventure();
   const { grade: raw } = await searchParams;
-  const parsed = Number(raw ?? 3);
-  const grade: GradeId = isValidGrade(parsed) ? parsed : 3;
+  const parsed = Number(raw ?? 1);
+  const grade: GradeId = isValidGrade(parsed) ? parsed : 1;
 
   return <FiguresHub grade={grade} />;
 }
