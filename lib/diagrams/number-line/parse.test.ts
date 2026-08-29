@@ -10,6 +10,8 @@ import {
 import {
   DEFAULT_NUMBER_LINE_STATE,
   NUMBER_LINE_PRESETS,
+  addPointAtValue,
+  cloneState,
   resolveBands,
 } from "./model";
 import { parseMathRuns } from "@/lib/diagrams/math-label";
@@ -95,5 +97,18 @@ describe("number line scene", () => {
     assert.equal(bands.find((b) => b.start === -2)?.n, 2);
     assert.equal(bands.find((b) => b.start === -5)?.n, 4);
     assert.equal(bands.find((b) => b.start === 3)?.n, 4);
+  });
+
+  it("does not turn on n-division when adding a point by value", () => {
+    const state = addPointAtValue(NUMBER_LINE_PRESETS[0]!.state, 0.5);
+    assert.equal(state.points[0]?.showDivision, false);
+    assert.equal(resolveBands(state).length, 0);
+  });
+
+  it("drops n-division when every point and extra band is gone", () => {
+    const state = cloneState(DEFAULT_NUMBER_LINE_STATE);
+    assert.ok(resolveBands(state).length > 0);
+    const cleared = { ...state, points: [], bands: [] };
+    assert.equal(resolveBands(cleared).length, 0);
   });
 });

@@ -37,7 +37,7 @@ import { formatPointValue, parseNumberLineValue } from "@/lib/diagrams/number-li
 import { renderSceneToCanvas, sceneToSvg } from "@/lib/diagrams/render";
 import type { FontFaces } from "@/lib/diagrams/math-label";
 
-const STORAGE_KEY = "pm-diagram-g1-number-line-v1";
+const STORAGE_KEY = "pm-diagram-g1-number-line-v2";
 
 const storeListeners = new Set<() => void>();
 
@@ -673,8 +673,6 @@ function PointCard({
               inputRaw,
               value: parsed.value,
               n: parsed.nHint,
-              showDivision: parsed.nHint != null,
-              equalMarks: defaultEqualMarks(parsed.nHint ?? 4),
             });
           }}
         />

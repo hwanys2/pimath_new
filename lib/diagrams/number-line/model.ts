@@ -106,8 +106,6 @@ export function makePoint(
     partial.n === undefined
       ? nHintFromValue(partial.value)
       : partial.n;
-  const showDivision =
-    partial.showDivision ?? !isNearInteger(partial.value);
   return {
     id: partial.id ?? newPointId(),
     name: partial.name,
@@ -117,7 +115,7 @@ export function makePoint(
     labelDy: partial.labelDy ?? 0,
     showName: partial.showName ?? true,
     showValue: partial.showValue ?? false,
-    showDivision,
+    showDivision: partial.showDivision ?? false,
     n: n ?? null,
     equalMarks: partial.equalMarks ?? defaultEqualMarks(n ?? 4),
   };
@@ -230,7 +228,7 @@ export function addPointFromRaw(
     value: parsed.value,
     inputRaw: raw.trim(),
     n: parsed.nHint,
-    showDivision: parsed.nHint != null,
+    showDivision: false,
     equalMarks: defaultEqualMarks(parsed.nHint ?? 4),
   });
   return { ...state, points: [...state.points, point] };
@@ -246,7 +244,7 @@ export function addPointAtValue(
     name: nextPointName(state.points),
     value: clamped,
     n,
-    showDivision: n != null,
+    showDivision: false,
     equalMarks: defaultEqualMarks(n ?? 4),
   });
   return { ...state, points: [...state.points, point] };
@@ -306,6 +304,7 @@ export const NUMBER_LINE_PRESETS: {
           inputRaw: "-17/4",
           n: 4,
           equalMarks: 1,
+          showDivision: true,
         }),
         makePoint({
           id: "p-b",
@@ -314,6 +313,7 @@ export const NUMBER_LINE_PRESETS: {
           inputRaw: "-3/2",
           n: 2,
           equalMarks: 2,
+          showDivision: true,
         }),
         makePoint({
           id: "p-c",
@@ -322,6 +322,7 @@ export const NUMBER_LINE_PRESETS: {
           inputRaw: "15/4",
           n: 4,
           equalMarks: 1,
+          showDivision: true,
         }),
         makePoint({
           id: "p-d",
@@ -341,7 +342,6 @@ export const NUMBER_LINE_PRESETS: {
       min: 0,
       max: 1,
       plusOnPositive: false,
-      bands: [{ id: "b-01", start: 0, n: 4, equalMarks: 1 }],
       points: [
         makePoint({
           id: "p-a",
@@ -350,6 +350,7 @@ export const NUMBER_LINE_PRESETS: {
           inputRaw: "3/4",
           n: 4,
           equalMarks: 1,
+          showDivision: true,
         }),
       ],
     }),
