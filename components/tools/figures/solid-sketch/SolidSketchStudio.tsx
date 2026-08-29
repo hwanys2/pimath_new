@@ -32,11 +32,13 @@ import {
   familyNeedsSides,
   normalizeState,
   resetView,
+  toggleVertexNameHidden,
   withFamily,
   type SolidSketchState,
 } from "@/lib/diagrams/solid-sketch/model";
 import { buildSolidSketchScene } from "@/lib/diagrams/solid-sketch/scene";
 import {
+  buildSolidMesh,
   slantLength,
   slantSpan,
   withSlantLength,
@@ -202,6 +204,10 @@ export default function SolidSketchStudio() {
   const sphere = familyIsSphere(state.family);
   const needsSides = familyNeedsSides(state.family);
   const prismRect = state.family === "prism" && state.sides === 4;
+  const vertexLabels = useMemo(
+    () => (round || sphere ? [] : buildSolidMesh(state).names),
+    [round, sphere, state],
+  );
 
   return (
     <div className={`${notoSerif.variable} ${notoSerifKr.variable} space-y-4`}>
@@ -350,6 +356,30 @@ export default function SolidSketchStudio() {
                 </ChipToggle>
               ) : null}
             </div>
+            {state.showVertexNames && vertexLabels.length > 0 ? (
+              <div className="mt-2 flex flex-wrap gap-1">
+                {vertexLabels.map((name, i) => {
+                  const on = !state.hiddenVertexNames[i];
+                  return (
+                    <button
+                      key={`${name}-${i}`}
+                      type="button"
+                      onClick={() =>
+                        setState((prev) => toggleVertexNameHidden(prev, i))
+                      }
+                      className={`min-w-[1.5rem] rounded-full px-1.5 py-0.5 text-[11px] font-semibold italic transition ${
+                        on
+                          ? "bg-wood text-cream"
+                          : "bg-black/8 text-foreground/35 line-through"
+                      }`}
+                      aria-pressed={on}
+                    >
+                      {name}
+                    </button>
+                  );
+                })}
+              </div>
+            ) : null}
             <p className="mt-2 text-[11px] leading-snug text-foreground/45">
               모서리를 누르면 길이 설명선이 붙어요. 글자를 끌어 옮기고, 점선만
               잡으면 선만 옮겨요.

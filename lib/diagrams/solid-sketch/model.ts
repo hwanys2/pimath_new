@@ -68,6 +68,7 @@ export type SolidSketchState = {
   vertexNames: string[];
   nameDx: number[];
   nameDy: number[];
+  hiddenVertexNames: boolean[];
   heightLabel: MeasLabel;
   radiusLabel: MeasLabel;
   slantLabel: MeasLabel;
@@ -132,6 +133,7 @@ function baseState(
     vertexNames: [],
     nameDx: [],
     nameDy: [],
+    hiddenVertexNames: [],
     heightLabel: emptyLabel("auto"),
     radiusLabel: emptyLabel("auto"),
     slantLabel: emptyLabel("auto"),
@@ -253,6 +255,21 @@ function clamp(n: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, n));
 }
 
+export function vertexNameVisible(state: SolidSketchState, index: number): boolean {
+  if (!state.showVertexNames) return false;
+  return !state.hiddenVertexNames[index];
+}
+
+export function toggleVertexNameHidden(
+  state: SolidSketchState,
+  index: number,
+): SolidSketchState {
+  const hiddenVertexNames = [...state.hiddenVertexNames];
+  while (hiddenVertexNames.length <= index) hiddenVertexNames.push(false);
+  hiddenVertexNames[index] = !hiddenVertexNames[index];
+  return { ...state, hiddenVertexNames };
+}
+
 export function defaultVertexNames(count: number): string[] {
   return Array.from({ length: count }, (_, i) =>
     i < 26 ? String.fromCharCode(65 + i) : `P${i + 1}`,
@@ -278,6 +295,9 @@ export function normalizeState(state: SolidSketchState): SolidSketchState {
     vertexNames: Array.isArray(state.vertexNames) ? state.vertexNames : [],
     nameDx: Array.isArray(state.nameDx) ? state.nameDx : [],
     nameDy: Array.isArray(state.nameDy) ? state.nameDy : [],
+    hiddenVertexNames: Array.isArray(state.hiddenVertexNames)
+      ? state.hiddenVertexNames.map(Boolean)
+      : [],
     edgeLabels: state.edgeLabels ?? {},
     heightLabel: { ...emptyLabel(), ...state.heightLabel },
     radiusLabel: { ...emptyLabel(), ...state.radiusLabel },
@@ -385,6 +405,7 @@ export function withFamily(
     vertexNames: [],
     nameDx: [],
     nameDy: [],
+    hiddenVertexNames: [],
     edgeLabels: {},
     showVertexNames: !familyIsRound(family) && family !== "sphere",
     showCenter: familyIsRound(family) || family === "sphere",

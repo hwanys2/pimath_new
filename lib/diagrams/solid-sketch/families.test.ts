@@ -7,6 +7,7 @@ import {
   familyIsRound,
   familyHasSlant,
   normalizeState,
+  toggleVertexNameHidden,
   type SolidFamily,
 } from "./model";
 import { applyEditedLabel } from "./geometry";
@@ -192,5 +193,22 @@ describe("round fills and sphere", () => {
     const arcs = scene.cmds.filter((c) => c.t === "ellipseArc");
     assert.ok(arcs.length >= 3, "equator front, equator back, silhouette");
     assert.ok(arcs.some((c) => "dashed" in c && c.dashed));
+  });
+});
+
+describe("per-vertex names", () => {
+  it("hides only the chosen vertex label", () => {
+    const start = normalizeState({
+      ...DEFAULT_SOLID_SKETCH_STATE,
+      family: "prism",
+      sides: 4,
+      showVertexNames: true,
+    });
+    const hidden = toggleVertexNameHidden(start, 0);
+    const scene = buildSolidSketchScene(hidden);
+    const labels = scene.texts.filter((t) => t.id.startsWith("vertex:"));
+    assert.equal(labels.length, 7);
+    assert.ok(!labels.some((t) => t.id === "vertex:0"));
+    assert.ok(labels.some((t) => t.id === "vertex:1"));
   });
 });

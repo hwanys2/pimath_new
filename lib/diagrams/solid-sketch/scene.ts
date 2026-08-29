@@ -5,6 +5,7 @@ import {
   familyIsRound,
   familyIsSphere,
   resolveLabelText,
+  vertexNameVisible,
   type MeasLabel,
   type SolidSketchState,
 } from "./model";
@@ -559,6 +560,7 @@ export function buildSolidSketchScene(state: SolidSketchState): SolidScene {
         }
       : { x: width / 2, y: height / 2 };
     mesh.vertices.forEach((_, i) => {
+      if (!vertexNameVisible(state, i)) return;
       const p = verts2[i]!;
       cmds.push({ t: "dot", x: p.x, y: p.y, r: style.pointRadius });
       const name = mesh.names[i]?.trim();
