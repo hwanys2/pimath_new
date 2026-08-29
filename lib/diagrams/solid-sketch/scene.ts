@@ -2,7 +2,7 @@ import { parseMathRuns, parseNameRuns } from "@/lib/diagrams/math-label";
 import type { DiagramScene as SharedDiagramScene, SceneCmd, SceneText } from "@/lib/diagrams/scene";
 import {
   edgeKey,
-  familyIsRound,
+  familyIsSmooth,
   familyIsSphere,
   resolveLabelText,
   vertexNameVisible,
@@ -34,9 +34,11 @@ import {
   pointOnCircle,
   slantLength,
   type Circle3,
+  type Hemisphere3,
+  type SideBand,
   type SolidMesh,
 } from "./solids";
-import { add3, mul3, norm3, sub3, type Vec3 } from "./vec3";
+import { add3, dot3, mul3, norm3, sub3, type Vec3 } from "./vec3";
 
 export type SolidScene = SharedDiagramScene & {
   layout: SolidLayout;
@@ -218,6 +220,18 @@ function collectFitPoints(mesh: SolidMesh, cam: Cam): Proj[] {
       pts.push(project3(pointOnCircle(sil, (i * Math.PI) / 6), cam));
     }
   }
+  for (const hemi of mesh.hemispheres ?? []) {
+    pts.push(project3(add3(hemi.center, mul3(hemi.axis, hemi.radius)), cam));
+    const sil: Circle3 = {
+      id: "base",
+      center: hemi.center,
+      normal: cam.eye,
+      radius: hemi.radius,
+    };
+    for (let i = 0; i < 12; i++) {
+      pts.push(project3(pointOnCircle(sil, (i * Math.PI) / 6), cam));
+    }
+  }
   if (mesh.apexIndex == null && mesh.baseCenter) pts.push(project3(mesh.baseCenter, cam));
   if (mesh.topCenter) pts.push(project3(mesh.topCenter, cam));
   return pts;
@@ -230,10 +244,12 @@ function canvasMap(fit: Fit) {
 function sampleEllipse(
   ellipse: { cx: number; cy: number; ux: number; uy: number; vx: number; vy: number },
   n = 32,
+  t0 = 0,
+  t1 = Math.PI * 2,
 ): Vec[] {
   const pts: Vec[] = [];
-  for (let i = 0; i < n; i++) {
-    const t = (i * Math.PI * 2) / n;
+  for (let i = 0; i <= n; i++) {
+    const t = n === 0 ? t0 : t0 + ((t1 - t0) * i) / n;
     pts.push({
       x: ellipse.cx + ellipse.ux * Math.cos(t) + ellipse.vx * Math.sin(t),
       y: ellipse.cy + ellipse.uy * Math.cos(t) + ellipse.vy * Math.sin(t),
@@ -268,10 +284,14 @@ function slantEndpoints(
   mesh: SolidMesh,
   cam: Cam,
 ): { a3: Vec3; b3: Vec3 } | null {
-  if (mesh.apexIndex != null && mesh.circles[0]) {
+  if (mesh.apexIndex != null && mesh.circles.length) {
+    const rim =
+      mesh.circles.find((c) => c.id === "join") ??
+      mesh.circles.find((c) => c.id === "base") ??
+      mesh.circles[0]!;
     return {
       a3: mesh.vertices[mesh.apexIndex]!,
-      b3: radiusPoint(mesh.circles[0], cam),
+      b3: radiusPoint(rim, cam),
     };
   }
   if (mesh.apexIndex != null && mesh.vertices.length > 1) {
@@ -372,36 +392,59 @@ function generatorCorners(
   mesh: SolidMesh,
   cam: Cam,
   map: (p: Proj) => Vec,
-): { A: Vec; B: Vec; C: Vec; D: Vec; axis: Vec3 } | null {
+  band?: SideBand,
+): { A: Vec; B: Vec; C: Vec; D: Vec; axis: Vec3; triangle: boolean } | null {
   const circles = mesh.circles;
   if (circles.length === 0) return null;
   const axis = mesh.axis ?? circles[0]!.normal;
   const dir = silRadial(axis, cam);
   if (!dir) return null;
-  const base = circles.find((c) => c.id === "base") ?? circles[0]!;
-  const top = circles.find((c) => c.id === "top");
-  const p0 = add3(base.center, mul3(dir, base.radius));
-  const p1 = add3(base.center, mul3(dir, -base.radius));
-  const q0 =
-    mesh.apexIndex != null
-      ? mesh.vertices[mesh.apexIndex]!
-      : top
-        ? add3(top.center, mul3(dir, top.radius))
-        : null;
-  const q1 =
-    mesh.apexIndex != null
-      ? mesh.vertices[mesh.apexIndex]!
-      : top
-        ? add3(top.center, mul3(dir, -top.radius))
-        : null;
-  if (!q0 || !q1) return null;
-  return {
-    A: map(project3(p0, cam)),
-    B: map(project3(p1, cam)),
-    C: map(project3(q0, cam)),
-    D: map(project3(q1, cam)),
-    axis,
+
+  const silOf = (id: SideBand["lower"] | "apex"): [Vec3, Vec3] | null => {
+    if (id === "apex") {
+      if (mesh.apexIndex == null) return null;
+      const p = mesh.vertices[mesh.apexIndex]!;
+      return [p, p];
+    }
+    const circle = circles.find((c) => c.id === id) ?? (id === "base" ? circles[0] : undefined);
+    if (!circle) return null;
+    return [
+      add3(circle.center, mul3(dir, circle.radius)),
+      add3(circle.center, mul3(dir, -circle.radius)),
+    ];
   };
+
+  let lowerId: SideBand["lower"] | "apex" = "base";
+  let upperId: SideBand["upper"] = mesh.apexIndex != null ? "apex" : "top";
+  if (band) {
+    lowerId = band.lower;
+    upperId = band.upper;
+  }
+  const lo = silOf(lowerId);
+  const hi = silOf(upperId);
+  if (!lo || !hi) return null;
+  return {
+    A: map(project3(lo[0], cam)),
+    B: map(project3(lo[1], cam)),
+    C: map(project3(hi[0], cam)),
+    D: map(project3(hi[1], cam)),
+    axis,
+    triangle: upperId === "apex" || lowerId === "apex",
+  };
+}
+
+function meshBands(mesh: SolidMesh): SideBand[] {
+  if (mesh.bands && mesh.bands.length > 0) return mesh.bands;
+  if (mesh.circles.length === 0) return [];
+  if (mesh.apexIndex != null) return [{ lower: "base", upper: "apex" }];
+  if (mesh.circles.some((c) => c.id === "top")) return [{ lower: "base", upper: "top" }];
+  return [];
+}
+
+function isHemiEquator(mesh: SolidMesh, circle: Circle3): boolean {
+  return (mesh.hemispheres ?? []).some(
+    (h) => Math.hypot(h.center.x - circle.center.x, h.center.y - circle.center.y, h.center.z - circle.center.z) < 1e-6,
+  );
 }
 
 function fillRoundSolids(
@@ -410,17 +453,18 @@ function fillRoundSolids(
   cam: Cam,
   map: (p: Proj) => Vec,
 ): void {
-  const back = mesh.circles.filter((c) => !circleFacingCamera(c, cam));
-  const front = mesh.circles.filter((c) => circleFacingCamera(c, cam));
+  const skip = (c: Circle3) => c.id === "join" || isHemiEquator(mesh, c);
+  const back = mesh.circles.filter((c) => !skip(c) && !circleFacingCamera(c, cam));
+  const front = mesh.circles.filter((c) => !skip(c) && circleFacingCamera(c, cam));
   for (const circle of back) fillCircleDisk(cmds, circle, cam, map);
-  const corners = generatorCorners(mesh, cam, map);
-  if (corners) {
+  for (const band of meshBands(mesh)) {
+    const corners = generatorCorners(mesh, cam, map, band);
+    if (!corners) continue;
     cmds.push({
       t: "polygon",
-      points:
-        mesh.apexIndex != null
-          ? [corners.A, corners.B, corners.C]
-          : [corners.A, corners.B, corners.D, corners.C],
+      points: corners.triangle
+        ? [corners.A, corners.B, corners.C]
+        : [corners.A, corners.B, corners.D, corners.C],
       fill: fillGray(corners.axis, cam),
     });
   }
@@ -433,10 +477,66 @@ function drawGeneratorLines(
   cam: Cam,
   map: (p: Proj) => Vec,
 ): void {
-  const corners = generatorCorners(mesh, cam, map);
-  if (!corners) return;
-  cmds.push({ t: "line", x1: corners.A.x, y1: corners.A.y, x2: corners.C.x, y2: corners.C.y });
-  cmds.push({ t: "line", x1: corners.B.x, y1: corners.B.y, x2: corners.D.x, y2: corners.D.y });
+  for (const band of meshBands(mesh)) {
+    const corners = generatorCorners(mesh, cam, map, band);
+    if (!corners) continue;
+    cmds.push({ t: "line", x1: corners.A.x, y1: corners.A.y, x2: corners.C.x, y2: corners.C.y });
+    cmds.push({ t: "line", x1: corners.B.x, y1: corners.B.y, x2: corners.D.x, y2: corners.D.y });
+  }
+}
+
+function hemisphereArcSpan(axis: Vec3, cam: Cam): { t0: number; t1: number } | null {
+  const { u, v } = circleBasis(cam.eye);
+  const a = dot3(u, axis);
+  const b = dot3(v, axis);
+  if (Math.hypot(a, b) < 1e-6) return null;
+  const phi = Math.atan2(b, a);
+  return { t0: phi - Math.PI / 2, t1: phi + Math.PI / 2 };
+}
+
+function drawHemisphere(
+  cmds: SceneCmd[],
+  hemi: Hemisphere3,
+  cam: Cam,
+  map: (p: Proj) => Vec,
+  showFill: boolean,
+  showHidden: boolean,
+  equator: Circle3 | undefined,
+): void {
+  const sil: Circle3 = {
+    id: "base",
+    center: hemi.center,
+    normal: cam.eye,
+    radius: hemi.radius,
+  };
+  const ellipse = projectCircle(sil, cam, map);
+  const span = hemisphereArcSpan(hemi.axis, cam);
+  if (showFill) {
+    if (equator) fillCircleDisk(cmds, equator, cam, map);
+    if (span) {
+      cmds.push({
+        t: "polygon",
+        points: sampleEllipse(ellipse, 24, span.t0, span.t1),
+        fill: fillGray(hemi.axis, cam),
+      });
+    }
+  }
+  if (equator) {
+    drawCircleRim(cmds, equator, cam, map, showHidden, equator.normal, true);
+  }
+  if (span) {
+    cmds.push({
+      t: "ellipseArc",
+      cx: ellipse.cx,
+      cy: ellipse.cy,
+      ux: ellipse.ux,
+      uy: ellipse.uy,
+      vx: ellipse.vx,
+      vy: ellipse.vy,
+      a0: span.t0,
+      a1: span.t1,
+    });
+  }
 }
 
 function drawSphere(
@@ -513,11 +613,24 @@ export function buildSolidSketchScene(state: SolidSketchState): SolidScene {
 
   if (familyIsSphere(state.family)) {
     drawSphere(cmds, mesh, cam, map, state.showFill, state.showHidden);
-  } else if (familyIsRound(state.family)) {
+  } else if (familyIsSmooth(state.family)) {
     if (state.showFill) fillRoundSolids(cmds, mesh, cam, map);
     drawGeneratorLines(cmds, mesh, cam, map);
     for (const circle of mesh.circles) {
-      drawCircleRim(cmds, circle, cam, map, state.showHidden, mesh.axis);
+      if (isHemiEquator(mesh, circle)) continue;
+      drawCircleRim(
+        cmds,
+        circle,
+        cam,
+        map,
+        state.showHidden,
+        mesh.axis,
+        circle.id === "join",
+      );
+    }
+    for (const hemi of mesh.hemispheres ?? []) {
+      const equator = mesh.circles.find((c) => isHemiEquator(mesh, c));
+      drawHemisphere(cmds, hemi, cam, map, state.showFill, state.showHidden, equator);
     }
   }
 
@@ -586,12 +699,13 @@ export function buildSolidSketchScene(state: SolidSketchState): SolidScene {
   const unk = state.unknownLetter;
 
   if (state.showHeight && mesh.baseCenter) {
+    const from3 = mesh.heightFrom ?? mesh.baseCenter;
     const top3 =
-      mesh.apexIndex != null
-        ? mesh.vertices[mesh.apexIndex]!
-        : mesh.topCenter;
-    if (top3) {
-      const a = map(project3(mesh.baseCenter, cam));
+      mesh.heightTo ??
+      mesh.topCenter ??
+      (mesh.apexIndex != null ? mesh.vertices[mesh.apexIndex] : null);
+    if (from3 && top3) {
+      const a = map(project3(from3, cam));
       const b = map(project3(top3, cam));
       cmds.push({
         t: "line",
@@ -606,9 +720,9 @@ export function buildSolidSketchScene(state: SolidSketchState): SolidScene {
       dimArc(cmds, texts, a, b, outwardUp, style.dimOffset, txt, "height", state.heightLabel, style.fontSize);
       if (state.showHeightRightAngle && mesh.axis) {
         const { u } = circleBasis(mesh.axis);
-        const foot = map(project3(mesh.baseCenter, cam));
-        const up2 = sub(map(project3(add3(mesh.baseCenter, norm3(mesh.axis)), cam)), foot);
-        const side2 = sub(map(project3(add3(mesh.baseCenter, u), cam)), foot);
+        const foot = map(project3(from3, cam));
+        const up2 = sub(map(project3(add3(from3, norm3(mesh.axis)), cam)), foot);
+        const side2 = sub(map(project3(add3(from3, u), cam)), foot);
         const uu = norm(up2);
         const vv = norm(side2);
         if (len(up2) > 2 && len(side2) > 2) {
@@ -628,7 +742,10 @@ export function buildSolidSketchScene(state: SolidSketchState): SolidScene {
   }
 
   if (state.showRadius && mesh.circles[0]) {
-    const circle = mesh.circles.find((c) => c.id === "base") ?? mesh.circles[0]!;
+    const circle =
+      mesh.circles.find((c) => c.id === "join") ??
+      mesh.circles.find((c) => c.id === "base") ??
+      mesh.circles[0]!;
     const a3 = circle.center;
     const b3 = radiusPoint(circle, cam);
     const a = map(project3(a3, cam));

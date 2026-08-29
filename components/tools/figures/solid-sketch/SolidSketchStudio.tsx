@@ -28,7 +28,9 @@ import {
   defaultVertexNames,
   familyHasSlant,
   familyIsRound,
+  familyIsSmooth,
   familyIsSphere,
+  familyIsStacked,
   familyNeedsSides,
   normalizeState,
   resetView,
@@ -201,12 +203,15 @@ export default function SolidSketchStudio() {
   }
 
   const round = familyIsRound(state.family);
+  const smooth = familyIsSmooth(state.family);
   const sphere = familyIsSphere(state.family);
+  const hemisphere = state.family === "hemisphere";
+  const stacked = familyIsStacked(state.family);
   const needsSides = familyNeedsSides(state.family);
   const prismRect = state.family === "prism" && state.sides === 4;
   const vertexLabels = useMemo(
-    () => (round || sphere ? [] : buildSolidMesh(state).names),
-    [round, sphere, state],
+    () => (smooth ? [] : buildSolidMesh(state).names),
+    [smooth, state],
   );
 
   return (
@@ -231,9 +236,9 @@ export default function SolidSketchStudio() {
             겨냥도
           </h1>
           <p className="mt-1 max-w-2xl text-sm text-foreground/65">
-            기둥·뿔·뿔대·원기둥·원뿔·구·정다면체를 겨냥도로 그립니다. 빈 곳을
-            끌어 돌리고, 모서리를 눌러 길이를 붙이세요. 글자를 누르면 바로
-            고칠 수 있어요.
+            기둥·뿔·뿔대·원기둥·원뿔·구·반구와 같은 반지름 조합·정다면체를
+            겨냥도로 그립니다. 빈 곳을 끌어 돌리고, 모서리를 눌러 길이를
+            붙이세요. 글자를 누르면 바로 고칠 수 있어요.
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -297,7 +302,7 @@ export default function SolidSketchStudio() {
               >
                 숨은 선
               </ChipToggle>
-              {!sphere ? (
+              {!smooth ? (
                 <ChipToggle
                   on={state.showVertexNames}
                   onClick={() => set({ showVertexNames: !state.showVertexNames })}
@@ -305,7 +310,7 @@ export default function SolidSketchStudio() {
                   꼭짓점 이름
                 </ChipToggle>
               ) : null}
-              {!sphere ? (
+              {!sphere && !hemisphere ? (
                 <ChipToggle
                   on={state.showHeight}
                   onClick={() => set({ showHeight: !state.showHeight })}
@@ -323,7 +328,7 @@ export default function SolidSketchStudio() {
                   직각
                 </ChipToggle>
               ) : null}
-              {round || sphere ? (
+              {smooth ? (
                 <ChipToggle
                   on={state.showCenter}
                   onClick={() => set({ showCenter: !state.showCenter })}
@@ -331,7 +336,7 @@ export default function SolidSketchStudio() {
                   중심
                 </ChipToggle>
               ) : null}
-              {round || sphere ? (
+              {smooth ? (
                 <ChipToggle
                   on={state.showRadius}
                   onClick={() => set({ showRadius: !state.showRadius })}
@@ -347,7 +352,7 @@ export default function SolidSketchStudio() {
                   모선
                 </ChipToggle>
               ) : null}
-              {!round && !sphere ? (
+              {!smooth ? (
                 <ChipToggle
                   on={state.showBaseEdge}
                   onClick={() => set({ showBaseEdge: !state.showBaseEdge })}
@@ -628,6 +633,16 @@ export default function SolidSketchStudio() {
                   suffix="cm"
                 />
               ) : null}
+              {sphere || hemisphere || stacked ? (
+                <NumberField
+                  label="반지름"
+                  value={state.radius}
+                  onChange={(radius) => set({ radius })}
+                  min={0.4}
+                  max={40}
+                  suffix="cm"
+                />
+              ) : null}
               {state.family === "coneFrustum" ? (
                 <NumberField
                   label="윗면 반지름"
@@ -647,25 +662,33 @@ export default function SolidSketchStudio() {
                   max={40}
                   suffix="cm"
                 />
-              ) : sphere ? (
-                <NumberField
-                  label="반지름"
-                  value={state.radius}
-                  onChange={(radius) => set({ radius })}
-                  min={0.4}
-                  max={40}
-                  suffix="cm"
-                />
-              ) : (
+              ) : null}
+              {!sphere && !hemisphere && state.family !== "platonic" ? (
                 <>
                   <NumberField
-                    label="높이"
+                    label={
+                      state.family === "cylinderCone"
+                        ? "원기둥 높이"
+                        : state.family === "coneHemisphere"
+                          ? "원뿔 높이"
+                          : "높이"
+                    }
                     value={state.height}
                     onChange={(height) => set({ height })}
                     min={0.5}
                     max={40}
                     suffix="cm"
                   />
+                  {state.family === "cylinderCone" ? (
+                    <NumberField
+                      label="원뿔 높이"
+                      value={state.capHeight}
+                      onChange={(capHeight) => set({ capHeight })}
+                      min={0.5}
+                      max={40}
+                      suffix="cm"
+                    />
+                  ) : null}
                   {familyHasSlant(state.family) ? (
                     <NumberField
                       label="모선"
@@ -680,7 +703,7 @@ export default function SolidSketchStudio() {
                     />
                   ) : null}
                 </>
-              )}
+              ) : null}
               <TextField
                 label="단위"
                 value={state.unit}

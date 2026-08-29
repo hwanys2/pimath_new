@@ -19,6 +19,10 @@ export type SolidFamily =
   | "cone"
   | "coneFrustum"
   | "sphere"
+  | "hemisphere"
+  | "coneHemisphere"
+  | "cylinderHemisphere"
+  | "cylinderCone"
   | "platonic";
 
 export type PlatonicKind =
@@ -52,6 +56,7 @@ export type SolidSketchState = {
   topSize: number;
   radius: number;
   topRadius: number;
+  capHeight: number;
   edgeLength: number;
   cylinderLie: CylinderLie;
   azimuthDeg: number;
@@ -117,6 +122,7 @@ function baseState(
     topSize: 3,
     radius: 3,
     topRadius: 1.8,
+    capHeight: 5,
     edgeLength: 5,
     cylinderLie: "vertical",
     azimuthDeg: DEFAULT_AZIMUTH,
@@ -229,6 +235,63 @@ export const SOLID_SKETCH_PRESETS: SolidPreset[] = [
     }),
   },
   {
+    id: "hemisphere",
+    title: "반구",
+    hint: "중심·반지름",
+    state: baseState({
+      family: "hemisphere",
+      radius: 5,
+      showVertexNames: false,
+      showCenter: true,
+      showRadius: true,
+    }),
+  },
+  {
+    id: "ice-cream",
+    title: "원뿔+반구",
+    hint: "같은 반지름",
+    state: baseState({
+      family: "coneHemisphere",
+      radius: 4,
+      height: 6,
+      showVertexNames: false,
+      showCenter: true,
+      showRadius: true,
+      showHeight: true,
+      showSlant: true,
+    }),
+  },
+  {
+    id: "silo",
+    title: "원기둥+반구",
+    hint: "같은 반지름",
+    state: baseState({
+      family: "cylinderHemisphere",
+      radius: 3,
+      height: 5,
+      showVertexNames: false,
+      showCenter: true,
+      showRadius: true,
+      showHeight: true,
+    }),
+  },
+  {
+    id: "rocket",
+    title: "원기둥+원뿔",
+    hint: "같은 반지름",
+    state: baseState({
+      family: "cylinderCone",
+      radius: 3,
+      height: 5,
+      capHeight: 4,
+      showVertexNames: false,
+      showCenter: true,
+      showRadius: true,
+      showHeight: true,
+      showSlant: true,
+    }),
+  },
+  {
     id: "tetra",
     title: "정사면체",
     hint: "한 모서리",
@@ -289,6 +352,7 @@ export function normalizeState(state: SolidSketchState): SolidSketchState {
     topSize: clamp(state.topSize, 0.4, 40),
     radius: clamp(state.radius, 0.4, 40),
     topRadius: clamp(state.topRadius, 0.3, 40),
+    capHeight: clamp(state.capHeight ?? 5, 0.5, 40),
     edgeLength: clamp(state.edgeLength, 0.5, 40),
     azimuthDeg: ((state.azimuthDeg % 360) + 360) % 360,
     elevationDeg: clamp(state.elevationDeg, 6, 82),
@@ -354,6 +418,10 @@ export const FAMILY_OPTIONS: { id: SolidFamily; label: string }[] = [
   { id: "cone", label: "원뿔" },
   { id: "coneFrustum", label: "원뿔대" },
   { id: "sphere", label: "구" },
+  { id: "hemisphere", label: "반구" },
+  { id: "coneHemisphere", label: "원뿔+반구" },
+  { id: "cylinderHemisphere", label: "원기둥+반구" },
+  { id: "cylinderCone", label: "원기둥+원뿔" },
   { id: "platonic", label: "정다면체" },
 ];
 
@@ -377,13 +445,41 @@ export function familyIsSphere(family: SolidFamily): boolean {
   return family === "sphere";
 }
 
+export function familyHasHemisphere(family: SolidFamily): boolean {
+  return (
+    family === "hemisphere" ||
+    family === "coneHemisphere" ||
+    family === "cylinderHemisphere"
+  );
+}
+
+export function familyIsStacked(family: SolidFamily): boolean {
+  return (
+    family === "coneHemisphere" ||
+    family === "cylinderHemisphere" ||
+    family === "cylinderCone"
+  );
+}
+
+/** 꼭짓점 없는 회전체·구·반구·조합. */
+export function familyIsSmooth(family: SolidFamily): boolean {
+  return (
+    familyIsRound(family) ||
+    familyIsSphere(family) ||
+    familyHasHemisphere(family) ||
+    family === "cylinderCone"
+  );
+}
+
 /** 원뿔·각뿔·뿔대: 모선(옆면 모서리)으로 높이를 잡을 수 있다. */
 export function familyHasSlant(family: SolidFamily): boolean {
   return (
     family === "pyramid" ||
     family === "frustum" ||
     family === "cone" ||
-    family === "coneFrustum"
+    family === "coneFrustum" ||
+    family === "coneHemisphere" ||
+    family === "cylinderCone"
   );
 }
 
@@ -407,23 +503,13 @@ export function withFamily(
     nameDy: [],
     hiddenVertexNames: [],
     edgeLabels: {},
-    showVertexNames: !familyIsRound(family) && family !== "sphere",
-    showCenter: familyIsRound(family) || family === "sphere",
+    showVertexNames: !familyIsSmooth(family),
+    showCenter: familyIsSmooth(family),
     showHeight: false,
     showHeightRightAngle: false,
-    showRadius: family === "sphere",
+    showRadius: familyIsSmooth(family),
     showSlant: false,
     showBaseEdge: false,
   });
-  if (family === "cone") {
-    next.showCenter = true;
-  }
-  if (family === "cylinder" || family === "coneFrustum") {
-    next.showCenter = true;
-  }
-  if (family === "sphere") {
-    next.showCenter = true;
-    next.showRadius = true;
-  }
   return next;
 }

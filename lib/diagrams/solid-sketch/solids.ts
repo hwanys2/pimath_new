@@ -1,7 +1,7 @@
 import {
   defaultVertexNames,
   familyHasSlant,
-  familyIsRound,
+  familyIsSmooth,
   type SolidSketchState,
 } from "./model";
 import {
@@ -19,10 +19,21 @@ import {
 } from "./vec3";
 
 export type Circle3 = {
-  id: "base" | "top";
+  id: "base" | "top" | "join";
   center: Vec3;
   normal: Vec3;
   radius: number;
+};
+
+export type SideBand = {
+  lower: "base" | "top" | "join";
+  upper: "base" | "top" | "join" | "apex";
+};
+
+export type Hemisphere3 = {
+  center: Vec3;
+  radius: number;
+  axis: Vec3;
 };
 
 export type SolidMesh = {
@@ -36,6 +47,10 @@ export type SolidMesh = {
   topCenter: Vec3 | null;
   axis: Vec3 | null;
   sphereRadius: number | null;
+  hemispheres?: Hemisphere3[];
+  bands?: SideBand[];
+  heightFrom?: Vec3 | null;
+  heightTo?: Vec3 | null;
 };
 
 const PHI = (1 + Math.sqrt(5)) / 2;
@@ -314,7 +329,19 @@ export function buildSolidMesh(state: SolidSketchState): SolidMesh {
   if (family === "coneFrustum") {
     return roundCone(state, true);
   }
-  return roundSphere(state);
+  if (family === "sphere") {
+    return roundSphere(state);
+  }
+  if (family === "hemisphere") {
+    return roundHemisphere(state);
+  }
+  if (family === "coneHemisphere") {
+    return coneOnHemisphere(state);
+  }
+  if (family === "cylinderHemisphere") {
+    return cylinderOnHemisphere(state);
+  }
+  return cylinderOnCone(state);
 }
 
 function roundCylinder(state: SolidSketchState): SolidMesh {
@@ -411,6 +438,104 @@ function roundSphere(state: SolidSketchState): SolidMesh {
   };
 }
 
+function roundHemisphere(state: SolidSketchState): SolidMesh {
+  const r = state.radius;
+  const center = v3(0, 0, 0);
+  return {
+    vertices: [],
+    names: pickNames(state, 0),
+    faces: [],
+    edges: [],
+    circles: [{ id: "base", center, normal: v3(0, -1, 0), radius: r }],
+    apexIndex: null,
+    baseCenter: center,
+    topCenter: v3(0, r, 0),
+    axis: v3(0, 1, 0),
+    sphereRadius: null,
+    hemispheres: [{ center, radius: r, axis: v3(0, 1, 0) }],
+  };
+}
+
+/** 원뿔(꼭짓점 아래) 위에 같은 반지름 반구. */
+function coneOnHemisphere(state: SolidSketchState): SolidMesh {
+  const r = state.radius;
+  const h = state.height;
+  const apex = v3(0, 0, 0);
+  const join = v3(0, h, 0);
+  return {
+    vertices: [apex],
+    names: pickNames(state, 1),
+    faces: [],
+    edges: [],
+    circles: [{ id: "base", center: join, normal: v3(0, 1, 0), radius: r }],
+    apexIndex: 0,
+    baseCenter: join,
+    topCenter: join,
+    axis: v3(0, 1, 0),
+    sphereRadius: null,
+    hemispheres: [{ center: join, radius: r, axis: v3(0, 1, 0) }],
+    bands: [{ lower: "base", upper: "apex" }],
+    heightFrom: apex,
+    heightTo: join,
+  };
+}
+
+function cylinderOnHemisphere(state: SolidSketchState): SolidMesh {
+  const r = state.radius;
+  const h = state.height;
+  const bot = v3(0, 0, 0);
+  const join = v3(0, h, 0);
+  return {
+    vertices: [],
+    names: pickNames(state, 0),
+    faces: [],
+    edges: [],
+    circles: [
+      { id: "base", center: bot, normal: v3(0, -1, 0), radius: r },
+      { id: "join", center: join, normal: v3(0, 1, 0), radius: r },
+    ],
+    apexIndex: null,
+    baseCenter: join,
+    topCenter: join,
+    axis: v3(0, 1, 0),
+    sphereRadius: null,
+    hemispheres: [{ center: join, radius: r, axis: v3(0, 1, 0) }],
+    bands: [{ lower: "base", upper: "join" }],
+    heightFrom: bot,
+    heightTo: join,
+  };
+}
+
+function cylinderOnCone(state: SolidSketchState): SolidMesh {
+  const r = state.radius;
+  const h = state.height;
+  const cap = state.capHeight;
+  const bot = v3(0, 0, 0);
+  const join = v3(0, h, 0);
+  const apex = v3(0, h + cap, 0);
+  return {
+    vertices: [apex],
+    names: pickNames(state, 1),
+    faces: [],
+    edges: [],
+    circles: [
+      { id: "base", center: bot, normal: v3(0, -1, 0), radius: r },
+      { id: "join", center: join, normal: v3(0, 1, 0), radius: r },
+    ],
+    apexIndex: 0,
+    baseCenter: bot,
+    topCenter: join,
+    axis: v3(0, 1, 0),
+    sphereRadius: null,
+    bands: [
+      { lower: "base", upper: "join" },
+      { lower: "join", upper: "apex" },
+    ],
+    heightFrom: bot,
+    heightTo: join,
+  };
+}
+
 export function circleBasis(normal: Vec3): { u: Vec3; v: Vec3 } {
   const n = norm3(normal);
   const helper = Math.abs(n.y) < 0.9 ? v3(0, 1, 0) : v3(1, 0, 0);
@@ -430,13 +555,19 @@ export function pointOnCircle(circle: Circle3, theta: number): Vec3 {
 export function firstBaseEdgeLength(mesh: SolidMesh, state: SolidSketchState): number {
   if (state.family === "prism" && state.sides === 4) return state.width;
   if (state.family === "platonic") return state.edgeLength;
-  if (familyIsRound(state.family)) return state.radius;
+  if (familyIsSmooth(state.family)) return state.radius;
   return state.baseSize;
 }
 
 /** 모선(옆면 모서리)이 밑면과 이루는 수평 거리. */
 export function slantSpan(state: SolidSketchState): number {
-  if (state.family === "cone") return state.radius;
+  if (
+    state.family === "cone" ||
+    state.family === "coneHemisphere" ||
+    state.family === "cylinderCone"
+  ) {
+    return state.radius;
+  }
   if (state.family === "coneFrustum") {
     return Math.abs(state.radius - state.topRadius);
   }
@@ -454,7 +585,8 @@ export function slantSpan(state: SolidSketchState): number {
 
 export function slantLength(state: SolidSketchState): number {
   if (!familyHasSlant(state.family)) return state.height;
-  return Math.hypot(slantSpan(state), state.height);
+  const h = state.family === "cylinderCone" ? state.capHeight : state.height;
+  return Math.hypot(slantSpan(state), h);
 }
 
 export function heightFromSlant(state: SolidSketchState, slant: number): number {
@@ -468,7 +600,9 @@ export function withSlantLength(
   slant: number,
 ): SolidSketchState {
   if (!familyHasSlant(state.family)) return state;
-  return { ...state, height: heightFromSlant(state, slant) };
+  const h = heightFromSlant(state, slant);
+  if (state.family === "cylinderCone") return { ...state, capHeight: h };
+  return { ...state, height: h };
 }
 
 export function isLateralEdge(

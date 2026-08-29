@@ -4,8 +4,8 @@ import {
   DEFAULT_SOLID_SKETCH_STATE,
   SOLID_SKETCH_PRESETS,
   cloneState,
-  familyIsRound,
   familyHasSlant,
+  familyIsSmooth,
   normalizeState,
   toggleVertexNameHidden,
   type SolidFamily,
@@ -27,6 +27,10 @@ const FAMILIES: SolidFamily[] = [
   "cone",
   "coneFrustum",
   "sphere",
+  "hemisphere",
+  "coneHemisphere",
+  "cylinderHemisphere",
+  "cylinderCone",
   "platonic",
 ];
 
@@ -40,12 +44,12 @@ describe("all families build a scene", () => {
         sides: 6,
         cylinderLie: "horizontal",
         showFill: true,
-        showVertexNames: !familyIsRound(family) && family !== "sphere",
-        showHeight: family !== "sphere",
-        showRadius: familyIsRound(family) || family === "sphere",
+        showVertexNames: !familyIsSmooth(family),
+        showHeight: family !== "sphere" && family !== "hemisphere",
+        showRadius: familyIsSmooth(family),
         showSlant: familyHasSlant(family),
-        showBaseEdge: !familyIsRound(family) && family !== "sphere",
-        showCenter: familyIsRound(family) || family === "sphere",
+        showBaseEdge: !familyIsSmooth(family),
+        showCenter: familyIsSmooth(family),
       });
       const scene = buildSolidSketchScene(state);
       assert.equal(scene.width, 520);
@@ -193,6 +197,100 @@ describe("round fills and sphere", () => {
     const arcs = scene.cmds.filter((c) => c.t === "ellipseArc");
     assert.ok(arcs.length >= 3, "equator front, equator back, silhouette");
     assert.ok(arcs.some((c) => "dashed" in c && c.dashed));
+  });
+
+  it("draws a hemisphere with center, radius, equator, and dome outline", () => {
+    const scene = buildSolidSketchScene(
+      normalizeState({
+        ...DEFAULT_SOLID_SKETCH_STATE,
+        family: "hemisphere",
+        radius: 5,
+        showFill: true,
+        showCenter: true,
+        showRadius: true,
+        showHidden: true,
+        showVertexNames: false,
+      }),
+    );
+    assert.ok(scene.texts.some((t) => t.id === "center-name"));
+    assert.ok(scene.texts.some((t) => t.id === "radius"));
+    const arcs = scene.cmds.filter((c) => c.t === "ellipseArc");
+    assert.ok(arcs.length >= 3, "equator front, equator back, dome silhouette");
+    assert.ok(arcs.some((c) => "dashed" in c && c.dashed));
+  });
+});
+
+describe("same-radius stacked solids", () => {
+  it("cone + hemisphere share one radius and draw generators plus a dome", () => {
+    const state = normalizeState({
+      ...DEFAULT_SOLID_SKETCH_STATE,
+      family: "coneHemisphere",
+      radius: 4,
+      height: 6,
+      showFill: true,
+      showHidden: true,
+      showCenter: true,
+      showRadius: true,
+      showSlant: true,
+      showVertexNames: false,
+    });
+    const mesh = buildSolidMesh(state);
+    assert.equal(mesh.circles.length, 1);
+    assert.equal(mesh.circles[0]!.radius, 4);
+    assert.equal(mesh.hemispheres?.[0]?.radius, 4);
+    const scene = buildSolidSketchScene(state);
+    assert.ok(scene.cmds.some((c) => c.t === "line"));
+    assert.ok(scene.cmds.some((c) => c.t === "ellipseArc"));
+    assert.ok(scene.texts.some((t) => t.id === "slant"));
+  });
+
+  it("cylinder + hemisphere share one radius", () => {
+    const mesh = buildSolidMesh(
+      normalizeState({
+        ...DEFAULT_SOLID_SKETCH_STATE,
+        family: "cylinderHemisphere",
+        radius: 3,
+        height: 5,
+      }),
+    );
+    assert.equal(mesh.circles.length, 2);
+    assert.ok(mesh.circles.every((c) => c.radius === 3));
+    assert.equal(mesh.hemispheres?.[0]?.radius, 3);
+    const scene = buildSolidSketchScene(
+      normalizeState({
+        ...DEFAULT_SOLID_SKETCH_STATE,
+        family: "cylinderHemisphere",
+        showFill: true,
+        showHidden: true,
+      }),
+    );
+    assert.ok(scene.cmds.filter((c) => c.t === "line").length >= 2);
+    assert.ok(scene.cmds.some((c) => c.t === "ellipseArc"));
+  });
+
+  it("cylinder + cone share one radius; 모선 edits the cone height only", () => {
+    const start = normalizeState({
+      ...DEFAULT_SOLID_SKETCH_STATE,
+      family: "cylinderCone",
+      radius: 3,
+      height: 5,
+      capHeight: 4,
+    });
+    const mesh = buildSolidMesh(start);
+    assert.ok(mesh.circles.every((c) => c.radius === 3));
+    const next = withSlantLength(start, 8);
+    assert.equal(next.height, start.height);
+    assert.ok(Math.abs(slantLength(next) - 8) < 1e-6);
+    assert.ok(Math.abs(next.capHeight - Math.sqrt(8 * 8 - 3 * 3)) < 1e-6);
+    const scene = buildSolidSketchScene(
+      normalizeState({
+        ...start,
+        showFill: true,
+        showSlant: true,
+        showVertexNames: false,
+      }),
+    );
+    assert.ok(scene.cmds.filter((c) => c.t === "line").length >= 2);
   });
 });
 
