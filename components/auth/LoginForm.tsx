@@ -9,7 +9,7 @@ const inputClass =
 
 const initialState: AuthState = {};
 
-export default function LoginForm() {
+export default function LoginForm({ next }: { next?: string }) {
   const [state, action, pending] = useActionState(
     signInWithEmail,
     initialState,
@@ -17,6 +17,7 @@ export default function LoginForm() {
 
   return (
     <form action={action} className="flex flex-col gap-4">
+      {next ? <input type="hidden" name="next" value={next} /> : null}
       <p className="rounded-xl bg-sky/10 px-3 py-2 text-xs leading-relaxed text-foreground/70">
         foreducator.com과{" "}
         <span className="font-semibold text-wood">같은 계정</span>으로

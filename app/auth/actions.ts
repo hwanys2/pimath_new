@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import type { Provider } from "@supabase/supabase-js";
 import { getAuthCallbackUrl, getAuthOrigin } from "@/lib/auth-origin";
+import { safeNextPath } from "@/lib/safe-next-path";
 import { createClient } from "@/lib/supabase/server";
 import { syncForeducatorAccount } from "@/lib/supabase/account";
 import {
@@ -77,7 +78,7 @@ export async function signInWithEmail(
 
   await clearStudentSessionCookie();
   await syncForeducatorAccount(supabase, data.user);
-  redirect("/teacher");
+  redirect(safeNextPath(formData.get("next")));
 }
 
 type StudentAuthRow = {
@@ -318,16 +319,19 @@ export async function updatePassword(
 
 export async function signInWithProvider(formData: FormData): Promise<void> {
   const provider = String(formData.get("provider") ?? "") as Provider;
+  const next = safeNextPath(formData.get("next"));
   const supabase = await createClient();
   const origin = await getAuthOrigin();
 
   const { data, error } = await supabase.auth.signInWithOAuth({
     provider,
-    options: { redirectTo: getAuthCallbackUrl(origin) },
+    options: { redirectTo: getAuthCallbackUrl(origin, next) },
   });
 
   if (error || !data.url) {
-    redirect("/login/teacher?error=oauth");
+    const errorNext =
+      next === "/teacher" ? "" : `&next=${encodeURIComponent(next)}`;
+    redirect(`/login/teacher?error=oauth${errorNext}`);
   }
 
   redirect(data.url);

@@ -1,8 +1,12 @@
+import type { ReactNode } from "react";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import CircleChordsStudio from "@/components/tools/figures/circle-chords/CircleChordsStudio";
+import DiagramFeedback from "@/components/tools/figures/DiagramFeedback";
+import { isDiagramAdminEmail } from "@/lib/diagrams/admin";
 import { DIAGRAM_TOOLS, getDiagramTool } from "@/lib/diagrams/catalog";
-import { redirectStudentToAdventure } from "@/lib/auth";
+import { listDiagramFeedback } from "@/lib/diagrams/feedback";
+import { getDisplayUser, redirectStudentToAdventure } from "@/lib/auth";
 
 type Props = {
   params: Promise<{ toolId: string }>;
@@ -30,9 +34,28 @@ export default async function DiagramToolPage({ params }: Props) {
   const tool = getDiagramTool(toolId);
   if (!tool) notFound();
 
+  const [user, comments] = await Promise.all([
+    getDisplayUser(),
+    listDiagramFeedback(toolId),
+  ]);
+
+  let studio: ReactNode = null;
   if (toolId === "g3-circle-chords") {
-    return <CircleChordsStudio />;
+    studio = <CircleChordsStudio />;
+  } else {
+    notFound();
   }
 
-  notFound();
+  return (
+    <div className="space-y-10">
+      {studio}
+      <DiagramFeedback
+        toolId={toolId}
+        toolTitle={tool.title}
+        initialComments={comments}
+        isLoggedIn={user != null}
+        isAdmin={isDiagramAdminEmail(user?.email)}
+      />
+    </div>
+  );
 }

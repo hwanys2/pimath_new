@@ -102,7 +102,7 @@ app/tools/figures/[toolId]/      ← 페이지에서 스튜디오를 연결
 2. `lib/diagrams/<toolId>/`에 상태 타입, 프리셋(실제 시험 유형 2~4개), `buildScene()`을 둔다.
 3. 장면은 캔버스/SVG가 같이 쓸 수 있는 명령 목록으로 만든다. 미리보기와 PNG가 어긋나면 안 된다.
 4. `components/tools/figures/<toolId>/`에 스튜디오 UI. 그림이 주 편집면. 프리셋·표시 칩 → (접힌) 스타일 → 저장.
-5. `app/tools/figures/[toolId]/page.tsx`의 분기만 추가한다. 라우트 패턴을 바꾸지 않는다.
+5. `app/tools/figures/[toolId]/page.tsx`의 스튜디오 분기만 추가한다. 라우트 패턴을 바꾸지 않는다. 페이지 하단 의견 섹션은 도구 페이지 뼈대가 붙이므로 스튜디오에 넣지 않는다.
 6. 기본 프리셋으로 PNG를 저장해 보고, 라벨 겹침·직각 위치·단위 이탤릭 여부를 확인한다.
 7. 이 문서 §8 도구 목록에 한 줄 추가한다.
 
@@ -136,9 +136,16 @@ app/tools/figures/[toolId]/      ← 페이지에서 스튜디오를 연결
 
 ---
 
-## 9. 변경 이력
+## 9. 의견 (도구 페이지 하단)
+
+각 `/tools/figures/{toolId}` 하단에 공통 의견 스레드가 있다. 공개 열람, 작성은 교사 로그인. 관리자(`hwanys2@naver.com`)만 반영완료/반려와 사유를 남긴다. 새 댓글은 공유 DB의 기존 `create_notification`으로 관리자 foreducator 알림이 간다. 구현: [`components/tools/figures/DiagramFeedback.tsx`](../components/tools/figures/DiagramFeedback.tsx), RPC `pm_list_diagram_feedback` / `pm_create_diagram_feedback` / `pm_resolve_diagram_feedback`.
+
+---
+
+## 10. 변경 이력
 
 | 날짜 | 내용 |
 |------|------|
 | 2026-08-27 | 초판. 허브 + 원의 현 첫 도구. 범용 작도기가 아닌 소재별 생성기 지침. |
 | 2026-08-27 | 원의 현: 작은 캔버스 + 오른쪽 패널, 끝점 길이 고정, 설명선 높이 드래그, 현 삭제. |
+| 2026-08-29 | 도구 페이지 하단 의견 스레드. 관리자 반영완료/반려. 새 댓글은 foreducator 알림. |

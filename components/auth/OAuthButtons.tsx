@@ -1,10 +1,11 @@
 import { signInWithProvider } from "@/app/auth/actions";
 
-export default function OAuthButtons() {
+export default function OAuthButtons({ next }: { next?: string }) {
   return (
     <div className="flex flex-col gap-3">
       <form action={signInWithProvider}>
         <input type="hidden" name="provider" value="google" />
+        {next ? <input type="hidden" name="next" value={next} /> : null}
         <button
           type="submit"
           className="flex w-full items-center justify-center gap-3 rounded-xl border-2 border-wood/15 bg-white px-4 py-3 font-semibold text-foreground shadow-[0_3px_0_rgba(0,0,0,0.08)] transition hover:-translate-y-0.5 hover:shadow-[0_5px_0_rgba(0,0,0,0.08)] active:translate-y-0.5"
@@ -16,6 +17,7 @@ export default function OAuthButtons() {
 
       <form action={signInWithProvider}>
         <input type="hidden" name="provider" value="kakao" />
+        {next ? <input type="hidden" name="next" value={next} /> : null}
         <button
           type="submit"
           className="flex w-full items-center justify-center gap-3 rounded-xl border-2 border-black/5 bg-[#FEE500] px-4 py-3 font-semibold text-[#3C1E1E] shadow-[0_3px_0_rgba(0,0,0,0.12)] transition hover:-translate-y-0.5 hover:shadow-[0_5px_0_rgba(0,0,0,0.12)] active:translate-y-0.5"

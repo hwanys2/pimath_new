@@ -5,6 +5,7 @@ import AuthShell from "@/components/auth/AuthShell";
 import OAuthButtons from "@/components/auth/OAuthButtons";
 import LoginForm from "@/components/auth/LoginForm";
 import { getActor } from "@/lib/auth";
+import { safeNextPath } from "@/lib/safe-next-path";
 
 export const metadata: Metadata = {
   title: "교사 로그인 | 수학하는 즐거움",
@@ -12,15 +13,15 @@ export const metadata: Metadata = {
 };
 
 type Props = {
-  searchParams: Promise<{ error?: string; reset?: string }>;
+  searchParams: Promise<{ error?: string; reset?: string; next?: string }>;
 };
 
 export default async function TeacherLoginPage({ searchParams }: Props) {
-  const actor = await getActor();
-  if (actor?.type === "teacher") redirect("/teacher");
-  if (actor?.type === "student") redirect("/adventure");
-
   const params = await searchParams;
+  const next = safeNextPath(params.next);
+  const actor = await getActor();
+  if (actor?.type === "teacher") redirect(next);
+  if (actor?.type === "student") redirect("/adventure");
 
   return (
     <AuthShell
@@ -61,9 +62,9 @@ export default async function TeacherLoginPage({ searchParams }: Props) {
             인증 링크가 만료됐거나 올바르지 않아요. 다시 시도해 주세요.
           </p>
         )}
-        <OAuthButtons />
+        <OAuthButtons next={params.next} />
         <Divider />
-        <LoginForm />
+        <LoginForm next={params.next} />
       </div>
     </AuthShell>
   );
