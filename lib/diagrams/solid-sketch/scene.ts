@@ -509,7 +509,7 @@ function generatorCorners(
     ];
   };
 
-  let lowerId: SideBand["lower"] | "apex" = "base";
+  let lowerId: SideBand["lower"] = "base";
   let upperId: SideBand["upper"] = mesh.apexIndex != null ? "apex" : "top";
   if (band) {
     lowerId = band.lower;
@@ -524,7 +524,7 @@ function generatorCorners(
     C: map(project3(hi[0], cam)),
     D: map(project3(hi[1], cam)),
     axis,
-    triangle: upperId === "apex" || lowerId === "apex",
+    triangle: upperId === "apex",
   };
 }
 
