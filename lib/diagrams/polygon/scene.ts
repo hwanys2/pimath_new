@@ -283,6 +283,38 @@ function angleRadius(a: Vec, b: Vec, c: Vec): number {
   return clamp(Math.min(la, lc) * 0.22, 16, 36);
 }
 
+const RIGHT_ANGLE_EPS = 0.75;
+
+/** 90°는 작은 네모. 미지수(x)로 두면 답을 숨기므로 직각 표시를 쓰지 않는다. */
+export function isDisplayedRightAngle(label: MeasLabel, deg: number): boolean {
+  return label.mode !== "x" && Number.isFinite(deg) && Math.abs(deg - 90) < RIGHT_ANGLE_EPS;
+}
+
+function rightAngleSize(vertex: Vec, from: Vec, to: Vec): number {
+  return clamp(Math.min(len(sub(from, vertex)), len(sub(to, vertex))) * 0.18, 10, 16);
+}
+
+function drawRightAngle(
+  cmds: SceneCmd[],
+  vertex: Vec,
+  from: Vec,
+  to: Vec,
+): void {
+  const u = norm(sub(from, vertex));
+  const w = norm(sub(to, vertex));
+  if (len(u) < 0.5 || len(w) < 0.5) return;
+  cmds.push({
+    t: "rightAngle",
+    x: vertex.x,
+    y: vertex.y,
+    ux: u.x,
+    uy: u.y,
+    vx: w.x,
+    vy: w.y,
+    size: rightAngleSize(vertex, from, to),
+  });
+}
+
 function drawAngle(
   cmds: SceneCmd[],
   texts: SceneText[],
@@ -357,6 +389,10 @@ export function buildPolygonScene(state: PolygonState): PolygonScene {
       layout,
     );
     const { exterior } = vertexAngles(state.points, i);
+    if (isDisplayedRightAngle(v.exterior, exterior)) {
+      drawRightAngle(cmds, p, ext, next);
+      continue;
+    }
     const label = resolveAngleText(v.exterior, exterior, state.unknownLetter);
     drawAngle(
       cmds,
@@ -411,6 +447,10 @@ export function buildPolygonScene(state: PolygonState): PolygonScene {
     if (v.fillExterior) continue;
     const next = canvas[nextIndex(i, n)]!;
     const { exterior } = vertexAngles(state.points, i);
+    if (isDisplayedRightAngle(v.exterior, exterior)) {
+      drawRightAngle(cmds, p, ext, next);
+      continue;
+    }
     const label = resolveAngleText(v.exterior, exterior, state.unknownLetter);
     drawAngle(
       cmds,
@@ -433,6 +473,10 @@ export function buildPolygonScene(state: PolygonState): PolygonScene {
     const prev = canvas[prevIndex(i, n)]!;
     const next = canvas[nextIndex(i, n)]!;
     const { interior } = vertexAngles(state.points, i);
+    if (isDisplayedRightAngle(v.interior, interior)) {
+      drawRightAngle(cmds, p, prev, next);
+      continue;
+    }
     const label = resolveAngleText(v.interior, interior, state.unknownLetter);
     drawAngle(
       cmds,

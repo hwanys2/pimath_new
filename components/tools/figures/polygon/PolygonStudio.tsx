@@ -334,6 +334,23 @@ export default function PolygonStudio() {
               ) : null}
             </div>
 
+            <div className="mt-2 flex flex-wrap gap-1">
+              {state.vertices.map((v, i) => (
+                <button
+                  key={`name-${i}`}
+                  type="button"
+                  onClick={() => setSelected({ t: "vertex", i })}
+                  className={`min-w-[1.5rem] rounded-full px-1.5 py-0.5 text-[11px] font-semibold transition ${
+                    selected?.t === "vertex" && selected.i === i
+                      ? "bg-wood text-cream"
+                      : "bg-black/8 text-foreground/55"
+                  }`}
+                >
+                  {v.name || defaultName(i)}
+                </button>
+              ))}
+            </div>
+
             {selected?.t === "vertex" && selVertex ? (
               <div className="mt-3 space-y-2">
                 <p className="text-[11px] font-semibold text-foreground/50">
@@ -465,25 +482,6 @@ export default function PolygonStudio() {
               꼭짓점을 끌어 모양을 바꾸고, 변을 눌러 고른 뒤 길이를 켜세요.
               글자를 누르면 숫자나 x로 고칠 수 있어요.
             </p>
-
-            {state.showVertexNames ? (
-              <div className="mt-2 flex flex-wrap gap-1">
-                {state.vertices.map((v, i) => (
-                  <button
-                    key={`name-${i}`}
-                    type="button"
-                    onClick={() => setSelected({ t: "vertex", i })}
-                    className={`min-w-[1.5rem] rounded-full px-1.5 py-0.5 text-[11px] font-semibold transition ${
-                      selected?.t === "vertex" && selected.i === i
-                        ? "bg-wood text-cream"
-                        : "bg-black/8 text-foreground/55"
-                    }`}
-                  >
-                    {v.name || defaultName(i)}
-                  </button>
-                ))}
-              </div>
-            ) : null}
 
             {activeMarks.length > 0 ? (
               <ul className="mt-3 space-y-1">

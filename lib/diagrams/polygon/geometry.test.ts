@@ -21,7 +21,9 @@ import {
 import {
   DEFAULT_POLYGON_STATE,
   POLYGON_PRESETS,
+  emptyLabel,
   normalizeState,
+  setAllInteriors,
   toRegular,
   withSideCount,
 } from "./model";
@@ -140,5 +142,33 @@ describe("presets", () => {
     const regular = toRegular(five);
     assert.equal(regular.points.length, 5);
     assert.ok(isConvex(regular.points));
+  });
+});
+
+describe("right-angle marks", () => {
+  it("draws a square mark on 90° interiors instead of 90° text", () => {
+    const square = setAllInteriors(
+      normalizeState(withSideCount(DEFAULT_POLYGON_STATE, 4)),
+      true,
+    );
+    const scene = buildPolygonScene(square);
+    const rights = scene.cmds.filter((c) => c.t === "rightAngle");
+    assert.equal(rights.length, 4);
+    assert.equal(
+      scene.texts.filter((t) => t.id.endsWith(":interior")).length,
+      0,
+    );
+  });
+
+  it("does not mark a 90° angle when the label is unknown x", () => {
+    const square = normalizeState(withSideCount(DEFAULT_POLYGON_STATE, 4));
+    const vertices = square.vertices.map((v, i) => ({
+      ...v,
+      showInterior: true,
+      interior: i === 0 ? emptyLabel("x") : emptyLabel("auto"),
+    }));
+    const scene = buildPolygonScene({ ...square, vertices });
+    assert.equal(scene.cmds.filter((c) => c.t === "rightAngle").length, 3);
+    assert.ok(scene.texts.some((t) => t.id === "v:0:interior"));
   });
 });
