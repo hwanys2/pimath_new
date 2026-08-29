@@ -393,19 +393,24 @@ function normalizeVertexModesArray(raw: unknown): VertexDisplayMode[] {
   return modes;
 }
 
+type LegacySolidSketchFields = {
+  vertexDisplay?: VertexDisplayMode;
+  showVertexNames?: boolean;
+  hiddenVertexNames?: boolean[];
+};
+
 function migrateLegacyVertexModes(raw: Partial<SolidSketchState>): {
   vertexModes: VertexDisplayMode[];
   vertexModesDefault: VertexDisplayMode;
 } {
+  const legacy = raw as Partial<SolidSketchState> & LegacySolidSketchFields;
   const legacyGlobal = (() => {
-    const mode = (raw as { vertexDisplay?: unknown }).vertexDisplay;
-    if (isVertexDisplayMode(mode)) return mode;
-    const showVertexNames = (raw as { showVertexNames?: boolean }).showVertexNames;
-    if (showVertexNames === false) return "hidden" as const;
+    if (isVertexDisplayMode(legacy.vertexDisplay)) return legacy.vertexDisplay;
+    if (legacy.showVertexNames === false) return "hidden" as const;
     return "names" as const;
   })();
 
-  const hidden = Array.isArray(raw.hiddenVertexNames) ? raw.hiddenVertexNames : [];
+  const hidden = Array.isArray(legacy.hiddenVertexNames) ? legacy.hiddenVertexNames : [];
   if (legacyGlobal === "names") {
     const vertexModes: VertexDisplayMode[] = [];
     for (let i = 0; i < hidden.length; i++) {
@@ -423,11 +428,7 @@ function resolveVertexModes(state: SolidSketchState): {
 } {
   const vertexModes = normalizeVertexModesArray(state.vertexModes ?? []);
   const hasOverrides = vertexModes.some((mode) => isVertexDisplayMode(mode));
-  const legacy = state as SolidSketchState & {
-    vertexDisplay?: VertexDisplayMode;
-    showVertexNames?: boolean;
-    hiddenVertexNames?: boolean[];
-  };
+  const legacy = state as SolidSketchState & LegacySolidSketchFields;
   const hasLegacy =
     isVertexDisplayMode(legacy.vertexDisplay) ||
     legacy.showVertexNames === false ||
