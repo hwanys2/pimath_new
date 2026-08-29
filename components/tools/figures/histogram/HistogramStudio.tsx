@@ -169,7 +169,6 @@ function CompactNumber({
   onChange,
   min,
   max,
-  step,
 }: {
   label: string;
   value: number;
@@ -178,17 +177,42 @@ function CompactNumber({
   max?: number;
   step?: number;
 }) {
+  const [draft, setDraft] = useState<string | null>(null);
+  const shown = draft ?? (Number.isFinite(value) ? String(value) : "");
+
+  function commit(raw: string) {
+    const n = Number(raw);
+    if (raw.trim() === "" || !Number.isFinite(n)) {
+      setDraft(null);
+      return;
+    }
+    onChange(n);
+    setDraft(null);
+  }
+
   return (
     <label className="min-w-0">
       <span className="text-xs font-semibold text-foreground/60">{label}</span>
       <input
-        type="number"
+        type="text"
+        inputMode="decimal"
+        autoComplete="off"
         aria-label={label}
-        value={Number.isFinite(value) ? value : 0}
-        min={min}
-        max={max}
-        step={step}
-        onChange={(e) => onChange(Number(e.target.value))}
+        value={shown}
+        onChange={(e) => {
+          const raw = e.target.value;
+          setDraft(raw);
+          if (raw.trim() === "" || raw.endsWith(".") || raw.endsWith("-")) return;
+          const n = Number(raw);
+          if (!Number.isFinite(n)) return;
+          if (min != null && n < min) return;
+          if (max != null && n > max) return;
+          if (n > 0) onChange(n);
+        }}
+        onBlur={() => commit(draft ?? shown)}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") (e.target as HTMLInputElement).blur();
+        }}
         className={`mt-1 ${compactInputClass}`}
       />
     </label>
