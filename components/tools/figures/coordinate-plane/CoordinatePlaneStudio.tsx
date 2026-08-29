@@ -23,16 +23,22 @@ import {
   addInverseGraph,
   addPointAt,
   addPolylineGraph,
+  appendPolylineVertex,
   cloneState,
   COORD_PLANE_PRESETS,
   DEFAULT_COORD_PLANE_STATE,
   GRAPH_CYAN,
   GRAPH_INK,
   GRAPH_PINK,
+  GRID_COLOR,
+  GRID_GRAY,
   graphEquationText,
   graphTitle,
+  insertPolylineVertexAfter,
   nextPointName,
   normalizeState,
+  removePolylineVertex,
+  setPolylineVertex,
   type CoordPlaneState,
   type CoordPoint,
   type GraphLabelMode,
@@ -42,7 +48,7 @@ import { buildCoordPlaneScene } from "@/lib/diagrams/coordinate-plane/scene";
 import { renderSceneToCanvas, sceneToSvg } from "@/lib/diagrams/render";
 import type { FontFaces } from "@/lib/diagrams/math-label";
 
-const STORAGE_KEY = "pm-diagram-g1-coordinate-plane-v1";
+const STORAGE_KEY = "pm-diagram-g1-coordinate-plane-v2";
 
 const storeListeners = new Set<() => void>();
 
@@ -168,7 +174,7 @@ export default function CoordinatePlaneStudio() {
   const [newY, setNewY] = useState("2");
   const [addError, setAddError] = useState<string | null>(null);
   const [placingVertices, setPlacingVertices] = useState(false);
-  const [styleOpen, setStyleOpen] = useState(false);
+  const [styleOpen, setStyleOpen] = useState(true);
   const fonts = useMemo(() => fontsFromNext(), []);
 
   const selectedPoint =
@@ -320,7 +326,8 @@ export default function CoordinatePlaneStudio() {
           <p className="mt-1 max-w-2xl text-sm text-foreground/65">
             범위와 축 이름을 정하고, 점·정비례·반비례를 올리세요. 그래프는
             숫자로 그리고, 식 표시만 <span className="italic">y=a/x</span>처럼
-            바꿀 수 있어요. 칸을 눌러 점을 넣고 Delete로 지웁니다.
+            바꿀 수 있어요. 칸을 눌러 점을 넣고, 꺾은선은 꼭짓점을 원하는
+            만큼 추가·삭제할 수 있어요.
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -358,7 +365,7 @@ export default function CoordinatePlaneStudio() {
         </p>
       ) : null}
 
-      <div className="grid items-start gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(16rem,20rem)]">
+      <div className="grid items-start gap-4 lg:grid-cols-[minmax(0,2fr)_minmax(15rem,1fr)_minmax(15rem,1fr)]">
         <div className="overflow-hidden rounded-3xl border-2 border-wood/10 bg-white shadow-[0_12px_40px_rgba(61,44,30,0.08)]">
           <CoordinatePlaneCanvas
             state={state}
@@ -476,8 +483,21 @@ export default function CoordinatePlaneStudio() {
                 onChange={(yAxisLabel) => set({ yAxisLabel })}
                 placeholder="$y$  또는  $y$(°C)"
               />
+              <TextField
+                label="원점 이름"
+                value={state.originLabel}
+                onChange={(originLabel) => set({ originLabel })}
+                placeholder="O"
+              />
             </div>
-            <div className="mt-3 flex flex-wrap gap-1.5">
+            <p className="mt-3 text-[11px] font-semibold text-foreground/50">
+              표시
+            </p>
+            <p className="mt-0.5 text-[11px] text-foreground/45">
+              격자를 끄면 축만 남아요. 눈금 숫자·화살표·원점도 각각 켤 수
+              있어요.
+            </p>
+            <div className="mt-2 flex flex-wrap gap-1.5">
               <ChipToggle
                 on={state.showGrid}
                 onClick={() => set({ showGrid: !state.showGrid })}
@@ -520,7 +540,52 @@ export default function CoordinatePlaneStudio() {
               >
                 y축 끊기
               </ChipToggle>
+              <ChipToggle
+                on={state.xMin >= -1e-9 && state.yMin >= -1e-9}
+                onClick={() => {
+                  const first = state.xMin >= -1e-9 && state.yMin >= -1e-9;
+                  if (first) {
+                    set({
+                      xMin: -Math.abs(state.xMax),
+                      yMin: -Math.abs(state.yMax),
+                    });
+                  } else {
+                    set({ xMin: 0, yMin: 0 });
+                  }
+                }}
+              >
+                1사분면
+              </ChipToggle>
             </div>
+            {state.showGrid ? (
+              <div className="mt-2">
+                <p className="text-[11px] font-semibold text-foreground/50">
+                  격자 색
+                </p>
+                <div className="mt-1 flex flex-wrap gap-1.5">
+                  <ChipToggle
+                    on={state.style.gridColor === GRID_COLOR}
+                    onClick={() =>
+                      set({
+                        style: { ...state.style, gridColor: GRID_COLOR },
+                      })
+                    }
+                  >
+                    청록
+                  </ChipToggle>
+                  <ChipToggle
+                    on={state.style.gridColor === GRID_GRAY}
+                    onClick={() =>
+                      set({
+                        style: { ...state.style, gridColor: GRID_GRAY },
+                      })
+                    }
+                  >
+                    회색
+                  </ChipToggle>
+                </div>
+              </div>
+            ) : null}
             {state.yBreak ? (
               <div className="mt-2">
                 <NumberField
@@ -531,8 +596,23 @@ export default function CoordinatePlaneStudio() {
                 />
               </div>
             ) : null}
+            <div className="mt-3">
+              <SliderField
+                label="그림 여백"
+                value={state.style.padding}
+                onChange={(padding) =>
+                  set({ style: { ...state.style, padding } })
+                }
+                min={48}
+                max={96}
+                step={2}
+                display={`${state.style.padding}px`}
+              />
+            </div>
           </section>
+        </div>
 
+        <div className="space-y-4">
           <section className="rounded-2xl border-2 border-wood/10 bg-white/80 p-3.5">
             <div className="flex items-center justify-between gap-2">
               <h2 className="font-display text-sm text-wood-dark">
@@ -785,23 +865,119 @@ export default function CoordinatePlaneStudio() {
                   </ChipToggle>
                 ) : null}
                 {selectedGraph.t === "polyline" ? (
-                  <div className="flex flex-wrap gap-1.5">
-                    <ChipToggle
-                      on={selectedGraph.rounded}
-                      onClick={() =>
-                        patchSelectedGraph({
-                          rounded: !selectedGraph.rounded,
-                        })
-                      }
+                  <div className="space-y-2">
+                    <div className="flex flex-wrap gap-1.5">
+                      <ChipToggle
+                        on={selectedGraph.rounded}
+                        onClick={() =>
+                          patchSelectedGraph({
+                            rounded: !selectedGraph.rounded,
+                          })
+                        }
+                      >
+                        모서리 둥글게
+                      </ChipToggle>
+                      <ChipToggle
+                        on={placingVertices}
+                        onClick={() => setPlacingVertices((v) => !v)}
+                      >
+                        그림에서 찍기
+                      </ChipToggle>
+                    </div>
+                    <p className="text-[11px] text-foreground/45">
+                      {placingVertices
+                        ? "가까운 선분 사이를 누르면 꺾이는 점이 생기고, 끝 밖을 누르면 이어 붙습니다."
+                        : "좌표를 고치거나, 이 뒤에 넣기·끝에 추가로 꺾이는 점을 늘리세요."}
+                    </p>
+                    <ul className="space-y-2">
+                      {selectedGraph.vertices.map((vertex, index) => (
+                        <li
+                          key={`${selectedGraph.id}-${index}`}
+                          className="rounded-xl bg-black/[0.03] p-2"
+                        >
+                          <div className="flex items-end gap-1.5">
+                            <span className="mb-2 w-4 shrink-0 text-[11px] font-semibold text-foreground/45">
+                              {index + 1}
+                            </span>
+                            <NumberField
+                              label="x"
+                              value={vertex.x}
+                              onChange={(x) =>
+                                setState((prev) =>
+                                  setPolylineVertex(
+                                    prev,
+                                    selectedGraph.id,
+                                    index,
+                                    { x },
+                                  ),
+                                )
+                              }
+                              step={state.xTick / 2}
+                            />
+                            <NumberField
+                              label="y"
+                              value={vertex.y}
+                              onChange={(y) =>
+                                setState((prev) =>
+                                  setPolylineVertex(
+                                    prev,
+                                    selectedGraph.id,
+                                    index,
+                                    { y },
+                                  ),
+                                )
+                              }
+                              step={state.yTick / 2}
+                            />
+                          </div>
+                          <div className="mt-1.5 flex justify-end gap-1">
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setState((prev) =>
+                                  insertPolylineVertexAfter(
+                                    prev,
+                                    selectedGraph.id,
+                                    index,
+                                  ),
+                                )
+                              }
+                              className="rounded-lg px-2 py-1 text-[11px] font-semibold text-wood-dark/70 hover:bg-wood/10"
+                            >
+                              이 뒤에 넣기
+                            </button>
+                            <button
+                              type="button"
+                              disabled={selectedGraph.vertices.length <= 2}
+                              onClick={() =>
+                                setState((prev) =>
+                                  removePolylineVertex(
+                                    prev,
+                                    selectedGraph.id,
+                                    index,
+                                  ),
+                                )
+                              }
+                              className="rounded-lg px-2 py-1 text-[11px] font-semibold text-foreground/45 hover:text-foreground disabled:opacity-30"
+                            >
+                              지우기
+                            </button>
+                          </div>
+                        </li>
+                      ))}
+                    </ul>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setState((prev) =>
+                          appendPolylineVertex(prev, selectedGraph.id),
+                        );
+                        setPlacingVertices(false);
+                      }}
+                      className="rounded-xl bg-wood/90 px-3 py-1.5 text-xs font-semibold text-cream"
                     >
-                      모서리 둥글게
-                    </ChipToggle>
-                    <ChipToggle
-                      on={placingVertices}
-                      onClick={() => setPlacingVertices((v) => !v)}
-                    >
-                      그림에서 꼭짓점
-                    </ChipToggle>
+                      끝에 꼭짓점 추가
+                    </button>
                   </div>
                 ) : null}
                 <div>
@@ -867,17 +1043,33 @@ export default function CoordinatePlaneStudio() {
                     ))}
                   </div>
                 </div>
+                <SliderField
+                  label="이 그래프 굵기"
+                  value={
+                    selectedGraph.width > 0
+                      ? selectedGraph.width
+                      : state.style.graphWidth
+                  }
+                  onChange={(width) => patchSelectedGraph({ width })}
+                  min={1}
+                  max={4}
+                  step={0.1}
+                  display={(selectedGraph.width > 0
+                    ? selectedGraph.width
+                    : state.style.graphWidth
+                  ).toFixed(1)}
+                />
               </div>
             ) : null}
 
             {state.graphs.length > 0 ? (
               <ul className="mt-3 space-y-1">
                 {state.graphs.map((graph) => (
-                  <li key={graph.id}>
+                  <li key={graph.id} className="flex items-center gap-2">
                     <button
                       type="button"
                       onClick={() => setSelectedId(graph.id)}
-                      className={`w-full rounded-lg px-2 py-1 text-left text-xs font-semibold ${
+                      className={`flex-1 rounded-lg px-2 py-1 text-left text-xs font-semibold ${
                         graph.id === selectedGraph?.id
                           ? "bg-wood/15 text-wood-dark"
                           : "text-foreground/55 hover:bg-black/5"
@@ -885,8 +1077,29 @@ export default function CoordinatePlaneStudio() {
                     >
                       {graphTitle(graph)}
                       <span className="ml-1 font-normal text-foreground/45">
-                        {graphEquationText(graph) ?? "식 숨김"}
+                        {graph.t === "polyline"
+                          ? `꼭짓점 ${graph.vertices.length}`
+                          : (graphEquationText(graph) ?? "식 숨김")}
                       </span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setState((prev) => ({
+                          ...prev,
+                          graphs: prev.graphs.filter((g) => g.id !== graph.id),
+                        }));
+                        if (selectedId === graph.id) {
+                          setSelectedId(
+                            state.graphs.find((g) => g.id !== graph.id)?.id ??
+                              state.points[0]?.id ??
+                              null,
+                          );
+                        }
+                      }}
+                      className="text-xs font-semibold text-foreground/40 hover:text-foreground"
+                    >
+                      지우기
                     </button>
                   </li>
                 ))}
@@ -958,6 +1171,17 @@ export default function CoordinatePlaneStudio() {
                   max={4}
                   step={0.1}
                   display={state.style.graphWidth.toFixed(1)}
+                />
+                <SliderField
+                  label="점 크기"
+                  value={state.style.pointRadius}
+                  onChange={(pointRadius) =>
+                    set({ style: { ...state.style, pointRadius } })
+                  }
+                  min={2}
+                  max={6}
+                  step={0.1}
+                  display={state.style.pointRadius.toFixed(1)}
                 />
                 <div>
                   <p className="mb-1 text-xs font-semibold text-foreground/60">

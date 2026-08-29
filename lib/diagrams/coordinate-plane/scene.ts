@@ -43,10 +43,10 @@ export type CoordPlaneScene = DiagramScene & {
 };
 
 export function getPlaneLayout(state: CoordPlaneState): PlaneLayout {
-  const pad = state.style.padding;
+  const pad = Math.max(40, state.style.padding);
   const plotLeft = pad;
-  const plotRight = SCENE_WIDTH - pad * 0.72;
-  const plotTop = pad * 0.72;
+  const plotRight = SCENE_WIDTH - pad;
+  const plotTop = pad;
   const plotBottom = SCENE_HEIGHT - pad;
   const yBreak = state.yBreak && state.yBreakTo > state.yMin + 1e-6;
   const stubH = yBreak ? 16 : 0;
@@ -412,10 +412,10 @@ export function buildCoordPlaneScene(state: CoordPlaneState): CoordPlaneScene {
 
   const ox = layout.originX;
   const oy = layout.originY;
-  const xEnd = layout.plotRight + 10;
-  const yEnd = layout.plotTop - 10;
-  const xStart = Math.min(layout.plotLeft - 4, ox);
-  const yStart = Math.max(layout.plotBottom + 4, oy);
+  const xEnd = layout.plotRight;
+  const yEnd = layout.plotTop;
+  const xStart = Math.min(layout.plotLeft, ox);
+  const yStart = Math.max(layout.plotBottom, oy);
 
   cmds.push({
     t: "line",
@@ -657,7 +657,7 @@ export function buildCoordPlaneScene(state: CoordPlaneState): CoordPlaneScene {
   if (state.xAxisLabel.trim()) {
     pushText(texts, cmds, {
       id: "axis-x",
-      x: xEnd + 14,
+      x: Math.min(xEnd + 16, SCENE_WIDTH - 10),
       y: oy + 1,
       runs: parseMathRuns(state.xAxisLabel.trim()),
       size: state.style.pointLabelSize,
@@ -668,7 +668,7 @@ export function buildCoordPlaneScene(state: CoordPlaneState): CoordPlaneScene {
     pushText(texts, cmds, {
       id: "axis-y",
       x: ox + (state.yLabelVertical ? -2 : 1),
-      y: yEnd - (state.yLabelVertical ? 18 : 12),
+      y: Math.max(yEnd - (state.yLabelVertical ? 20 : 16), 14),
       runs: parseMathRuns(state.yAxisLabel.trim()),
       size: state.style.pointLabelSize,
       anchor: "middle",

@@ -283,6 +283,28 @@ export function patchGraph(
   };
 }
 
+function distPointToSeg(
+  ax: number,
+  ay: number,
+  bx: number,
+  by: number,
+  px: number,
+  py: number,
+): { d: number; t: number } {
+  const dx = bx - ax;
+  const dy = by - ay;
+  const len2 = dx * dx + dy * dy;
+  if (len2 < 1e-12) {
+    return { d: Math.hypot(px - ax, py - ay), t: 0 };
+  }
+  const t = ((px - ax) * dx + (py - ay) * dy) / len2;
+  const clamped = Math.min(1, Math.max(0, t));
+  return {
+    d: Math.hypot(px - (ax + clamped * dx), py - (ay + clamped * dy)),
+    t,
+  };
+}
+
 export function addPolylineVertex(
   state: CoordPlaneState,
   graphId: string,
@@ -296,7 +318,44 @@ export function addPolylineVertex(
     ...state,
     graphs: state.graphs.map((g) => {
       if (g.id !== graphId || g.t !== "polyline") return g;
-      return { ...g, vertices: [...g.vertices, { x, y }] };
+      const verts = g.vertices;
+      if (verts.length < 2) {
+        return { ...g, vertices: [...verts, { x, y }] };
+      }
+      let bestSeg = 0;
+      let bestD = Infinity;
+      for (let i = 0; i < verts.length - 1; i += 1) {
+        const a = verts[i]!;
+        const b = verts[i + 1]!;
+        const { d } = distPointToSeg(a.x, a.y, b.x, b.y, x, y);
+        if (d < bestD) {
+          bestD = d;
+          bestSeg = i;
+        }
+      }
+      const first = verts[0]!;
+      const last = verts[verts.length - 1]!;
+      const second = verts[1]!;
+      const prev = verts[verts.length - 2]!;
+      const firstProj = distPointToSeg(first.x, first.y, second.x, second.y, x, y);
+      const lastProj = distPointToSeg(prev.x, prev.y, last.x, last.y, x, y);
+      let insertAt = bestSeg + 1;
+      if (lastProj.t > 1 && Math.hypot(x - last.x, y - last.y) <= bestD + 1e-6) {
+        insertAt = verts.length;
+      } else if (
+        firstProj.t < 0 &&
+        Math.hypot(x - first.x, y - first.y) <= bestD + 1e-6
+      ) {
+        insertAt = 0;
+      }
+      return {
+        ...g,
+        vertices: [
+          ...verts.slice(0, insertAt),
+          { x, y },
+          ...verts.slice(insertAt),
+        ],
+      };
     }),
   };
 }

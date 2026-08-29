@@ -6,6 +6,7 @@ export const GRAPH_PINK = "#e84a8c";
 export const GRAPH_CYAN = "#3db7d4";
 export const GRAPH_INK = "#111111";
 export const GRID_COLOR = "#9fd4ea";
+export const GRID_GRAY = "#d4d4d4";
 
 export type CoordStyle = {
   lineWidth: number;
@@ -111,7 +112,7 @@ const DEFAULT_STYLE: CoordStyle = {
   equationSize: 18,
   pointRadius: 3.3,
   graphWidth: 2.15,
-  padding: 44,
+  padding: 72,
   exportScale: 3,
   gridColor: GRID_COLOR,
 };
@@ -269,7 +270,12 @@ export function normalizeState(state: CoordPlaneState): CoordPlaneState {
         width: g.width > 0 ? g.width : 0,
       };
     }),
-    style: { ...DEFAULT_STYLE, ...state.style },
+    style: {
+      ...DEFAULT_STYLE,
+      ...state.style,
+      padding: Math.min(96, Math.max(40, state.style?.padding ?? DEFAULT_STYLE.padding)),
+      pointRadius: Math.min(6, Math.max(2, state.style?.pointRadius ?? DEFAULT_STYLE.pointRadius)),
+    },
   };
 }
 
@@ -571,4 +577,108 @@ export function graphTitle(graph: PlaneGraph): string {
   if (graph.t === "direct") return "정비례";
   if (graph.t === "inverse") return "반비례";
   return "꺾은선";
+}
+
+export function appendPolylineVertex(
+  state: CoordPlaneState,
+  graphId: string,
+): CoordPlaneState {
+  return {
+    ...state,
+    graphs: state.graphs.map((g) => {
+      if (g.id !== graphId || g.t !== "polyline") return g;
+      const verts = g.vertices;
+      const last = verts[verts.length - 1] ?? {
+        x: (state.xMin + state.xMax) / 2,
+        y: (state.yMin + state.yMax) / 2,
+      };
+      const prev = verts[verts.length - 2];
+      const dx = prev ? last.x - prev.x : Math.max(state.xTick * 2, 1);
+      const dy = prev ? last.y - prev.y : 0;
+      const x = Math.min(state.xMax, Math.max(state.xMin, last.x + dx));
+      const y = Math.min(state.yMax, Math.max(state.yMin, last.y + dy));
+      return { ...g, vertices: [...verts, { x, y }] };
+    }),
+  };
+}
+
+export function removePolylineVertex(
+  state: CoordPlaneState,
+  graphId: string,
+  index: number,
+): CoordPlaneState {
+  return {
+    ...state,
+    graphs: state.graphs.map((g) => {
+      if (g.id !== graphId || g.t !== "polyline") return g;
+      if (g.vertices.length <= 2) return g;
+      return {
+        ...g,
+        vertices: g.vertices.filter((_, i) => i !== index),
+      };
+    }),
+  };
+}
+
+export function insertPolylineVertexAfter(
+  state: CoordPlaneState,
+  graphId: string,
+  index: number,
+): CoordPlaneState {
+  return {
+    ...state,
+    graphs: state.graphs.map((g) => {
+      if (g.id !== graphId || g.t !== "polyline") return g;
+      const verts = g.vertices;
+      if (index < 0 || index >= verts.length) return g;
+      const cur = verts[index]!;
+      const nxt = verts[index + 1];
+      const inserted = nxt
+        ? { x: (cur.x + nxt.x) / 2, y: (cur.y + nxt.y) / 2 }
+        : {
+            x: Math.min(
+              state.xMax,
+              Math.max(state.xMin, cur.x + Math.max(state.xTick, 1)),
+            ),
+            y: cur.y,
+          };
+      return {
+        ...g,
+        vertices: [
+          ...verts.slice(0, index + 1),
+          inserted,
+          ...verts.slice(index + 1),
+        ],
+      };
+    }),
+  };
+}
+
+export function setPolylineVertex(
+  state: CoordPlaneState,
+  graphId: string,
+  index: number,
+  patch: Partial<PolyVertex>,
+): CoordPlaneState {
+  return {
+    ...state,
+    graphs: state.graphs.map((g) => {
+      if (g.id !== graphId || g.t !== "polyline") return g;
+      return {
+        ...g,
+        vertices: g.vertices.map((v, i) => {
+          if (i !== index) return v;
+          const x = Math.min(
+            state.xMax,
+            Math.max(state.xMin, patch.x ?? v.x),
+          );
+          const y = Math.min(
+            state.yMax,
+            Math.max(state.yMin, patch.y ?? v.y),
+          );
+          return { x, y };
+        }),
+      };
+    }),
+  };
 }
