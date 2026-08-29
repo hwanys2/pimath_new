@@ -1,10 +1,5 @@
 import { hitTestText } from "@/lib/diagrams/scene";
-import {
-  edgeKey,
-  emptyLabel,
-  type MeasLabel,
-  type SolidSketchState,
-} from "./model";
+import { emptyLabel, type MeasLabel, type SolidSketchState } from "./model";
 import type { SolidScene } from "./scene";
 
 export type SolidHit =
@@ -179,14 +174,6 @@ export function nudgeMeasure(
   }
   if (id === "center-name") return state;
 
-  const pairFor = (kind: string): [number, number] | null => {
-    if (kind === "height" && verts.length) {
-      return null;
-    }
-    return null;
-  };
-  void pairFor;
-
   const apply = (label: MeasLabel, a: { x: number; y: number }, b: { x: number; y: number }) =>
     nudgeMeas(label, dx, dy, alongOutward(scene, a, b).along, alongOutward(scene, a, b).outward, lineOnly);
 
@@ -339,5 +326,3 @@ export function orbitView(
     elevationDeg: Math.min(82, Math.max(6, state.elevationDeg + dy * 0.32)),
   };
 }
-
-export { edgeKey };

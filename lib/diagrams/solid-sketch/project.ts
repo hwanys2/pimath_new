@@ -118,14 +118,16 @@ export function projectCircle(circle: Circle3, cam: Cam, map: (p: Proj) => { x: 
   };
 }
 
-/** Silhouette parameter angles on a circle (UV frame). */
-export function silhouetteThetas(circle: Circle3, cam: Cam): { t0: number; t1: number } | null {
-  const radial = cross3(circle.normal, cam.eye);
+export function silRadial(axis: Vec3, cam: Cam): Vec3 | null {
+  const radial = cross3(axis, cam.eye);
   if (len3(radial) < 1e-6) return null;
-  const dir = norm3(radial);
+  return norm3(radial);
+}
+
+export function thetaFromWorld(circle: Circle3, world: Vec3): number {
   const { u, v } = circleBasis(circle.normal);
-  const t0 = Math.atan2(dot3(dir, v), dot3(dir, u));
-  return { t0, t1: t0 + Math.PI };
+  const d = sub3(world, circle.center);
+  return Math.atan2(dot3(d, v), dot3(d, u));
 }
 
 export function circleFacingCamera(circle: Circle3, cam: Cam): boolean {
@@ -135,10 +137,7 @@ export function circleFacingCamera(circle: Circle3, cam: Cam): boolean {
 export function backArcThrough(circle: Circle3, cam: Cam, t0: number, t1: number): boolean {
   const mid = (t0 + t1) / 2;
   const { u, v } = circleBasis(circle.normal);
-  const radial = add3(
-    mul3(u, Math.cos(mid)),
-    mul3(v, Math.sin(mid)),
-  );
+  const radial = add3(mul3(u, Math.cos(mid)), mul3(v, Math.sin(mid)));
   return dot3(radial, cam.eye) < 0;
 }
 

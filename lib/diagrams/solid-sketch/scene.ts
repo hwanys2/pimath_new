@@ -18,7 +18,8 @@ import {
   faceOutward,
   project3,
   projectCircle,
-  silhouetteThetas,
+  silRadial,
+  thetaFromWorld,
   toCanvas,
   type Cam,
   type Fit,
@@ -243,8 +244,8 @@ function baseEdgeIndices(mesh: SolidMesh, state: SolidSketchState): [number, num
 }
 
 function radiusPoint(circle: Circle3, cam: Cam): Vec3 {
-  const sil = silhouetteThetas(circle, cam);
-  if (sil) return pointOnCircle(circle, sil.t0);
+  const dir = silRadial(circle.normal, cam);
+  if (dir) return add3(circle.center, mul3(dir, circle.radius));
   const { u } = circleBasis(circle.normal);
   return add3(circle.center, mul3(u, circle.radius));
 }
@@ -256,14 +257,15 @@ function drawCircleRim(
   map: (p: Proj) => Vec,
   showHidden: boolean,
   showFill: boolean,
+  axis: Vec3 | null,
 ): void {
   const ellipse = projectCircle(circle, cam, map);
   const facing = circleFacingCamera(circle, cam);
   if (showFill && facing) {
     cmds.push({ t: "polygon", points: sampleEllipse(ellipse), fill: fillGray(circle.normal, cam) });
   }
-  const sil = silhouetteThetas(circle, cam);
-  if (facing || !sil) {
+  const dir = silRadial(axis ?? circle.normal, cam);
+  if (facing || !dir) {
     cmds.push({
       t: "ellipseArc",
       cx: ellipse.cx,
@@ -277,12 +279,21 @@ function drawCircleRim(
     });
     return;
   }
-  const { t0, t1 } = sil;
-  const firstIsBack = backArcThrough(circle, cam, t0, t1);
-  const back0 = firstIsBack ? t0 : t1;
-  const back1 = firstIsBack ? t1 : t0 + Math.PI * 2;
-  const front0 = firstIsBack ? t1 : t0;
-  const front1 = firstIsBack ? t0 + Math.PI * 2 : t1;
+  const t0 = thetaFromWorld(circle, add3(circle.center, mul3(dir, circle.radius)));
+  const t1 = thetaFromWorld(circle, add3(circle.center, mul3(dir, -circle.radius)));
+  let a0 = t0;
+  let a1 = t1;
+  while (a1 < a0) a1 += Math.PI * 2;
+  if (a1 - a0 > Math.PI) {
+    const tmp = a0;
+    a0 = t1;
+    a1 = t0 + Math.PI * 2;
+  }
+  const firstIsBack = backArcThrough(circle, cam, a0, a1);
+  const back0 = firstIsBack ? a0 : a1;
+  const back1 = firstIsBack ? a1 : a0 + Math.PI * 2;
+  const front0 = firstIsBack ? a1 : a0;
+  const front1 = firstIsBack ? a0 + Math.PI * 2 : a1;
   cmds.push({
     t: "ellipseArc",
     ...ellipse,
@@ -309,22 +320,24 @@ function drawGenerators(
 ): void {
   const circles = mesh.circles;
   if (circles.length === 0) return;
+  const axis = mesh.axis ?? circles[0]!.normal;
+  const dir = silRadial(axis, cam);
+  if (!dir) return;
   const base = circles.find((c) => c.id === "base") ?? circles[0]!;
-  const sil = silhouetteThetas(base, cam);
-  if (!sil) return;
-  const p0 = pointOnCircle(base, sil.t0);
-  const p1 = pointOnCircle(base, sil.t1);
+  const top = circles.find((c) => c.id === "top");
+  const p0 = add3(base.center, mul3(dir, base.radius));
+  const p1 = add3(base.center, mul3(dir, -base.radius));
   const q0 =
     mesh.apexIndex != null
       ? mesh.vertices[mesh.apexIndex]!
-      : circles.find((c) => c.id === "top")
-        ? pointOnCircle(circles.find((c) => c.id === "top")!, sil.t0)
+      : top
+        ? add3(top.center, mul3(dir, top.radius))
         : null;
   const q1 =
     mesh.apexIndex != null
       ? mesh.vertices[mesh.apexIndex]!
-      : circles.find((c) => c.id === "top")
-        ? pointOnCircle(circles.find((c) => c.id === "top")!, sil.t1)
+      : top
+        ? add3(top.center, mul3(dir, -top.radius))
         : null;
   if (!q0 || !q1) return;
   const A = map(project3(p0, cam));
@@ -332,11 +345,10 @@ function drawGenerators(
   const C = map(project3(q0, cam));
   const D = map(project3(q1, cam));
   if (showFill) {
-    const sideN = mesh.axis ?? { x: 0, y: 1, z: 0 };
     cmds.push({
       t: "polygon",
       points: mesh.apexIndex != null ? [A, B, C] : [A, B, D, C],
-      fill: fillGray(sideN, cam),
+      fill: fillGray(axis, cam),
     });
   }
   cmds.push({ t: "line", x1: A.x, y1: A.y, x2: C.x, y2: C.y });
@@ -378,7 +390,15 @@ export function buildSolidSketchScene(state: SolidSketchState): SolidScene {
   if (familyIsRound(state.family)) {
     drawGenerators(cmds, mesh, cam, map, state.showFill);
     for (const circle of mesh.circles) {
-      drawCircleRim(cmds, circle, cam, map, state.showHidden, state.showFill);
+      drawCircleRim(
+        cmds,
+        circle,
+        cam,
+        map,
+        state.showHidden,
+        state.showFill,
+        mesh.axis,
+      );
     }
   }
 

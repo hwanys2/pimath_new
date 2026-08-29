@@ -8,9 +8,10 @@ import {
   defaultVertexNames,
   normalizeState,
 } from "./model";
-import { cameraFromView, hiddenEdgeKeys, project3 } from "./project";
+import { cameraFromView, hiddenEdgeKeys, project3, silRadial } from "./project";
 import { buildSolidSketchScene } from "./scene";
 import { buildSolidMesh, convexHullFaces } from "./solids";
+import { add3, dist3, mul3 } from "./vec3";
 
 describe("solid sketch vertices and names", () => {
   it("names a square prism A–D on top then E–H on the bottom", () => {
@@ -94,6 +95,28 @@ describe("projection and scene", () => {
     assert.ok(dashed.length >= 3);
     const labels = scene.texts.filter((t) => t.id.startsWith("vertex:"));
     assert.equal(labels.length, 8);
+  });
+
+  it("keeps horizontal cylinder generators parallel and equal", () => {
+    const state = normalizeState({
+      ...DEFAULT_SOLID_SKETCH_STATE,
+      family: "cylinder",
+      cylinderLie: "horizontal",
+      radius: 2,
+      height: 5,
+    });
+    const mesh = buildSolidMesh(state);
+    const cam = cameraFromView(state.azimuthDeg, state.elevationDeg);
+    const dir = silRadial(mesh.axis!, cam);
+    assert.ok(dir);
+    const a = mesh.circles.find((c) => c.id === "base")!;
+    const b = mesh.circles.find((c) => c.id === "top")!;
+    const a0 = add3(a.center, mul3(dir!, a.radius));
+    const a1 = add3(a.center, mul3(dir!, -a.radius));
+    const b0 = add3(b.center, mul3(dir!, b.radius));
+    const b1 = add3(b.center, mul3(dir!, -b.radius));
+    assert.ok(Math.abs(dist3(a0, b0) - state.height) < 1e-6);
+    assert.ok(Math.abs(dist3(a1, b1) - state.height) < 1e-6);
   });
 
   it("omits fills when showFill is off", () => {
