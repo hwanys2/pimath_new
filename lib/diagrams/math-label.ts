@@ -49,14 +49,15 @@ function readFrac(
 export function parseMathRuns(text: string): TextRun[] {
   const runs: TextRun[] = [];
   const tokenRe =
-    /(\$([^$]*)\$)|(\\frac\{)|(℃|°C)|([A-Za-z]+)|([^A-Za-z$\\]+)|(\$|\\)/g;
+    /(\$([^$]*)\$)|(\\frac\{)|(\\pi)|(℃|°C)|([A-Za-z]+)|([^A-Za-z$\\]+)|(\$|\\)/g;
   let match: RegExpExecArray | null;
   while ((match = tokenRe.exec(text)) !== null) {
     const mathInner = match[2];
     const fracOpen = match[3];
-    const degreeC = match[4];
-    const word = match[5];
-    const rest = match[6] ?? match[7];
+    const piTok = match[4];
+    const degreeC = match[5];
+    const word = match[6];
+    const rest = match[7] ?? match[8];
     if (mathInner != null) {
       runs.push(...parseMathRuns(mathInner));
     } else if (fracOpen) {
@@ -72,6 +73,8 @@ export function parseMathRuns(text: string): TextRun[] {
       } else {
         runs.push({ text: match[0], italic: false });
       }
+    } else if (piTok) {
+      runs.push({ text: "π", italic: false });
     } else if (degreeC) {
       runs.push({ text: degreeC, italic: false });
     } else if (word) {

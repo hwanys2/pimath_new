@@ -43,7 +43,7 @@
 ```
 도구 (/tools) 
   └─ 문제 그림 그리기 (/tools/figures)
-        ├─ 중1 카드들 → /tools/figures/g1-number-line , /tools/figures/g1-coordinate-plane , /tools/figures/g1-polygon , /tools/figures/g1-solid-sketch
+        ├─ 중1 카드들 → /tools/figures/g1-number-line , /tools/figures/g1-coordinate-plane , /tools/figures/g1-polygon , /tools/figures/g1-circle-sectors , /tools/figures/g1-solid-sketch
         ├─ 중2 카드들
         └─ 중3 카드들
               └─ 원의 현 → /tools/figures/g3-circle-chords
@@ -212,6 +212,17 @@ components/tools/figures/DiagramToolShell.tsx  ← 공통 뼈대. 손대지 않�
 - 프리셋: 사각형 한 각, 삼각형 외각, 오각형 내각·외각, 한 꼭짓점 대각선.
 - 스튜디오는 §5.1 **3열**. 원·부채꼴은 이 도구에 넣지 않는다.
 
+### 원과 부채꼴 (`g1-circle-sectors`)
+
+중1 `3.3 평면도형의 성질`에서 나오는 시험용 원·부채꼴.
+
+- 같은 원 위에 부채꼴 여러 개, 또는 원을 끄고 부채꼴만.
+- 중심각(호 표시 + 도), 반지름 설명선, 원 밖 호 길이(화살 있는 동심 호), 넓이 지시선.
+- 면 채움은 연한 무채색. 작은 부채꼴·큰 부채꼴(180° 초과) 모두, 호 설명선은 그 부채꼴의 호를 따른다.
+- 글자를 누르면 숫자·`$x$`·`3π`로 고치고, 호·넓이를 숫자로 바꾸면 반지름은 두고 중심각을 맞춘다.
+- 조작: 원 둘레를 끌어 부채꼴 추가, 끝점 드래그로 중심각, 채움/호를 끌어 통째 회전. Delete로 삭제. PNG·복사·SVG.
+- 스튜디오는 §5.1 **3열**: 그림 | 표시 칩·목록 | 빠른 그림·치수·그림 스타일(기본 펼침).
+
 이후 접선, 원주각, 닮음 삼각형 등을 넣을 때도 **같은 카탈로그·같은 3열 스튜디오·같은 스타일 규칙·같은 라벨 모드·같은 `DiagramToolShell`(하단 의견)** 을 재사용한다.
 
 ---
@@ -223,6 +234,7 @@ components/tools/figures/DiagramToolShell.tsx  ← 공통 뼈대. 손대지 않�
 | `g1-number-line` | 중1 | 수직선 | ready |
 | `g1-coordinate-plane` | 중1 | 좌표평면 | ready |
 | `g1-polygon` | 중1 | 다각형 | ready |
+| `g1-circle-sectors` | 중1 | 원과 부채꼴 | ready |
 | `g1-solid-sketch` | 중1 | 겨냥도 | ready |
 | `g3-circle-chords` | 중3 | 원의 현 | ready |
 
@@ -277,3 +289,4 @@ components/tools/figures/DiagramToolShell.tsx  ← 공통 뼈대. 손대지 않�
 | 2026-08-29 | 겨냥도 반구, 같은 반지름 원뿔+반구·원기둥+반구·원기둥+원뿔. |
 | 2026-08-29 | 각뿔·각뿔대 옆면 높이(이등변삼각형·사다리꼴 수선). 숫자 수정 시 그림이 맞춰짐. |
 | 2026-08-29 | 중1 다각형 (`g1-polygon`). 내각·외각·변의 길이·대각선, PNG. |
+| 2026-08-29 | 중1 원과 부채꼴 (`g1-circle-sectors`). 중심각·호 길이·넓이·부채꼴만 그리기. |

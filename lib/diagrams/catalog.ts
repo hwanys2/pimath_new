@@ -66,6 +66,17 @@ export const DIAGRAM_TOOLS: DiagramToolMeta[] = [
     status: "ready",
   },
   {
+    id: "g1-circle-sectors",
+    grade: 1,
+    title: "원과 부채꼴",
+    description:
+      "원 위 부채꼴이나 부채꼴만, 중심각·반지름·호 길이·넓이를 시험 그림처럼 붙여 PNG로 저장해요.",
+    unitHint: "3.3 평면도형의 성질",
+    emoji: "◕",
+    href: "/tools/figures/g1-circle-sectors",
+    status: "ready",
+  },
+  {
     id: "g3-circle-chords",
     grade: 3,
     title: "원의 현",

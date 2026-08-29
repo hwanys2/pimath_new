@@ -59,6 +59,16 @@ export type SceneCmd =
       points: Vec[];
       fill: string;
     }
+  | {
+      t: "sector";
+      cx: number;
+      cy: number;
+      r: number;
+      a0: number;
+      a1: number;
+      ccw: boolean;
+      fill: string;
+    }
   | ({
       t: "ellipseArc";
       cx: number;

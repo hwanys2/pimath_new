@@ -113,6 +113,18 @@ function paintCmd(
       ctx.restore();
       break;
     }
+    case "sector": {
+      if (cmd.r <= 0) break;
+      ctx.save();
+      ctx.beginPath();
+      ctx.moveTo(cmd.cx, cmd.cy);
+      ctx.arc(cmd.cx, cmd.cy, cmd.r, cmd.a0, cmd.a1, cmd.ccw);
+      ctx.closePath();
+      ctx.fillStyle = cmd.fill;
+      ctx.fill();
+      ctx.restore();
+      break;
+    }
     case "ellipseArc": {
       const pts = ellipseArcPoints(cmd);
       if (pts.length < 2) break;
@@ -205,14 +217,14 @@ export function sceneToSvg(
   ];
 
   for (const cmd of scene.cmds) {
-    if (cmd.t !== "polygon") continue;
-    parts.push(polygonToSvg(cmd));
+    if (cmd.t === "polygon") parts.push(polygonToSvg(cmd));
+    if (cmd.t === "sector") parts.push(sectorToSvg(cmd));
   }
   parts.push(
     `<g fill="none" stroke="${INK}" stroke-width="${lineWidth}" stroke-linecap="round" stroke-linejoin="round">`,
   );
   for (const cmd of scene.cmds) {
-    if (cmd.t === "text" || cmd.t === "polygon") continue;
+    if (cmd.t === "text" || cmd.t === "polygon" || cmd.t === "sector") continue;
     parts.push(cmdToSvg(cmd, lineWidth));
   }
   parts.push(`</g>`);
@@ -230,6 +242,18 @@ function polygonToSvg(cmd: Extract<SceneCmd, { t: "polygon" }>): string {
   if (cmd.points.length < 3) return "";
   const pts = cmd.points.map((p) => `${p.x.toFixed(2)},${p.y.toFixed(2)}`).join(" ");
   return `<polygon points="${pts}" fill="${escapeXml(cmd.fill)}" stroke="none"/>`;
+}
+
+function sectorToSvg(cmd: Extract<SceneCmd, { t: "sector" }>): string {
+  if (cmd.r <= 0) return "";
+  const x0 = cmd.cx + cmd.r * Math.cos(cmd.a0);
+  const y0 = cmd.cy + cmd.r * Math.sin(cmd.a0);
+  const x1 = cmd.cx + cmd.r * Math.cos(cmd.a1);
+  const y1 = cmd.cy + cmd.r * Math.sin(cmd.a1);
+  const sweep = arcSweep(cmd.a0, cmd.a1, cmd.ccw);
+  const large = sweep > Math.PI ? 1 : 0;
+  const sweepFlag = cmd.ccw ? 0 : 1;
+  return `<path d="M ${cmd.cx.toFixed(2)} ${cmd.cy.toFixed(2)} L ${x0.toFixed(2)} ${y0.toFixed(2)} A ${cmd.r.toFixed(2)} ${cmd.r.toFixed(2)} 0 ${large} ${sweepFlag} ${x1.toFixed(2)} ${y1.toFixed(2)} Z" fill="${escapeXml(cmd.fill)}" stroke="none"/>`;
 }
 
 function ellipseArcPoints(cmd: Extract<SceneCmd, { t: "ellipseArc" }>): {

@@ -78,7 +78,7 @@ export default function FiguresHub({ grade }: { grade: GradeId }) {
               {meta.label} 도구는 아직 없어요
             </p>
             <p className="mx-auto mt-2 max-w-md text-sm text-foreground/60">
-              소재별로 하나씩 추가할 예정이에요. 지금은 중1 「수직선」·「좌표평면」,
+              소재별로 하나씩 추가할 예정이에요. 지금은 중1 「수직선」·「좌표평면」·「다각형」·「원과 부채꼴」·「겨냥도」,
               중3 「원의 현」부터 사용할 수 있어요.
             </p>
             <Link
@@ -119,6 +119,10 @@ function ToolCard({ tool }: { tool: DiagramToolMeta }) {
             <CoordinatePlaneThumb />
           ) : tool.id === "g1-solid-sketch" ? (
             <SolidThumb />
+          ) : tool.id === "g1-circle-sectors" ? (
+            <SectorThumb />
+          ) : tool.id === "g1-histogram" ? (
+            <HistogramThumb />
           ) : (
             tool.emoji
           )}
@@ -204,6 +208,35 @@ function SolidThumb() {
       <line x1="14" y1="16" x2="14" y2="30" stroke="#6b4423" strokeWidth="1.3" strokeDasharray="2.4 1.8" />
       <line x1="14" y1="30" x2="26" y2="36" stroke="#6b4423" strokeWidth="1.3" />
       <line x1="14" y1="30" x2="28" y2="26" stroke="#6b4423" strokeWidth="1.2" strokeDasharray="2.4 1.8" />
+    </svg>
+  );
+}
+
+function SectorThumb() {
+  return (
+    <svg viewBox="0 0 48 48" className="h-10 w-10" aria-hidden>
+      <circle cx="24" cy="24" r="16" fill="none" stroke="#6b4423" strokeWidth="1.6" />
+      <path d="M24 24 L40 24 A16 16 0 0 0 32.3 10.3 Z" fill="#efe7dc" stroke="#6b4423" strokeWidth="1.5" />
+      <circle cx="24" cy="24" r="1.6" fill="#6b4423" />
+    </svg>
+  );
+}
+
+function HistogramThumb() {
+  return (
+    <svg viewBox="0 0 48 48" className="h-10 w-10" aria-hidden>
+      <line x1="8" y1="38" x2="42" y2="38" stroke="#6b4423" strokeWidth="1.5" />
+      <line x1="10" y1="40" x2="10" y2="8" stroke="#6b4423" strokeWidth="1.5" />
+      <rect x="14" y="28" width="6" height="10" fill="#efe7dc" stroke="#6b4423" strokeWidth="1.2" />
+      <rect x="20" y="18" width="6" height="20" fill="#efe7dc" stroke="#6b4423" strokeWidth="1.2" />
+      <rect x="26" y="14" width="6" height="24" fill="#efe7dc" stroke="#6b4423" strokeWidth="1.2" />
+      <rect x="32" y="22" width="6" height="16" fill="#efe7dc" stroke="#6b4423" strokeWidth="1.2" />
+      <polyline
+        points="14,38 17,28 23,18 29,14 35,22 41,38"
+        fill="none"
+        stroke="#c45a7a"
+        strokeWidth="1.4"
+      />
     </svg>
   );
 }
