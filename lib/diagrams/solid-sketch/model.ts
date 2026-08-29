@@ -339,6 +339,16 @@ export function familyIsRound(family: SolidFamily): boolean {
   return family === "cylinder" || family === "cone" || family === "coneFrustum";
 }
 
+/** 원뿔·각뿔·뿔대: 모선(옆면 모서리)으로 높이를 잡을 수 있다. */
+export function familyHasSlant(family: SolidFamily): boolean {
+  return (
+    family === "pyramid" ||
+    family === "frustum" ||
+    family === "cone" ||
+    family === "coneFrustum"
+  );
+}
+
 export function resetView(state: SolidSketchState): SolidSketchState {
   return {
     ...state,

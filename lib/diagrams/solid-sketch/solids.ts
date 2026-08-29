@@ -1,5 +1,6 @@
 import {
   defaultVertexNames,
+  familyHasSlant,
   familyIsRound,
   type SolidSketchState,
 } from "./model";
@@ -408,16 +409,52 @@ export function firstBaseEdgeLength(mesh: SolidMesh, state: SolidSketchState): n
   return state.baseSize;
 }
 
-export function slantLength(state: SolidSketchState): number {
-  if (state.family === "cone") {
-    return Math.hypot(state.radius, state.height);
-  }
+/** 모선(옆면 모서리)이 밑면과 이루는 수평 거리. */
+export function slantSpan(state: SolidSketchState): number {
+  if (state.family === "cone") return state.radius;
   if (state.family === "coneFrustum") {
-    return Math.hypot(state.radius - state.topRadius, state.height);
+    return Math.abs(state.radius - state.topRadius);
   }
   if (state.family === "pyramid") {
-    const R = circumRFromSide(state.sides, state.baseSize);
-    return Math.hypot(R, state.height);
+    return circumRFromSide(state.sides, state.baseSize);
   }
-  return state.height;
+  if (state.family === "frustum") {
+    return Math.abs(
+      circumRFromSide(state.sides, state.baseSize) -
+        circumRFromSide(state.sides, state.topSize),
+    );
+  }
+  return 0;
+}
+
+export function slantLength(state: SolidSketchState): number {
+  if (!familyHasSlant(state.family)) return state.height;
+  return Math.hypot(slantSpan(state), state.height);
+}
+
+export function heightFromSlant(state: SolidSketchState, slant: number): number {
+  const gap = slantSpan(state);
+  const s = Math.max(slant, gap + 0.1, 0.5);
+  return Math.min(40, Math.sqrt(Math.max(0.25, s * s - gap * gap)));
+}
+
+export function withSlantLength(
+  state: SolidSketchState,
+  slant: number,
+): SolidSketchState {
+  if (!familyHasSlant(state.family)) return state;
+  return { ...state, height: heightFromSlant(state, slant) };
+}
+
+export function isLateralEdge(
+  state: SolidSketchState,
+  a: number,
+  b: number,
+): boolean {
+  const n = state.sides;
+  if (state.family === "pyramid") return a === n || b === n;
+  if (state.family === "frustum" || state.family === "prism") {
+    return Math.abs(a - b) === n;
+  }
+  return false;
 }

@@ -1,6 +1,7 @@
 import { hitTestText } from "@/lib/diagrams/scene";
-import { emptyLabel, type MeasLabel, type SolidSketchState } from "./model";
+import { emptyLabel, familyHasSlant, type MeasLabel, type SolidSketchState } from "./model";
 import type { SolidScene } from "./scene";
+import { isLateralEdge, withSlantLength } from "./solids";
 
 export type SolidHit =
   | { kind: "vertex"; index: number }
@@ -252,6 +253,15 @@ function labelFromParse(
   return { ...prev, mode: "custom", custom: text.trim() };
 }
 
+function parseEdgeKey(key: string): [number, number] | null {
+  const dash = key.indexOf("-");
+  if (dash < 1) return null;
+  const a = Number(key.slice(0, dash));
+  const b = Number(key.slice(dash + 1));
+  if (!Number.isFinite(a) || !Number.isFinite(b)) return null;
+  return [a, b];
+}
+
 export function applyEditedLabel(
   state: SolidSketchState,
   id: string,
@@ -285,10 +295,8 @@ export function applyEditedLabel(
   }
   if (id === "slant") {
     const slantLabel = labelFromParse(parsed, text, state.slantLabel);
-    if (parsed.kind === "number" && parsed.value != null && state.family === "cone") {
-      const s = Math.max(parsed.value, state.radius + 0.1);
-      const height = Math.sqrt(Math.max(0.25, s * s - state.radius * state.radius));
-      return { ...state, slantLabel, height };
+    if (parsed.kind === "number" && parsed.value != null) {
+      return { ...withSlantLength(state, parsed.value), slantLabel };
     }
     return { ...state, slantLabel };
   }
@@ -307,10 +315,23 @@ export function applyEditedLabel(
   if (id.startsWith("edge:")) {
     const key = id.slice(5);
     const prev = state.edgeLabels[key] ?? emptyLabel("auto");
-    return {
+    const nextLabel = labelFromParse(parsed, text, prev);
+    const next: SolidSketchState = {
       ...state,
-      edgeLabels: { ...state.edgeLabels, [key]: labelFromParse(parsed, text, prev) },
+      edgeLabels: { ...state.edgeLabels, [key]: nextLabel },
     };
+    if (parsed.kind === "number" && parsed.value != null) {
+      const pair = parseEdgeKey(key);
+      if (pair && isLateralEdge(state, pair[0], pair[1])) {
+        if (familyHasSlant(state.family)) {
+          return withSlantLength(next, parsed.value);
+        }
+        if (state.family === "prism") {
+          return { ...next, height: Math.max(0.5, Math.min(40, parsed.value)) };
+        }
+      }
+    }
+    return next;
   }
   return state;
 }

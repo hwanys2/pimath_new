@@ -26,6 +26,7 @@ import {
   cloneState,
   DEFAULT_SOLID_SKETCH_STATE,
   defaultVertexNames,
+  familyHasSlant,
   familyIsRound,
   familyNeedsSides,
   normalizeState,
@@ -34,6 +35,11 @@ import {
   type SolidSketchState,
 } from "@/lib/diagrams/solid-sketch/model";
 import { buildSolidSketchScene } from "@/lib/diagrams/solid-sketch/scene";
+import {
+  slantLength,
+  slantSpan,
+  withSlantLength,
+} from "@/lib/diagrams/solid-sketch/solids";
 import { renderSceneToCanvas, sceneToSvg } from "@/lib/diagrams/render";
 import type { FontFaces } from "@/lib/diagrams/math-label";
 
@@ -321,7 +327,7 @@ export default function SolidSketchStudio() {
                   반지름
                 </ChipToggle>
               ) : null}
-              {state.family === "cone" || state.family === "pyramid" ? (
+              {familyHasSlant(state.family) ? (
                 <ChipToggle
                   on={state.showSlant}
                   onClick={() => set({ showSlant: !state.showSlant })}
@@ -606,14 +612,29 @@ export default function SolidSketchStudio() {
                   suffix="cm"
                 />
               ) : (
-                <NumberField
-                  label="높이"
-                  value={state.height}
-                  onChange={(height) => set({ height })}
-                  min={0.5}
-                  max={40}
-                  suffix="cm"
-                />
+                <>
+                  <NumberField
+                    label="높이"
+                    value={state.height}
+                    onChange={(height) => set({ height })}
+                    min={0.5}
+                    max={40}
+                    suffix="cm"
+                  />
+                  {familyHasSlant(state.family) ? (
+                    <NumberField
+                      label="모선"
+                      value={Number(slantLength(state).toFixed(3))}
+                      onChange={(slant) =>
+                        setState((prev) => withSlantLength(prev, slant))
+                      }
+                      min={Number((slantSpan(state) + 0.1).toFixed(2))}
+                      max={50}
+                      step={0.1}
+                      suffix="cm"
+                    />
+                  ) : null}
+                </>
               )}
               <TextField
                 label="단위"

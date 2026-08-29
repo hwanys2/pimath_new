@@ -250,6 +250,39 @@ function radiusPoint(circle: Circle3, cam: Cam): Vec3 {
   return add3(circle.center, mul3(u, circle.radius));
 }
 
+function slantEndpoints(
+  state: SolidSketchState,
+  mesh: SolidMesh,
+  cam: Cam,
+): { a3: Vec3; b3: Vec3 } | null {
+  if (mesh.apexIndex != null && mesh.circles[0]) {
+    return {
+      a3: mesh.vertices[mesh.apexIndex]!,
+      b3: radiusPoint(mesh.circles[0], cam),
+    };
+  }
+  if (mesh.apexIndex != null && mesh.vertices.length > 1) {
+    return { a3: mesh.vertices[mesh.apexIndex]!, b3: mesh.vertices[0]! };
+  }
+  if (state.family === "frustum") {
+    const n = state.sides;
+    const top = mesh.vertices[0];
+    const bot = mesh.vertices[n];
+    if (top && bot) return { a3: top, b3: bot };
+  }
+  if (state.family === "coneFrustum") {
+    const base = mesh.circles.find((c) => c.id === "base");
+    const top = mesh.circles.find((c) => c.id === "top");
+    if (!base || !top) return null;
+    const dir = silRadial(mesh.axis ?? base.normal, cam) ?? circleBasis(base.normal).u;
+    return {
+      a3: add3(base.center, mul3(dir, base.radius)),
+      b3: add3(top.center, mul3(dir, top.radius)),
+    };
+  }
+  return null;
+}
+
 function drawCircleRim(
   cmds: SceneCmd[],
   circle: Circle3,
@@ -520,18 +553,10 @@ export function buildSolidSketchScene(state: SolidSketchState): SolidScene {
 
   if (state.showSlant) {
     const slant = slantLength(state);
-    let a3: Vec3 | null = null;
-    let b3: Vec3 | null = null;
-    if (mesh.apexIndex != null && mesh.circles[0]) {
-      a3 = mesh.vertices[mesh.apexIndex]!;
-      b3 = radiusPoint(mesh.circles[0], cam);
-    } else if (mesh.apexIndex != null && mesh.vertices.length > 1) {
-      a3 = mesh.vertices[mesh.apexIndex]!;
-      b3 = mesh.vertices[0]!;
-    }
-    if (a3 && b3) {
-      const a = map(project3(a3, cam));
-      const b = map(project3(b3, cam));
+    const ends = slantEndpoints(state, mesh, cam);
+    if (ends) {
+      const a = map(project3(ends.a3, cam));
+      const b = map(project3(ends.b3, cam));
       cmds.push({ t: "line", x1: a.x, y1: a.y, x2: b.x, y2: b.y, dashed: true, id: "slant:line" });
       const txt = resolveLabelText(state.slantLabel, slant, unit, unk);
       dimArc(cmds, texts, a, b, outwardUp, style.dimOffset, txt, "slant", state.slantLabel, style.fontSize);
