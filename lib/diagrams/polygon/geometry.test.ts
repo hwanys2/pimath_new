@@ -2,7 +2,13 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
   allDiagonalPairs,
+  applyEdgeLengthScale,
+  applyInteriorAngleChange,
+  buildPointsFromAngles,
+  computeLastInteriorAngle,
   diagonalCount,
+  edgeLength,
+  interiorAngleSumTarget,
   interiorAngleDeg,
   isConvex,
   isDiagonalPair,
@@ -67,6 +73,48 @@ describe("convex drag", () => {
     assert.ok(isConvex(moved.points));
     const collapsed = moveVertex(square, 0, square.points[2]!);
     assert.deepEqual(collapsed.points, square.points);
+  });
+});
+
+describe("angle-driven shape", () => {
+  it("auto-computes the last interior angle", () => {
+    const n = 5;
+    const angles = [120, 110, 100, 90, 0];
+    assert.equal(computeLastInteriorAngle(angles, n), interiorAngleSumTarget(n) - 420);
+  });
+
+  it("builds a regular pentagon from equal angles", () => {
+    const n = 5;
+    const angle = interiorAngleSumTarget(n) / n;
+    const angles = Array.from({ length: n }, () => angle);
+    const pts = buildPointsFromAngles(angles, 5);
+    assert.equal(pts.length, n);
+    assert.ok(isConvex(pts));
+    for (let i = 0; i < n; i += 1) {
+      almost(vertexAngles(pts, i).interior, angle, 0.05);
+    }
+  });
+
+  it("changes one angle and keeps the polygon convex", () => {
+    const base = normalizeState(withSideCount(DEFAULT_POLYGON_STATE, 4));
+    const next = applyInteriorAngleChange(base, 0, 60);
+    assert.ok(isConvex(next.points));
+    almost(next.interiorAnglesDeg[0]!, 60, 1e-6);
+    almost(
+      next.interiorAnglesDeg[3]!,
+      interiorAngleSumTarget(4) - 60 - next.interiorAnglesDeg[1]! - next.interiorAnglesDeg[2]!,
+      1e-4,
+    );
+  });
+
+  it("scales all edge lengths uniformly", () => {
+    const base = normalizeState(withSideCount(DEFAULT_POLYGON_STATE, 4));
+    const before = Array.from({ length: 4 }, (_, i) => edgeLength(base.points, i));
+    const scaled = applyEdgeLengthScale(base, 0, before[0]! * 2);
+    const after = Array.from({ length: 4 }, (_, i) => edgeLength(scaled.points, i));
+    for (let i = 0; i < 4; i += 1) {
+      almost(after[i]! / before[i]!, 2, 1e-4);
+    }
   });
 });
 

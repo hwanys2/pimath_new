@@ -6,6 +6,7 @@ import { useCallback, useMemo, useState, useSyncExternalStore } from "react";
 import {
   ChipToggle,
   LabelModeRow,
+  NumberField,
   Segmented,
   SliderField,
   TextField,
@@ -21,6 +22,7 @@ import {
 } from "@/lib/diagrams/export-image";
 import {
   allDiagonalsOn,
+  applyInteriorAngleChange,
   clearSelectionMarks,
   toggleAllDiagonals,
   toggleVertexDiagonals,
@@ -33,6 +35,7 @@ import {
   allExteriorsOn,
   allInteriorsOn,
   allLengthsOn,
+  computeLastInteriorAngle,
   normalizeState,
   setAllExteriors,
   setAllInteriors,
@@ -45,7 +48,7 @@ import { buildPolygonScene } from "@/lib/diagrams/polygon/scene";
 import { renderSceneToCanvas, sceneToSvg } from "@/lib/diagrams/render";
 import type { FontFaces } from "@/lib/diagrams/math-label";
 
-const STORAGE_KEY = "pm-diagram-g1-polygon-v1";
+const STORAGE_KEY = "pm-diagram-g1-polygon-v2";
 
 const storeListeners = new Set<() => void>();
 
@@ -550,6 +553,36 @@ export default function PolygonStudio() {
             >
               정다각형
             </button>
+            <div className="mt-3 space-y-2">
+              <p className="text-xs font-semibold text-foreground/60">내각 (°)</p>
+              <p className="text-[11px] leading-snug text-foreground/45">
+                마지막 꼭짓점 각은 (n−2)×180°에서 나머지 합을 뺀 값으로
+                자동 맞춰집니다. 길이를 바꾸면 모든 변이 같은 비율로
+                커지거나 작아집니다.
+              </p>
+              {state.vertices.map((v, i) => {
+                const name = v.name.trim() || defaultName(i);
+                const isLast = i === n - 1;
+                const value = isLast
+                  ? computeLastInteriorAngle(state.interiorAnglesDeg, n)
+                  : state.interiorAnglesDeg[i] ?? 0;
+                return (
+                  <NumberField
+                    key={`angle-${i}`}
+                    label={isLast ? `∠${name} (자동)` : `∠${name}`}
+                    value={Number(value.toFixed(1))}
+                    onChange={(deg) =>
+                      setState((prev) => applyInteriorAngleChange(prev, i, deg))
+                    }
+                    min={1}
+                    max={179}
+                    step={1}
+                    suffix="°"
+                    disabled={isLast}
+                  />
+                );
+              })}
+            </div>
             <div className="mt-3 grid grid-cols-2 gap-2">
               <TextField
                 label="단위"

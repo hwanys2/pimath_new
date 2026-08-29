@@ -223,7 +223,7 @@ export function moveVertex(
   for (let i = 0; i < points.length; i += 1) {
     if (edgeLength(points, i) < minSpan) return state;
   }
-  return { ...state, points };
+  return syncShapeFromPoints({ ...state, points });
 }
 
 export function extensionEnd(prev: Vec, p: Vec, length: number): Vec {
@@ -379,6 +379,9 @@ export function applyEditedLabel(
     const i = Number(angMatch[1]);
     const which = angMatch[2] as "interior" | "exterior";
     const parsed = parseAngleInput(text);
+    if (which === "interior" && parsed.kind === "number" && parsed.value != null) {
+      return applyInteriorAngleChange(state, i, parsed.value);
+    }
     const vertices = state.vertices.map((v, idx) => {
       if (idx !== i) return v;
       return { ...v, [which]: labelFromParse(parsed, text, v[which], true) };
@@ -389,6 +392,13 @@ export function applyEditedLabel(
   if (edgeMatch) {
     const i = Number(edgeMatch[1]);
     const parsed = parseMeasureInput(text);
+    if (parsed.kind === "number" && parsed.value != null) {
+      const scaled = applyEdgeLengthScale(state, i, parsed.value);
+      const edges = scaled.edges.map((e, idx) =>
+        idx === i ? { ...e, length: labelFromParse(parsed, text, e.length, false) } : e,
+      );
+      return { ...scaled, edges };
+    }
     const edges = state.edges.map((e, idx) =>
       idx === i ? { ...e, length: labelFromParse(parsed, text, e.length, false) } : e,
     );
@@ -486,4 +496,163 @@ export function clearSelectionMarks(
     i === sel.i ? { ...e, showLength: false, length: emptyLabel("auto") } : e,
   );
   return { ...state, edges };
+}
+
+export function interiorAngleSumTarget(n: number): number {
+  return (n - 2) * 180;
+}
+
+export function computeLastInteriorAngle(angles: number[], n = angles.length): number {
+  const sum = angles.slice(0, n - 1).reduce((s, a) => s + a, 0);
+  return interiorAngleSumTarget(n) - sum;
+}
+
+export function finalizeInteriorAngles(angles: number[], n: number): number[] {
+  const out = angles.slice(0, n);
+  while (out.length < n) {
+    out.push(interiorAngleSumTarget(n) / n);
+  }
+  for (let i = 0; i < n - 1; i += 1) {
+    out[i] = clamp(out[i]!, 1, 179);
+  }
+  out[n - 1] = computeLastInteriorAngle(out, n);
+  return out;
+}
+
+export function anglesFromPoints(points: Vec[]): number[] {
+  return points.map((_, i) => vertexAngles(points, i).interior);
+}
+
+export function syncShapeFromPoints(state: PolygonState): PolygonState {
+  return {
+    ...state,
+    interiorAnglesDeg: finalizeInteriorAngles(anglesFromPoints(state.points), state.points.length),
+    referenceEdgeLength: edgeLength(state.points, 0),
+  };
+}
+
+function computeEdgeHeadings(interiorAnglesDeg: number[]): number[] {
+  const n = interiorAnglesDeg.length;
+  const headings: number[] = [];
+  let dir = 0;
+  for (let i = 0; i < n; i += 1) {
+    headings.push(dir);
+    dir += Math.PI - (interiorAnglesDeg[(i + 1) % n]! * Math.PI) / 180;
+  }
+  return headings;
+}
+
+function closureFromLengths(lengths: number[], headings: number[]): Vec {
+  let x = 0;
+  let y = 0;
+  for (let i = 0; i < lengths.length; i += 1) {
+    x += lengths[i]! * Math.cos(headings[i]!);
+    y += lengths[i]! * Math.sin(headings[i]!);
+  }
+  return { x, y };
+}
+
+function solveEdgeLengthRatios(interiorAnglesDeg: number[]): number[] {
+  const n = interiorAnglesDeg.length;
+  const headings = computeEdgeHeadings(interiorAnglesDeg);
+  if (n === 3) {
+    const c1 = Math.cos(headings[1]!);
+    const s1 = Math.sin(headings[1]!);
+    const c2 = Math.cos(headings[2]!);
+    const s2 = Math.sin(headings[2]!);
+    const det = c1 * s2 - s1 * c2;
+    if (Math.abs(det) < 1e-9) return [1, 1, 1];
+    const l1 = -s2 / det;
+    const l2 = s1 / det;
+    if (l1 <= 0 || l2 <= 0) return [1, 1, 1];
+    return [1, l1, l2];
+  }
+  const lengths = Array.from({ length: n }, () => 1);
+  lengths[0] = 1;
+  for (let iter = 0; iter < 900; iter += 1) {
+    const err = closureFromLengths(lengths, headings);
+    const mag = len(err);
+    if (mag < 1e-8) break;
+    const delta = 0.04 * Math.min(mag, 1);
+    for (let j = 1; j < n; j += 1) {
+      const base = lengths[j]!;
+      lengths[j] = base + delta;
+      const up = len(closureFromLengths(lengths, headings));
+      lengths[j] = base - delta;
+      const down = len(closureFromLengths(lengths, headings));
+      lengths[j] = base;
+      const grad = (up - down) / (2 * delta);
+      lengths[j] = Math.max(0.08, base - grad * 0.35);
+    }
+  }
+  return lengths;
+}
+
+export function buildPointsFromAngles(
+  interiorAnglesDeg: number[],
+  referenceEdgeLength: number,
+): Vec[] {
+  const n = interiorAnglesDeg.length;
+  if (n < 3) return [];
+  const angles = finalizeInteriorAngles(interiorAnglesDeg, n);
+  const ratios = solveEdgeLengthRatios(angles);
+  if (ratios.some((r) => !Number.isFinite(r) || r <= 0)) {
+    return regularPolygon(n);
+  }
+  const scale = referenceEdgeLength / ratios[0]!;
+  const lengths = ratios.map((r) => r * scale);
+  const headings = computeEdgeHeadings(angles);
+  const pts: Vec[] = [{ x: 0, y: 0 }];
+  for (let i = 0; i < n; i += 1) {
+    const prev = pts[pts.length - 1]!;
+    pts.push({
+      x: prev.x + lengths[i]! * Math.cos(headings[i]!),
+      y: prev.y + lengths[i]! * Math.sin(headings[i]!),
+    });
+  }
+  pts.pop();
+  const c = centroid(pts);
+  return pts.map((p) => sub(p, c));
+}
+
+export function applyInteriorAngleChange(
+  state: PolygonState,
+  index: number,
+  deg: number,
+): PolygonState {
+  const n = state.points.length;
+  if (index < 0 || index >= n - 1) return state;
+  const angles = finalizeInteriorAngles(state.interiorAnglesDeg, n);
+  angles[index] = clamp(deg, 1, 179);
+  const last = computeLastInteriorAngle(angles, n);
+  if (last < 1 || last > 179) return state;
+  angles[n - 1] = last;
+  const points = buildPointsFromAngles(angles, state.referenceEdgeLength);
+  if (points.length !== n || !isConvex(points)) return state;
+  return {
+    ...state,
+    points,
+    interiorAnglesDeg: finalizeInteriorAngles(angles, n),
+    referenceEdgeLength: edgeLength(points, 0),
+  };
+}
+
+export function applyEdgeLengthScale(
+  state: PolygonState,
+  edgeIndex: number,
+  newLength: number,
+): PolygonState {
+  const n = state.points.length;
+  if (edgeIndex < 0 || edgeIndex >= n) return state;
+  const current = edgeLength(state.points, edgeIndex);
+  if (current < 1e-9) return state;
+  const target = clamp(newLength, 0.5, 40);
+  const factor = target / current;
+  const c = centroid(state.points);
+  const points = state.points.map((p) => add(c, mul(sub(p, c), factor)));
+  return syncShapeFromPoints({
+    ...state,
+    points,
+    referenceEdgeLength: clamp(state.referenceEdgeLength * factor, 0.5, 40),
+  });
 }

@@ -44,6 +44,10 @@ export type PolygonState = {
   vertices: VertexMark[];
   edges: EdgeMark[];
   diagonals: [number, number][];
+  /** 꼭짓점별 내각(°). 마지막 꼭짓점은 (n-2)×180 − 나머지 합 */
+  interiorAnglesDeg: number[];
+  /** 변 0 길이(cm). 길이 수정 시 전체가 닮음 비율로 확대·축소 */
+  referenceEdgeLength: number;
   showVertexNames: boolean;
   showDots: boolean;
   unit: string;
@@ -108,11 +112,58 @@ function clamp(n: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, n));
 }
 
+function edgeLengthAt(points: Vec[], i: number): number {
+  const n = points.length;
+  const a = points[i]!;
+  const b = points[(i + 1) % n]!;
+  return Math.hypot(b.x - a.x, b.y - a.y);
+}
+
+function interiorAngleAt(points: Vec[], i: number): number {
+  const n = points.length;
+  const p = points[i]!;
+  const prev = points[(i - 1 + n) % n]!;
+  const next = points[(i + 1) % n]!;
+  const ux = prev.x - p.x;
+  const uy = prev.y - p.y;
+  const wx = next.x - p.x;
+  const wy = next.y - p.y;
+  const lu = Math.hypot(ux, uy) || 1;
+  const lw = Math.hypot(wx, wy) || 1;
+  const dot = (ux / lu) * (wx / lw) + (uy / lu) * (wy / lw);
+  return (Math.acos(Math.min(1, Math.max(-1, dot))) * 180) / Math.PI;
+}
+
+function interiorAngleSum(n: number): number {
+  return (n - 2) * 180;
+}
+
+function computeLastAngle(angles: number[], n: number): number {
+  const sum = angles.slice(0, n - 1).reduce((s, a) => s + a, 0);
+  return interiorAngleSum(n) - sum;
+}
+
+function finalizeAngles(angles: number[], n: number): number[] {
+  const out = angles.slice(0, n);
+  while (out.length < n) out.push(interiorAngleSum(n) / n);
+  for (let i = 0; i < n - 1; i += 1) out[i] = clamp(out[i]!, 1, 179);
+  out[n - 1] = computeLastAngle(out, n);
+  return out;
+}
+
+function anglesFromPointsLocal(points: Vec[]): number[] {
+  return points.map((_, i) => interiorAngleAt(points, i));
+}
+
+export function computeLastInteriorAngle(angles: number[], n = angles.length): number {
+  return computeLastAngle(angles, n);
+}
+
 export function cloneState(state: PolygonState): PolygonState {
   return structuredClone(state);
 }
 
-export function normalizeState(state: PolygonState): PolygonState {
+export function normalizeState(state: Partial<PolygonState> & Pick<PolygonState, "points"> | PolygonState): PolygonState {
   const n = Math.round(clamp(state.points?.length ?? 0, 3, 8));
   let points = (state.points ?? []).slice(0, n);
   if (points.length < n) {
@@ -129,16 +180,32 @@ export function normalizeState(state: PolygonState): PolygonState {
     return d !== 1 && d !== n - 1;
   }).map(([a, b]) => (a < b ? ([a, b] as [number, number]) : ([b, a] as [number, number])));
   const style = { ...DEFAULT_STYLE, ...state.style };
+  let interiorAnglesDeg = Array.isArray(state.interiorAnglesDeg)
+    ? state.interiorAnglesDeg.slice(0, n)
+    : [];
+  if (interiorAnglesDeg.length < n) {
+    interiorAnglesDeg = anglesFromPointsLocal(points);
+  }
+  interiorAnglesDeg = finalizeAngles(interiorAnglesDeg, n);
+  const referenceEdgeLength = clamp(
+    state.referenceEdgeLength != null && Number.isFinite(state.referenceEdgeLength)
+      ? state.referenceEdgeLength
+      : edgeLengthAt(points, 0),
+    0.5,
+    40,
+  );
   return {
     ...state,
     points,
     vertices,
     edges,
     diagonals,
+    interiorAnglesDeg,
+    referenceEdgeLength,
     showVertexNames: state.showVertexNames !== false,
     showDots: state.showDots !== false,
     unit: state.unit?.trim() ? state.unit : "cm",
-    unknownLetter: /^[A-Za-z]$/.test(state.unknownLetter) ? state.unknownLetter : "x",
+    unknownLetter: state.unknownLetter && /^[A-Za-z]$/.test(state.unknownLetter) ? state.unknownLetter : "x",
     style: {
       ...style,
       lineWidth: clamp(style.lineWidth, 1, 3.5),
