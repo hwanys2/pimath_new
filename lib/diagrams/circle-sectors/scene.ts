@@ -323,7 +323,7 @@ function dimArcLength(
 ): void {
   if (!label) return;
   const lineId = `${labelId}:line`;
-  const lineH = signedHeight(offset + meas.dy + (meas.lineDy ?? 0), 12, 80);
+  const lineH = signedHeight(offset + (meas.lineDy ?? 0), 12, 80);
   const textH = signedHeight(offset + meas.dy, 12, 80);
   const lineR = visualR + lineH;
   const textR = visualR + textH + fontSize * 0.55;
@@ -379,7 +379,7 @@ function dimArcLength(
   });
 
   const sweep = canvasCcwSpan(a0, a1);
-  const midA = a0 - sweep / 2 + meas.dx / Math.max(lineR, 1);
+  const midA = a0 - sweep / 2 + meas.dx / Math.max(visualR, 1);
   const tp = {
     x: cO.x + textR * Math.cos(midA),
     y: cO.y + textR * Math.sin(midA),
@@ -629,15 +629,6 @@ function drawSector(args: {
         y2: labelPos.y,
         id: lineId,
       });
-      const tip = norm(sub(inner, labelPos));
-      cmds.push({
-        t: "arrowhead",
-        x: inner.x,
-        y: inner.y,
-        ux: tip.x,
-        uy: tip.y,
-        size: 7,
-      });
       pushText(texts, cmds, {
         id: `${sector.id}:areaLabel`,
         x: labelPos.x,
@@ -766,7 +757,11 @@ export function hitTestFigure(
         12 * s,
       );
     }
-    if (cmd.t === "line" && cmd.id && (cmd.dashed || cmd.id.includes("areaLabel"))) {
+    if (
+      cmd.t === "line" &&
+      cmd.id &&
+      (cmd.dashed || cmd.id.includes("areaLabel") || cmd.id.includes("arcLabel"))
+    ) {
       best = considerHit(
         best,
         { kind: "dimLine", id: measureTargetId(cmd.id) },

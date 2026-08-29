@@ -495,9 +495,48 @@ export default function CircleSectorsStudio() {
               </ul>
             ) : null}
             <p className="mt-2 text-[11px] leading-snug text-foreground/45">
-              끝점을 끌면 중심각이 바뀌고, 부채꼴을 끌면 통째로 돌아가요. 글자를
-              누르면 숫자·x·π로 고칠 수 있어요.
+              끝점을 끌면 중심각이 바뀌고, 부채꼴을 끌면 통째로 돌아가요. 호 길이
+              숫자는 글자만, 바깥 호는 설명선만 옮겨요. 글자를 누르면
+              숫자·x·π로 고칠 수 있어요.
             </p>
+          </section>
+
+          <section className="rounded-2xl border-2 border-wood/10 bg-white/80 p-3.5">
+            <h2 className="font-display text-sm text-wood-dark">치수</h2>
+            <div className="mt-3 grid grid-cols-2 gap-2">
+              <NumberField
+                label="반지름"
+                value={state.radius}
+                onChange={(radius) => set({ radius })}
+                min={0.5}
+                max={40}
+                suffix={state.unit || "cm"}
+              />
+              {selected ? (
+                <NumberField
+                  label="중심각"
+                  value={Number(selected.centralAngleDeg.toFixed(1))}
+                  onChange={(centralAngleDeg) =>
+                    patchSelected({ centralAngleDeg })
+                  }
+                  min={1}
+                  max={359}
+                  step={1}
+                  suffix="°"
+                />
+              ) : null}
+              <TextField
+                label="단위"
+                value={state.unit}
+                onChange={(unit) => set({ unit })}
+                placeholder="cm"
+              />
+              <TextField
+                label="미지수"
+                value={state.unknownLetter}
+                onChange={(unknownLetter) => set({ unknownLetter })}
+              />
+            </div>
           </section>
 
           <section className="rounded-2xl border-2 border-wood/10 bg-white/80 p-3.5">
@@ -538,44 +577,6 @@ export default function CircleSectorsStudio() {
                   </span>
                 </button>
               ))}
-            </div>
-          </section>
-
-          <section className="rounded-2xl border-2 border-wood/10 bg-white/80 p-3.5">
-            <h2 className="font-display text-sm text-wood-dark">치수</h2>
-            <div className="mt-3 grid grid-cols-2 gap-2">
-              <NumberField
-                label="반지름"
-                value={state.radius}
-                onChange={(radius) => set({ radius })}
-                min={0.5}
-                max={40}
-                suffix={state.unit || "cm"}
-              />
-              {selected ? (
-                <NumberField
-                  label="중심각"
-                  value={Number(selected.centralAngleDeg.toFixed(1))}
-                  onChange={(centralAngleDeg) =>
-                    patchSelected({ centralAngleDeg })
-                  }
-                  min={1}
-                  max={359}
-                  step={1}
-                  suffix="°"
-                />
-              ) : null}
-              <TextField
-                label="단위"
-                value={state.unit}
-                onChange={(unit) => set({ unit })}
-                placeholder="cm"
-              />
-              <TextField
-                label="미지수"
-                value={state.unknownLetter}
-                onChange={(unknownLetter) => set({ unknownLetter })}
-              />
             </div>
           </section>
 

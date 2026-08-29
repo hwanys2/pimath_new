@@ -31,6 +31,50 @@ describe("circle sector scenes", () => {
     assert.ok(sweep > Math.PI, `major sweep ${sweep}`);
   });
 
+  it("nudges arc-length number and dim arc independently", () => {
+    const base = cloneState(CIRCLE_SECTOR_PRESETS[0]!.state);
+    const sectorId = base.sectors[0]!.id;
+    const dimId = `${sectorId}:arcLabel:line`;
+    const textId = `${sectorId}:arcLabel`;
+
+    const before = buildCircleSectorsScene(base);
+    const arcBefore = before.cmds.find((c) => c.t === "arc" && c.id === dimId);
+    const textBefore = before.texts.find((t) => t.id === textId);
+    assert.ok(arcBefore && arcBefore.t === "arc");
+    assert.ok(textBefore);
+
+    const afterText = buildCircleSectorsScene({
+      ...base,
+      sectors: base.sectors.map((s, i) =>
+        i === 0 ? { ...s, arcLabel: { ...s.arcLabel, dy: 24 } } : s,
+      ),
+    });
+    const arcAfterText = afterText.cmds.find(
+      (c) => c.t === "arc" && c.id === dimId,
+    );
+    const textAfter = afterText.texts.find((t) => t.id === textId);
+    assert.ok(arcAfterText && arcAfterText.t === "arc");
+    assert.equal(arcAfterText.r, arcBefore.r);
+    assert.ok(
+      Math.hypot(textAfter!.x - textBefore.x, textAfter!.y - textBefore.y) > 4,
+    );
+
+    const afterLine = buildCircleSectorsScene({
+      ...base,
+      sectors: base.sectors.map((s, i) =>
+        i === 0 ? { ...s, arcLabel: { ...s.arcLabel, lineDy: 24 } } : s,
+      ),
+    });
+    const arcAfterLine = afterLine.cmds.find(
+      (c) => c.t === "arc" && c.id === dimId,
+    );
+    const textAfterLine = afterLine.texts.find((t) => t.id === textId);
+    assert.ok(arcAfterLine && arcAfterLine.t === "arc");
+    assert.notEqual(arcAfterLine.r, arcBefore.r);
+    assert.equal(textAfterLine!.x, textBefore.x);
+    assert.equal(textAfterLine!.y, textBefore.y);
+  });
+
   it("hides the parent circle on standalone sector presets", () => {
     const standalone = buildCircleSectorsScene(
       cloneState(CIRCLE_SECTOR_PRESETS[2]!.state),
