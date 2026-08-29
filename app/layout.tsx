@@ -1,10 +1,11 @@
+import { Suspense } from "react";
 import type { Metadata } from "next";
 import { GoogleAnalytics } from "@next/third-parties/google";
 import { Jua, Noto_Sans_KR } from "next/font/google";
 import OpenChatLink from "@/components/OpenChatLink";
-import StudentTopBar from "@/components/StudentTopBar";
-import TopMenuBar from "@/components/TopMenuBar";
-import { getActor } from "@/lib/auth";
+import SiteHeader from "@/components/SiteHeader";
+import ActorRedirects from "@/components/auth/ActorRedirects";
+import { ActorProvider } from "@/components/auth/ActorProvider";
 import "./globals.css";
 
 const jua = Jua({
@@ -30,25 +31,25 @@ export const metadata: Metadata = {
   },
 };
 
-export default async function RootLayout({
+export default function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  const actor = await getActor();
   const gaId = process.env.NEXT_PUBLIC_GA_MEASUREMENT_ID;
 
   return (
     <html lang="ko" className={`${jua.variable} ${notoSansKr.variable} h-full`}>
       <body className="flex min-h-full flex-col antialiased">
-        {actor?.type === "student" ? (
-          <StudentTopBar actor={actor} />
-        ) : (
-          <TopMenuBar actor={actor?.type === "teacher" ? actor : null} />
-        )}
-        <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-6 sm:px-6 sm:py-8">
-          {children}
-        </main>
+        <ActorProvider>
+          <Suspense fallback={null}>
+            <ActorRedirects />
+          </Suspense>
+          <SiteHeader />
+          <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-6 sm:px-6 sm:py-8">
+            {children}
+          </main>
+        </ActorProvider>
         <footer className="border-t border-wood/10 bg-wood/5 py-6 text-center text-sm text-foreground/60">
           <p className="font-display text-base text-wood">수학하는 즐거움</p>
           <p className="mt-1">중학교 수학 모험 · 시뮬레이션 · 게임</p>

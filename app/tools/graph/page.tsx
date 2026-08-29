@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { getActor, redirectStudentToAdventure } from "@/lib/auth";
+import { getActor } from "@/lib/auth";
 import { graphListTeacherSessions } from "@/lib/graph-explorer";
 import CreateRoomClient from "@/components/tools/graph/CreateRoomClient";
 import RoomListClient from "@/components/tools/graph/RoomListClient";
@@ -14,7 +14,6 @@ export const metadata: Metadata = {
 
 export default async function GraphToolPage() {
   const actor = await getActor();
-  await redirectStudentToAdventure(actor);
 
   const isTeacher = actor?.type === "teacher";
   const sessions = isTeacher ? await graphListTeacherSessions() : null;

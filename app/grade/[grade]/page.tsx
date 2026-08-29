@@ -5,7 +5,6 @@ import BlockButton from "@/components/BlockButton";
 import { getGrade, isValidGrade, GRADES } from "@/lib/grades";
 import { getUnitsForGrade, getUnitLabel } from "@/lib/curriculum";
 import { getContentsForUnit } from "@/lib/contents";
-import { redirectStudentToAdventure } from "@/lib/auth";
 
 type Props = {
   params: Promise<{ grade: string }>;
@@ -27,8 +26,6 @@ export async function generateMetadata({ params }: Props) {
 }
 
 export default async function GradePage({ params }: Props) {
-  await redirectStudentToAdventure();
-
   const { grade: gradeParam } = await params;
   const id = Number(gradeParam);
 

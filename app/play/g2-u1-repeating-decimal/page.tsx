@@ -1,9 +1,8 @@
 import type { Metadata } from "next";
 import RepeatingDecimal from "@/components/sims/RepeatingDecimal";
-import AssignContentButton from "@/components/content/AssignContentButton";
 import PlayBreadcrumb from "@/components/content/PlayBreadcrumb";
 import { getContent } from "@/lib/contents";
-import { fetchTeacherAssignContext } from "@/lib/teacher-classes";
+import TeacherAssignSlot from "@/components/content/TeacherAssignSlot";
 
 const CONTENT_KEY = "g2-u1-repeating-decimal";
 
@@ -15,7 +14,6 @@ export const metadata: Metadata = {
 
 export default async function RepeatingDecimalPage() {
   const content = getContent(CONTENT_KEY);
-  const assignCtx = await fetchTeacherAssignContext([CONTENT_KEY]);
 
   return (
     <div className="space-y-4">
@@ -25,17 +23,7 @@ export default async function RepeatingDecimalPage() {
         gradeLabel="중2"
         unitHref="/grade/2/g2-1"
         unitLabel="1. 유리수와 순환소수"
-        assignSlot={
-          assignCtx ? (
-            <AssignContentButton
-              contentKey={CONTENT_KEY}
-              classes={assignCtx.classes}
-              assignedClassIds={
-                assignCtx.assignedByContent[CONTENT_KEY] ?? []
-              }
-            />
-          ) : null
-        }
+        assignSlot={<TeacherAssignSlot contentKey={CONTENT_KEY} />}
       />
 
       <RepeatingDecimal />

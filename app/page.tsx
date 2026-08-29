@@ -2,12 +2,12 @@ import HeroBanner from "@/components/HeroBanner";
 import QuestCard from "@/components/QuestCard";
 import HallOfFamePreview from "@/components/hall-of-fame/HallOfFamePreview";
 import { GRADES } from "@/lib/grades";
-import { redirectStudentToAdventure } from "@/lib/auth";
 import { fetchHofBoard } from "@/lib/hall-of-fame";
 
+export const revalidate = 3600;
+
 export default async function HomePage() {
-  await redirectStudentToAdventure();
-  const hof = await fetchHofBoard({ tab: "world" });
+  const hof = await fetchHofBoard({ tab: "world", sessionToken: null });
 
   return (
     <div className="space-y-10">

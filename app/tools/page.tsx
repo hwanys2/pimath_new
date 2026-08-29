@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { redirectStudentToAdventure } from "@/lib/auth";
 import { TOOLS } from "@/lib/tools";
 
 export const metadata: Metadata = {
@@ -8,9 +7,7 @@ export const metadata: Metadata = {
   description: "전자칠판, 그래프 탐구 등 수학 수업을 위한 도구 모음",
 };
 
-export default async function ToolsPage() {
-  await redirectStudentToAdventure();
-
+export default function ToolsPage() {
   return (
     <div className="space-y-8">
       <header className="text-center">

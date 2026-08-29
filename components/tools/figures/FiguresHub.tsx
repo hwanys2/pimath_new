@@ -1,13 +1,17 @@
 "use client";
 
 import Link from "next/link";
-import { GRADES, type GradeId } from "@/lib/grades";
+import { useSearchParams } from "next/navigation";
+import { GRADES, isValidGrade, type GradeId } from "@/lib/grades";
 import {
   getDiagramToolsForGrade,
   type DiagramToolMeta,
 } from "@/lib/diagrams/catalog";
 
-export default function FiguresHub({ grade }: { grade: GradeId }) {
+export default function FiguresHub() {
+  const searchParams = useSearchParams();
+  const parsed = Number(searchParams.get("grade") ?? 1);
+  const grade: GradeId = isValidGrade(parsed) ? parsed : 1;
   const tools = getDiagramToolsForGrade(grade);
   const ready = tools.filter((t) => t.status === "ready");
   const soon = tools.filter((t) => t.status === "soon");

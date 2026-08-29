@@ -1,9 +1,8 @@
 import type { Metadata } from "next";
 import SolidOfRevolution from "@/components/sims/SolidOfRevolution";
-import AssignContentButton from "@/components/content/AssignContentButton";
 import PlayBreadcrumb from "@/components/content/PlayBreadcrumb";
 import { getContent } from "@/lib/contents";
-import { fetchTeacherAssignContext } from "@/lib/teacher-classes";
+import TeacherAssignSlot from "@/components/content/TeacherAssignSlot";
 
 const CONTENT_KEY = "g1-u3-4-solid-of-revolution";
 
@@ -15,7 +14,6 @@ export const metadata: Metadata = {
 
 export default async function SolidOfRevolutionPage() {
   const content = getContent(CONTENT_KEY);
-  const assignCtx = await fetchTeacherAssignContext([CONTENT_KEY]);
 
   return (
     <div className="space-y-4">
@@ -25,17 +23,7 @@ export default async function SolidOfRevolutionPage() {
         gradeLabel="중1"
         unitHref="/grade/1/g1-3-4"
         unitLabel="3.4 입체도형의 성질"
-        assignSlot={
-          assignCtx ? (
-            <AssignContentButton
-              contentKey={CONTENT_KEY}
-              classes={assignCtx.classes}
-              assignedClassIds={
-                assignCtx.assignedByContent[CONTENT_KEY] ?? []
-              }
-            />
-          ) : null
-        }
+        assignSlot={<TeacherAssignSlot contentKey={CONTENT_KEY} />}
       />
 
       <SolidOfRevolution />

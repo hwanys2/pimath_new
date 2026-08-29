@@ -1,10 +1,8 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { redirect } from "next/navigation";
 import AuthShell from "@/components/auth/AuthShell";
 import OAuthButtons from "@/components/auth/OAuthButtons";
 import LoginForm from "@/components/auth/LoginForm";
-import { getActor } from "@/lib/auth";
 import { safeNextPath } from "@/lib/safe-next-path";
 
 export const metadata: Metadata = {
@@ -19,9 +17,6 @@ type Props = {
 export default async function TeacherLoginPage({ searchParams }: Props) {
   const params = await searchParams;
   const next = safeNextPath(params.next);
-  const actor = await getActor();
-  if (actor?.type === "teacher") redirect(next);
-  if (actor?.type === "student") redirect("/adventure");
 
   return (
     <AuthShell

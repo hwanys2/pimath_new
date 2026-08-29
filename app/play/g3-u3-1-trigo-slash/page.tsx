@@ -1,9 +1,8 @@
 import type { Metadata } from "next";
 import TrigoSlash from "@/components/games/TrigoSlash";
-import AssignContentButton from "@/components/content/AssignContentButton";
 import PlayBreadcrumb from "@/components/content/PlayBreadcrumb";
 import { getContent } from "@/lib/contents";
-import { fetchTeacherAssignContext } from "@/lib/teacher-classes";
+import TeacherAssignSlot from "@/components/content/TeacherAssignSlot";
 
 const CONTENT_KEY = "g3-u3-1-trigo-slash";
 
@@ -15,7 +14,6 @@ export const metadata: Metadata = {
 
 export default async function TrigoSlashPage() {
   const content = getContent(CONTENT_KEY);
-  const assignCtx = await fetchTeacherAssignContext([CONTENT_KEY]);
 
   return (
     <div className="space-y-4">
@@ -25,17 +23,7 @@ export default async function TrigoSlashPage() {
         gradeLabel="중3"
         unitHref="/grade/3/g3-3-1"
         unitLabel="3.1 삼각비"
-        assignSlot={
-          assignCtx ? (
-            <AssignContentButton
-              contentKey={CONTENT_KEY}
-              classes={assignCtx.classes}
-              assignedClassIds={
-                assignCtx.assignedByContent[CONTENT_KEY] ?? []
-              }
-            />
-          ) : null
-        }
+        assignSlot={<TeacherAssignSlot contentKey={CONTENT_KEY} />}
       />
 
       <TrigoSlash />

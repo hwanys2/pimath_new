@@ -10,7 +10,6 @@ import PolygonStudio from "@/components/tools/figures/polygon/PolygonStudio";
 import SolidSketchStudio from "@/components/tools/figures/solid-sketch/SolidSketchStudio";
 import DiagramToolShell from "@/components/tools/figures/DiagramToolShell";
 import { DIAGRAM_TOOLS, getDiagramTool } from "@/lib/diagrams/catalog";
-import { redirectStudentToAdventure } from "@/lib/auth";
 
 type Props = {
   params: Promise<{ toolId: string }>;
@@ -55,7 +54,6 @@ function renderDiagramStudio(toolId: string): ReactNode {
 }
 
 export default async function DiagramToolPage({ params }: Props) {
-  await redirectStudentToAdventure();
   const { toolId } = await params;
   const tool = getDiagramTool(toolId);
   if (!tool) notFound();

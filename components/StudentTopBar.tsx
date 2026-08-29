@@ -4,7 +4,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { signOut } from "@/app/auth/actions";
-import type { StudentActor } from "@/lib/auth";
+import type { StudentActor } from "@/lib/auth-types";
 import { resolveAvatar } from "@/lib/progression";
 
 export default function StudentTopBar({ actor }: { actor: StudentActor }) {

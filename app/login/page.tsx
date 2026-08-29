@@ -1,19 +1,13 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { redirect } from "next/navigation";
 import AuthShell from "@/components/auth/AuthShell";
-import { getActor } from "@/lib/auth";
 
 export const metadata: Metadata = {
   title: "로그인 | 수학하는 즐거움",
   description: "교사 또는 학생으로 로그인하세요.",
 };
 
-export default async function LoginChooserPage() {
-  const actor = await getActor();
-  if (actor?.type === "teacher") redirect("/teacher");
-  if (actor?.type === "student") redirect("/adventure");
-
+export default function LoginChooserPage() {
   return (
     <AuthShell
       title="어떻게 로그인할까요?"

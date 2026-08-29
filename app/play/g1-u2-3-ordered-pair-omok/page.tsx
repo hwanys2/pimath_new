@@ -1,9 +1,8 @@
 import type { Metadata } from "next";
 import OrderedPairOmok from "@/components/games/OrderedPairOmok";
-import AssignContentButton from "@/components/content/AssignContentButton";
 import PlayBreadcrumb from "@/components/content/PlayBreadcrumb";
 import { getContent } from "@/lib/contents";
-import { fetchTeacherAssignContext } from "@/lib/teacher-classes";
+import TeacherAssignSlot from "@/components/content/TeacherAssignSlot";
 
 const CONTENT_KEY = "g1-u2-3-ordered-pair-omok";
 
@@ -15,7 +14,6 @@ export const metadata: Metadata = {
 
 export default async function OrderedPairOmokPage() {
   const content = getContent(CONTENT_KEY);
-  const assignCtx = await fetchTeacherAssignContext([CONTENT_KEY]);
 
   return (
     <div className="space-y-4">
@@ -25,17 +23,7 @@ export default async function OrderedPairOmokPage() {
         gradeLabel="중1"
         unitHref="/grade/1/g1-2-3"
         unitLabel="2.3 좌표평면과 그래프"
-        assignSlot={
-          assignCtx ? (
-            <AssignContentButton
-              contentKey={CONTENT_KEY}
-              classes={assignCtx.classes}
-              assignedClassIds={
-                assignCtx.assignedByContent[CONTENT_KEY] ?? []
-              }
-            />
-          ) : null
-        }
+        assignSlot={<TeacherAssignSlot contentKey={CONTENT_KEY} />}
       />
 
       <OrderedPairOmok />

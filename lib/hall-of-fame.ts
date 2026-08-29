@@ -1,5 +1,6 @@
 import "server-only";
 import { createClient } from "@/lib/supabase/server";
+import { createPublicClient } from "@/lib/supabase/public";
 import { getStudentSessionToken } from "@/lib/student-session";
 
 export type HofTab = "world" | "school" | "class";
@@ -205,7 +206,7 @@ export async function fetchHofBoard(input?: {
 }): Promise<HofBoard> {
   const tab = input?.tab ?? "world";
   const token = await sessionTokenOr(input?.sessionToken);
-  const supabase = await createClient();
+  const supabase = token ? await createClient() : createPublicClient();
 
   const [viewerRes, schoolsRes, classesRes] = await Promise.all([
     supabase.rpc("pm_get_hof_viewer", { p_session_token: token }),

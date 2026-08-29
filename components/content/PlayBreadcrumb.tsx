@@ -1,6 +1,8 @@
+"use client";
+
 import Link from "next/link";
 import type { ReactNode } from "react";
-import { getActor } from "@/lib/auth";
+import { useActor } from "@/components/auth/ActorProvider";
 
 type Props = {
   contentTitle?: string;
@@ -13,7 +15,7 @@ type Props = {
   unitLabel?: string;
 };
 
-export default async function PlayBreadcrumb({
+export default function PlayBreadcrumb({
   contentTitle,
   assignSlot,
   gradeHref = "/grade/1",
@@ -21,7 +23,7 @@ export default async function PlayBreadcrumb({
   unitHref = "/grade/1/g1-1-1",
   unitLabel = "1.1 소인수분해",
 }: Props) {
-  const actor = await getActor();
+  const { actor } = useActor();
 
   if (actor?.type === "student") {
     return (

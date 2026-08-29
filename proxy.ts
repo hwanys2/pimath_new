@@ -1,19 +1,33 @@
-import { type NextRequest } from "next/server";
+import { type NextRequest, NextResponse } from "next/server";
+import {
+  STUDENT_SESSION_COOKIE,
+  hasSupabaseAuthCookie,
+} from "@/lib/auth-routes";
 import { updateSession } from "@/lib/supabase/proxy";
 
 export async function proxy(request: NextRequest) {
+  const hasStudent = request.cookies.has(STUDENT_SESSION_COOKIE);
+  const hasTeacherSession = hasSupabaseAuthCookie(request.cookies.getAll());
+
+  if (!hasStudent && !hasTeacherSession) {
+    return NextResponse.next({ request });
+  }
+
   return await updateSession(request);
 }
 
 export const config = {
   matcher: [
-    /*
-     * Match all request paths except:
-     * - _next/static (static files)
-     * - _next/image (image optimization files)
-     * - favicon.ico (favicon file)
-     * - image assets
-     */
-    "/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
+    "/teacher",
+    "/teacher/:path*",
+    "/adventure",
+    "/adventure/:path*",
+    "/auth/:path*",
+    "/api/:path*",
+    "/board",
+    "/board/:path*",
+    "/reset-password",
+    "/forgot-password",
+    "/tools/graph/host/:path*",
   ],
 };

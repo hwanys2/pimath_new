@@ -1,7 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import BlockButton from "@/components/BlockButton";
-import AssignContentButton from "@/components/content/AssignContentButton";
 import { getGrade, isValidGrade } from "@/lib/grades";
 import {
   CURRICULUM_UNITS,
@@ -15,8 +14,9 @@ import {
   contentTypeStartLabel,
   getContentsForUnit,
 } from "@/lib/contents";
-import { fetchTeacherAssignContext } from "@/lib/teacher-classes";
-import { redirectStudentToAdventure } from "@/lib/auth";
+import TeacherAssignSlot, {
+  TeacherAssignScope,
+} from "@/components/content/TeacherAssignSlot";
 
 
 type Props = {
@@ -42,8 +42,6 @@ export async function generateMetadata({ params }: Props) {
 }
 
 export default async function UnitPage({ params }: Props) {
-  await redirectStudentToAdventure();
-
   const { grade: gradeParam, unitId } = await params;
   const gradeNum = Number(gradeParam);
 
@@ -54,9 +52,6 @@ export default async function UnitPage({ params }: Props) {
 
   const grade = getGrade(gradeNum)!;
   const contents = getContentsForUnit(unit.id);
-  const assignCtx = await fetchTeacherAssignContext(
-    contents.map((c) => c.key),
-  );
 
   return (
     <div className="space-y-8">
@@ -95,6 +90,7 @@ export default async function UnitPage({ params }: Props) {
             </BlockButton>
           </div>
         ) : (
+          <TeacherAssignScope contentKeys={contents.map((c) => c.key)}>
           <div className="grid gap-4 sm:grid-cols-2">
             {contents.map((content) => (
               <div key={content.key} className="quest-card flex flex-col gap-3 p-5">
@@ -126,19 +122,12 @@ export default async function UnitPage({ params }: Props) {
                   >
                     {contentTypeStartLabel(content.type)}
                   </BlockButton>
-                  {assignCtx ? (
-                    <AssignContentButton
-                      contentKey={content.key}
-                      classes={assignCtx.classes}
-                      assignedClassIds={
-                        assignCtx.assignedByContent[content.key] ?? []
-                      }
-                    />
-                  ) : null}
+                  <TeacherAssignSlot contentKey={content.key} />
                 </div>
               </div>
             ))}
           </div>
+          </TeacherAssignScope>
         )}
       </section>
     </div>

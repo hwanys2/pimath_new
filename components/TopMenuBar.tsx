@@ -8,7 +8,7 @@ import { GRADES } from "@/lib/grades";
 import { TOOLS } from "@/lib/tools";
 import { signOut } from "@/app/auth/actions";
 import NicknameEditor from "@/components/NicknameEditor";
-import type { TeacherActor } from "@/lib/auth";
+import type { TeacherActor } from "@/lib/auth-types";
 
 function ToolsMenu({ pathname }: { pathname: string }) {
   const [open, setOpen] = useState(false);
