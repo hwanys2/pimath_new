@@ -25,6 +25,7 @@ const FAMILIES: SolidFamily[] = [
   "cylinder",
   "cone",
   "coneFrustum",
+  "sphere",
   "platonic",
 ];
 
@@ -38,12 +39,12 @@ describe("all families build a scene", () => {
         sides: 6,
         cylinderLie: "horizontal",
         showFill: true,
-        showVertexNames: !familyIsRound(family),
-        showHeight: true,
-        showRadius: familyIsRound(family),
+        showVertexNames: !familyIsRound(family) && family !== "sphere",
+        showHeight: family !== "sphere",
+        showRadius: familyIsRound(family) || family === "sphere",
         showSlant: familyHasSlant(family),
-        showBaseEdge: !familyIsRound(family),
-        showCenter: familyIsRound(family),
+        showBaseEdge: !familyIsRound(family) && family !== "sphere",
+        showCenter: familyIsRound(family) || family === "sphere",
       });
       const scene = buildSolidSketchScene(state);
       assert.equal(scene.width, 520);
@@ -143,5 +144,53 @@ describe("slant length drives height", () => {
     });
     const next = applyEditedLabel(start, "edge:0-4", "9");
     assert.ok(Math.abs(slantLength(next) - 9) < 1e-6);
+  });
+});
+
+describe("round fills and sphere", () => {
+  it("fills the whole base disk of a standing cylinder, not only the facing top", () => {
+    const scene = buildSolidSketchScene(
+      normalizeState({
+        ...DEFAULT_SOLID_SKETCH_STATE,
+        family: "cylinder",
+        showFill: true,
+        showVertexNames: false,
+      }),
+    );
+    const fills = scene.cmds.filter((c) => c.t === "polygon");
+    assert.ok(fills.length >= 3, "base disk, lateral, and top disk");
+  });
+
+  it("fills the base disk of a cone frustum", () => {
+    const scene = buildSolidSketchScene(
+      normalizeState({
+        ...DEFAULT_SOLID_SKETCH_STATE,
+        family: "coneFrustum",
+        showFill: true,
+        showVertexNames: false,
+      }),
+    );
+    const fills = scene.cmds.filter((c) => c.t === "polygon");
+    assert.ok(fills.length >= 3, "base disk, lateral, and top disk");
+  });
+
+  it("draws a sphere with center, radius, equator, and outline", () => {
+    const scene = buildSolidSketchScene(
+      normalizeState({
+        ...DEFAULT_SOLID_SKETCH_STATE,
+        family: "sphere",
+        radius: 5,
+        showFill: true,
+        showCenter: true,
+        showRadius: true,
+        showHidden: true,
+        showVertexNames: false,
+      }),
+    );
+    assert.ok(scene.texts.some((t) => t.id === "center-name"));
+    assert.ok(scene.texts.some((t) => t.id === "radius"));
+    const arcs = scene.cmds.filter((c) => c.t === "ellipseArc");
+    assert.ok(arcs.length >= 3, "equator front, equator back, silhouette");
+    assert.ok(arcs.some((c) => "dashed" in c && c.dashed));
   });
 });

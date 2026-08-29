@@ -18,6 +18,7 @@ export type SolidFamily =
   | "cylinder"
   | "cone"
   | "coneFrustum"
+  | "sphere"
   | "platonic";
 
 export type PlatonicKind =
@@ -214,6 +215,18 @@ export const SOLID_SKETCH_PRESETS: SolidPreset[] = [
     }),
   },
   {
+    id: "sphere",
+    title: "구",
+    hint: "중심·반지름",
+    state: baseState({
+      family: "sphere",
+      radius: 5,
+      showVertexNames: false,
+      showCenter: true,
+      showRadius: true,
+    }),
+  },
+  {
     id: "tetra",
     title: "정사면체",
     hint: "한 모서리",
@@ -320,6 +333,7 @@ export const FAMILY_OPTIONS: { id: SolidFamily; label: string }[] = [
   { id: "cylinder", label: "원기둥" },
   { id: "cone", label: "원뿔" },
   { id: "coneFrustum", label: "원뿔대" },
+  { id: "sphere", label: "구" },
   { id: "platonic", label: "정다면체" },
 ];
 
@@ -337,6 +351,10 @@ export function familyNeedsSides(family: SolidFamily): boolean {
 
 export function familyIsRound(family: SolidFamily): boolean {
   return family === "cylinder" || family === "cone" || family === "coneFrustum";
+}
+
+export function familyIsSphere(family: SolidFamily): boolean {
+  return family === "sphere";
 }
 
 /** 원뿔·각뿔·뿔대: 모선(옆면 모서리)으로 높이를 잡을 수 있다. */
@@ -368,11 +386,11 @@ export function withFamily(
     nameDx: [],
     nameDy: [],
     edgeLabels: {},
-    showVertexNames: !familyIsRound(family),
-    showCenter: familyIsRound(family),
+    showVertexNames: !familyIsRound(family) && family !== "sphere",
+    showCenter: familyIsRound(family) || family === "sphere",
     showHeight: false,
     showHeightRightAngle: false,
-    showRadius: familyIsRound(family) && family !== "coneFrustum" ? false : false,
+    showRadius: family === "sphere",
     showSlant: false,
     showBaseEdge: false,
   });
@@ -381,6 +399,10 @@ export function withFamily(
   }
   if (family === "cylinder" || family === "coneFrustum") {
     next.showCenter = true;
+  }
+  if (family === "sphere") {
+    next.showCenter = true;
+    next.showRadius = true;
   }
   return next;
 }

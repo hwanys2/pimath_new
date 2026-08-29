@@ -3,6 +3,7 @@ import type { DiagramScene as SharedDiagramScene, SceneCmd, SceneText } from "@/
 import {
   edgeKey,
   familyIsRound,
+  familyIsSphere,
   resolveLabelText,
   type MeasLabel,
   type SolidSketchState,
@@ -205,6 +206,17 @@ function collectFitPoints(mesh: SolidMesh, cam: Cam): Proj[] {
       pts.push(project3(pointOnCircle(circle, (i * Math.PI) / 6), cam));
     }
   }
+  if (mesh.sphereRadius != null && mesh.baseCenter) {
+    const sil: Circle3 = {
+      id: "base",
+      center: mesh.baseCenter,
+      normal: cam.eye,
+      radius: mesh.sphereRadius,
+    };
+    for (let i = 0; i < 12; i++) {
+      pts.push(project3(pointOnCircle(sil, (i * Math.PI) / 6), cam));
+    }
+  }
   if (mesh.apexIndex == null && mesh.baseCenter) pts.push(project3(mesh.baseCenter, cam));
   if (mesh.topCenter) pts.push(project3(mesh.topCenter, cam));
   return pts;
@@ -283,22 +295,33 @@ function slantEndpoints(
   return null;
 }
 
+function fillCircleDisk(
+  cmds: SceneCmd[],
+  circle: Circle3,
+  cam: Cam,
+  map: (p: Proj) => Vec,
+): void {
+  const ellipse = projectCircle(circle, cam, map);
+  cmds.push({
+    t: "polygon",
+    points: sampleEllipse(ellipse),
+    fill: fillGray(circle.normal, cam),
+  });
+}
+
 function drawCircleRim(
   cmds: SceneCmd[],
   circle: Circle3,
   cam: Cam,
   map: (p: Proj) => Vec,
   showHidden: boolean,
-  showFill: boolean,
   axis: Vec3 | null,
+  splitHidden = false,
 ): void {
   const ellipse = projectCircle(circle, cam, map);
   const facing = circleFacingCamera(circle, cam);
-  if (showFill && facing) {
-    cmds.push({ t: "polygon", points: sampleEllipse(ellipse), fill: fillGray(circle.normal, cam) });
-  }
   const dir = silRadial(axis ?? circle.normal, cam);
-  if (facing || !dir) {
+  if ((facing && !splitHidden) || !dir) {
     cmds.push({
       t: "ellipseArc",
       cx: ellipse.cx,
@@ -344,18 +367,16 @@ function drawCircleRim(
   }
 }
 
-function drawGenerators(
-  cmds: SceneCmd[],
+function generatorCorners(
   mesh: SolidMesh,
   cam: Cam,
   map: (p: Proj) => Vec,
-  showFill: boolean,
-): void {
+): { A: Vec; B: Vec; C: Vec; D: Vec; axis: Vec3 } | null {
   const circles = mesh.circles;
-  if (circles.length === 0) return;
+  if (circles.length === 0) return null;
   const axis = mesh.axis ?? circles[0]!.normal;
   const dir = silRadial(axis, cam);
-  if (!dir) return;
+  if (!dir) return null;
   const base = circles.find((c) => c.id === "base") ?? circles[0]!;
   const top = circles.find((c) => c.id === "top");
   const p0 = add3(base.center, mul3(dir, base.radius));
@@ -372,20 +393,89 @@ function drawGenerators(
       : top
         ? add3(top.center, mul3(dir, -top.radius))
         : null;
-  if (!q0 || !q1) return;
-  const A = map(project3(p0, cam));
-  const B = map(project3(p1, cam));
-  const C = map(project3(q0, cam));
-  const D = map(project3(q1, cam));
+  if (!q0 || !q1) return null;
+  return {
+    A: map(project3(p0, cam)),
+    B: map(project3(p1, cam)),
+    C: map(project3(q0, cam)),
+    D: map(project3(q1, cam)),
+    axis,
+  };
+}
+
+function fillRoundSolids(
+  cmds: SceneCmd[],
+  mesh: SolidMesh,
+  cam: Cam,
+  map: (p: Proj) => Vec,
+): void {
+  const back = mesh.circles.filter((c) => !circleFacingCamera(c, cam));
+  const front = mesh.circles.filter((c) => circleFacingCamera(c, cam));
+  for (const circle of back) fillCircleDisk(cmds, circle, cam, map);
+  const corners = generatorCorners(mesh, cam, map);
+  if (corners) {
+    cmds.push({
+      t: "polygon",
+      points:
+        mesh.apexIndex != null
+          ? [corners.A, corners.B, corners.C]
+          : [corners.A, corners.B, corners.D, corners.C],
+      fill: fillGray(corners.axis, cam),
+    });
+  }
+  for (const circle of front) fillCircleDisk(cmds, circle, cam, map);
+}
+
+function drawGeneratorLines(
+  cmds: SceneCmd[],
+  mesh: SolidMesh,
+  cam: Cam,
+  map: (p: Proj) => Vec,
+): void {
+  const corners = generatorCorners(mesh, cam, map);
+  if (!corners) return;
+  cmds.push({ t: "line", x1: corners.A.x, y1: corners.A.y, x2: corners.C.x, y2: corners.C.y });
+  cmds.push({ t: "line", x1: corners.B.x, y1: corners.B.y, x2: corners.D.x, y2: corners.D.y });
+}
+
+function drawSphere(
+  cmds: SceneCmd[],
+  mesh: SolidMesh,
+  cam: Cam,
+  map: (p: Proj) => Vec,
+  showFill: boolean,
+  showHidden: boolean,
+): void {
+  if (mesh.sphereRadius == null || !mesh.baseCenter) return;
+  const sil: Circle3 = {
+    id: "base",
+    center: mesh.baseCenter,
+    normal: cam.eye,
+    radius: mesh.sphereRadius,
+  };
+  const ellipse = projectCircle(sil, cam, map);
   if (showFill) {
     cmds.push({
       t: "polygon",
-      points: mesh.apexIndex != null ? [A, B, C] : [A, B, D, C],
-      fill: fillGray(axis, cam),
+      points: sampleEllipse(ellipse),
+      fill: fillGray(cam.eye, cam),
     });
   }
-  cmds.push({ t: "line", x1: A.x, y1: A.y, x2: C.x, y2: C.y });
-  cmds.push({ t: "line", x1: B.x, y1: B.y, x2: D.x, y2: D.y });
+  const equator = mesh.circles.find((c) => c.id === "base");
+  if (equator) {
+    drawCircleRim(cmds, equator, cam, map, showHidden, equator.normal, true);
+  }
+  cmds.push({
+    t: "ellipseArc",
+    cx: ellipse.cx,
+    cy: ellipse.cy,
+    ux: ellipse.ux,
+    uy: ellipse.uy,
+    vx: ellipse.vx,
+    vy: ellipse.vy,
+    a0: 0,
+    a1: Math.PI * 2,
+  });
 }
 
 export function buildSolidSketchScene(state: SolidSketchState): SolidScene {
@@ -420,18 +510,13 @@ export function buildSolidSketchScene(state: SolidSketchState): SolidScene {
     }
   }
 
-  if (familyIsRound(state.family)) {
-    drawGenerators(cmds, mesh, cam, map, state.showFill);
+  if (familyIsSphere(state.family)) {
+    drawSphere(cmds, mesh, cam, map, state.showFill, state.showHidden);
+  } else if (familyIsRound(state.family)) {
+    if (state.showFill) fillRoundSolids(cmds, mesh, cam, map);
+    drawGeneratorLines(cmds, mesh, cam, map);
     for (const circle of mesh.circles) {
-      drawCircleRim(
-        cmds,
-        circle,
-        cam,
-        map,
-        state.showHidden,
-        state.showFill,
-        mesh.axis,
-      );
+      drawCircleRim(cmds, circle, cam, map, state.showHidden, mesh.axis);
     }
   }
 

@@ -35,6 +35,7 @@ export type SolidMesh = {
   baseCenter: Vec3 | null;
   topCenter: Vec3 | null;
   axis: Vec3 | null;
+  sphereRadius: number | null;
 };
 
 const PHI = (1 + Math.sqrt(5)) / 2;
@@ -146,7 +147,7 @@ export function convexHullFaces(verts: Vec3[]): number[][] {
 function meshFromVertices(
   vertices: Vec3[],
   names: string[],
-  extra: Partial<Pick<SolidMesh, "circles" | "apexIndex" | "baseCenter" | "topCenter" | "axis">> = {},
+    extra: Partial<Pick<SolidMesh, "circles" | "apexIndex" | "baseCenter" | "topCenter" | "axis" | "sphereRadius">> = {},
 ): SolidMesh {
   const faces = convexHullFaces(vertices);
   return {
@@ -159,6 +160,7 @@ function meshFromVertices(
     baseCenter: extra.baseCenter ?? null,
     topCenter: extra.topCenter ?? null,
     axis: extra.axis ?? null,
+    sphereRadius: extra.sphereRadius ?? null,
   };
 }
 
@@ -309,7 +311,10 @@ export function buildSolidMesh(state: SolidSketchState): SolidMesh {
   if (family === "cone") {
     return roundCone(state, false);
   }
-  return roundCone(state, true);
+  if (family === "coneFrustum") {
+    return roundCone(state, true);
+  }
+  return roundSphere(state);
 }
 
 function roundCylinder(state: SolidSketchState): SolidMesh {
@@ -332,6 +337,7 @@ function roundCylinder(state: SolidSketchState): SolidMesh {
       baseCenter: a,
       topCenter: b,
       axis: v3(1, 0, 0),
+      sphereRadius: null,
     };
   }
   const bot = v3(0, 0, 0);
@@ -349,6 +355,7 @@ function roundCylinder(state: SolidSketchState): SolidMesh {
     baseCenter: bot,
     topCenter: top,
     axis: v3(0, 1, 0),
+    sphereRadius: null,
   };
 }
 
@@ -383,6 +390,24 @@ function roundCone(state: SolidSketchState, frustum: boolean): SolidMesh {
     baseCenter: bot,
     topCenter: frustum ? topC : null,
     axis: v3(0, 1, 0),
+    sphereRadius: null,
+  };
+}
+
+function roundSphere(state: SolidSketchState): SolidMesh {
+  const r = state.radius;
+  const center = v3(0, 0, 0);
+  return {
+    vertices: [],
+    names: pickNames(state, 0),
+    faces: [],
+    edges: [],
+    circles: [{ id: "base", center, normal: v3(0, 1, 0), radius: r }],
+    apexIndex: null,
+    baseCenter: center,
+    topCenter: null,
+    axis: v3(0, 1, 0),
+    sphereRadius: r,
   };
 }
 

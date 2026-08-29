@@ -28,6 +28,7 @@ import {
   defaultVertexNames,
   familyHasSlant,
   familyIsRound,
+  familyIsSphere,
   familyNeedsSides,
   normalizeState,
   resetView,
@@ -198,6 +199,7 @@ export default function SolidSketchStudio() {
   }
 
   const round = familyIsRound(state.family);
+  const sphere = familyIsSphere(state.family);
   const needsSides = familyNeedsSides(state.family);
   const prismRect = state.family === "prism" && state.sides === 4;
 
@@ -223,7 +225,7 @@ export default function SolidSketchStudio() {
             겨냥도
           </h1>
           <p className="mt-1 max-w-2xl text-sm text-foreground/65">
-            기둥·뿔·뿔대·원기둥·원뿔·정다면체를 겨냥도로 그립니다. 빈 곳을
+            기둥·뿔·뿔대·원기둥·원뿔·구·정다면체를 겨냥도로 그립니다. 빈 곳을
             끌어 돌리고, 모서리를 눌러 길이를 붙이세요. 글자를 누르면 바로
             고칠 수 있어요.
           </p>
@@ -289,18 +291,22 @@ export default function SolidSketchStudio() {
               >
                 숨은 선
               </ChipToggle>
-              <ChipToggle
-                on={state.showVertexNames}
-                onClick={() => set({ showVertexNames: !state.showVertexNames })}
-              >
-                꼭짓점 이름
-              </ChipToggle>
-              <ChipToggle
-                on={state.showHeight}
-                onClick={() => set({ showHeight: !state.showHeight })}
-              >
-                높이
-              </ChipToggle>
+              {!sphere ? (
+                <ChipToggle
+                  on={state.showVertexNames}
+                  onClick={() => set({ showVertexNames: !state.showVertexNames })}
+                >
+                  꼭짓점 이름
+                </ChipToggle>
+              ) : null}
+              {!sphere ? (
+                <ChipToggle
+                  on={state.showHeight}
+                  onClick={() => set({ showHeight: !state.showHeight })}
+                >
+                  높이
+                </ChipToggle>
+              ) : null}
               {state.showHeight ? (
                 <ChipToggle
                   on={state.showHeightRightAngle}
@@ -311,7 +317,7 @@ export default function SolidSketchStudio() {
                   직각
                 </ChipToggle>
               ) : null}
-              {round ? (
+              {round || sphere ? (
                 <ChipToggle
                   on={state.showCenter}
                   onClick={() => set({ showCenter: !state.showCenter })}
@@ -319,7 +325,7 @@ export default function SolidSketchStudio() {
                   중심
                 </ChipToggle>
               ) : null}
-              {round ? (
+              {round || sphere ? (
                 <ChipToggle
                   on={state.showRadius}
                   onClick={() => set({ showRadius: !state.showRadius })}
@@ -335,7 +341,7 @@ export default function SolidSketchStudio() {
                   모선
                 </ChipToggle>
               ) : null}
-              {!round ? (
+              {!round && !sphere ? (
                 <ChipToggle
                   on={state.showBaseEdge}
                   onClick={() => set({ showBaseEdge: !state.showBaseEdge })}
@@ -608,6 +614,15 @@ export default function SolidSketchStudio() {
                   value={state.edgeLength}
                   onChange={(edgeLength) => set({ edgeLength })}
                   min={0.5}
+                  max={40}
+                  suffix="cm"
+                />
+              ) : sphere ? (
+                <NumberField
+                  label="반지름"
+                  value={state.radius}
+                  onChange={(radius) => set({ radius })}
+                  min={0.4}
                   max={40}
                   suffix="cm"
                 />

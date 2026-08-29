@@ -48,7 +48,7 @@ export const DIAGRAM_TOOLS: DiagramToolMeta[] = [
     grade: 1,
     title: "겨냥도",
     description:
-      "각기둥·각뿔·뿔대·원기둥·원뿔·정다면체를 겨냥도로 그리고, 점 이름과 길이를 붙여 PNG로 저장해요.",
+      "각기둥·각뿔·뿔대·원기둥·원뿔·구·정다면체를 겨냥도로 그리고, 점 이름과 길이를 붙여 PNG로 저장해요.",
     unitHint: "3.4 입체도형의 성질",
     emoji: "◇",
     href: "/tools/figures/g1-solid-sketch",
