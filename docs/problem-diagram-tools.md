@@ -43,7 +43,7 @@
 ```
 도구 (/tools) 
   └─ 문제 그림 그리기 (/tools/figures)
-        ├─ 중1 카드들 → /tools/figures/g1-number-line , /tools/figures/g1-coordinate-plane , /tools/figures/g1-polygon , /tools/figures/g1-circle-sectors , /tools/figures/g1-solid-sketch
+        ├─ 중1 카드들 → /tools/figures/g1-number-line , /tools/figures/g1-coordinate-plane , /tools/figures/g1-polygon , /tools/figures/g1-circle-sectors , /tools/figures/g1-solid-sketch , /tools/figures/g1-histogram
         ├─ 중2 카드들
         └─ 중3 카드들
               └─ 원의 현 → /tools/figures/g3-circle-chords
@@ -82,7 +82,7 @@ components/tools/figures/DiagramToolShell.tsx  ← 공통 뼈대. 손대지 않�
 모든 도구가 이 규칙을 기본값으로 따른다. 스타일 슬라이더로 미세 조정은 허용하되, 기본값이 시험지처럼 보여야 한다.
 
 1. **흰 배경, 검은 선.** 장식 색·그라데이션·이모지는 그림 안에 넣지 않는다.  
-   예외: **좌표평면**만 교과서처럼 연한 청록 격자와 분홍·청록 그래프를 쓴다.
+   예외: **좌표평면**은 교과서처럼 연한 청록 격자와 분홍·청록 그래프를 쓴다. **히스토그램·도수분포다각형**은 막대 채움과 비교 선에 청록·분홍을 쓴다.
 2. **선은 가늘고 일정.** 기본 굵기는 인쇄해도 무너지지 않을 정도만.
 3. **수식 세리프.** 변수(`x`, `y`, `a`)는 이탤릭 세리프. **점 이름(`A`, `B`, `O`)은 직립 로만.** 숫자와 단위(`cm`)·한글은 직립.  
    (`16 cm`, `$x$ cm` 가 교과서와 같아야 한다. 점 이름만 기울이지 않는다.)
@@ -223,6 +223,16 @@ components/tools/figures/DiagramToolShell.tsx  ← 공통 뼈대. 손대지 않�
 - 조작: 원 둘레를 끌어 부채꼴 추가, 끝점 드래그로 중심각, 채움/호를 끌어 통째 회전. Delete로 삭제. PNG·복사·SVG.
 - 스튜디오는 §5.1 **3열**: 그림 | 표시 칩·목록 | 빠른 그림·치수·그림 스타일(기본 펼침).
 
+### 히스토그램 (`g1-histogram`)
+
+중1 `4.2 도수분포표와 상대도수`에서 나오는 시험용 히스토그램·도수분포다각형.
+
+- 계급 시작·크기·개수, 가로·세로축 이름, 세로 눈금. 시작이 0보다 크면 x축 끊기(물결).
+- 막대 또는 중점의 점을 세로로 끌어 도수를 그린다. **히스토그램 ↔ 도수분포다각형**은 같은 도수를 보기만 바꾼다. 다각형은 양쪽 가상 계급에서 도수 0으로 닫힌다.
+- 비교 그래프를 하나 더 올리면 같은 계급에 도수·색·이름만 다른 시리즈가 겹친다. 다각형은 선, 히스토그램은 반투명 막대.
+- 프리셋: 습도·일수, 점수 다각형, 학교 A·B 상대도수.
+- 스튜디오는 §5.1 **3열**: 그림 | 보기·그래프·표시 | 빠른 그림·계급·축·그림 스타일(기본 펼침).
+
 이후 접선, 원주각, 닮음 삼각형 등을 넣을 때도 **같은 카탈로그·같은 3열 스튜디오·같은 스타일 규칙·같은 라벨 모드·같은 `DiagramToolShell`(하단 의견)** 을 재사용한다.
 
 ---
@@ -236,6 +246,7 @@ components/tools/figures/DiagramToolShell.tsx  ← 공통 뼈대. 손대지 않�
 | `g1-polygon` | 중1 | 다각형 | ready |
 | `g1-circle-sectors` | 중1 | 원과 부채꼴 | ready |
 | `g1-solid-sketch` | 중1 | 겨냥도 | ready |
+| `g1-histogram` | 중1 | 히스토그램 | ready |
 | `g3-circle-chords` | 중3 | 원의 현 | ready |
 
 ---
@@ -290,3 +301,4 @@ components/tools/figures/DiagramToolShell.tsx  ← 공통 뼈대. 손대지 않�
 | 2026-08-29 | 각뿔·각뿔대 옆면 높이(이등변삼각형·사다리꼴 수선). 숫자 수정 시 그림이 맞춰짐. |
 | 2026-08-29 | 중1 다각형 (`g1-polygon`). 내각·외각·변의 길이·대각선, PNG. |
 | 2026-08-29 | 중1 원과 부채꼴 (`g1-circle-sectors`). 중심각·호 길이·넓이·부채꼴만 그리기. |
+| 2026-08-29 | 중1 히스토그램 (`g1-histogram`). 계급·축 끊기, 막대/점 드래그, 도수분포다각형 전환·비교 그래프, PNG. |

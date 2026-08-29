@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 import CircleChordsStudio from "@/components/tools/figures/circle-chords/CircleChordsStudio";
 import CircleSectorsStudio from "@/components/tools/figures/circle-sectors/CircleSectorsStudio";
 import CoordinatePlaneStudio from "@/components/tools/figures/coordinate-plane/CoordinatePlaneStudio";
+import HistogramStudio from "@/components/tools/figures/histogram/HistogramStudio";
 import NumberLineStudio from "@/components/tools/figures/number-line/NumberLineStudio";
 import PolygonStudio from "@/components/tools/figures/polygon/PolygonStudio";
 import SolidSketchStudio from "@/components/tools/figures/solid-sketch/SolidSketchStudio";
@@ -44,6 +45,8 @@ function renderDiagramStudio(toolId: string): ReactNode {
       return <SolidSketchStudio />;
     case "g1-circle-sectors":
       return <CircleSectorsStudio />;
+    case "g1-histogram":
+      return <HistogramStudio />;
     case "g3-circle-chords":
       return <CircleChordsStudio />;
     default:
