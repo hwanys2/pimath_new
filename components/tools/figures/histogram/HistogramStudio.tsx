@@ -595,6 +595,20 @@ export default function HistogramStudio() {
                         />
                       </label>
                     ))}
+                    <div className="flex items-center gap-1.5 border-t border-wood/10 pt-1.5 text-xs font-semibold text-foreground/70">
+                      <span className="w-[4.8rem] shrink-0">합계</span>
+                      <span
+                        className="min-w-0 flex-1 rounded-lg border-2 border-wood/10 bg-black/[0.03] px-1.5 py-1 text-center text-sm tabular-nums text-foreground/80"
+                        aria-label="도수 합계"
+                      >
+                        {formatTick(
+                          selectedSeries.frequencies.reduce(
+                            (sum, n) => sum + (Number.isFinite(n) ? n : 0),
+                            0,
+                          ),
+                        )}
+                      </span>
+                    </div>
                   </div>
                 </div>
               </div>
