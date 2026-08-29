@@ -53,6 +53,20 @@ export function hitTestHistogram(
   for (const text of scene.texts) {
     if (text.id.startsWith("tick-")) continue;
     const seriesId = parseSeriesLabelId(text.id);
+    if (text.id === "title") {
+      const halfW = Math.max(36, state.title.trim().length * (text.size * 0.46));
+      const halfH = text.size * 0.7 + 8;
+      if (Math.abs(text.x - x) <= halfW * s && Math.abs(text.y - y) <= halfH * s) {
+        best = consider(
+          best,
+          { kind: "label", id: "title", targetId: "title" },
+          Math.abs(text.y - y),
+          halfH * s,
+          1,
+        );
+      }
+      continue;
+    }
     if (seriesId || text.id === "axis-x" || text.id === "axis-y") {
       best = consider(
         best,
@@ -171,6 +185,7 @@ export function applyEditedLabel(
 ): HistogramState {
   if (id === "axis-x") return { ...state, xAxisLabel: raw };
   if (id === "axis-y") return { ...state, yAxisLabel: raw };
+  if (id === "title") return { ...state, title: raw };
   const seriesId = parseSeriesLabelId(id);
   if (seriesId) {
     return {

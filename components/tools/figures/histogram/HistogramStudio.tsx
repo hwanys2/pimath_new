@@ -6,7 +6,6 @@ import { useCallback, useMemo, useState, useSyncExternalStore } from "react";
 import {
   ChipToggle,
   InlineNumber,
-  NumberField,
   Segmented,
   SliderField,
   TextField,
@@ -22,6 +21,7 @@ import {
 import {
   addCompareSeries,
   classBound,
+  classEnd,
   cloneState,
   DEFAULT_HISTOGRAM_STATE,
   FILL_CYAN,
@@ -155,6 +155,41 @@ const COLORS = [
   { id: GRAPH_PINK, fill: FILL_PINK, label: "분홍" },
 ];
 
+const compactInputClass =
+  "w-full min-w-0 rounded-xl border-2 border-wood/20 bg-white px-2 py-1.5 text-sm tabular-nums outline-none focus:border-wood";
+
+function CompactNumber({
+  label,
+  value,
+  onChange,
+  min,
+  max,
+  step,
+}: {
+  label: string;
+  value: number;
+  onChange: (n: number) => void;
+  min?: number;
+  max?: number;
+  step?: number;
+}) {
+  return (
+    <label className="min-w-0">
+      <span className="text-xs font-semibold text-foreground/60">{label}</span>
+      <input
+        type="number"
+        aria-label={label}
+        value={Number.isFinite(value) ? value : 0}
+        min={min}
+        max={max}
+        step={step}
+        onChange={(e) => onChange(Number(e.target.value))}
+        className={`mt-1 ${compactInputClass}`}
+      />
+    </label>
+  );
+}
+
 export default function HistogramStudio() {
   const [state, setState] = useHistogramState();
   const [status, setStatus] = useState<string | null>(null);
@@ -212,6 +247,26 @@ export default function HistogramStudio() {
   }
 
   const canBreak = state.classStart > 1e-9;
+  const classEndValue = classEnd(state);
+
+  function setClassStartKeepEnd(classStart: number) {
+    const width = (classEndValue - classStart) / state.classCount;
+    if (!(width >= 0.01)) return;
+    set({ classStart, classWidth: width });
+  }
+
+  function setClassEndKeepStart(end: number) {
+    const width = (end - state.classStart) / state.classCount;
+    if (!(width >= 0.01)) return;
+    set({ classWidth: width });
+  }
+
+  function setClassCountKeepRange(classCount: number) {
+    const count = Math.min(12, Math.max(3, Math.round(classCount)));
+    const width = (classEndValue - state.classStart) / count;
+    if (!(width >= 0.01)) return;
+    set({ classCount: count, classWidth: width });
+  }
 
   return (
     <div className={`${notoSerif.variable} ${notoSerifKr.variable} space-y-4`}>
@@ -236,8 +291,8 @@ export default function HistogramStudio() {
           </h1>
           <p className="mt-1 max-w-2xl text-sm text-foreground/65">
             계급을 맞추고 막대나 점을 끌어 도수를 그립니다. 버튼으로
-            히스토그램과 도수분포다각형을 바꾸고, 비교 그래프를 하나 더 올릴 수
-            있어요.
+            히스토그램과 도수분포다각형을 바꿉니다. 다각형에서는 비교 그래프를
+            하나 더 올릴 수 있어요.
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -276,15 +331,100 @@ export default function HistogramStudio() {
       ) : null}
 
       <div className="grid items-start gap-5 lg:grid-cols-[minmax(0,22rem)_minmax(16rem,20rem)_minmax(15rem,18rem)]">
-        <div className="mx-auto w-full max-w-[24rem] overflow-hidden rounded-3xl border-2 border-wood/10 bg-white shadow-[0_12px_40px_rgba(61,44,30,0.08)] lg:mx-0">
-          <HistogramCanvas
-            state={state}
-            fonts={fonts}
-            selectedId={selectedSeries?.id ?? null}
-            setState={setState}
-            persist={persistCachedState}
-            onSelect={setSelectedId}
-          />
+        <div className="mx-auto w-full max-w-[24rem] space-y-4 lg:mx-0">
+          <div className="overflow-hidden rounded-3xl border-2 border-wood/10 bg-white shadow-[0_12px_40px_rgba(61,44,30,0.08)]">
+            <HistogramCanvas
+              state={state}
+              fonts={fonts}
+              selectedId={selectedSeries?.id ?? null}
+              setState={setState}
+              persist={persistCachedState}
+              onSelect={setSelectedId}
+            />
+          </div>
+
+          <section className="rounded-2xl border-2 border-wood/10 bg-white/80 p-3.5">
+            <h2 className="font-display text-sm text-wood-dark">계급·축</h2>
+            <div className="mt-2 grid grid-cols-2 gap-x-2 gap-y-2">
+              <div className="col-span-2">
+                <p className="text-xs font-semibold text-foreground/60">계급</p>
+                <div className="mt-1 grid grid-cols-[1fr_auto_1fr] items-center gap-1.5">
+                  <input
+                    type="number"
+                    aria-label="계급 시작"
+                    value={Number.isFinite(state.classStart) ? state.classStart : 0}
+                    step={0.5}
+                    onChange={(e) => setClassStartKeepEnd(Number(e.target.value))}
+                    className={compactInputClass}
+                  />
+                  <span className="text-sm text-foreground/40">~</span>
+                  <input
+                    type="number"
+                    aria-label="계급 끝"
+                    value={Number.isFinite(classEndValue) ? classEndValue : 0}
+                    step={0.5}
+                    onChange={(e) => setClassEndKeepStart(Number(e.target.value))}
+                    className={compactInputClass}
+                  />
+                </div>
+              </div>
+              <CompactNumber
+                label="크기"
+                value={state.classWidth}
+                onChange={(classWidth) => set({ classWidth })}
+                min={0.01}
+                step={0.5}
+              />
+              <CompactNumber
+                label="개수"
+                value={state.classCount}
+                onChange={setClassCountKeepRange}
+                min={3}
+                max={12}
+                step={1}
+              />
+              <label className="min-w-0">
+                <span className="text-xs font-semibold text-foreground/60">
+                  가로축
+                </span>
+                <input
+                  type="text"
+                  aria-label="가로축 이름"
+                  value={state.xAxisLabel}
+                  placeholder="(%)"
+                  onChange={(e) => set({ xAxisLabel: e.target.value })}
+                  className={`mt-1 w-full min-w-0 rounded-xl border-2 border-wood/20 bg-white px-2 py-1.5 text-sm outline-none focus:border-wood`}
+                />
+              </label>
+              <label className="min-w-0">
+                <span className="text-xs font-semibold text-foreground/60">
+                  세로축
+                </span>
+                <input
+                  type="text"
+                  aria-label="세로축 이름"
+                  value={state.yAxisLabel}
+                  placeholder="(일)"
+                  onChange={(e) => set({ yAxisLabel: e.target.value })}
+                  className={`mt-1 w-full min-w-0 rounded-xl border-2 border-wood/20 bg-white px-2 py-1.5 text-sm outline-none focus:border-wood`}
+                />
+              </label>
+              <CompactNumber
+                label="최댓값"
+                value={state.yMax}
+                onChange={(yMax) => set({ yMax })}
+                min={state.yTick}
+                step={state.yTick}
+              />
+              <CompactNumber
+                label="눈금"
+                value={state.yTick}
+                onChange={(yTick) => set({ yTick })}
+                min={0.001}
+                step={0.1}
+              />
+            </div>
+          </section>
         </div>
 
         <div className="space-y-4">
@@ -319,39 +459,41 @@ export default function HistogramStudio() {
                 </ChipToggle>
               ))}
             </div>
-            <div className="mt-2 flex flex-wrap gap-1.5">
-              {state.series.length < 2 ? (
-                <button
-                  type="button"
-                  onClick={() => {
-                    setState((prev) => {
-                      const next = addCompareSeries(prev);
-                      const added = next.series[next.series.length - 1];
-                      if (added) setSelectedId(added.id);
-                      return next;
-                    });
-                  }}
-                  className="rounded-full bg-black/5 px-2.5 py-1 text-xs font-semibold text-foreground/60 hover:bg-black/10"
-                >
-                  비교 그래프 추가
-                </button>
-              ) : (
-                <button
-                  type="button"
-                  onClick={() => {
-                    if (!selectedSeries) return;
-                    setState((prev) => {
-                      const next = removeSeries(prev, selectedSeries.id);
-                      setSelectedId(next.series[0]?.id ?? null);
-                      return next;
-                    });
-                  }}
-                  className="rounded-full bg-black/5 px-2.5 py-1 text-xs font-semibold text-foreground/60 hover:bg-black/10"
-                >
-                  그래프 지우기
-                </button>
-              )}
-            </div>
+            {state.kind === "polygon" ? (
+              <div className="mt-2 flex flex-wrap gap-1.5">
+                {state.series.length < 2 ? (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setState((prev) => {
+                        const next = addCompareSeries(prev);
+                        const added = next.series[next.series.length - 1];
+                        if (added) setSelectedId(added.id);
+                        return next;
+                      });
+                    }}
+                    className="rounded-full bg-black/5 px-2.5 py-1 text-xs font-semibold text-foreground/60 hover:bg-black/10"
+                  >
+                    비교 그래프 추가
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (!selectedSeries) return;
+                      setState((prev) => {
+                        const next = removeSeries(prev, selectedSeries.id);
+                        setSelectedId(next.series[0]?.id ?? null);
+                        return next;
+                      });
+                    }}
+                    className="rounded-full bg-black/5 px-2.5 py-1 text-xs font-semibold text-foreground/60 hover:bg-black/10"
+                  >
+                    그래프 지우기
+                  </button>
+                )}
+              </div>
+            ) : null}
             {selectedSeries ? (
               <div className="mt-3 space-y-2">
                 <TextField
@@ -447,7 +589,23 @@ export default function HistogramStudio() {
               >
                 점 표시
               </ChipToggle>
+              <ChipToggle
+                on={state.showTitle}
+                onClick={() => set({ showTitle: !state.showTitle })}
+              >
+                제목
+              </ChipToggle>
             </div>
+            {state.showTitle ? (
+              <div className="mt-2">
+                <TextField
+                  label="제목"
+                  value={state.title}
+                  onChange={(title) => set({ title, showTitle: true })}
+                  placeholder="예: 습도별 일수"
+                />
+              </div>
+            ) : null}
             {!canBreak ? (
               <p className="mt-2 text-[11px] text-foreground/45">
                 계급 시작이 0보다 클 때 x축을 끊을 수 있어요.
@@ -477,59 +635,6 @@ export default function HistogramStudio() {
                   </span>
                 </button>
               ))}
-            </div>
-          </section>
-
-          <section className="rounded-2xl border-2 border-wood/10 bg-white/80 p-3.5">
-            <h2 className="font-display text-sm text-wood-dark">계급·축</h2>
-            <div className="mt-3 space-y-2">
-              <NumberField
-                label="계급 시작"
-                value={state.classStart}
-                onChange={(classStart) => set({ classStart })}
-                step={0.5}
-              />
-              <NumberField
-                label="계급의 크기"
-                value={state.classWidth}
-                onChange={(classWidth) => set({ classWidth })}
-                min={0.01}
-                step={0.5}
-              />
-              <NumberField
-                label="계급 개수"
-                value={state.classCount}
-                onChange={(classCount) => set({ classCount })}
-                min={3}
-                max={12}
-                step={1}
-              />
-              <TextField
-                label="가로축 이름"
-                value={state.xAxisLabel}
-                onChange={(xAxisLabel) => set({ xAxisLabel })}
-                placeholder="(%)"
-              />
-              <TextField
-                label="세로축 이름"
-                value={state.yAxisLabel}
-                onChange={(yAxisLabel) => set({ yAxisLabel })}
-                placeholder="(일)"
-              />
-              <NumberField
-                label="세로축 최댓값"
-                value={state.yMax}
-                onChange={(yMax) => set({ yMax })}
-                min={state.yTick}
-                step={state.yTick}
-              />
-              <NumberField
-                label="세로축 눈금"
-                value={state.yTick}
-                onChange={(yTick) => set({ yTick })}
-                min={0.001}
-                step={0.1}
-              />
             </div>
           </section>
 

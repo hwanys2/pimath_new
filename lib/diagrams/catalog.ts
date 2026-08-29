@@ -81,7 +81,7 @@ export const DIAGRAM_TOOLS: DiagramToolMeta[] = [
     grade: 1,
     title: "히스토그램",
     description:
-      "계급을 맞추고 막대·점을 끌어 히스토그램과 도수분포다각형을 그리고, 비교 그래프까지 PNG로 저장해요.",
+      "계급을 맞추고 막대·점을 끌어 히스토그램과 도수분포다각형을 그리고 PNG로 저장해요. 다각형에서는 비교 그래프도 그릴 수 있어요.",
     unitHint: "4.2 도수분포표와 상대도수",
     emoji: "▮",
     href: "/tools/figures/g1-histogram",

@@ -36,6 +36,8 @@ export type HistogramState = {
   xBreak: boolean;
   xAxisLabel: string;
   yAxisLabel: string;
+  title: string;
+  showTitle: boolean;
   yMax: number;
   yTick: number;
   showGrid: boolean;
@@ -187,6 +189,8 @@ export function normalizeState(state: HistogramState): HistogramState {
     xBreak,
     xAxisLabel: typeof state.xAxisLabel === "string" ? state.xAxisLabel : "",
     yAxisLabel: typeof state.yAxisLabel === "string" ? state.yAxisLabel : "",
+    title: typeof state.title === "string" ? state.title : "",
+    showTitle: Boolean(state.showTitle),
     yMax,
     yTick,
     showGrid: state.showGrid !== false,
@@ -214,6 +218,8 @@ function baseState(partial: Partial<HistogramState> = {}): HistogramState {
     xBreak: false,
     xAxisLabel: "(점)",
     yAxisLabel: "(명)",
+    title: "",
+    showTitle: false,
     yMax: 10,
     yTick: 2,
     showGrid: true,
@@ -326,6 +332,10 @@ export const HISTOGRAM_PRESETS: {
 export const DEFAULT_HISTOGRAM_STATE: HistogramState = structuredClone(
   HISTOGRAM_PRESETS[0]!.state,
 );
+
+export function hasChartTitle(state: Pick<HistogramState, "title" | "showTitle">): boolean {
+  return Boolean(state.showTitle) && state.title.trim().length > 0;
+}
 
 export function cloneState(state: HistogramState): HistogramState {
   return structuredClone(state);

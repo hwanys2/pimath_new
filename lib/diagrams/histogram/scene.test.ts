@@ -149,4 +149,56 @@ describe("histogram scene", () => {
       Math.abs(poly.pts[poly.pts.length - 1]!.y - canvasYFromValue(0, layout)) < 1e-6,
     );
   });
+
+  it("draws an optional title above the plot without adding x ticks", () => {
+    const off = HISTOGRAM_PRESETS.find((p) => p.id === "two-schools")!.state;
+    const on = normalizeState({
+      ...off,
+      showTitle: true,
+      title: "상대도수분포다각형",
+    });
+    const sceneOff = buildHistogramScene(off);
+    const sceneOn = buildHistogramScene(on);
+    assert.equal(
+      sceneOff.texts.some((t) => t.id === "title"),
+      false,
+    );
+    const title = sceneOn.texts.find((t) => t.id === "title");
+    assert.ok(title);
+    assert.ok(title.y < sceneOn.layout.plotTop);
+    assert.ok(sceneOn.layout.plotTop > sceneOff.layout.plotTop);
+    assert.equal(sceneOn.layout.xMin, sceneOff.layout.xMin);
+    assert.ok(sceneOn.texts.some((t) => t.id === "tick-x:0"));
+  });
+
+  it("draws horizontal grid only at labeled y ticks", () => {
+    const state = {
+      ...DEFAULT_HISTOGRAM_STATE,
+      showGrid: true,
+      kind: "histogram" as const,
+    };
+    const scene = buildHistogramScene(state);
+    const yLabels = scene.texts.filter((t) => t.id.startsWith("tick-y:"));
+    const horiz = scene.cmds.filter(
+      (c) => c.t === "line" && c.id === "grid" && Math.abs(c.y1 - c.y2) < 1e-9,
+    );
+    assert.equal(horiz.length, yLabels.length);
+  });
+
+  it("keeps the same vertical grid when switching to a frequency polygon", () => {
+    const hist = {
+      ...HISTOGRAM_PRESETS.find((p) => p.id === "two-schools")!.state,
+      kind: "histogram" as const,
+      showGrid: true,
+    };
+    const polygon = { ...hist, kind: "polygon" as const };
+    const histScene = buildHistogramScene(hist);
+    const polyScene = buildHistogramScene(polygon);
+    const vertical = (scene: ReturnType<typeof buildHistogramScene>) =>
+      scene.cmds.filter(
+        (c) => c.t === "line" && c.id === "grid" && Math.abs(c.x1 - c.x2) < 1e-9,
+      ).length;
+    assert.equal(vertical(histScene), vertical(polyScene));
+    assert.equal(vertical(histScene), hist.classCount + 1);
+  });
 });

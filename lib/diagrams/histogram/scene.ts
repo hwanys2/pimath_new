@@ -6,6 +6,7 @@ import {
   classEnd,
   classMid,
   formatTick,
+  hasChartTitle,
   polygonVertices,
   seriesPeakIndex,
   tickValues,
@@ -47,7 +48,10 @@ export function getHistLayout(state: HistogramState): HistLayout {
   const pad = Math.max(40, state.style.padding);
   const plotLeft = pad;
   const plotRight = SCENE_WIDTH - Math.max(36, pad * 0.55);
-  const plotTop = Math.max(28, pad * 0.55);
+  const titleBand = hasChartTitle(state)
+    ? Math.max(22, state.style.pointLabelSize + 10)
+    : 0;
+  const plotTop = Math.max(28, pad * 0.55) + titleBand;
   const plotTopInner = plotTop + 10;
   const plotBottom = SCENE_HEIGHT - Math.max(28, pad * 0.48);
   const range = dataXRange(state);
@@ -131,33 +135,26 @@ function axisBreakWaves(cx: number, cy: number): SceneCmd[] {
   ];
 }
 
-function minorTick(step: number): number {
-  return step > 1e-9 ? step / 2 : step;
-}
-
 export function buildHistogramScene(state: HistogramState): HistogramScene {
   const layout = getHistLayout(state);
   const cmds: SceneCmd[] = [];
   const texts: SceneText[] = [];
   const grid = state.style.gridColor;
-  const minor = "#e6e4e0";
   const lw = state.style.lineWidth;
   const bounds = classBounds(state);
   const yMajor = tickValues(0, state.yMax, state.yTick);
-  const yMinor = tickValues(0, state.yMax, minorTick(state.yTick));
 
   if (state.showGrid) {
-    for (const y of yMinor) {
+    for (const y of yMajor) {
       if (Math.abs(y) < 1e-9) continue;
       const cy = canvasYFromValue(y, layout);
-      const isMajor = yMajor.some((m) => Math.abs(m - y) < 1e-8);
       cmds.push({
         t: "line",
         x1: layout.dataLeft,
         y1: cy,
         x2: layout.plotRight,
         y2: cy,
-        stroke: isMajor ? grid : minor,
+        stroke: grid,
         width: 0.85,
         id: "grid",
       });
@@ -174,21 +171,6 @@ export function buildHistogramScene(state: HistogramState): HistogramScene {
         width: 0.85,
         id: "grid",
       });
-    }
-    if (state.kind === "polygon") {
-      for (let i = 0; i < state.classCount; i += 1) {
-        const cx = canvasXFromValue(classMid(state, i), layout);
-        cmds.push({
-          t: "line",
-          x1: cx,
-          y1: layout.plotTopInner,
-          x2: cx,
-          y2: layout.plotBottom,
-          stroke: minor,
-          width: 0.7,
-          id: "grid",
-        });
-      }
     }
   }
 
@@ -419,6 +401,16 @@ export function buildHistogramScene(state: HistogramState): HistogramScene {
       x: ox + 2,
       y: Math.max(layout.plotTop - 4, 14),
       runs: parseMathRuns(state.yAxisLabel.trim()),
+      size: state.style.pointLabelSize,
+      anchor: "middle",
+    });
+  }
+  if (hasChartTitle(state)) {
+    pushText(texts, cmds, {
+      id: "title",
+      x: SCENE_WIDTH / 2,
+      y: Math.max(16, state.style.pointLabelSize * 0.75),
+      runs: parseMathRuns(state.title.trim()),
       size: state.style.pointLabelSize,
       anchor: "middle",
     });
