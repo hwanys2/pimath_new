@@ -40,12 +40,7 @@ export type HistogramScene = DiagramScene & {
 };
 
 export function dataXRange(state: HistogramState): { xMin: number; xMax: number } {
-  const start = state.classStart;
-  const end = classEnd(state);
-  if (state.kind === "polygon") {
-    return { xMin: start - state.classWidth, xMax: end + state.classWidth };
-  }
-  return { xMin: start, xMax: end };
+  return { xMin: state.classStart, xMax: classEnd(state) };
 }
 
 export function getHistLayout(state: HistogramState): HistLayout {
@@ -80,6 +75,10 @@ export function getHistLayout(state: HistogramState): HistLayout {
     stubW,
     gapW,
   };
+}
+
+function clampCanvasX(x: number): number {
+  return Math.max(6, Math.min(SCENE_WIDTH - 8, x));
 }
 
 export function canvasXFromValue(x: number, layout: HistLayout): number {
@@ -195,6 +194,20 @@ export function buildHistogramScene(state: HistogramState): HistogramScene {
 
   const ox = layout.originX;
   const oy = layout.originY;
+  const dummyLeftX = clampCanvasX(
+    canvasXFromValue(state.classStart - state.classWidth / 2, layout),
+  );
+  const dummyRightX = clampCanvasX(
+    canvasXFromValue(classEnd(state) + state.classWidth / 2, layout),
+  );
+  const axisLeft =
+    state.kind === "polygon" && !layout.xBreak
+      ? Math.min(layout.plotLeft, dummyLeftX)
+      : layout.plotLeft;
+  const axisRight =
+    state.kind === "polygon"
+      ? Math.min(SCENE_WIDTH - 10, Math.max(layout.plotRight, dummyRightX))
+      : layout.plotRight;
 
   if (layout.xBreak) {
     cmds.push({
@@ -213,18 +226,21 @@ export function buildHistogramScene(state: HistogramState): HistogramScene {
     );
     cmds.push({
       t: "line",
-      x1: layout.dataLeft,
+      x1:
+        state.kind === "polygon"
+          ? Math.min(layout.dataLeft, dummyLeftX)
+          : layout.dataLeft,
       y1: oy,
-      x2: layout.plotRight,
+      x2: axisRight,
       y2: oy,
       width: lw,
     });
   } else {
     cmds.push({
       t: "line",
-      x1: layout.plotLeft,
+      x1: axisLeft,
       y1: oy,
-      x2: layout.plotRight,
+      x2: axisRight,
       y2: oy,
       width: lw,
     });
@@ -343,10 +359,14 @@ export function buildHistogramScene(state: HistogramState): HistogramScene {
   } else {
     for (const series of [...state.series].reverse()) {
       const verts = polygonVertices(state, series.frequencies);
-      const pts = verts.map((v) => ({
-        x: canvasXFromValue(v.x, layout),
-        y: canvasYFromValue(v.y, layout),
-      }));
+      const pts = verts.map((v, i) => {
+        const x = canvasXFromValue(v.x, layout);
+        const isDummy = i === 0 || i === verts.length - 1;
+        return {
+          x: isDummy ? clampCanvasX(x) : x,
+          y: canvasYFromValue(v.y, layout),
+        };
+      });
       cmds.push({
         t: "polyline",
         pts,
@@ -354,8 +374,7 @@ export function buildHistogramScene(state: HistogramState): HistogramScene {
         width: state.style.graphWidth,
       });
       if (state.showPoints) {
-        for (let i = 1; i < verts.length - 1; i += 1) {
-          const p = pts[i]!;
+        for (const p of pts) {
           cmds.push({
             t: "dot",
             x: p.x,

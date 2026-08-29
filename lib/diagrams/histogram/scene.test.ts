@@ -64,6 +64,34 @@ describe("histogram classes", () => {
 });
 
 describe("histogram scene", () => {
+  it("keeps the histogram x-axis when switching to a frequency polygon", () => {
+    const hist = {
+      ...HISTOGRAM_PRESETS.find((p) => p.id === "two-schools")!.state,
+      kind: "histogram" as const,
+    };
+    const polygon = { ...hist, kind: "polygon" as const };
+    const histLayout = getHistLayout(hist);
+    const polyLayout = getHistLayout(polygon);
+    assert.equal(histLayout.xMin, 0);
+    assert.equal(histLayout.xMax, 100);
+    assert.equal(polyLayout.xMin, histLayout.xMin);
+    assert.equal(polyLayout.xMax, histLayout.xMax);
+
+    const verts = polygonVertices(polygon, polygon.series[0]!.frequencies);
+    assert.ok(Math.abs(verts[0]!.x - -10) < 1e-9);
+    assert.equal(verts[0]!.y, 0);
+    const dummyX = canvasXFromValue(verts[0]!.x, polyLayout);
+    const zeroX = canvasXFromValue(0, polyLayout);
+    assert.ok(dummyX < zeroX);
+
+    const scene = buildHistogramScene(polygon);
+    assert.equal(
+      scene.texts.some((t) => t.id === "tick-x:-20"),
+      false,
+    );
+    assert.ok(scene.texts.some((t) => t.id === "tick-x:0"));
+  });
+
   it("round-trips canvas and data coordinates without a break", () => {
     const state = HISTOGRAM_PRESETS.find((p) => p.id === "two-schools")!.state;
     const layout = getHistLayout(state);
