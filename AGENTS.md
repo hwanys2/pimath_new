@@ -24,4 +24,4 @@ When adding or changing **1:1 matchmaking games** (class/global queue, auto-requ
 
 # 문제 그림 그리기
 
-When adding or changing **exam-diagram tools** (학년별 카드, 원의 현 같은 소재별 생성기, PNG 저장), READ and FOLLOW [`docs/problem-diagram-tools.md`](docs/problem-diagram-tools.md). These are specialized generators, not a GeoGebra-style construction app.
+When adding or changing **exam-diagram tools** (학년별 카드, 원의 현 같은 소재별 생성기, PNG 저장), READ and FOLLOW [`docs/problem-diagram-tools.md`](docs/problem-diagram-tools.md). These are specialized generators, not a GeoGebra-style construction app. New tools must go through the shared `[toolId]` page shell (`DiagramToolShell`) so the bottom feedback thread is always present — do not add a per-tool route or copy the comment UI into a studio.

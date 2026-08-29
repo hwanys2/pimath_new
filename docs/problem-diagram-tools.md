@@ -57,10 +57,22 @@
 새 도구를 만들 때 파일 위치:
 
 ```
-lib/diagrams/catalog.ts          ← 메타 등록 (필수)
-lib/diagrams/<toolId>/           ← 상태, 프리셋, 장면(scene)
-components/tools/figures/<id>/   ← 편집 UI
-app/tools/figures/[toolId]/      ← 페이지에서 스튜디오를 연결
+lib/diagrams/catalog.ts                    ← 메타 등록 (필수)
+lib/diagrams/<toolId>/                     ← 상태, 프리셋, 장면(scene)
+components/tools/figures/<id>/             ← 편집 UI (스튜디오만)
+app/tools/figures/[toolId]/page.tsx        ← renderDiagramStudio() 분기만 추가
+components/tools/figures/DiagramToolShell.tsx  ← 공통 뼈대. 손대지 않음
+```
+
+개별 도구 페이지 파일(`app/tools/figures/g3-tangents/page.tsx` 같은 것)을 **만들지 않는다.** 라우트는 `[toolId]` 하나다.
+
+페이지 구성은 항상 같다. 새 도구를 넣어도 **의견은 자동으로** 붙는다.
+
+```
+/tools/figures/{toolId}
+  └─ DiagramToolShell          ← 공통. 도구마다 복사하지 않음
+        ├─ 스튜디오 (도구별)   ← 여기만 새로 작성
+        └─ DiagramFeedback     ← 공통 의견. tool_id로 구분
 ```
 
 ---
@@ -102,15 +114,17 @@ app/tools/figures/[toolId]/      ← 페이지에서 스튜디오를 연결
 2. `lib/diagrams/<toolId>/`에 상태 타입, 프리셋(실제 시험 유형 2~4개), `buildScene()`을 둔다.
 3. 장면은 캔버스/SVG가 같이 쓸 수 있는 명령 목록으로 만든다. 미리보기와 PNG가 어긋나면 안 된다.
 4. `components/tools/figures/<toolId>/`에 스튜디오 UI. 그림이 주 편집면. 프리셋·표시 칩 → (접힌) 스타일 → 저장.
-5. `app/tools/figures/[toolId]/page.tsx`의 스튜디오 분기만 추가한다. 라우트 패턴을 바꾸지 않는다. 페이지 하단 의견 섹션은 도구 페이지 뼈대가 붙이므로 스튜디오에 넣지 않는다.
+5. [`app/tools/figures/[toolId]/page.tsx`](../app/tools/figures/[toolId]/page.tsx)의 `renderDiagramStudio()`에 `case`만 추가한다. 라우트를 새로 만들지 않는다. 페이지는 반드시 [`DiagramToolShell`](../components/tools/figures/DiagramToolShell.tsx)로 감싼다 — 스튜디오만 `return`하면 의견이 빠진다.
 6. 기본 프리셋으로 PNG를 저장해 보고, 라벨 겹침·직각 위치·단위 이탤릭 여부를 확인한다.
-7. 이 문서 §8 도구 목록에 한 줄 추가한다.
+7. 이 문서 §8 도구 목록에 한 줄 추가한다. 의견용 마이그레이션·컴포넌트·RPC는 **추가하지 않는다.** 같은 `pm_diagram_feedback`이 `tool_id`로 갈린다.
 
 하지 말 것:
 
 - 범용 기하 캔버스(자유 작도, 도구 팔레트 10개 이상)를 이 허브에 넣지 않는다.
 - `lib/contents.ts`에 넣거나 XP를 주지 않는다.
 - 기존 콘텐츠 단원 페이지를 이 도구의 진입점으로 바꾸지 않는다. 진입은 `/tools/figures`다.
+- 도구별 `page.tsx`를 새로 만들거나, 스튜디오 안에 `DiagramFeedback`를 복사하지 않는다.
+- 도구마다 의견 테이블/알림 RPC를 새로 만들지 않는다.
 
 ---
 
@@ -124,7 +138,7 @@ app/tools/figures/[toolId]/      ← 페이지에서 스튜디오를 연결
 - 수선·직각·OA/OB 등은 오른쪽 패널 칩. 그림은 작게, 패널은 오른쪽 컬럼.
 - 프리셋이 곧 문제 유형의 시작점이다.
 
-이후 접선, 원주각, 닮음 삼각형 등을 넣을 때도 **같은 카탈로그·같은 스타일 규칙·같은 라벨 모드**를 재사용한다.
+이후 접선, 원주각, 닮음 삼각형 등을 넣을 때도 **같은 카탈로그·같은 스타일 규칙·같은 라벨 모드·같은 `DiagramToolShell`(하단 의견)** 을 재사용한다.
 
 ---
 
@@ -136,9 +150,31 @@ app/tools/figures/[toolId]/      ← 페이지에서 스튜디오를 연결
 
 ---
 
-## 9. 의견 (도구 페이지 하단)
+## 9. 의견 (모든 도구 페이지 공통)
 
-각 `/tools/figures/{toolId}` 하단에 공통 의견 스레드가 있다. 공개 열람, 작성은 교사 로그인. 관리자(`hwanys2@naver.com`)만 반영완료/반려와 사유를 남긴다. 새 댓글은 공유 DB의 기존 `create_notification`으로 관리자 foreducator 알림이 간다. 구현: [`components/tools/figures/DiagramFeedback.tsx`](../components/tools/figures/DiagramFeedback.tsx), RPC `pm_list_diagram_feedback` / `pm_create_diagram_feedback` / `pm_resolve_diagram_feedback`.
+단일 출처. 별도 `diagram-feedback.md`를 만들지 않는다. DB 객체 목록은 [`docs/supabase-pm-conventions.md`](supabase-pm-conventions.md)에도 한 줄로 적혀 있고, 제품 규칙은 여기가 맞다.
+
+**새 도구를 추가할 때 의견 UI·테이블·알림을 다시 만들지 않는다.** 카탈로그 id가 곧 `tool_id`다. [`DiagramToolShell`](../components/tools/figures/DiagramToolShell.tsx)이 스튜디오 아래에 [`DiagramFeedback`](../components/tools/figures/DiagramFeedback.tsx)를 붙인다.
+
+| 규칙 | 내용 |
+|------|------|
+| 열람 | 로그인 없이 공개 |
+| 작성 | 교사 로그인. 미로그인 시 `/login/teacher?next=/tools/figures/{toolId}#feedback` |
+| 삭제 | 작성자는 본인 댓글, 관리자(`hwanys2@naver.com`)는 모든 댓글 |
+| 관리자 | `hwanys2@naver.com`만 반영완료(`applied`) / 반려(`rejected`) + 선택 사유(`admin_note`) |
+| 저장 | `pm_diagram_feedback.tool_id` = 카탈로그 `id` (예: `g3-circle-chords`) |
+| RPC | `pm_list_diagram_feedback` · `pm_create_diagram_feedback` · `pm_resolve_diagram_feedback` · `pm_delete_diagram_feedback` |
+| 알림 | 새 댓글만 기존 `create_notification`으로 관리자 foreducator 알림 (벨·텔레그램·웹푸시). URL `https://www.pimath.kr/tools/figures/{toolId}#feedback` |
+| 본인 댓글 | `create_notification`이 자기 알림을 막음 |
+
+손대지 말 것: `create_notification` 정의, `common_notification` 스키마, 레거시 `pimath_comment`.
+
+구현 파일:
+
+- 뼈대: [`components/tools/figures/DiagramToolShell.tsx`](../components/tools/figures/DiagramToolShell.tsx)
+- UI: [`components/tools/figures/DiagramFeedback.tsx`](../components/tools/figures/DiagramFeedback.tsx)
+- 액션: [`app/tools/figures/actions.ts`](../app/tools/figures/actions.ts)
+- 마이그레이션: `supabase/migrations/20260829040000_pm_diagram_feedback.sql`, `20260829050000_pm_delete_diagram_feedback.sql`
 
 ---
 
@@ -149,3 +185,5 @@ app/tools/figures/[toolId]/      ← 페이지에서 스튜디오를 연결
 | 2026-08-27 | 초판. 허브 + 원의 현 첫 도구. 범용 작도기가 아닌 소재별 생성기 지침. |
 | 2026-08-27 | 원의 현: 작은 캔버스 + 오른쪽 패널, 끝점 길이 고정, 설명선 높이 드래그, 현 삭제. |
 | 2026-08-29 | 도구 페이지 하단 의견 스레드. 관리자 반영완료/반려. 새 댓글은 foreducator 알림. |
+| 2026-08-29 | 의견 삭제: 작성자 본인, 관리자는 전체. |
+| 2026-08-29 | 공통 `DiagramToolShell`로 고정. 새 도구는 스튜디오 분기만 추가하면 의견이 붙음. |

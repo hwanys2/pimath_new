@@ -156,7 +156,10 @@ PM_STUDENT_SESSION_SECRET=...  # 서버 전용, 긴 랜덤 문자열
 | `pm_pvp_rematch_block` | 대전 게임 직전 상대 재매칭 방지 (게임별 20초 쿨다운) |
 | `pm_pvp_record_rematch_block` | 대국 종료 시 양방향 블록 기록 (내부 헬퍼) |
 | `pm_omok_*` / `pm_quad_*` / `pm_sq_*` | 1:1 대전 매칭·게임·랭킹 RPC (오목 / 사각형 / 정사각형) |
+| `pm_diagram_feedback` | 문제 그림 도구 페이지 의견 (`tool_id`로 구분). 도구마다 테이블을 만들지 않음 |
+| `pm_list_diagram_feedback` / `pm_create_diagram_feedback` / `pm_resolve_diagram_feedback` / `pm_delete_diagram_feedback` | 의견 목록·작성·관리자 반영완료/반려·삭제(작성자 본인 또는 관리자). 알림은 기존 `create_notification` |
 
+문제 그림 의견 제품 규칙: [`docs/problem-diagram-tools.md`](problem-diagram-tools.md) §9.  
 대전 매칭·자동 재매칭 구현 가이드: [`docs/pvp-matchmaking.md`](pvp-matchmaking.md).  
 제품 규칙(스코프, 재매칭 20초 등): [`docs/content-system.md`](content-system.md) §5.4.
 - 앱에서 학생 세션은 `lib/student-session.ts` (`jose` JWT 쿠키 + DB session token). 교사 식별은 계속 `getUser()`.

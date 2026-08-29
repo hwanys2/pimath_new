@@ -2,11 +2,9 @@ import type { ReactNode } from "react";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import CircleChordsStudio from "@/components/tools/figures/circle-chords/CircleChordsStudio";
-import DiagramFeedback from "@/components/tools/figures/DiagramFeedback";
-import { isDiagramAdminEmail } from "@/lib/diagrams/admin";
+import DiagramToolShell from "@/components/tools/figures/DiagramToolShell";
 import { DIAGRAM_TOOLS, getDiagramTool } from "@/lib/diagrams/catalog";
-import { listDiagramFeedback } from "@/lib/diagrams/feedback";
-import { getDisplayUser, redirectStudentToAdventure } from "@/lib/auth";
+import { redirectStudentToAdventure } from "@/lib/auth";
 
 type Props = {
   params: Promise<{ toolId: string }>;
@@ -28,34 +26,24 @@ export function generateStaticParams() {
   }));
 }
 
+/** Tool-specific studio only. Page chrome (의견 포함) is DiagramToolShell. */
+function renderDiagramStudio(toolId: string): ReactNode {
+  switch (toolId) {
+    case "g3-circle-chords":
+      return <CircleChordsStudio />;
+    default:
+      return null;
+  }
+}
+
 export default async function DiagramToolPage({ params }: Props) {
   await redirectStudentToAdventure();
   const { toolId } = await params;
   const tool = getDiagramTool(toolId);
   if (!tool) notFound();
 
-  const [user, comments] = await Promise.all([
-    getDisplayUser(),
-    listDiagramFeedback(toolId),
-  ]);
+  const studio = renderDiagramStudio(toolId);
+  if (!studio) notFound();
 
-  let studio: ReactNode = null;
-  if (toolId === "g3-circle-chords") {
-    studio = <CircleChordsStudio />;
-  } else {
-    notFound();
-  }
-
-  return (
-    <div className="space-y-10">
-      {studio}
-      <DiagramFeedback
-        toolId={toolId}
-        toolTitle={tool.title}
-        initialComments={comments}
-        isLoggedIn={user != null}
-        isAdmin={isDiagramAdminEmail(user?.email)}
-      />
-    </div>
-  );
+  return <DiagramToolShell tool={tool}>{studio}</DiagramToolShell>;
 }

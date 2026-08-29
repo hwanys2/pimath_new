@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useState, useTransition } from "react";
 import {
   createDiagramFeedbackAction,
+  deleteDiagramFeedbackAction,
   resolveDiagramFeedbackAction,
 } from "@/app/tools/figures/actions";
 import type {
@@ -38,6 +39,7 @@ export default function DiagramFeedback({
   const [resolveStatus, setResolveStatus] =
     useState<Exclude<DiagramFeedbackStatus, "open">>("applied");
   const [resolveNote, setResolveNote] = useState("");
+  const [deleteId, setDeleteId] = useState<string | null>(null);
 
   useEffect(() => {
     setComments(initialComments);
@@ -105,6 +107,26 @@ export default function DiagramFeedback({
       setNotice(
         status === "applied" ? "반영완료로 표시했어요." : "반려로 표시했어요.",
       );
+    });
+  }
+
+  function submitDelete() {
+    if (!deleteId) return;
+    setError(null);
+    setNotice(null);
+    const id = deleteId;
+    startTransition(async () => {
+      const result = await deleteDiagramFeedbackAction({
+        toolId,
+        id,
+      });
+      if (result.error) {
+        setError(result.error);
+        return;
+      }
+      if (result.comments) setComments(result.comments);
+      setDeleteId(null);
+      setNotice("의견을 삭제했어요.");
     });
   }
 
@@ -223,27 +245,75 @@ export default function DiagramFeedback({
                   {item.adminNote}
                 </p>
               ) : null}
-              {isAdmin ? (
+              {isAdmin || item.isAuthor ? (
                 <div className="mt-3 space-y-2">
                   <div className="flex flex-wrap gap-2">
+                    {isAdmin ? (
+                      <>
+                        <button
+                          type="button"
+                          disabled={pending}
+                          onClick={() => {
+                            setDeleteId(null);
+                            openResolve(item.id, "applied");
+                          }}
+                          className="rounded-lg bg-mint/50 px-3 py-1.5 text-xs font-bold text-wood-dark hover:bg-mint/70 disabled:opacity-60"
+                        >
+                          반영완료
+                        </button>
+                        <button
+                          type="button"
+                          disabled={pending}
+                          onClick={() => {
+                            setDeleteId(null);
+                            openResolve(item.id, "rejected");
+                          }}
+                          className="rounded-lg bg-peach/50 px-3 py-1.5 text-xs font-bold text-[#a63a1a] hover:bg-peach/70 disabled:opacity-60"
+                        >
+                          반려
+                        </button>
+                      </>
+                    ) : null}
                     <button
                       type="button"
                       disabled={pending}
-                      onClick={() => openResolve(item.id, "applied")}
-                      className="rounded-lg bg-mint/50 px-3 py-1.5 text-xs font-bold text-wood-dark hover:bg-mint/70 disabled:opacity-60"
+                      onClick={() => {
+                        setResolveId(null);
+                        setDeleteId(item.id);
+                        setError(null);
+                        setNotice(null);
+                      }}
+                      className="rounded-lg bg-black/5 px-3 py-1.5 text-xs font-bold text-wood-dark hover:bg-black/10 disabled:opacity-60"
                     >
-                      반영완료
-                    </button>
-                    <button
-                      type="button"
-                      disabled={pending}
-                      onClick={() => openResolve(item.id, "rejected")}
-                      className="rounded-lg bg-peach/50 px-3 py-1.5 text-xs font-bold text-[#a63a1a] hover:bg-peach/70 disabled:opacity-60"
-                    >
-                      반려
+                      삭제
                     </button>
                   </div>
-                  {resolveId === item.id ? (
+                  {deleteId === item.id ? (
+                    <div className="space-y-2 rounded-xl bg-cream/60 p-3">
+                      <p className="text-xs font-semibold text-wood">
+                        이 의견을 삭제할까요? 되돌릴 수 없어요.
+                      </p>
+                      <div className="flex flex-wrap gap-2">
+                        <button
+                          type="button"
+                          disabled={pending}
+                          onClick={submitDelete}
+                          className="font-display rounded-lg bg-wood px-3 py-1.5 text-xs text-cream disabled:opacity-60"
+                        >
+                          삭제 확인
+                        </button>
+                        <button
+                          type="button"
+                          disabled={pending}
+                          onClick={() => setDeleteId(null)}
+                          className="rounded-lg bg-black/5 px-3 py-1.5 text-xs font-semibold text-wood-dark"
+                        >
+                          취소
+                        </button>
+                      </div>
+                    </div>
+                  ) : null}
+                  {isAdmin && resolveId === item.id ? (
                     <div className="space-y-2 rounded-xl bg-cream/60 p-3">
                       <p className="text-xs font-semibold text-wood">
                         {resolveStatus === "applied" ? "반영완료" : "반려"}{" "}

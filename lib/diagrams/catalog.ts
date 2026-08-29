@@ -18,6 +18,7 @@ export type DiagramToolMeta = {
  * 문제 그림 도구 카탈로그.
  * 허브 카드와 /tools/figures/[toolId] 연결의 단일 출처.
  * 추가 방법: docs/problem-diagram-tools.md
+ * 페이지는 항상 DiagramToolShell(스튜디오 + 공통 의견)을 쓴다.
  */
 export const DIAGRAM_TOOLS: DiagramToolMeta[] = [
   {

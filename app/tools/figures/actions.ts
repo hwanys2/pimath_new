@@ -78,3 +78,23 @@ export async function resolveDiagramFeedbackAction(input: {
 
   return { comments: await refreshComments(tool.id) };
 }
+
+export async function deleteDiagramFeedbackAction(input: {
+  toolId: string;
+  id: string;
+}): Promise<DiagramFeedbackActionResult> {
+  const tool = getDiagramTool(input.toolId);
+  if (!tool) return { error: "도구를 찾을 수 없어요." };
+
+  const supabase = await createClient();
+  const { error } = await supabase.rpc("pm_delete_diagram_feedback", {
+    p_id: input.id,
+  });
+
+  if (error) {
+    console.error("[pm] deleteDiagramFeedback failed:", error.message);
+    return { error: mapFeedbackError(error.message) };
+  }
+
+  return { comments: await refreshComments(tool.id) };
+}

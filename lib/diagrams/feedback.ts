@@ -71,7 +71,10 @@ export async function listDiagramFeedback(
 export function mapFeedbackError(message: string): string {
   const lower = message.toLowerCase();
   if (lower.includes("login_required")) {
-    return "로그인 후 의견을 남길 수 있어요.";
+    return "로그인이 필요해요.";
+  }
+  if (lower.includes("not allowed")) {
+    return "이 의견은 지울 수 없어요.";
   }
   if (lower.includes("body_required")) {
     return "내용을 입력해 주세요.";
