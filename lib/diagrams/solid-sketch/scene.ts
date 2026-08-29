@@ -6,6 +6,7 @@ import {
   familyIsSphere,
   resolveLabelText,
   vertexNameVisible,
+  vertexDotsVisible,
   type MeasLabel,
   type SolidSketchState,
 } from "./model";
@@ -760,7 +761,7 @@ export function buildSolidSketchScene(state: SolidSketchState): SolidScene {
     });
   }
 
-  if (state.showVertexNames) {
+  if (state.vertexDisplay !== "hidden") {
     const cloud = verts2.length
       ? {
           x: verts2.reduce((s, p) => s + p.x, 0) / verts2.length,
@@ -768,9 +769,10 @@ export function buildSolidSketchScene(state: SolidSketchState): SolidScene {
         }
       : { x: width / 2, y: height / 2 };
     mesh.vertices.forEach((_, i) => {
-      if (!vertexNameVisible(state, i)) return;
+      if (!vertexDotsVisible(state, i)) return;
       const p = verts2[i]!;
       cmds.push({ t: "dot", x: p.x, y: p.y, r: style.pointRadius });
+      if (!vertexNameVisible(state, i)) return;
       const name = mesh.names[i]?.trim();
       if (!name) return;
       const away = norm(sub(p, cloud));

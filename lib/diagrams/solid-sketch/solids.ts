@@ -441,19 +441,23 @@ function roundSphere(state: SolidSketchState): SolidMesh {
 
 function roundHemisphere(state: SolidSketchState): SolidMesh {
   const r = state.radius;
+  const flip = state.hemisphereFlip;
   const center = v3(0, 0, 0);
+  const axis = flip ? v3(0, -1, 0) : v3(0, 1, 0);
+  const equatorNormal = flip ? v3(0, 1, 0) : v3(0, -1, 0);
+  const apex = flip ? v3(0, -r, 0) : v3(0, r, 0);
   return {
     vertices: [],
     names: pickNames(state, 0),
     faces: [],
     edges: [],
-    circles: [{ id: "base", center, normal: v3(0, -1, 0), radius: r }],
+    circles: [{ id: "base", center, normal: equatorNormal, radius: r }],
     apexIndex: null,
     baseCenter: center,
-    topCenter: v3(0, r, 0),
-    axis: v3(0, 1, 0),
+    topCenter: apex,
+    axis,
     sphereRadius: null,
-    hemispheres: [{ center, radius: r, axis: v3(0, 1, 0) }],
+    hemispheres: [{ center, radius: r, axis }],
   };
 }
 

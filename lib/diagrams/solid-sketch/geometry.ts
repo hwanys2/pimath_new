@@ -1,5 +1,5 @@
 import { hitTestText } from "@/lib/diagrams/scene";
-import { emptyLabel, familyHasSlant, type MeasLabel, type SolidSketchState, vertexNameVisible } from "./model";
+import { emptyLabel, familyHasSlant, type MeasLabel, type SolidSketchState, vertexDotsVisible } from "./model";
 import type { SolidScene } from "./scene";
 import { isLateralEdge, withFaceHeight, withSlantLength } from "./solids";
 
@@ -43,11 +43,11 @@ export function hitTestSolid(
   }
 
   const pointR = 12 * Math.max(scale, 0.85);
-  if (state.showVertexNames) {
+  if (state.vertexDisplay !== "hidden") {
     let bestI = -1;
     let bestD = pointR;
     scene.layout.vertices.forEach((p, i) => {
-      if (!vertexNameVisible(state, i)) return;
+      if (!vertexDotsVisible(state, i)) return;
       const d = Math.hypot(p.x - x, p.y - y);
       if (d < bestD) {
         bestD = d;

@@ -46,7 +46,7 @@ describe("all families build a scene", () => {
         sides: 6,
         cylinderLie: "horizontal",
         showFill: true,
-        showVertexNames: !familyIsSmooth(family),
+        vertexDisplay: !familyIsSmooth(family) ? "names" : "hidden",
         showHeight: family !== "sphere" && family !== "hemisphere",
         showRadius: familyIsSmooth(family),
         showSlant: familyHasSlant(family),
@@ -205,7 +205,7 @@ describe("face altitude of pyramid and frustum", () => {
         family: "pyramid",
         sides: 3,
         showFaceHeight: true,
-        showVertexNames: false,
+        vertexDisplay: "hidden",
       }),
     );
     assert.ok(pyramid.texts.some((t) => t.id === "faceHeight"));
@@ -222,7 +222,7 @@ describe("face altitude of pyramid and frustum", () => {
         baseSize: 5,
         topSize: 3,
         showFaceHeight: true,
-        showVertexNames: false,
+        vertexDisplay: "hidden",
       }),
     );
     const rights = frustum.cmds.filter((c) => c.t === "rightAngle");
@@ -238,7 +238,7 @@ describe("round fills and sphere", () => {
         ...DEFAULT_SOLID_SKETCH_STATE,
         family: "cylinder",
         showFill: true,
-        showVertexNames: false,
+        vertexDisplay: "hidden",
       }),
     );
     const fills = scene.cmds.filter((c) => c.t === "polygon");
@@ -251,7 +251,7 @@ describe("round fills and sphere", () => {
         ...DEFAULT_SOLID_SKETCH_STATE,
         family: "coneFrustum",
         showFill: true,
-        showVertexNames: false,
+        vertexDisplay: "hidden",
       }),
     );
     const fills = scene.cmds.filter((c) => c.t === "polygon");
@@ -268,7 +268,7 @@ describe("round fills and sphere", () => {
         showCenter: true,
         showRadius: true,
         showHidden: true,
-        showVertexNames: false,
+        vertexDisplay: "hidden",
       }),
     );
     assert.ok(scene.texts.some((t) => t.id === "center-name"));
@@ -288,7 +288,7 @@ describe("round fills and sphere", () => {
         showCenter: true,
         showRadius: true,
         showHidden: true,
-        showVertexNames: false,
+        vertexDisplay: "hidden",
       }),
     );
     assert.ok(scene.texts.some((t) => t.id === "center-name"));
@@ -296,6 +296,33 @@ describe("round fills and sphere", () => {
     const arcs = scene.cmds.filter((c) => c.t === "ellipseArc");
     assert.ok(arcs.length >= 3, "equator front, equator back, dome silhouette");
     assert.ok(arcs.some((c) => "dashed" in c && c.dashed));
+  });
+
+  it("draws a flipped hemisphere with the cut face on top", () => {
+    const scene = buildSolidSketchScene(
+      normalizeState({
+        ...DEFAULT_SOLID_SKETCH_STATE,
+        family: "hemisphere",
+        radius: 5,
+        hemisphereFlip: true,
+        showFill: true,
+        showCenter: true,
+        showRadius: true,
+        showHidden: true,
+        vertexDisplay: "hidden",
+      }),
+    );
+    const mesh = buildSolidMesh(
+      normalizeState({
+        ...DEFAULT_SOLID_SKETCH_STATE,
+        family: "hemisphere",
+        radius: 5,
+        hemisphereFlip: true,
+      }),
+    );
+    assert.equal(mesh.hemispheres?.[0]?.axis.y, -1);
+    assert.equal(mesh.circles[0]!.normal.y, 1);
+    assert.ok(scene.cmds.some((c) => c.t === "ellipseArc"));
   });
 });
 
@@ -311,7 +338,7 @@ describe("same-radius stacked solids", () => {
       showCenter: true,
       showRadius: true,
       showSlant: true,
-      showVertexNames: false,
+      vertexDisplay: "hidden",
     });
     const mesh = buildSolidMesh(state);
     assert.equal(mesh.circles.length, 1);
@@ -366,7 +393,7 @@ describe("same-radius stacked solids", () => {
         ...start,
         showFill: true,
         showSlant: true,
-        showVertexNames: false,
+        vertexDisplay: "hidden",
       }),
     );
     assert.ok(scene.cmds.filter((c) => c.t === "line").length >= 2);
@@ -379,7 +406,7 @@ describe("per-vertex names", () => {
       ...DEFAULT_SOLID_SKETCH_STATE,
       family: "prism",
       sides: 4,
-      showVertexNames: true,
+      vertexDisplay: "names",
     });
     const hidden = toggleVertexNameHidden(start, 0);
     const scene = buildSolidSketchScene(hidden);
@@ -387,5 +414,28 @@ describe("per-vertex names", () => {
     assert.equal(labels.length, 7);
     assert.ok(!labels.some((t) => t.id === "vertex:0"));
     assert.ok(labels.some((t) => t.id === "vertex:1"));
+  });
+
+  it("shows dots without labels in dots mode", () => {
+    const scene = buildSolidSketchScene(
+      normalizeState({
+        ...DEFAULT_SOLID_SKETCH_STATE,
+        family: "prism",
+        sides: 4,
+        vertexDisplay: "dots",
+      }),
+    );
+    const labels = scene.texts.filter((t) => t.id.startsWith("vertex:"));
+    const dots = scene.cmds.filter((c) => c.t === "dot");
+    assert.equal(labels.length, 0);
+    assert.equal(dots.length, 8);
+  });
+
+  it("migrates legacy showVertexNames=false to hidden", () => {
+    const legacy = { ...DEFAULT_SOLID_SKETCH_STATE } as Record<string, unknown>;
+    delete legacy.vertexDisplay;
+    legacy.showVertexNames = false;
+    const state = normalizeState(legacy as typeof DEFAULT_SOLID_SKETCH_STATE);
+    assert.equal(state.vertexDisplay, "hidden");
   });
 });

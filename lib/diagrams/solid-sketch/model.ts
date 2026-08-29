@@ -34,6 +34,9 @@ export type PlatonicKind =
 
 export type CylinderLie = "vertical" | "horizontal";
 
+/** 꼭짓점 표시: 이름+점 → 점만 → 숨김 */
+export type VertexDisplayMode = "names" | "dots" | "hidden";
+
 export type DiagramStyle = {
   lineWidth: number;
   fontSize: number;
@@ -59,10 +62,11 @@ export type SolidSketchState = {
   capHeight: number;
   edgeLength: number;
   cylinderLie: CylinderLie;
+  hemisphereFlip: boolean;
+  vertexDisplay: VertexDisplayMode;
   azimuthDeg: number;
   elevationDeg: number;
   showFill: boolean;
-  showVertexNames: boolean;
   showHidden: boolean;
   showHeight: boolean;
   showHeightRightAngle: boolean;
@@ -127,10 +131,11 @@ function baseState(
     capHeight: 5,
     edgeLength: 5,
     cylinderLie: "vertical",
+    hemisphereFlip: false,
+    vertexDisplay: "names",
     azimuthDeg: DEFAULT_AZIMUTH,
     elevationDeg: DEFAULT_ELEVATION,
     showFill: true,
-    showVertexNames: true,
     showHidden: true,
     showHeight: false,
     showHeightRightAngle: false,
@@ -167,7 +172,7 @@ export const SOLID_SKETCH_PRESETS: SolidPreset[] = [
       width: 6,
       depth: 4,
       height: 5,
-      showVertexNames: true,
+      vertexDisplay: "names",
     }),
   },
   {
@@ -179,7 +184,7 @@ export const SOLID_SKETCH_PRESETS: SolidPreset[] = [
       sides: 3,
       baseSize: 8,
       height: 9,
-      showVertexNames: true,
+      vertexDisplay: "names",
       showHeight: true,
       showHeightRightAngle: true,
       showBaseEdge: true,
@@ -195,7 +200,7 @@ export const SOLID_SKETCH_PRESETS: SolidPreset[] = [
       baseSize: 5,
       topSize: 3,
       height: 3.873,
-      showVertexNames: true,
+      vertexDisplay: "names",
       showFaceHeight: true,
       showBaseEdge: true,
     }),
@@ -209,7 +214,7 @@ export const SOLID_SKETCH_PRESETS: SolidPreset[] = [
       sides: 5,
       baseSize: 4,
       height: 7,
-      showVertexNames: true,
+      vertexDisplay: "names",
     }),
   },
   {
@@ -221,7 +226,7 @@ export const SOLID_SKETCH_PRESETS: SolidPreset[] = [
       radius: 2,
       height: 5,
       cylinderLie: "horizontal",
-      showVertexNames: false,
+      vertexDisplay: "hidden",
       showCenter: true,
       showRadius: true,
       showHeight: true,
@@ -235,7 +240,7 @@ export const SOLID_SKETCH_PRESETS: SolidPreset[] = [
       family: "cone",
       radius: 6,
       height: 6.708,
-      showVertexNames: false,
+      vertexDisplay: "hidden",
       showCenter: true,
       showRadius: true,
       showSlant: true,
@@ -248,7 +253,7 @@ export const SOLID_SKETCH_PRESETS: SolidPreset[] = [
     state: baseState({
       family: "sphere",
       radius: 5,
-      showVertexNames: false,
+      vertexDisplay: "hidden",
       showCenter: true,
       showRadius: true,
     }),
@@ -260,7 +265,7 @@ export const SOLID_SKETCH_PRESETS: SolidPreset[] = [
     state: baseState({
       family: "hemisphere",
       radius: 5,
-      showVertexNames: false,
+      vertexDisplay: "hidden",
       showCenter: true,
       showRadius: true,
     }),
@@ -273,7 +278,7 @@ export const SOLID_SKETCH_PRESETS: SolidPreset[] = [
       family: "coneHemisphere",
       radius: 4,
       height: 6,
-      showVertexNames: false,
+      vertexDisplay: "hidden",
       showCenter: true,
       showRadius: true,
       showHeight: true,
@@ -288,7 +293,7 @@ export const SOLID_SKETCH_PRESETS: SolidPreset[] = [
       family: "cylinderHemisphere",
       radius: 3,
       height: 5,
-      showVertexNames: false,
+      vertexDisplay: "hidden",
       showCenter: true,
       showRadius: true,
       showHeight: true,
@@ -303,7 +308,7 @@ export const SOLID_SKETCH_PRESETS: SolidPreset[] = [
       radius: 3,
       height: 5,
       capHeight: 4,
-      showVertexNames: false,
+      vertexDisplay: "hidden",
       showCenter: true,
       showRadius: true,
       showHeight: true,
@@ -318,7 +323,7 @@ export const SOLID_SKETCH_PRESETS: SolidPreset[] = [
       family: "platonic",
       platonic: "tetrahedron",
       edgeLength: 6,
-      showVertexNames: true,
+      vertexDisplay: "names",
       showBaseEdge: true,
     }),
   },
@@ -337,9 +342,27 @@ function clamp(n: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, n));
 }
 
-export function vertexNameVisible(state: SolidSketchState, index: number): boolean {
-  if (!state.showVertexNames) return false;
+export function vertexDotsVisible(state: SolidSketchState, index: number): boolean {
+  if (state.vertexDisplay === "hidden") return false;
+  if (state.vertexDisplay === "dots") return true;
   return !state.hiddenVertexNames[index];
+}
+
+export function vertexNameVisible(state: SolidSketchState, index: number): boolean {
+  if (state.vertexDisplay !== "names") return false;
+  return !state.hiddenVertexNames[index];
+}
+
+export function cycleVertexDisplay(mode: VertexDisplayMode): VertexDisplayMode {
+  if (mode === "names") return "dots";
+  if (mode === "dots") return "hidden";
+  return "names";
+}
+
+export function vertexDisplayChipLabel(mode: VertexDisplayMode): string {
+  if (mode === "names") return "꼭짓점 이름";
+  if (mode === "dots") return "꼭짓점";
+  return "꼭짓점";
 }
 
 export function toggleVertexNameHidden(
@@ -358,6 +381,14 @@ export function defaultVertexNames(count: number): string[] {
   );
 }
 
+function normalizeVertexDisplay(raw: Partial<SolidSketchState>): VertexDisplayMode {
+  const mode = raw.vertexDisplay;
+  if (mode === "names" || mode === "dots" || mode === "hidden") return mode;
+  const legacy = (raw as { showVertexNames?: boolean }).showVertexNames;
+  if (legacy === false) return "hidden";
+  return "names";
+}
+
 export function normalizeState(state: SolidSketchState): SolidSketchState {
   const sides = Math.round(clamp(state.sides, 3, 8));
   const style = { ...DEFAULT_STYLE, ...state.style };
@@ -373,6 +404,8 @@ export function normalizeState(state: SolidSketchState): SolidSketchState {
     topRadius: clamp(state.topRadius, 0.3, 40),
     capHeight: clamp(state.capHeight ?? 5, 0.5, 40),
     edgeLength: clamp(state.edgeLength, 0.5, 40),
+    hemisphereFlip: Boolean(state.hemisphereFlip),
+    vertexDisplay: normalizeVertexDisplay(state),
     azimuthDeg: ((state.azimuthDeg % 360) + 360) % 360,
     elevationDeg: clamp(state.elevationDeg, 6, 82),
     vertexNames: Array.isArray(state.vertexNames) ? state.vertexNames : [],
@@ -528,7 +561,7 @@ export function withFamily(
     nameDy: [],
     hiddenVertexNames: [],
     edgeLabels: {},
-    showVertexNames: !familyIsSmooth(family),
+    vertexDisplay: !familyIsSmooth(family) ? "names" : "hidden",
     showCenter: familyIsSmooth(family),
     showHeight: false,
     showHeightRightAngle: false,

@@ -26,6 +26,7 @@ import {
   cloneState,
   DEFAULT_SOLID_SKETCH_STATE,
   defaultVertexNames,
+  cycleVertexDisplay,
   familyHasFaceHeight,
   familyHasSlant,
   familyIsRound,
@@ -36,6 +37,7 @@ import {
   normalizeState,
   resetView,
   toggleVertexNameHidden,
+  vertexDisplayChipLabel,
   withFamily,
   type SolidSketchState,
 } from "@/lib/diagrams/solid-sketch/model";
@@ -308,10 +310,14 @@ export default function SolidSketchStudio() {
               </ChipToggle>
               {!smooth ? (
                 <ChipToggle
-                  on={state.showVertexNames}
-                  onClick={() => set({ showVertexNames: !state.showVertexNames })}
+                  on={state.vertexDisplay !== "hidden"}
+                  onClick={() =>
+                    set({
+                      vertexDisplay: cycleVertexDisplay(state.vertexDisplay),
+                    })
+                  }
                 >
-                  꼭짓점 이름
+                  {vertexDisplayChipLabel(state.vertexDisplay)}
                 </ChipToggle>
               ) : null}
               {!sphere && !hemisphere ? (
@@ -373,7 +379,7 @@ export default function SolidSketchStudio() {
                 </ChipToggle>
               ) : null}
             </div>
-            {state.showVertexNames && vertexLabels.length > 0 ? (
+            {state.vertexDisplay === "names" && vertexLabels.length > 0 ? (
               <div className="mt-2 flex flex-wrap gap-1">
                 {vertexLabels.map((name, i) => {
                   const on = !state.hiddenVertexNames[i];
@@ -606,6 +612,21 @@ export default function SolidSketchStudio() {
                   options={[
                     { id: "vertical", label: "세움" },
                     { id: "horizontal", label: "눕힘" },
+                  ]}
+                />
+              </div>
+            ) : null}
+            {hemisphere ? (
+              <div className="mt-3">
+                <p className="mb-1 text-xs font-semibold text-foreground/60">
+                  반구 방향
+                </p>
+                <Segmented
+                  value={state.hemisphereFlip ? "flipped" : "normal"}
+                  onChange={(v) => set({ hemisphereFlip: v === "flipped" })}
+                  options={[
+                    { id: "normal", label: "아래 잘림" },
+                    { id: "flipped", label: "위 잘림" },
                   ]}
                 />
               </div>
