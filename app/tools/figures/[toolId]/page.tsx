@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import CircleChordsStudio from "@/components/tools/figures/circle-chords/CircleChordsStudio";
+import NumberLineStudio from "@/components/tools/figures/number-line/NumberLineStudio";
 import DiagramToolShell from "@/components/tools/figures/DiagramToolShell";
 import { DIAGRAM_TOOLS, getDiagramTool } from "@/lib/diagrams/catalog";
 import { redirectStudentToAdventure } from "@/lib/auth";
@@ -29,6 +30,8 @@ export function generateStaticParams() {
 /** Tool-specific studio only. Page chrome (의견 포함) is DiagramToolShell. */
 function renderDiagramStudio(toolId: string): ReactNode {
   switch (toolId) {
+    case "g1-number-line":
+      return <NumberLineStudio />;
     case "g3-circle-chords":
       return <CircleChordsStudio />;
     default:

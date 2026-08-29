@@ -43,7 +43,7 @@
 ```
 도구 (/tools) 
   └─ 문제 그림 그리기 (/tools/figures)
-        ├─ 중1 카드들
+        ├─ 중1 카드들 → /tools/figures/g1-number-line
         ├─ 중2 카드들
         └─ 중3 카드들
               └─ 원의 현 → /tools/figures/g3-circle-chords
@@ -138,6 +138,16 @@ components/tools/figures/DiagramToolShell.tsx  ← 공통 뼈대. 손대지 않�
 - 수선·직각·OA/OB 등은 오른쪽 패널 칩. 그림은 작게, 패널은 오른쪽 컬럼.
 - 프리셋이 곧 문제 유형의 시작점이다.
 
+### 수직선 (`g1-number-line`)
+
+중1 `1.2 정수와 유리수`에서 나오는 시험용 가로 수직선.
+
+- 시작·끝·간격, 양쪽 화살표, 양수 `+`, 눈금 숫자.
+- 점 값: 정수·소수·분수·대분수. 이름은 그림에서 바로 수정.
+- 비정수 점이 있는 단위 구간은 n등분(짧은 눈금 + 점선 호 + 등분 빗금).
+- 조작: 축 클릭으로 점 추가, 점을 축을 따라 드래그, Delete로 삭제. PNG·복사·SVG.
+- 스튜디오는 가로로 긴 캔버스 + 오른쪽 설정. 의견은 `DiagramToolShell`이 붙인다.
+
 이후 접선, 원주각, 닮음 삼각형 등을 넣을 때도 **같은 카탈로그·같은 스타일 규칙·같은 라벨 모드·같은 `DiagramToolShell`(하단 의견)** 을 재사용한다.
 
 ---
@@ -146,6 +156,7 @@ components/tools/figures/DiagramToolShell.tsx  ← 공통 뼈대. 손대지 않�
 
 | id | 학년 | 제목 | 상태 |
 |----|------|------|------|
+| `g1-number-line` | 중1 | 수직선 | ready |
 | `g3-circle-chords` | 중3 | 원의 현 | ready |
 
 ---
@@ -187,3 +198,4 @@ components/tools/figures/DiagramToolShell.tsx  ← 공통 뼈대. 손대지 않�
 | 2026-08-29 | 도구 페이지 하단 의견 스레드. 관리자 반영완료/반려. 새 댓글은 foreducator 알림. |
 | 2026-08-29 | 의견 삭제: 작성자 본인, 관리자는 전체. |
 | 2026-08-29 | 공통 `DiagramToolShell`로 고정. 새 도구는 스튜디오 분기만 추가하면 의견이 붙음. |
+| 2026-08-29 | 중1 수직선 (`g1-number-line`). 분수·소수 점, n등분 호, PNG. |

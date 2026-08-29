@@ -22,6 +22,17 @@ export type DiagramToolMeta = {
  */
 export const DIAGRAM_TOOLS: DiagramToolMeta[] = [
   {
+    id: "g1-number-line",
+    grade: 1,
+    title: "수직선",
+    description:
+      "정수·분수·소수 점을 찍고 n등분 표시까지, 시험용 수직선을 바로 그려 PNG로 저장해요.",
+    unitHint: "1.2 정수와 유리수",
+    emoji: "—",
+    href: "/tools/figures/g1-number-line",
+    status: "ready",
+  },
+  {
     id: "g3-circle-chords",
     grade: 3,
     title: "원의 현",

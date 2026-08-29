@@ -78,8 +78,8 @@ export default function FiguresHub({ grade }: { grade: GradeId }) {
               {meta.label} 도구는 아직 없어요
             </p>
             <p className="mx-auto mt-2 max-w-md text-sm text-foreground/60">
-              소재별로 하나씩 추가할 예정이에요. 지금은 중3 「원의 현」부터
-              사용할 수 있어요.
+              소재별로 하나씩 추가할 예정이에요. 지금은 중1 「수직선」, 중3
+              「원의 현」부터 사용할 수 있어요.
             </p>
             <Link
               href="/tools/figures?grade=3"
@@ -111,7 +111,13 @@ function ToolCard({ tool }: { tool: DiagramToolMeta }) {
           className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-white/80 text-3xl text-wood-dark shadow-sm"
           aria-hidden
         >
-          {tool.id === "g3-circle-chords" ? <ChordThumb /> : tool.emoji}
+          {tool.id === "g3-circle-chords" ? (
+            <ChordThumb />
+          ) : tool.id === "g1-number-line" ? (
+            <NumberLineThumb />
+          ) : (
+            tool.emoji
+          )}
         </span>
         <div>
           <p className="text-[11px] font-bold tracking-wide text-wood/70">
@@ -154,6 +160,20 @@ function ChordThumb() {
       <line x1="24" y1="24" x2="24" y2="17" stroke="#6b4423" strokeWidth="1.2" />
       <line x1="24" y1="24" x2="24" y2="32" stroke="#6b4423" strokeWidth="1.2" />
       <circle cx="24" cy="24" r="1.6" fill="#6b4423" />
+    </svg>
+  );
+}
+
+function NumberLineThumb() {
+  return (
+    <svg viewBox="0 0 48 48" className="h-10 w-10" aria-hidden>
+      <line x1="6" y1="24" x2="42" y2="24" stroke="#6b4423" strokeWidth="1.6" />
+      <polygon points="6,24 11,21.2 11,26.8" fill="#6b4423" />
+      <polygon points="42,24 37,21.2 37,26.8" fill="#6b4423" />
+      <line x1="14" y1="20" x2="14" y2="28" stroke="#6b4423" strokeWidth="1.3" />
+      <line x1="24" y1="20" x2="24" y2="28" stroke="#6b4423" strokeWidth="1.3" />
+      <line x1="34" y1="20" x2="34" y2="28" stroke="#6b4423" strokeWidth="1.3" />
+      <circle cx="19" cy="24" r="1.8" fill="#6b4423" />
     </svg>
   );
 }
