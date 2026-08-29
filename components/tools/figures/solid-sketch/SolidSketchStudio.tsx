@@ -9,6 +9,7 @@ import {
   NumberField,
   Segmented,
   SliderField,
+  TextField,
 } from "@/components/tools/figures/controls";
 import SolidSketchCanvas, {
   type SolidSketchSetter,
@@ -24,6 +25,7 @@ import {
   SOLID_SKETCH_PRESETS,
   cloneState,
   DEFAULT_SOLID_SKETCH_STATE,
+  defaultVertexNames,
   familyIsRound,
   familyNeedsSides,
   normalizeState,
@@ -255,14 +257,209 @@ export default function SolidSketchStudio() {
         </p>
       ) : null}
 
-      <div className="grid items-start gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(16rem,20rem)]">
-        <div className="mx-auto w-full max-w-[32rem] overflow-hidden rounded-3xl border-2 border-wood/10 bg-white shadow-[0_12px_40px_rgba(61,44,30,0.08)] lg:mx-0">
+      <div className="grid items-start gap-5 lg:grid-cols-[minmax(0,22rem)_minmax(16rem,20rem)_minmax(15rem,18rem)]">
+        <div className="mx-auto w-full max-w-[24rem] overflow-hidden rounded-3xl border-2 border-wood/10 bg-white shadow-[0_12px_40px_rgba(61,44,30,0.08)] lg:mx-0">
           <SolidSketchCanvas
             state={state}
             fonts={fonts}
             setState={setState}
             persist={persistCachedState}
           />
+        </div>
+
+        <div className="space-y-4">
+          <section className="rounded-2xl border-2 border-wood/10 bg-white/80 p-3.5">
+            <h2 className="font-display text-sm text-wood-dark">표시</h2>
+            <div className="mt-2 flex flex-wrap gap-1.5">
+              <ChipToggle
+                on={state.showFill}
+                onClick={() => set({ showFill: !state.showFill })}
+              >
+                면 채움
+              </ChipToggle>
+              <ChipToggle
+                on={state.showHidden}
+                onClick={() => set({ showHidden: !state.showHidden })}
+              >
+                숨은 선
+              </ChipToggle>
+              <ChipToggle
+                on={state.showVertexNames}
+                onClick={() => set({ showVertexNames: !state.showVertexNames })}
+              >
+                꼭짓점 이름
+              </ChipToggle>
+              <ChipToggle
+                on={state.showHeight}
+                onClick={() => set({ showHeight: !state.showHeight })}
+              >
+                높이
+              </ChipToggle>
+              {state.showHeight ? (
+                <ChipToggle
+                  on={state.showHeightRightAngle}
+                  onClick={() =>
+                    set({ showHeightRightAngle: !state.showHeightRightAngle })
+                  }
+                >
+                  직각
+                </ChipToggle>
+              ) : null}
+              {round ? (
+                <ChipToggle
+                  on={state.showCenter}
+                  onClick={() => set({ showCenter: !state.showCenter })}
+                >
+                  중심
+                </ChipToggle>
+              ) : null}
+              {round ? (
+                <ChipToggle
+                  on={state.showRadius}
+                  onClick={() => set({ showRadius: !state.showRadius })}
+                >
+                  반지름
+                </ChipToggle>
+              ) : null}
+              {state.family === "cone" || state.family === "pyramid" ? (
+                <ChipToggle
+                  on={state.showSlant}
+                  onClick={() => set({ showSlant: !state.showSlant })}
+                >
+                  모선
+                </ChipToggle>
+              ) : null}
+              {!round ? (
+                <ChipToggle
+                  on={state.showBaseEdge}
+                  onClick={() => set({ showBaseEdge: !state.showBaseEdge })}
+                >
+                  밑면 한 변
+                </ChipToggle>
+              ) : null}
+            </div>
+            <p className="mt-2 text-[11px] leading-snug text-foreground/45">
+              모서리를 누르면 길이 설명선이 붙어요. 글자를 끌어 옮기고, 점선만
+              잡으면 선만 옮겨요.
+            </p>
+            {state.showHeight ? (
+              <div className="mt-3">
+                <LabelModeRow
+                  title="높이"
+                  mode={state.heightLabel.mode}
+                  custom={state.heightLabel.custom}
+                  unknownLetter={state.unknownLetter}
+                  onMode={(mode) =>
+                    set({ heightLabel: { ...state.heightLabel, mode } })
+                  }
+                  onCustom={(custom) =>
+                    set({ heightLabel: { ...state.heightLabel, custom } })
+                  }
+                />
+              </div>
+            ) : null}
+            {state.showRadius ? (
+              <div className="mt-3">
+                <LabelModeRow
+                  title="반지름"
+                  mode={state.radiusLabel.mode}
+                  custom={state.radiusLabel.custom}
+                  unknownLetter={state.unknownLetter}
+                  onMode={(mode) =>
+                    set({ radiusLabel: { ...state.radiusLabel, mode } })
+                  }
+                  onCustom={(custom) =>
+                    set({ radiusLabel: { ...state.radiusLabel, custom } })
+                  }
+                />
+              </div>
+            ) : null}
+            {state.showSlant ? (
+              <div className="mt-3">
+                <LabelModeRow
+                  title="모선"
+                  mode={state.slantLabel.mode}
+                  custom={state.slantLabel.custom}
+                  unknownLetter={state.unknownLetter}
+                  onMode={(mode) =>
+                    set({ slantLabel: { ...state.slantLabel, mode } })
+                  }
+                  onCustom={(custom) =>
+                    set({ slantLabel: { ...state.slantLabel, custom } })
+                  }
+                />
+              </div>
+            ) : null}
+            {state.showBaseEdge ? (
+              <div className="mt-3">
+                <LabelModeRow
+                  title="밑면 한 변"
+                  mode={state.baseEdgeLabel.mode}
+                  custom={state.baseEdgeLabel.custom}
+                  unknownLetter={state.unknownLetter}
+                  onMode={(mode) =>
+                    set({ baseEdgeLabel: { ...state.baseEdgeLabel, mode } })
+                  }
+                  onCustom={(custom) =>
+                    set({ baseEdgeLabel: { ...state.baseEdgeLabel, custom } })
+                  }
+                />
+              </div>
+            ) : null}
+            {Object.keys(state.edgeLabels).length > 0 ? (
+              <ul className="mt-3 space-y-1">
+                {Object.keys(state.edgeLabels).map((key) => (
+                  <li key={key} className="flex items-center gap-2">
+                    <span className="flex-1 rounded-lg bg-black/5 px-2 py-1 text-xs font-semibold text-wood-dark">
+                      {edgeName(state, key)}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const next = { ...state.edgeLabels };
+                        delete next[key];
+                        set({ edgeLabels: next });
+                      }}
+                      className="text-xs font-semibold text-foreground/40 hover:text-foreground"
+                    >
+                      지우기
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            ) : null}
+          </section>
+
+          <section className="rounded-2xl border-2 border-wood/10 bg-white/80 p-3.5">
+            <h2 className="font-display text-sm text-wood-dark">보기</h2>
+            <div className="mt-3 space-y-3">
+              <SliderField
+                label="좌우"
+                value={((state.azimuthDeg % 360) + 360) % 360}
+                onChange={(azimuthDeg) => set({ azimuthDeg })}
+                min={0}
+                max={359}
+                step={1}
+                display={`${Math.round(((state.azimuthDeg % 360) + 360) % 360)}°`}
+              />
+              <SliderField
+                label="위아래"
+                value={state.elevationDeg}
+                onChange={(elevationDeg) => set({ elevationDeg })}
+                min={6}
+                max={82}
+                step={1}
+                display={`${Math.round(state.elevationDeg)}°`}
+              />
+              <button
+                type="button"
+                onClick={() => setState((prev) => resetView(prev))}
+                className="w-full rounded-xl bg-black/5 px-3 py-2 text-xs font-semibold text-foreground/70 hover:bg-black/10"
+              >
+                표준 보기
+              </button>
+            </div>
+          </section>
         </div>
 
         <div className="space-y-4">
@@ -418,144 +615,17 @@ export default function SolidSketchStudio() {
                   suffix="cm"
                 />
               )}
-            </div>
-          </section>
-
-          <section className="rounded-2xl border-2 border-wood/10 bg-white/80 p-3.5">
-            <h2 className="font-display text-sm text-wood-dark">표시</h2>
-            <div className="mt-2 flex flex-wrap gap-1.5">
-              <ChipToggle
-                on={state.showFill}
-                onClick={() => set({ showFill: !state.showFill })}
-              >
-                면 채움
-              </ChipToggle>
-              <ChipToggle
-                on={state.showHidden}
-                onClick={() => set({ showHidden: !state.showHidden })}
-              >
-                숨은 선
-              </ChipToggle>
-              <ChipToggle
-                on={state.showVertexNames}
-                onClick={() => set({ showVertexNames: !state.showVertexNames })}
-              >
-                꼭짓점 이름
-              </ChipToggle>
-              <ChipToggle
-                on={state.showHeight}
-                onClick={() => set({ showHeight: !state.showHeight })}
-              >
-                높이
-              </ChipToggle>
-              {state.showHeight ? (
-                <ChipToggle
-                  on={state.showHeightRightAngle}
-                  onClick={() =>
-                    set({ showHeightRightAngle: !state.showHeightRightAngle })
-                  }
-                >
-                  직각
-                </ChipToggle>
-              ) : null}
-              {round ? (
-                <ChipToggle
-                  on={state.showCenter}
-                  onClick={() => set({ showCenter: !state.showCenter })}
-                >
-                  중심
-                </ChipToggle>
-              ) : null}
-              {round ? (
-                <ChipToggle
-                  on={state.showRadius}
-                  onClick={() => set({ showRadius: !state.showRadius })}
-                >
-                  반지름
-                </ChipToggle>
-              ) : null}
-              {state.family === "cone" || state.family === "pyramid" ? (
-                <ChipToggle
-                  on={state.showSlant}
-                  onClick={() => set({ showSlant: !state.showSlant })}
-                >
-                  모선
-                </ChipToggle>
-              ) : null}
-              {!round ? (
-                <ChipToggle
-                  on={state.showBaseEdge}
-                  onClick={() => set({ showBaseEdge: !state.showBaseEdge })}
-                >
-                  밑면 한 변
-                </ChipToggle>
-              ) : null}
-            </div>
-            <p className="mt-2 text-[11px] text-foreground/45">
-              모서리를 누르면 길이 설명선이 붙어요.
-            </p>
-            {state.showHeight ? (
-              <div className="mt-3">
-                <LabelModeRow
-                  title="높이"
-                  mode={state.heightLabel.mode}
-                  custom={state.heightLabel.custom}
-                  unknownLetter={state.unknownLetter}
-                  onMode={(mode) =>
-                    set({ heightLabel: { ...state.heightLabel, mode } })
-                  }
-                  onCustom={(custom) =>
-                    set({ heightLabel: { ...state.heightLabel, custom } })
-                  }
-                />
-              </div>
-            ) : null}
-            {state.showRadius ? (
-              <div className="mt-3">
-                <LabelModeRow
-                  title="반지름"
-                  mode={state.radiusLabel.mode}
-                  custom={state.radiusLabel.custom}
-                  unknownLetter={state.unknownLetter}
-                  onMode={(mode) =>
-                    set({ radiusLabel: { ...state.radiusLabel, mode } })
-                  }
-                  onCustom={(custom) =>
-                    set({ radiusLabel: { ...state.radiusLabel, custom } })
-                  }
-                />
-              </div>
-            ) : null}
-          </section>
-
-          <section className="rounded-2xl border-2 border-wood/10 bg-white/80 p-3.5">
-            <h2 className="font-display text-sm text-wood-dark">보기</h2>
-            <div className="mt-3 space-y-3">
-              <SliderField
-                label="좌우"
-                value={((state.azimuthDeg % 360) + 360) % 360}
-                onChange={(azimuthDeg) => set({ azimuthDeg })}
-                min={0}
-                max={359}
-                step={1}
-                display={`${Math.round(((state.azimuthDeg % 360) + 360) % 360)}°`}
+              <TextField
+                label="단위"
+                value={state.unit}
+                onChange={(unit) => set({ unit })}
+                placeholder="cm"
               />
-              <SliderField
-                label="위아래"
-                value={state.elevationDeg}
-                onChange={(elevationDeg) => set({ elevationDeg })}
-                min={6}
-                max={82}
-                step={1}
-                display={`${Math.round(state.elevationDeg)}°`}
+              <TextField
+                label="미지수"
+                value={state.unknownLetter}
+                onChange={(unknownLetter) => set({ unknownLetter })}
               />
-              <button
-                type="button"
-                onClick={() => setState((prev) => resetView(prev))}
-                className="w-full rounded-xl bg-black/5 px-3 py-2 text-xs font-semibold text-foreground/70 hover:bg-black/10"
-              >
-                표준 보기
-              </button>
             </div>
           </section>
 
@@ -619,4 +689,12 @@ export default function SolidSketchStudio() {
       </div>
     </div>
   );
+}
+
+function edgeName(state: SolidSketchState, key: string): string {
+  const [a, b] = key.split("-").map(Number);
+  const names = defaultVertexNames(Math.max(a ?? 0, b ?? 0, 0) + 1);
+  const left = state.vertexNames[a ?? 0]?.trim() || names[a ?? 0] || "?";
+  const right = state.vertexNames[b ?? 0]?.trim() || names[b ?? 0] || "?";
+  return `${left}${right}`;
 }
