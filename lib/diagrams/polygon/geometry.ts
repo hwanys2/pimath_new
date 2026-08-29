@@ -612,7 +612,7 @@ function displacementCost(a: Vec[], b: Vec[]): number {
   return s;
 }
 
-function pickBestCandidate(candidates: Vec[][], start: Vec[]): Vec | null {
+function pickBestCandidate(candidates: Vec[][], start: Vec[]): Vec[] | null {
   let best: Vec[] | null = null;
   let bestCost = Infinity;
   for (const candidate of candidates) {
