@@ -1,6 +1,6 @@
 "use client";
 
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import type { LabelMode } from "@/lib/diagrams/circle-chords/model";
 
 export function Panel({
@@ -18,13 +18,18 @@ export function Panel({
   );
 }
 
+function formatNumberValue(value: number): string {
+  if (!Number.isFinite(value)) return "";
+  return String(value);
+}
+
 export function NumberField({
   label,
   value,
   onChange,
   min,
   max,
-  step = 0.5,
+  step: _step = 0.5,
   suffix,
   disabled,
   hint,
@@ -39,19 +44,39 @@ export function NumberField({
   disabled?: boolean;
   hint?: string;
 }) {
+  const [draft, setDraft] = useState<string | null>(null);
+  const shown = draft ?? formatNumberValue(value);
+
+  function commit(raw: string) {
+    const n = Number(raw);
+    if (raw.trim() === "" || !Number.isFinite(n)) {
+      setDraft(null);
+      return;
+    }
+    let next = n;
+    if (min != null) next = Math.max(min, next);
+    if (max != null) next = Math.min(max, next);
+    setDraft(null);
+    if (next === value) return;
+    onChange(next);
+  }
+
   return (
     <label className={`block ${disabled ? "opacity-60" : ""}`}>
       <span className="text-xs font-semibold text-foreground/60">{label}</span>
       <span className="mt-1 flex items-center gap-2">
         <input
-          type="number"
-          value={Number.isFinite(value) ? value : 0}
-          min={min}
-          max={max}
-          step={step}
+          type="text"
+          inputMode="decimal"
+          autoComplete="off"
+          value={shown}
           disabled={disabled}
-          onChange={(e) => onChange(Number(e.target.value))}
-          className="w-full rounded-xl border-2 border-wood/20 bg-white px-3 py-2 text-sm outline-none focus:border-wood disabled:bg-black/5"
+          onChange={(e) => setDraft(e.target.value)}
+          onBlur={(e) => commit(e.currentTarget.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") (e.target as HTMLInputElement).blur();
+          }}
+          className="w-full rounded-xl border-2 border-wood/20 bg-white px-3 py-2 text-sm tabular-nums outline-none focus:border-wood disabled:bg-black/5"
         />
         {suffix ? (
           <span className="shrink-0 text-sm text-foreground/50">{suffix}</span>

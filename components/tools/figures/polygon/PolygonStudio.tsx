@@ -502,30 +502,6 @@ export default function PolygonStudio() {
               </ul>
             ) : null}
           </section>
-        </div>
-
-        <div className="space-y-4">
-          <section className="rounded-2xl border-2 border-wood/10 bg-white/80 p-3.5">
-            <h2 className="font-display text-sm text-wood-dark">빠른 그림</h2>
-            <div className="mt-2 grid grid-cols-2 gap-1.5">
-              {POLYGON_PRESETS.map((preset) => (
-                <button
-                  key={preset.id}
-                  type="button"
-                  onClick={() => {
-                    setState(cloneState(preset.state));
-                    setSelected({ t: "vertex", i: 0 });
-                  }}
-                  className="rounded-xl bg-black/5 px-2.5 py-2 text-left text-xs font-semibold text-foreground/70 hover:bg-black/10"
-                >
-                  {preset.title}
-                  <span className="mt-0.5 block font-normal text-foreground/45">
-                    {preset.hint}
-                  </span>
-                </button>
-              ))}
-            </div>
-          </section>
 
           <section className="rounded-2xl border-2 border-wood/10 bg-white/80 p-3.5">
             <h2 className="font-display text-sm text-wood-dark">도형</h2>
@@ -558,28 +534,30 @@ export default function PolygonStudio() {
                 자동 맞춰집니다. 길이를 바꾸면 모든 변이 같은 비율로
                 커지거나 작아집니다.
               </p>
-              {state.vertices.map((v, i) => {
-                const name = v.name.trim() || defaultName(i);
-                const isLast = i === n - 1;
-                const value = isLast
-                  ? computeLastInteriorAngle(state.interiorAnglesDeg, n)
-                  : state.interiorAnglesDeg[i] ?? 0;
-                return (
-                  <NumberField
-                    key={`angle-${i}`}
-                    label={isLast ? `∠${name} (자동)` : `∠${name}`}
-                    value={Number(value.toFixed(1))}
-                    onChange={(deg) =>
-                      setState((prev) => applyInteriorAngleChange(prev, i, deg))
-                    }
-                    min={1}
-                    max={179}
-                    step={1}
-                    suffix="°"
-                    disabled={isLast}
-                  />
-                );
-              })}
+              <div className="grid grid-cols-2 gap-2">
+                {state.vertices.map((v, i) => {
+                  const name = v.name.trim() || defaultName(i);
+                  const isLast = i === n - 1;
+                  const value = isLast
+                    ? computeLastInteriorAngle(state.interiorAnglesDeg, n)
+                    : state.interiorAnglesDeg[i] ?? 0;
+                  return (
+                    <NumberField
+                      key={`angle-${i}`}
+                      label={isLast ? `∠${name} (자동)` : `∠${name}`}
+                      value={Number(value.toFixed(1))}
+                      onChange={(deg) =>
+                        setState((prev) => applyInteriorAngleChange(prev, i, deg))
+                      }
+                      min={1}
+                      max={179}
+                      step={1}
+                      suffix="°"
+                      disabled={isLast}
+                    />
+                  );
+                })}
+              </div>
             </div>
             <div className="mt-3 grid grid-cols-2 gap-2">
               <TextField
@@ -593,6 +571,30 @@ export default function PolygonStudio() {
                 value={state.unknownLetter}
                 onChange={(unknownLetter) => set({ unknownLetter })}
               />
+            </div>
+          </section>
+        </div>
+
+        <div className="space-y-4">
+          <section className="rounded-2xl border-2 border-wood/10 bg-white/80 p-3.5">
+            <h2 className="font-display text-sm text-wood-dark">빠른 그림</h2>
+            <div className="mt-2 grid grid-cols-2 gap-1.5">
+              {POLYGON_PRESETS.map((preset) => (
+                <button
+                  key={preset.id}
+                  type="button"
+                  onClick={() => {
+                    setState(cloneState(preset.state));
+                    setSelected({ t: "vertex", i: 0 });
+                  }}
+                  className="rounded-xl bg-black/5 px-2.5 py-2 text-left text-xs font-semibold text-foreground/70 hover:bg-black/10"
+                >
+                  {preset.title}
+                  <span className="mt-0.5 block font-normal text-foreground/45">
+                    {preset.hint}
+                  </span>
+                </button>
+              ))}
             </div>
           </section>
 
