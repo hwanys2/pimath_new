@@ -655,25 +655,38 @@ export function buildCoordPlaneScene(state: CoordPlaneState): CoordPlaneScene {
   }
 
   if (state.xAxisLabel.trim()) {
+    const nameSize = state.style.pointLabelSize;
     pushText(texts, cmds, {
       id: "axis-x",
-      x: Math.min(xEnd + 16, SCENE_WIDTH - 10),
-      y: oy + 1,
+      x: xEnd - 2,
+      y: oy + 12 + state.style.fontSize * 0.95,
       runs: parseMathRuns(state.xAxisLabel.trim()),
-      size: state.style.pointLabelSize,
-      anchor: "start",
+      size: nameSize,
+      anchor: "end",
     });
   }
   if (state.yAxisLabel.trim()) {
-    pushText(texts, cmds, {
-      id: "axis-y",
-      x: ox + (state.yLabelVertical ? -2 : 1),
-      y: Math.max(yEnd - (state.yLabelVertical ? 20 : 16), 14),
-      runs: parseMathRuns(state.yAxisLabel.trim()),
-      size: state.style.pointLabelSize,
-      anchor: "middle",
-      rotate: state.yLabelVertical ? -Math.PI / 2 : undefined,
-    });
+    const nameSize = state.style.pointLabelSize;
+    if (state.yLabelVertical) {
+      pushText(texts, cmds, {
+        id: "axis-y",
+        x: ox - 10,
+        y: yEnd + 6,
+        runs: parseMathRuns(state.yAxisLabel.trim()),
+        size: nameSize,
+        anchor: "end",
+        rotate: -Math.PI / 2,
+      });
+    } else {
+      pushText(texts, cmds, {
+        id: "axis-y",
+        x: ox - 8,
+        y: yEnd + nameSize * 0.48,
+        runs: parseMathRuns(state.yAxisLabel.trim()),
+        size: nameSize,
+        anchor: "end",
+      });
+    }
   }
 
   return {

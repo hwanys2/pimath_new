@@ -156,4 +156,26 @@ describe("equation labels", () => {
     const axisX = scene.texts.find((t) => t.id === "axis-x");
     assert.ok(axisX?.runs.some((r) => r.italic));
   });
+
+  it("keeps axis names inside the figure at the inner corners", () => {
+    const state = COORD_PLANE_PRESETS.find((p) => p.id === "ordered-pairs")!.state;
+    const scene = buildCoordPlaneScene({
+      ...state,
+      xAxisLabel: "$x$이름",
+      yAxisLabel: "$y$이름",
+    });
+    const layout = scene.layout;
+    const axisX = scene.texts.find((t) => t.id === "axis-x");
+    const axisY = scene.texts.find((t) => t.id === "axis-y");
+    assert.ok(axisX);
+    assert.ok(axisY);
+    assert.equal(axisX.anchor, "end");
+    assert.equal(axisY.anchor, "end");
+    assert.ok(axisX.x <= layout.plotRight + 1e-6);
+    assert.ok(axisX.y > layout.originY);
+    assert.ok(axisY.x < layout.originX);
+    assert.ok(axisY.y >= layout.plotTop - 1e-6);
+    assert.ok(axisX.x < scene.width - 4);
+    assert.ok(axisY.y > 4);
+  });
 });
