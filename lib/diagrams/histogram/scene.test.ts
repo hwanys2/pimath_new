@@ -3,10 +3,15 @@ import { describe, it } from "node:test";
 import {
   DEFAULT_HISTOGRAM_STATE,
   HISTOGRAM_PRESETS,
+  applyClassRange,
+  applyClassWidth,
+  classEnd,
   classMid,
+  classWidthOptions,
   cloneState,
   normalizeState,
   polygonVertices,
+  sameClassWidth,
   setFrequency,
 } from "./model";
 import { nudgeMovableLabel } from "./geometry";
@@ -61,6 +66,33 @@ describe("histogram classes", () => {
     const next = setFrequency(DEFAULT_HISTOGRAM_STATE, "s-a", 0, 13);
     assert.equal(next.series[0]!.frequencies[0], 14);
     assert.ok(next.yMax >= 14);
+  });
+
+  it("lists range divisors as class widths with a usable bar count", () => {
+    const for100 = classWidthOptions(100);
+    assert.deepEqual(for100, [5, 10, 20, 25, 50]);
+    const for25 = classWidthOptions(25);
+    assert.deepEqual(for25, [5]);
+    const for35 = classWidthOptions(3.5);
+    assert.ok(for35.some((w) => Math.abs(w - 0.5) < 1e-9));
+    assert.equal(for35.includes(3.5), false);
+  });
+
+  it("keeps the class range when picking a width divisor", () => {
+    const start = HISTOGRAM_PRESETS.find((p) => p.id === "two-schools")!.state;
+    const next = applyClassWidth(start, 10);
+    assert.equal(next.classWidth, 10);
+    assert.equal(next.classCount, 10);
+    assert.equal(classEnd(next), classEnd(start));
+    assert.equal(next.classStart, start.classStart);
+  });
+
+  it("snaps to a divisor when the class range changes", () => {
+    const start = DEFAULT_HISTOGRAM_STATE;
+    const next = applyClassRange(start, 0, 100);
+    assert.equal(classEnd(next), 100);
+    assert.ok(classWidthOptions(100).some((w) => sameClassWidth(w, next.classWidth)));
+    assert.equal(next.classCount * next.classWidth, 100);
   });
 });
 

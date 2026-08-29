@@ -74,8 +74,128 @@ export function newId(prefix: string): string {
   return `${prefix}-${Math.random().toString(36).slice(2, 10)}`;
 }
 
+export const MIN_CLASS_COUNT = 2;
+export const MAX_CLASS_COUNT = 20;
+
 export function classEnd(state: Pick<HistogramState, "classStart" | "classWidth" | "classCount">): number {
   return state.classStart + state.classCount * state.classWidth;
+}
+
+function niceNum(n: number): number {
+  return Math.round(n * 1e6) / 1e6;
+}
+
+export function sameClassWidth(a: number, b: number): boolean {
+  return Math.abs(a - b) < 1e-6;
+}
+
+function integerDivisors(n: number): number[] {
+  const value = Math.abs(Math.round(n));
+  if (value < 1) return [];
+  const out: number[] = [];
+  const root = Math.floor(Math.sqrt(value));
+  for (let i = 1; i <= root; i += 1) {
+    if (value % i === 0) {
+      out.push(i);
+      if (i * i !== value) out.push(value / i);
+    }
+  }
+  out.sort((a, b) => a - b);
+  return out;
+}
+
+function scaleRangeToInt(range: number): { value: number; scale: number } {
+  let scale = 1;
+  let v = Math.abs(range);
+  for (let i = 0; i < 6; i += 1) {
+    const r = Math.round(v);
+    if (Math.abs(v - r) < 1e-8) return { value: Math.max(1, r), scale };
+    v *= 10;
+    scale *= 10;
+  }
+  return { value: Math.max(1, Math.round(Math.abs(range) * 1e6)), scale: 1e6 };
+}
+
+/** Class widths that divide `range` evenly with a usable bar count. */
+export function classWidthOptions(range: number): number[] {
+  if (!(range > 1e-9)) return [];
+  const { value, scale } = scaleRangeToInt(range);
+  const widths: number[] = [];
+  for (const d of integerDivisors(value)) {
+    const width = niceNum(d / scale);
+    if (!(width >= 0.01)) continue;
+    const count = Math.round(range / width);
+    if (count < MIN_CLASS_COUNT || count > MAX_CLASS_COUNT) continue;
+    if (Math.abs(count * width - range) > 1e-6) continue;
+    if (!widths.some((w) => sameClassWidth(w, width))) widths.push(width);
+  }
+  widths.sort((a, b) => a - b);
+  if (widths.length === 0) {
+    const n = Math.min(MAX_CLASS_COUNT, Math.max(MIN_CLASS_COUNT, 5));
+    const fallback = niceNum(range / n);
+    if (fallback >= 0.01) widths.push(fallback);
+  }
+  return widths;
+}
+
+export function classCountForWidth(range: number, width: number): number {
+  if (!(width > 1e-12) || !(range > 1e-12)) return MIN_CLASS_COUNT;
+  const count = Math.round(range / width);
+  return Math.min(MAX_CLASS_COUNT, Math.max(MIN_CLASS_COUNT, count));
+}
+
+export function pickClassWidth(range: number, preferred: number): number {
+  const options = classWidthOptions(range);
+  if (options.length === 0) return Math.max(0.01, range / 5);
+  const hit = options.find((w) => sameClassWidth(w, preferred));
+  if (hit != null) return hit;
+  let best = options[0]!;
+  let bestD = Math.abs(best - preferred);
+  for (const w of options) {
+    const d = Math.abs(w - preferred);
+    if (d < bestD) {
+      best = w;
+      bestD = d;
+    }
+  }
+  return best;
+}
+
+export function applyClassWidth(
+  state: HistogramState,
+  width: number,
+): HistogramState {
+  const range = classEnd(state) - state.classStart;
+  const options = classWidthOptions(range);
+  const chosen =
+    options.find((w) => sameClassWidth(w, width)) ?? pickClassWidth(range, width);
+  const count = Math.round(range / chosen);
+  if (count < MIN_CLASS_COUNT || count > MAX_CLASS_COUNT) return state;
+  return normalizeState({
+    ...state,
+    classWidth: chosen,
+    classCount: count,
+  });
+}
+
+export function applyClassRange(
+  state: HistogramState,
+  start: number,
+  end: number,
+): HistogramState {
+  const range = end - start;
+  if (!(range >= 0.02) || !Number.isFinite(start) || !Number.isFinite(end)) {
+    return state;
+  }
+  const width = pickClassWidth(range, state.classWidth);
+  const count = Math.round(range / width);
+  if (count < MIN_CLASS_COUNT || count > MAX_CLASS_COUNT) return state;
+  return normalizeState({
+    ...state,
+    classStart: start,
+    classWidth: width,
+    classCount: count,
+  });
 }
 
 export function classBound(state: Pick<HistogramState, "classStart" | "classWidth">, i: number): number {
@@ -171,7 +291,10 @@ export function niceYMax(needed: number, tick: number): number {
 }
 
 export function normalizeState(state: HistogramState): HistogramState {
-  const classCount = Math.min(12, Math.max(3, Math.round(finiteOr(state.classCount, 5))));
+  const classCount = Math.min(
+    MAX_CLASS_COUNT,
+    Math.max(MIN_CLASS_COUNT, Math.round(finiteOr(state.classCount, 5))),
+  );
   const classWidth = Math.max(0.01, finiteOr(state.classWidth, 1));
   const classStart = finiteOr(state.classStart, 0);
   const yTick = Math.max(0.001, finiteOr(state.yTick, 1));

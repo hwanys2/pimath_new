@@ -20,8 +20,11 @@ import {
 } from "@/lib/diagrams/export-image";
 import {
   addCompareSeries,
+  applyClassRange,
+  applyClassWidth,
   classBound,
   classEnd,
+  classWidthOptions,
   cloneState,
   DEFAULT_HISTOGRAM_STATE,
   FILL_CYAN,
@@ -33,6 +36,7 @@ import {
   normalizeState,
   patchSeries,
   removeSeries,
+  sameClassWidth,
   setFrequency,
   type HistogramKind,
   type HistogramState,
@@ -248,24 +252,20 @@ export default function HistogramStudio() {
 
   const canBreak = state.classStart > 1e-9;
   const classEndValue = classEnd(state);
+  const classRange = classEndValue - state.classStart;
+  const widthChoices = classWidthOptions(classRange);
+  const shownWidths = widthChoices.some((w) =>
+    sameClassWidth(w, state.classWidth),
+  )
+    ? widthChoices
+    : [...widthChoices, state.classWidth].sort((a, b) => a - b);
 
   function setClassStartKeepEnd(classStart: number) {
-    const width = (classEndValue - classStart) / state.classCount;
-    if (!(width >= 0.01)) return;
-    set({ classStart, classWidth: width });
+    setState((prev) => applyClassRange(prev, classStart, classEnd(prev)));
   }
 
   function setClassEndKeepStart(end: number) {
-    const width = (end - state.classStart) / state.classCount;
-    if (!(width >= 0.01)) return;
-    set({ classWidth: width });
-  }
-
-  function setClassCountKeepRange(classCount: number) {
-    const count = Math.min(12, Math.max(3, Math.round(classCount)));
-    const width = (classEndValue - state.classStart) / count;
-    if (!(width >= 0.01)) return;
-    set({ classCount: count, classWidth: width });
+    setState((prev) => applyClassRange(prev, prev.classStart, end));
   }
 
   return (
@@ -368,21 +368,26 @@ export default function HistogramStudio() {
                   />
                 </div>
               </div>
-              <CompactNumber
-                label="크기"
-                value={state.classWidth}
-                onChange={(classWidth) => set({ classWidth })}
-                min={0.01}
-                step={0.5}
-              />
-              <CompactNumber
-                label="개수"
-                value={state.classCount}
-                onChange={setClassCountKeepRange}
-                min={3}
-                max={12}
-                step={1}
-              />
+              <div className="col-span-2">
+                <p className="text-xs font-semibold text-foreground/60">크기</p>
+                <div className="mt-1 flex flex-wrap gap-1">
+                  {shownWidths.map((width) => (
+                    <ChipToggle
+                      key={width}
+                      on={sameClassWidth(state.classWidth, width)}
+                      onClick={() =>
+                        setState((prev) => applyClassWidth(prev, width))
+                      }
+                    >
+                      {formatTick(width)}
+                    </ChipToggle>
+                  ))}
+                </div>
+                <p className="mt-1 text-[11px] text-foreground/45">
+                  범위의 약수예요. 지금 크기는 {formatTick(state.classWidth)},{" "}
+                  {state.classCount}칸.
+                </p>
+              </div>
               <label className="min-w-0">
                 <span className="text-xs font-semibold text-foreground/60">
                   가로축
