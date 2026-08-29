@@ -393,9 +393,7 @@ function runsToTspans(runs: TextRun[], fonts: FontFaces): string {
     .filter((run) => !run.fracNum)
     .map((run) => {
       const style = run.italic ? "italic" : "normal";
-      const family = run.italic
-        ? `'Times New Roman', ${escapeXml(fonts.math)}, serif`
-        : `${escapeXml(fonts.math)}, ${escapeXml(fonts.korean)}, 'Times New Roman', Batang, serif`;
+      const family = `'Times New Roman', ${escapeXml(fonts.math)}, ${escapeXml(fonts.korean)}, Batang, serif`;
       return `<tspan font-style="${style}" font-family="${family}">${escapeXml(run.text)}</tspan>`;
     })
     .join("");

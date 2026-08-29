@@ -1,4 +1,4 @@
-import { parseMathRuns } from "@/lib/diagrams/math-label";
+import { parseMathRuns, parseNameRuns } from "@/lib/diagrams/math-label";
 import type { DiagramScene as SharedDiagramScene, SceneCmd, SceneText } from "@/lib/diagrams/scene";
 import {
   edgeKey,
@@ -546,7 +546,7 @@ export function buildSolidSketchScene(state: SolidSketchState): SolidScene {
       id: "center-name",
       x: baseC.x - 14,
       y: baseC.y + 14,
-      runs: parseMathRuns("O"),
+      runs: parseNameRuns("O"),
       size: style.pointLabelSize,
       anchor: "middle",
     });
@@ -574,7 +574,7 @@ export function buildSolidSketchScene(state: SolidSketchState): SolidScene {
         id: `vertex:${i}`,
         x: pos.x,
         y: pos.y,
-        runs: parseMathRuns(name),
+        runs: parseNameRuns(name),
         size: style.pointLabelSize,
         anchor: "middle",
       });

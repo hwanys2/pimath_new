@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { parseMathRuns, runsToPlain } from "../math-label";
+import { parseMathRuns, parseNameRuns, runsToPlain } from "../math-label";
 import {
   appendPolylineVertex,
   COORD_PLANE_PRESETS,
@@ -131,5 +131,29 @@ describe("equation labels", () => {
     assert.ok(frac);
     assert.equal(runsToPlain(frac!.fracNum!), "24");
     assert.equal(runsToPlain(frac!.fracDen!), "x");
+  });
+
+  it("keeps point names upright roman", () => {
+    const name = parseNameRuns("A");
+    assert.equal(name.length, 1);
+    assert.equal(name[0]!.italic, false);
+    const origin = parseNameRuns("O");
+    assert.equal(origin[0]!.italic, false);
+    const variable = parseMathRuns("$x$");
+    assert.equal(variable[0]!.italic, true);
+  });
+
+  it("draws ordered-pair names upright and axis names italic", () => {
+    const state = COORD_PLANE_PRESETS.find((p) => p.id === "ordered-pairs")!.state;
+    const scene = buildCoordPlaneScene(state);
+    const names = scene.texts.filter(
+      (t) => t.id === "origin" || t.id.endsWith(":name"),
+    );
+    assert.ok(names.length > 0);
+    for (const text of names) {
+      assert.ok(text.runs.every((r) => !r.italic));
+    }
+    const axisX = scene.texts.find((t) => t.id === "axis-x");
+    assert.ok(axisX?.runs.some((r) => r.italic));
   });
 });

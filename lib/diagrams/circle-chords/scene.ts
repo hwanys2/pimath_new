@@ -6,7 +6,7 @@ import {
   type ChordDraft,
   type MeasLabel,
 } from "@/lib/diagrams/circle-chords/model";
-import { parseMathRuns } from "@/lib/diagrams/math-label";
+import { parseMathRuns, parseNameRuns } from "@/lib/diagrams/math-label";
 import type {
   DiagramScene as SharedDiagramScene,
   SceneCmd,
@@ -301,7 +301,7 @@ export function buildCircleChordsScene(state: CircleChordsState): DiagramScene {
       id: "center-name",
       x: oPos.x,
       y: oPos.y,
-      runs: parseMathRuns(state.centerName.trim()),
+      runs: parseNameRuns(state.centerName.trim()),
       size: style.pointLabelSize,
       anchor: "middle",
     });
@@ -403,7 +403,7 @@ function drawChord(args: {
       id: `${chord.id}:startName`,
       x: p.x,
       y: p.y,
-      runs: parseMathRuns(chord.startName.trim()),
+      runs: parseNameRuns(chord.startName.trim()),
       size: style.pointLabelSize,
       anchor: "middle",
     });
@@ -417,7 +417,7 @@ function drawChord(args: {
       id: `${chord.id}:endName`,
       x: p.x,
       y: p.y,
-      runs: parseMathRuns(chord.endName.trim()),
+      runs: parseNameRuns(chord.endName.trim()),
       size: style.pointLabelSize,
       anchor: "middle",
     });
@@ -432,7 +432,7 @@ function drawChord(args: {
       id: `${chord.id}:midName`,
       x: p.x,
       y: p.y,
-      runs: parseMathRuns(chord.midName.trim()),
+      runs: parseNameRuns(chord.midName.trim()),
       size: style.pointLabelSize,
       anchor: "middle",
     });

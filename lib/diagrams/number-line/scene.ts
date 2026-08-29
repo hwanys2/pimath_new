@@ -1,4 +1,4 @@
-import { parseMathRuns } from "@/lib/diagrams/math-label";
+import { parseMathRuns, parseNameRuns } from "@/lib/diagrams/math-label";
 import {
   resolveBands,
   tickValues,
@@ -249,7 +249,7 @@ export function buildNumberLineScene(state: NumberLineState): NumberLineScene {
         id: `point:${point.id}:name`,
         x: x + point.labelDx,
         y: axisY - 28 + point.labelDy,
-        runs: parseMathRuns(point.name.trim()),
+        runs: parseNameRuns(point.name.trim()),
         size: style.pointLabelSize,
         anchor: "middle",
       });

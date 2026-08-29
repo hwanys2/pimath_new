@@ -41,9 +41,10 @@ function readFrac(
 
 /**
  * Textbook-style math labels:
- * Latin point/variable names italic, numbers and units upright, Hangul upright.
+ * Latin variables italic, numbers and units upright, Hangul upright.
  * `$x$` is treated as a math variable so `x cm` looks like a formula.
  * `\frac{24}{x}` becomes a stacked fraction.
+ * Point names (A, B, O) use `parseNameRuns` — upright Roman, not italic.
  */
 export function parseMathRuns(text: string): TextRun[] {
   const runs: TextRun[] = [];
@@ -80,6 +81,20 @@ export function parseMathRuns(text: string): TextRun[] {
     }
   }
   return runs;
+}
+
+function uprightRuns(runs: TextRun[]): TextRun[] {
+  return runs.map((run) => ({
+    ...run,
+    italic: false,
+    fracNum: run.fracNum ? uprightRuns(run.fracNum) : undefined,
+    fracDen: run.fracDen ? uprightRuns(run.fracDen) : undefined,
+  }));
+}
+
+/** Point names like A, B, O — Times Roman upright, never italic. */
+export function parseNameRuns(text: string): TextRun[] {
+  return uprightRuns(parseMathRuns(text));
 }
 
 export function runsToPlain(runs: TextRun[]): string {
@@ -167,9 +182,7 @@ export function canvasFont(
   fonts: FontFaces,
 ): string {
   const style = italic ? "italic" : "normal";
-  const family = italic
-    ? `"Times New Roman", ${fonts.math}, ${fonts.korean}, serif`
-    : `${fonts.math}, ${fonts.korean}, "Times New Roman", Batang, serif`;
+  const family = `"Times New Roman", ${fonts.math}, ${fonts.korean}, Batang, serif`;
   return `${style} ${size}px ${family}`;
 }
 

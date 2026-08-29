@@ -1,4 +1,4 @@
-import { parseMathRuns } from "@/lib/diagrams/math-label";
+import { parseMathRuns, parseNameRuns } from "@/lib/diagrams/math-label";
 import {
   graphEquationText,
   graphStrokeWidth,
@@ -590,7 +590,7 @@ export function buildCoordPlaneScene(state: CoordPlaneState): CoordPlaneScene {
         id: `point:${point.id}:name`,
         x: px + point.labelDx,
         y: py + point.labelDy,
-        runs: parseMathRuns(point.name.trim()),
+        runs: parseNameRuns(point.name.trim()),
         size: state.style.pointLabelSize,
         anchor: "middle",
       });
@@ -648,7 +648,7 @@ export function buildCoordPlaneScene(state: CoordPlaneState): CoordPlaneScene {
       id: "origin",
       x: ox - 12,
       y: oy + 14,
-      runs: parseMathRuns(state.originLabel.trim()),
+      runs: parseNameRuns(state.originLabel.trim()),
       size: state.style.pointLabelSize,
       anchor: "middle",
     });
