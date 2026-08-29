@@ -26,7 +26,6 @@ import {
   cloneState,
   DEFAULT_SOLID_SKETCH_STATE,
   defaultVertexNames,
-  cycleVertexDisplay,
   familyHasFaceHeight,
   familyHasSlant,
   familyIsRound,
@@ -37,9 +36,9 @@ import {
   normalizeState,
   resetView,
   toggleVertexNameHidden,
-  vertexDisplayChipLabel,
   withFamily,
   type SolidSketchState,
+  type VertexDisplayMode,
 } from "@/lib/diagrams/solid-sketch/model";
 import { buildSolidSketchScene } from "@/lib/diagrams/solid-sketch/scene";
 import {
@@ -309,16 +308,17 @@ export default function SolidSketchStudio() {
                 숨은 선
               </ChipToggle>
               {!smooth ? (
-                <ChipToggle
-                  on={state.vertexDisplay !== "hidden"}
-                  onClick={() =>
-                    set({
-                      vertexDisplay: cycleVertexDisplay(state.vertexDisplay),
-                    })
-                  }
-                >
-                  {vertexDisplayChipLabel(state.vertexDisplay)}
-                </ChipToggle>
+                <div className="w-full">
+                  <Segmented<VertexDisplayMode>
+                    value={state.vertexDisplay}
+                    onChange={(vertexDisplay) => set({ vertexDisplay })}
+                    options={[
+                      { id: "names", label: "점 이름" },
+                      { id: "dots", label: "점" },
+                      { id: "hidden", label: "안보임" },
+                    ]}
+                  />
+                </div>
               ) : null}
               {!sphere && !hemisphere ? (
                 <ChipToggle

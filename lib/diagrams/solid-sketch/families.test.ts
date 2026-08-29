@@ -4,6 +4,7 @@ import {
   DEFAULT_SOLID_SKETCH_STATE,
   SOLID_SKETCH_PRESETS,
   cloneState,
+  cycleVertexDisplay,
   familyHasSlant,
   familyIsSmooth,
   normalizeState,
@@ -446,6 +447,27 @@ describe("per-vertex names", () => {
     const dots = scene.cmds.filter((c) => c.t === "dot");
     assert.equal(labels.length, 0);
     assert.equal(dots.length, 8);
+  });
+
+  it("hides all vertex dots and labels in hidden mode", () => {
+    const scene = buildSolidSketchScene(
+      normalizeState({
+        ...DEFAULT_SOLID_SKETCH_STATE,
+        family: "frustum",
+        sides: 3,
+        vertexDisplay: "hidden",
+      }),
+    );
+    const labels = scene.texts.filter((t) => t.id.startsWith("vertex:"));
+    const dots = scene.cmds.filter((c) => c.t === "dot");
+    assert.equal(labels.length, 0);
+    assert.equal(dots.length, 0);
+  });
+
+  it("cycles names -> dots -> hidden -> names", () => {
+    assert.equal(cycleVertexDisplay("names"), "dots");
+    assert.equal(cycleVertexDisplay("dots"), "hidden");
+    assert.equal(cycleVertexDisplay("hidden"), "names");
   });
 
   it("migrates legacy showVertexNames=false to hidden", () => {
