@@ -44,6 +44,17 @@ export const DIAGRAM_TOOLS: DiagramToolMeta[] = [
     status: "ready",
   },
   {
+    id: "g1-polygon",
+    grade: 1,
+    title: "다각형",
+    description:
+      "삼각형부터 정n각형까지 꼭짓점을 끌어 모양을 잡고, 내각·외각·변의 길이·대각선을 바로 붙여 PNG로 저장해요.",
+    unitHint: "3.3 평면도형의 성질",
+    emoji: "⬠",
+    href: "/tools/figures/g1-polygon",
+    status: "ready",
+  },
+  {
     id: "g1-solid-sketch",
     grade: 1,
     title: "겨냥도",
