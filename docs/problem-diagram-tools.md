@@ -4,7 +4,7 @@
 > 코드 단일 출처: [`lib/diagrams/catalog.ts`](../lib/diagrams/catalog.ts)  
 > 허브: `/tools/figures` · 개별 도구: `/tools/figures/{toolId}`
 
-이후 **문제 그림 도구를 추가하거나 손볼 때**는 이 문서를 먼저 읽는다. 엔진·조작은 **원의 현** (`g3-circle-chords`)을, 스튜디오 **3열 배치**는 **겨냥도** (`g1-solid-sketch`)와 원의 현을 참고 구현으로 삼는다. 수직선의 2열은 가로로 긴 축용 예외이지 새 도구의 기본이 아니다.
+이후 **문제 그림 도구를 추가하거나 손볼 때**는 이 문서를 먼저 읽는다. 엔진·조작은 **원의 현** (`g3-circle-chords`)을, 스튜디오 **3열 배치**는 **입체도형의 닮음** (`g2-similar-solids`)·히스토그램을 참고 구현으로 삼는다. 1열은 남은 폭을 채운다. 수직선·일차부등식의 2열은 가로로 긴 축용 예외이지 새 도구의 기본이 아니다.
 
 ---
 
@@ -97,35 +97,50 @@ components/tools/figures/DiagramToolShell.tsx  ← 공통 뼈대. 손대지 않�
 
 ## 5. 편집 UI 원칙 (직관성)
 
-새 도구 UI는 아래 **3열 그리드**를 기본으로 쓴다. 참고: [`SolidSketchStudio.tsx`](../components/tools/figures/solid-sketch/SolidSketchStudio.tsx), [`CircleChordsStudio.tsx`](../components/tools/figures/circle-chords/CircleChordsStudio.tsx). 컨트롤 위젯은 [`components/tools/figures/controls.tsx`](../components/tools/figures/controls.tsx)를 재사용한다.
+새 도구 UI는 아래 **3열 그리드**를 기본으로 쓴다. 레이아웃 참고: [`SimilarSolidsStudio.tsx`](../components/tools/figures/similar-solids/SimilarSolidsStudio.tsx), [`HistogramStudio.tsx`](../components/tools/figures/histogram/HistogramStudio.tsx). 컨트롤 위젯은 [`components/tools/figures/controls.tsx`](../components/tools/figures/controls.tsx)를 재사용한다.
 
 ### 5.1 데스크톱 3열 (필수)
 
-`lg` 이상에서 스튜디오 본문은 항상 이 그리드다. 새 도구에서 2열(`1fr` + 오른쪽 패널)을 만들지 않는다.
+`lg` 이상에서 스튜디오 본문은 **항상** 이 그리드다. 새 도구에서 2열(`1fr` + 오른쪽 패널)을 만들지 않는다. 1열을 `minmax(0,22rem)`처럼 가두지 않는다.
 
 ```tsx
-<div className="grid items-start gap-5 lg:grid-cols-[minmax(0,22rem)_minmax(16rem,20rem)_minmax(15rem,18rem)]">
+<div className="grid items-start gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(14rem,16rem)_minmax(15rem,18rem)]">
 ```
 
-캔버스 카드:
+- 1열 `minmax(0,1fr)`: 2·3열을 뺀 **남은 폭을 그림이 채운다.** (`g2-similar-solids`와 같음)
+- 2열 `minmax(14rem,16rem)`: 표시 칩·목록. 좁게 둔다.
+- 3열 `minmax(15rem,18rem)`: 빠른 그림·치수·그림 스타일.
+
+캔버스 카드. 모바일만 `max-w-[24rem]`. **데스크톱에서는 `lg:max-w-none`으로 1열 전체를 쓴다.**
 
 ```tsx
-<div className="mx-auto w-full max-w-[24rem] overflow-hidden rounded-3xl border-2 border-wood/10 bg-white shadow-[0_12px_40px_rgba(61,44,30,0.08)] lg:mx-0">
+<div className="mx-auto w-full max-w-[24rem] overflow-hidden rounded-3xl border-2 border-wood/10 bg-white shadow-[0_12px_40px_rgba(61,44,30,0.08)] lg:mx-0 lg:max-w-none">
+```
+
+1열 그림 **아래**에 계급·축·도형 카드가 있으면 래퍼를 한 겹 더 둔다.
+
+```tsx
+<div className="mx-auto w-full max-w-[24rem] space-y-4 lg:mx-0 lg:max-w-none">
+  <div className="overflow-hidden rounded-3xl border-2 border-wood/10 bg-white shadow-[0_12px_40px_rgba(61,44,30,0.08)]">
+    {/* canvas */}
+  </div>
+  {/* 그림 바로 아래 설정 */}
+</div>
 ```
 
 | 열 | 역할 | 넣는 것 |
 |----|------|---------|
-| 1 | **그림** | 시험지 크기 캔버스만. `max-w-[24rem]`. 헤더의 PNG·복사·SVG는 그리드 위, 공통. |
+| 1 | **그림** | 캔버스가 1열을 채움. 헤더의 PNG·복사·SVG는 그리드 위, 공통. |
 | 2 | **표시·조작** | 고른 대상의 칩(수선·직각·면 채움·숨은 선·라벨…), 대상 목록·지우기, 보기(회전 슬라이더 등). 그림을 고치는 스위치. |
 | 3 | **기본** | 빠른 그림(프리셋), 도형·치수·단위·미지수. **그림 스타일**은 `<details open>`로 기본 펼침(접을 수는 있음). |
 
 좁은 화면에서는 같은 순서로 세로 쌓인다(그림 → 표시 → 기본).
 
-**예외.** 가로로 긴 축이 본체면(수직선)만 2열 `lg:grid-cols-[minmax(0,1fr)_minmax(16rem,20rem)]`을 쓴다. 좌표평면·입체·원 소재는 3열로 시작한다. 기존 2열 도구를 손볼 때는 3열로 옮기는 쪽을 우선한다.
+**예외.** 가로로 긴 축이 본체면(수직선·일차부등식)만 2열 `lg:grid-cols-[minmax(0,1fr)_minmax(16rem,20rem)]`을 쓴다. 좌표평면·입체·원·다각형은 위 3열을 그대로 복사한다. 기존 2열 도구를 손볼 때는 3열로 옮기는 쪽을 우선한다.
 
 ### 5.2 조작
 
-1. **그림은 시험 크기.** 캔버스는 문제지에 들어갈 정도로 작게. 조작은 2·3열에 둔다.
+1. **미리보기는 1열을 채운다.** 데스크톱에서 그림을 `22rem`·`24rem`으로 가두지 않는다. PNG 내보내기 크기는 장면(scene) 해상도다. 조작은 2·3열에 둔다.
 2. **값은 그림에서 고친다.** 보이는 숫자·점 이름을 누르면 바로 수정한다. 숫자를 넣으면 그림도 맞춰 바뀐다. `x`를 넣으면 미지수로 표시한다.
 3. **끝점은 길이 고정.** (원의 현) 원 위 점을 끌면 반대쪽이 원을 따라간다. 현 가운데를 밀 때만 거리가 바뀐다.
 4. **표시는 2열 칩.** 수선, 직각, OA/OB, 중점, 면 채움 등. 목록에서 바로 지운다.
@@ -140,13 +155,14 @@ components/tools/figures/DiagramToolShell.tsx  ← 공통 뼈대. 손대지 않�
 1. [`lib/diagrams/catalog.ts`](../lib/diagrams/catalog.ts)에 `DiagramToolMeta`를 추가한다. `status: "ready"` 전에는 허브에 준비 중 카드로만 둔다.
 2. `lib/diagrams/<toolId>/`에 상태 타입, 프리셋(실제 시험 유형 2~4개), `buildScene()`을 둔다.
 3. 장면은 캔버스/SVG가 같이 쓸 수 있는 명령 목록으로 만든다. 미리보기와 PNG가 어긋나면 안 된다.
-4. `components/tools/figures/<toolId>/`에 스튜디오 UI. **§5.1 3열**을 그대로 복사한다. 1열 그림, 2열 표시 칩·목록·보기, 3열 빠른 그림·치수·그림 스타일(기본 펼침). 헤더에 PNG·복사. 수직선처럼 축이 가로로 긴 경우만 2열 예외.
+4. `components/tools/figures/<toolId>/`에 스튜디오 UI. **§5.1 3열을 클래스까지 그대로 복사**한다 (`1fr` + `14–16rem` + `15–18rem`, 캔버스 `lg:max-w-none`). 1열을 `22rem`으로 가두지 않는다. 1열 그림, 2열 표시 칩·목록·보기, 3열 빠른 그림·치수·그림 스타일(기본 펼침). 헤더에 PNG·복사. 수직선·일차부등식처럼 축이 가로로 긴 경우만 2열 예외.
 5. [`app/tools/figures/[toolId]/page.tsx`](../app/tools/figures/[toolId]/page.tsx)의 `renderDiagramStudio()`에 `case`만 추가한다. 라우트를 새로 만들지 않는다. 페이지는 반드시 [`DiagramToolShell`](../components/tools/figures/DiagramToolShell.tsx)로 감싼다 — 스튜디오만 `return`하면 의견이 빠진다.
 6. 기본 프리셋으로 PNG를 저장해 보고, 라벨 겹침·직각 위치·단위 이탤릭 여부를 확인한다.
 7. 이 문서 §8 도구 목록에 한 줄 추가한다. 의견용 마이그레이션·컴포넌트·RPC는 **추가하지 않는다.** 같은 `pm_diagram_feedback`이 `tool_id`로 갈린다.
 
 하지 말 것:
 
+- 3열 1열을 `minmax(0,22rem)` 또는 캔버스 `max-w-[24rem]`(lg에서도)로 가두지 않는다. `g2-similar-solids`처럼 남은 폭을 채운다.
 - 범용 기하 캔버스(자유 작도, 도구 팔레트 10개 이상)를 이 허브에 넣지 않는다.
 - `lib/contents.ts`에 넣거나 XP를 주지 않는다.
 - 기존 콘텐츠 단원 페이지를 이 도구의 진입점으로 바꾸지 않는다. 진입은 `/tools/figures`다.
@@ -185,7 +201,7 @@ components/tools/figures/DiagramToolShell.tsx  ← 공통 뼈대. 손대지 않�
 - 꺾은선 꼭짓점은 목록에서 추가·사이 삽입·삭제하고, 「그림에서 찍기」로 선분 사이에 넣을 수 있다.
 - 프리셋: 순서쌍, 축 끊기, 상황 그래프, 정비례, 반비례, 교점.
 - 조작: 점·식·꼭짓점 드래그, Delete, PNG·복사·SVG.
-- 스튜디오는 §5.1 **3열** (1열 그림 약 절반, 2열 빠른 그림·좌표평면, 3열 점·그래프·스타일).
+- 스튜디오는 §5.1 **3열**: 그림 아래 좌표평면 | 표시·점·그래프 | 빠른 그림·그림 스타일(기본 펼침).
 
 ### 겨냥도 (`g1-solid-sketch`)
 
@@ -444,3 +460,4 @@ components/tools/figures/DiagramToolShell.tsx  ← 공통 뼈대. 손대지 않�
 | 2026-08-30 | 중2 평면도형의 닮음 (`g2-similar-figures`). 한 도형+닮음비로 쌍 생성, 회전·대칭·모눈, PNG. |
 | 2026-08-30 | 평면도형의 닮음 도형 카드(변의 수·닮음비)를 1열 그림 바로 아래로 이동. |
 | 2026-08-30 | 중2 삼각형의 닮음 (`g2-similar-triangles`). 평행선·나비꼴·직각 높이·중점연결·무게중심, PNG. |
+| 2026-08-30 | 3열 스튜디오 1열을 `g2-similar-solids`처럼 남은 폭까지 확대. `22rem` 캡 금지. §5.1 기본 그리드를 `1fr` + 좁은 2·3열로 고정. |
