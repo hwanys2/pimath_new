@@ -415,7 +415,7 @@ function paintOverlays(
     ctx.lineWidth = 2.4;
     ctx.setLineDash([5, 4]);
     for (const cmd of scene.cmds) {
-      if (cmd.id !== `${hover.id}:line`) continue;
+      if (!("id" in cmd) || cmd.id !== `${hover.id}:line`) continue;
       if (cmd.t === "line") {
         ctx.beginPath();
         ctx.moveTo(cmd.x1, cmd.y1);
