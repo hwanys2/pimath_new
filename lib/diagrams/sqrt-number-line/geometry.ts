@@ -220,9 +220,11 @@ export function nudgeLabel(
   const parsed = parseLabelId(id);
   if (!parsed) return state;
   if (parsed.key === "posValue" || parsed.key === "negValue") return state;
+  const nameKey =
+    parsed.key === "posCombined" ? "P" : parsed.key === "negCombined" ? "Q" : parsed.key;
   const names = { ...state.names };
-  const cur = names[parsed.key];
-  names[parsed.key] = {
+  const cur = names[nameKey];
+  names[nameKey] = {
     ...cur,
     dx: cur.dx + dx,
     dy: cur.dy + dy,
