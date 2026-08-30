@@ -46,6 +46,7 @@
         ├─ 중1 카드들 → /tools/figures/g1-number-line , /tools/figures/g1-coordinate-plane , /tools/figures/g1-polygon , /tools/figures/g1-circle-sectors , /tools/figures/g1-solid-sketch , /tools/figures/g1-histogram
         ├─ 중2 카드들 → /tools/figures/g2-repeating-decimal , /tools/figures/g2-linear-inequality , /tools/figures/g2-linear-function , /tools/figures/g2-triangle-centers , /tools/figures/g2-isosceles-triangle , /tools/figures/g2-similar-solids , /tools/figures/g2-quadrilaterals , /tools/figures/g2-similar-figures , /tools/figures/g2-similar-triangles , /tools/figures/g2-counting-probability , /tools/figures/g2-pythagorean
         └─ 중3 카드들
+              ├─ 제곱근 수직선 → /tools/figures/g3-sqrt-number-line
               └─ 원의 현 → /tools/figures/g3-circle-chords
 ```
 
@@ -82,7 +83,7 @@ components/tools/figures/DiagramToolShell.tsx  ← 공통 뼈대. 손대지 않�
 모든 도구가 이 규칙을 기본값으로 따른다. 스타일 슬라이더로 미세 조정은 허용하되, 기본값이 시험지처럼 보여야 한다.
 
 1. **흰 배경, 검은 선.** 장식 색·그라데이션·이모지는 그림 안에 넣지 않는다.  
-   예외: **좌표평면**은 교과서처럼 연한 청록 격자와 분홍·청록 그래프를 쓴다. **닮은 평면도형**의 모눈은 교과서 모눈종이처럼 연한 청록 격자다. **히스토그램·도수분포다각형**은 막대 채움과 비교 선에 청록·분홍을 쓴다. **일차부등식** 해의 범위는 꺾은선 아래를 연한 분홍 등으로 칠할 수 있다. **순환소수 나눗셈**은 나머지·순환마디를 교과서처럼 분홍·파랑·노란 칸으로 표시한다.
+   예외: **좌표평면**은 교과서처럼 연한 청록 격자와 분홍·청록 그래프를 쓴다. **닮은 평면도형**의 모눈은 교과서 모눈종이처럼 연한 청록 격자다. **제곱근 수직선**은 모눈·정사각형 면(연한 파랑)·삼각형 면(연한 분홍)·호(분홍)를 쓴다. **히스토그램·도수분포다각형**은 막대 채움과 비교 선에 청록·분홍을 쓴다. **일차부등식** 해의 범위는 꺾은선 아래를 연한 분홍 등으로 칠할 수 있다. **순환소수 나눗셈**은 나머지·순환마디를 교과서처럼 분홍·파랑·노란 칸으로 표시한다.
 2. **선은 가늘고 일정.** 기본 굵기는 인쇄해도 무너지지 않을 정도만.
 3. **수식 세리프.** 변수(`x`, `y`, `a`)는 이탤릭 세리프. **점 이름(`A`, `B`, `O`)은 직립 로만.** 숫자와 단위(`cm`)·한글은 직립.  
    (`16 cm`, `$x$ cm` 가 교과서와 같아야 한다. 점 이름만 기울이지 않는다.)
@@ -180,7 +181,19 @@ components/tools/figures/DiagramToolShell.tsx  ← 공통 뼈대. 손대지 않�
 
 ---
 
-## 7. 참고 구현: 원의 현 (`g3-circle-chords`)
+## 7. 참고 구현
+
+### 제곱근 수직선 (`g3-sqrt-number-line`)
+
+중3 `1. 제곱근과 실수`에서 나오는 무리수를 수직선에 찍는 작도 그림.
+
+- 정사각형(넓이 n) 또는 직각삼각형(빗변 √n)으로 √n을 수직선에 표시. **n = a²+b²**인 정수 a, b만 (√3 이어 그리기·테오도로스는 제외).
+- 시작점 O, 도형·면 채움·모눈·호·점 P/Q·값 ±√n·꼭짓점 이름·직각을 각각 칩으로 켜고 끈다.
+- O를 축 따라 끌어 시작점, A를 모눈에 스냅해 a·b(따라서 √n) 변경. 글자는 눌러 수정·끌어 옮김.
+- 프리셋: √2 삼각형, √5 정사각형·삼각형, √10, 시작점 2, 점만.
+- 스튜디오는 §5.1 **3열**: 그림 아래 작도 | 표시·수직선 | 빠른 그림·그림 스타일(기본 펼침).
+
+### 원의 현 (`g3-circle-chords`)
 
 중3 `3.2 원의 성질`에서 나오는 전형적인 그림.
 
@@ -407,6 +420,7 @@ components/tools/figures/DiagramToolShell.tsx  ← 공통 뼈대. 손대지 않�
 | `g2-pythagorean` | 중2 | 피타고라스의 정리 | ready |
 | `g2-similar-solids` | 중2 | 입체도형의 닮음 | ready |
 | `g2-counting-probability` | 중2 | 경우의 수와 확률 | ready |
+| `g3-sqrt-number-line` | 중3 | 제곱근 수직선 | ready |
 | `g3-circle-chords` | 중3 | 원의 현 | ready |
 
 ---
@@ -502,4 +516,4 @@ components/tools/figures/DiagramToolShell.tsx  ← 공통 뼈대. 손대지 않�
 | 2026-08-30 | 삼각형의 닮음: 길이 글자와 설명선(점선 호)을 따로 드래그. 끌기는 변의 방향에 맞춰 움직임. |
 | 2026-08-30 | 중2 피타고라스의 정리 (`g2-pythagorean`). 직각삼각형·정사각형·증명·수선·좌표·대각선, PNG. |
 | 2026-08-30 | §5.1 열 역할 고정: 1열 그림+큰 설정, 2열 세부 설정, 3열 빠른 그림·그림 스타일. 입체도형의 닮음 도형→1열, 닮음비→2열. |
-| 2026-08-30 | 중2 경우의 수와 확률 (`g2-counting-probability`). 주사위·카드·주머니·원판·길, 드래그 재배치, PNG. |
+| 2026-08-30 | 중3 제곱근 수직선 (`g3-sqrt-number-line`). 정사각형·직각삼각형 작도, 호·점 P/Q, PNG. |

@@ -209,6 +209,17 @@ export const DIAGRAM_TOOLS: DiagramToolMeta[] = [
     status: "ready",
   },
   {
+    id: "g3-sqrt-number-line",
+    grade: 3,
+    title: "제곱근 수직선",
+    description:
+      "정사각형·직각삼각형으로 √n을 수직선에 찍는 작도 그림을 바로 그리고, 시작점·도형·호·점을 각각 켜고 끈 뒤 PNG로 저장해요.",
+    unitHint: "1. 제곱근과 실수",
+    emoji: "√",
+    href: "/tools/figures/g3-sqrt-number-line",
+    status: "ready",
+  },
+  {
     id: "g3-circle-chords",
     grade: 3,
     title: "원의 현",

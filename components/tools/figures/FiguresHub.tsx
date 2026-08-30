@@ -83,7 +83,7 @@ export default function FiguresHub() {
             </p>
             <p className="mx-auto mt-2 max-w-md text-sm text-foreground/60">
               소재별로 하나씩 추가할 예정이에요. 지금은 중1 「수직선」·「좌표평면」·「다각형」·「원과 부채꼴」·「겨냥도」·「히스토그램」,
-              중2 「순환소수 나눗셈」·「일차부등식」·「일차함수 그래프」, 중3 「원의 현」부터 사용할 수 있어요.
+              중2 「순환소수 나눗셈」·「일차부등식」·「일차함수 그래프」, 중3 「제곱근 수직선」·「원의 현」부터 사용할 수 있어요.
             </p>
             <Link
               href="/tools/figures?grade=1"
@@ -117,6 +117,8 @@ function ToolCard({ tool }: { tool: DiagramToolMeta }) {
         >
           {tool.id === "g3-circle-chords" ? (
             <ChordThumb />
+          ) : tool.id === "g3-sqrt-number-line" ? (
+            <SqrtThumb />
           ) : tool.id === "g1-number-line" ? (
             <NumberLineThumb />
           ) : tool.id === "g1-coordinate-plane" ? (
@@ -333,6 +335,28 @@ function DivisionThumb() {
       <text x="20" y="22" fontSize="11" fill="#6b4423" fontFamily="serif">
         1
       </text>
+    </svg>
+  );
+}
+
+function SqrtThumb() {
+  return (
+    <svg viewBox="0 0 48 48" className="h-10 w-10" aria-hidden>
+      <line x1="4" y1="38" x2="44" y2="38" stroke="#6b4423" strokeWidth="1.5" />
+      <polygon points="4,38 8,36 8,40" fill="#6b4423" />
+      <polygon points="44,38 40,36 40,40" fill="#6b4423" />
+      <line x1="12" y1="38" x2="12" y2="34" stroke="#9fd4ea" strokeWidth="0.8" />
+      <line x1="24" y1="38" x2="24" y2="34" stroke="#9fd4ea" strokeWidth="0.8" />
+      <line x1="36" y1="38" x2="36" y2="34" stroke="#9fd4ea" strokeWidth="0.8" />
+      <polygon points="24,38 34,28 44,28 34,18" fill="#c5dff0" stroke="#6b4423" strokeWidth="1.2" />
+      <path
+        d="M 34 28 A 14 14 0 0 1 38 38"
+        fill="none"
+        stroke="#d44a8c"
+        strokeWidth="1.4"
+      />
+      <circle cx="38" cy="38" r="1.8" fill="#6b4423" />
+      <circle cx="24" cy="38" r="1.6" fill="#6b4423" />
     </svg>
   );
 }
