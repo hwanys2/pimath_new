@@ -114,14 +114,14 @@ export type LinearFunctionState = {
 };
 
 const DEFAULT_STYLE: CoordStyle = {
-  lineWidth: 1.55,
-  fontSize: 15,
-  pointLabelSize: 20,
-  axisNameSize: 20,
-  equationSize: 18,
-  pointRadius: 3.3,
-  graphWidth: 2.15,
-  padding: 72,
+  lineWidth: 1.8,
+  fontSize: 22,
+  pointLabelSize: 28,
+  axisNameSize: 28,
+  equationSize: 26,
+  pointRadius: 4.2,
+  graphWidth: 2.5,
+  padding: 80,
   exportScale: 3,
   gridColor: GRID_COLOR,
 };
@@ -407,14 +407,37 @@ export function normalizeState(state: LinearFunctionState): LinearFunctionState 
     style: {
       ...DEFAULT_STYLE,
       ...state.style,
-      padding: Math.min(96, Math.max(40, state.style?.padding ?? DEFAULT_STYLE.padding)),
-      pointRadius: Math.min(
-        6,
-        Math.max(2, state.style?.pointRadius ?? DEFAULT_STYLE.pointRadius),
+      padding: Math.min(
+        160,
+        Math.max(40, state.style?.padding ?? DEFAULT_STYLE.padding),
+      ),
+      fontSize: Math.min(
+        64,
+        Math.max(12, state.style?.fontSize ?? DEFAULT_STYLE.fontSize),
+      ),
+      pointLabelSize: Math.min(
+        72,
+        Math.max(14, state.style?.pointLabelSize ?? DEFAULT_STYLE.pointLabelSize),
       ),
       axisNameSize: Math.min(
-        36,
+        72,
         Math.max(12, state.style?.axisNameSize ?? DEFAULT_STYLE.axisNameSize),
+      ),
+      equationSize: Math.min(
+        64,
+        Math.max(12, state.style?.equationSize ?? DEFAULT_STYLE.equationSize),
+      ),
+      lineWidth: Math.min(
+        6,
+        Math.max(1, state.style?.lineWidth ?? DEFAULT_STYLE.lineWidth),
+      ),
+      graphWidth: Math.min(
+        8,
+        Math.max(1, state.style?.graphWidth ?? DEFAULT_STYLE.graphWidth),
+      ),
+      pointRadius: Math.min(
+        12,
+        Math.max(2, state.style?.pointRadius ?? DEFAULT_STYLE.pointRadius),
       ),
     },
   };

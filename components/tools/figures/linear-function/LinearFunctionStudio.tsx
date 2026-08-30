@@ -58,7 +58,7 @@ import { buildLinearFunctionScene } from "@/lib/diagrams/linear-function/scene";
 import { renderSceneToCanvas, sceneToSvg } from "@/lib/diagrams/render";
 import type { FontFaces } from "@/lib/diagrams/math-label";
 
-const STORAGE_KEY = "pm-diagram-g2-linear-function-v1";
+const STORAGE_KEY = "pm-diagram-g2-linear-function-v2";
 
 const storeListeners = new Set<() => void>();
 
@@ -1206,7 +1206,7 @@ export default function LinearFunctionStudio() {
                   set({ style: { ...state.style, padding } })
                 }
                 min={48}
-                max={96}
+                max={160}
                 step={2}
                 display={`${state.style.padding}px`}
               />
@@ -1253,8 +1253,8 @@ export default function LinearFunctionStudio() {
                 onChange={(fontSize) =>
                   set({ style: { ...state.style, fontSize } })
                 }
-                min={11}
-                max={28}
+                min={12}
+                max={64}
                 step={1}
               />
               <SliderField
@@ -1264,7 +1264,7 @@ export default function LinearFunctionStudio() {
                   set({ style: { ...state.style, pointLabelSize } })
                 }
                 min={14}
-                max={36}
+                max={72}
                 step={1}
               />
               <SliderField
@@ -1274,7 +1274,7 @@ export default function LinearFunctionStudio() {
                   set({ style: { ...state.style, axisNameSize } })
                 }
                 min={12}
-                max={36}
+                max={72}
                 step={1}
               />
               <SliderField
@@ -1284,7 +1284,7 @@ export default function LinearFunctionStudio() {
                   set({ style: { ...state.style, equationSize } })
                 }
                 min={12}
-                max={32}
+                max={64}
                 step={1}
               />
               <SliderField
@@ -1294,7 +1294,7 @@ export default function LinearFunctionStudio() {
                   set({ style: { ...state.style, lineWidth } })
                 }
                 min={1}
-                max={3.2}
+                max={6}
                 step={0.1}
                 display={state.style.lineWidth.toFixed(1)}
               />
@@ -1305,7 +1305,7 @@ export default function LinearFunctionStudio() {
                   set({ style: { ...state.style, graphWidth } })
                 }
                 min={1}
-                max={4}
+                max={8}
                 step={0.1}
                 display={state.style.graphWidth.toFixed(1)}
               />
@@ -1316,7 +1316,7 @@ export default function LinearFunctionStudio() {
                   set({ style: { ...state.style, pointRadius } })
                 }
                 min={2}
-                max={6}
+                max={12}
                 step={0.1}
                 display={state.style.pointRadius.toFixed(1)}
               />
