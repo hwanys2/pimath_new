@@ -28,9 +28,11 @@ import {
   fitAxisToData,
   formatTick,
   iqr,
+  MAX_CROSS_PAD,
   MAX_SERIES,
+  MIN_CROSS_PAD,
+  NO_PILL_FILL,
   normalizeState,
-  PILL_COLORS,
   patchSeries,
   removeSeries,
   setStat,
@@ -43,7 +45,7 @@ import { buildBoxPlotScene } from "@/lib/diagrams/boxplot/scene";
 import { renderSceneToCanvas, sceneToSvg } from "@/lib/diagrams/render";
 import type { FontFaces } from "@/lib/diagrams/math-label";
 
-const STORAGE_KEY = "pm-diagram-g3-boxplot-v1";
+const STORAGE_KEY = "pm-diagram-g3-boxplot-v2";
 
 const storeListeners = new Set<() => void>();
 
@@ -401,6 +403,20 @@ export default function BoxPlotStudio() {
                 그림에서 다섯 값을 끌어 바꿉니다. 축이 좁으면 아래 버튼으로
                 맞출 수 있어요.
               </p>
+              <div className="col-span-2">
+                <SliderField
+                  label={
+                    state.orientation === "horizontal"
+                      ? "위아래 여백"
+                      : "좌우 여백"
+                  }
+                  value={state.crossPad}
+                  onChange={(crossPad) => set({ crossPad })}
+                  min={MIN_CROSS_PAD}
+                  max={MAX_CROSS_PAD}
+                  step={2}
+                />
+              </div>
               <button
                 type="button"
                 onClick={() => setState((prev) => fitAxisToData(prev))}
@@ -479,9 +495,16 @@ export default function BoxPlotStudio() {
                         key={c.id}
                         type="button"
                         onClick={() =>
-                          setState((prev) =>
-                            patchSeries(prev, selectedSeries.id, { fill: c.fill }),
-                          )
+                          setState((prev) => {
+                            const current =
+                              prev.series.find((s) => s.id === selectedSeries.id) ??
+                              selectedSeries;
+                            const keepMatch = current.pillFill === current.fill;
+                            return patchSeries(prev, selectedSeries.id, {
+                              fill: c.fill,
+                              ...(keepMatch ? { pillFill: c.fill } : {}),
+                            });
+                          })
                         }
                         className={`rounded-full px-2.5 py-1 text-xs font-semibold ${
                           selectedSeries.fill === c.fill
@@ -497,7 +520,24 @@ export default function BoxPlotStudio() {
                 <div>
                   <p className="text-xs font-semibold text-foreground/60">이름 색</p>
                   <div className="mt-1 flex flex-wrap gap-1.5">
-                    {PILL_COLORS.map((c) => (
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setState((prev) =>
+                          patchSeries(prev, selectedSeries.id, {
+                            pillFill: NO_PILL_FILL,
+                          }),
+                        )
+                      }
+                      className={`rounded-full px-2.5 py-1 text-xs font-semibold ${
+                        selectedSeries.pillFill === NO_PILL_FILL
+                          ? "bg-wood text-cream"
+                          : "bg-black/5 text-foreground/60 hover:bg-black/10"
+                      }`}
+                    >
+                      없음
+                    </button>
+                    {BOX_PALETTE.map((c) => (
                       <button
                         key={c.id}
                         type="button"
@@ -581,12 +621,6 @@ export default function BoxPlotStudio() {
                 onClick={() => set({ showFrame: !state.showFrame })}
               >
                 테두리
-              </ChipToggle>
-              <ChipToggle
-                on={state.showValueArrows}
-                onClick={() => set({ showValueArrows: !state.showValueArrows })}
-              >
-                값 화살표
               </ChipToggle>
               <ChipToggle
                 on={state.showNamePills}
@@ -698,7 +732,7 @@ export default function BoxPlotStudio() {
                 display={state.style.lineWidth.toFixed(1)}
               />
               <SliderField
-                label="여백"
+                label="바깥 여백"
                 value={state.style.padding}
                 onChange={(padding) =>
                   set({ style: { ...state.style, padding } })

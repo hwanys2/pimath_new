@@ -9,6 +9,8 @@ import {
   formatTick,
   iqr,
   makeFive,
+  makeSeries,
+  NO_PILL_FILL,
   normalizeState,
   orderFive,
   removeSeries,
@@ -96,8 +98,9 @@ describe("boxplot scene", () => {
       const scene = buildBoxPlotScene(preset.state);
       assert.ok(scene.cmds.length > 10);
       assert.ok(scene.layout.bands.length === preset.state.series.length);
-      assert.equal(scene.width, 560);
-      assert.equal(scene.height, 456);
+      assert.equal(scene.width, scene.layout.width);
+      assert.ok(scene.height >= 120);
+      assert.equal(scene.height, scene.layout.height);
     });
   }
 
@@ -119,12 +122,44 @@ describe("boxplot scene", () => {
     assert.ok(yLow > yHigh);
   });
 
+  it("makes the horizontal plot taller when inner padding grows", () => {
+    const tight = getBoxLayout(
+      normalizeState({ ...DEFAULT_BOXPLOT_STATE, crossPad: 8 }),
+    );
+    const loose = getBoxLayout(
+      normalizeState({ ...DEFAULT_BOXPLOT_STATE, crossPad: 48 }),
+    );
+    assert.ok(loose.plotBottom - loose.plotTop > tight.plotBottom - tight.plotTop);
+    assert.ok(loose.height > tight.height);
+  });
+
   it("includes comparison pills for named series", () => {
     const preset = BOXPLOT_PRESETS.find((p) => p.id === "two-factories")!;
     const scene = buildBoxPlotScene(preset.state);
     assert.ok(scene.texts.some((t) => t.id === "series:b-a:name"));
     assert.ok(scene.texts.some((t) => t.id === "series:b-b:name"));
     assert.ok(scene.cmds.some((c) => c.t === "roundRect"));
+  });
+
+  it("defaults the name fill to the box fill", () => {
+    const series = makeSeries({ fill: "rgba(154, 201, 154, 0.78)" });
+    assert.equal(series.pillFill, series.fill);
+    const added = addSeries(DEFAULT_BOXPLOT_STATE);
+    assert.equal(added.series[1]!.pillFill, added.series[1]!.fill);
+  });
+
+  it("omits the name pill when fill is none", () => {
+    const preset = BOXPLOT_PRESETS.find((p) => p.id === "two-factories")!;
+    const none = normalizeState({
+      ...preset.state,
+      series: preset.state.series.map((s) => ({ ...s, pillFill: NO_PILL_FILL })),
+    });
+    const scene = buildBoxPlotScene(none);
+    assert.ok(scene.texts.some((t) => t.id === "series:b-a:name"));
+    assert.equal(
+      scene.cmds.filter((c) => c.t === "roundRect").length,
+      0,
+    );
   });
 
   it("nudges title and series labels", () => {

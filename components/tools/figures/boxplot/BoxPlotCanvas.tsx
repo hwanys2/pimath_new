@@ -18,8 +18,6 @@ import {
   bandForSeries,
   buildBoxPlotScene,
   fenceSegment,
-  SCENE_HEIGHT,
-  SCENE_WIDTH,
   type BoxPlotScene,
 } from "@/lib/diagrams/boxplot/scene";
 import { sceneTextPlain } from "@/lib/diagrams/scene";
@@ -75,8 +73,8 @@ export default function BoxPlotCanvas({
     const scene = buildBoxPlotScene(current);
     sceneRef.current = scene;
     const dpr = Math.min(window.devicePixelRatio || 1, 2);
-    canvas.width = Math.round(SCENE_WIDTH * dpr);
-    canvas.height = Math.round(SCENE_HEIGHT * dpr);
+    canvas.width = Math.round(scene.width * dpr);
+    canvas.height = Math.round(scene.height * dpr);
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
@@ -110,18 +108,23 @@ export default function BoxPlotCanvas({
   function scenePoint(e: { clientX: number; clientY: number }) {
     const canvas = canvasRef.current;
     if (!canvas) return { x: 0, y: 0 };
+    const scene = sceneRef.current;
+    const width = scene?.width ?? canvas.getBoundingClientRect().width;
+    const height = scene?.height ?? canvas.getBoundingClientRect().height;
     const rect = canvas.getBoundingClientRect();
     return {
-      x: ((e.clientX - rect.left) / rect.width) * SCENE_WIDTH,
-      y: ((e.clientY - rect.top) / rect.height) * SCENE_HEIGHT,
+      x: ((e.clientX - rect.left) / rect.width) * width,
+      y: ((e.clientY - rect.top) / rect.height) * height,
     };
   }
 
   function hitScale() {
     const canvas = canvasRef.current;
     if (!canvas) return 1;
+    const scene = sceneRef.current;
+    const sceneWidth = scene?.width ?? 560;
     const width = canvas.getBoundingClientRect().width;
-    return width > 1 ? SCENE_WIDTH / width : 1;
+    return width > 1 ? sceneWidth / width : 1;
   }
 
   function hitAt(e: { clientX: number; clientY: number }) {
@@ -149,8 +152,8 @@ export default function BoxPlotCanvas({
     <div className="relative">
       <canvas
         ref={canvasRef}
-        width={SCENE_WIDTH}
-        height={SCENE_HEIGHT}
+        width={sceneRef.current?.width ?? 560}
+        height={sceneRef.current?.height ?? 280}
         className="h-auto w-full touch-none bg-white"
         tabIndex={0}
         aria-label="상자수염 그림. 최솟값·사분위수·중앙값·최댓값을 끌어 바꾸고, 글자를 눌러 고칠 수 있어요."
@@ -291,8 +294,8 @@ export default function BoxPlotCanvas({
           }}
           className="absolute z-10 min-w-[4.5rem] rounded-lg border-2 border-wood bg-white px-2 py-0.5 text-center text-[15px] text-black shadow-md outline-none"
           style={{
-            left: `${(edit.x / SCENE_WIDTH) * 100}%`,
-            top: `${(edit.y / SCENE_HEIGHT) * 100}%`,
+            left: `${(edit.x / (sceneRef.current?.width ?? 560)) * 100}%`,
+            top: `${(edit.y / (sceneRef.current?.height ?? 280)) * 100}%`,
             transform: "translate(-50%, -50%)",
             fontFamily: "Times New Roman, Noto Serif, Batang, serif",
           }}

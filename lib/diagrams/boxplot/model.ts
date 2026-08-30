@@ -1,22 +1,19 @@
 export const GRID_GRAY = "#d4d4d4";
-export const GRAPH_PINK = "#e84a8c";
-export const INK = "#111111";
 
 export const BOX_PALETTE = [
-  { id: "salmon", fill: "rgba(240, 157, 148, 0.78)", pill: "#f7c9c4", label: "살구" },
-  { id: "mint", fill: "rgba(154, 201, 154, 0.78)", pill: "#c5e0c5", label: "연두" },
-  { id: "gold", fill: "rgba(236, 196, 106, 0.82)", pill: "#f5d78a", label: "노랑" },
-  { id: "lavender", fill: "rgba(186, 168, 214, 0.78)", pill: "#d4c6eb", label: "보라" },
-  { id: "cyan", fill: "rgba(61, 183, 212, 0.42)", pill: "#b5e4ef", label: "청록" },
-  { id: "pink", fill: "rgba(232, 74, 140, 0.38)", pill: "#f5c0d6", label: "분홍" },
+  { id: "salmon", fill: "rgba(240, 157, 148, 0.78)", label: "살구" },
+  { id: "mint", fill: "rgba(154, 201, 154, 0.78)", label: "연두" },
+  { id: "gold", fill: "rgba(236, 196, 106, 0.82)", label: "노랑" },
+  { id: "lavender", fill: "rgba(186, 168, 214, 0.78)", label: "보라" },
+  { id: "cyan", fill: "rgba(61, 183, 212, 0.42)", label: "청록" },
+  { id: "pink", fill: "rgba(232, 74, 140, 0.38)", label: "분홍" },
 ] as const;
 
-export const PILL_COLORS = [
-  { id: "pill-pink", fill: "#f5c4c8", label: "분홍" },
-  { id: "pill-blue", fill: "#c5e4f5", label: "하늘" },
-  { id: "pill-peach", fill: "#f7d4b8", label: "복숭아" },
-  { id: "pill-mint", fill: "#c8e8d4", label: "민트" },
-] as const;
+export const NO_PILL_FILL = "";
+
+export function hasNameFill(fill: string): boolean {
+  return fill.trim().length > 0;
+}
 
 export type BoxOrientation = "horizontal" | "vertical";
 
@@ -71,8 +68,9 @@ export type BoxPlotState = {
   showTitle: boolean;
   showGrid: boolean;
   showFrame: boolean;
-  showValueArrows: boolean;
   showNamePills: boolean;
+  /** Empty space from the plot frame to the box, along the cross axis. */
+  crossPad: number;
   axisLabelDx: number;
   axisLabelDy: number;
   titleDx: number;
@@ -94,6 +92,10 @@ const DEFAULT_STYLE: BoxPlotStyle = {
 
 export const MIN_SERIES = 1;
 export const MAX_SERIES = 4;
+export const BOX_THICKNESS = 52;
+export const MIN_CROSS_PAD = 4;
+export const MAX_CROSS_PAD = 72;
+export const DEFAULT_CROSS_PAD = 16;
 
 export function newId(prefix: string): string {
   if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
@@ -207,13 +209,13 @@ export function dataRange(values: FiveNumber): number {
 export function makeSeries(
   partial: Partial<BoxSeries> & { values?: Partial<FiveNumber> } = {},
 ): BoxSeries {
-  const idx = 0;
-  const palette = BOX_PALETTE[idx]!;
+  const palette = BOX_PALETTE[0]!;
+  const fill = partial.fill ?? palette.fill;
   return {
     id: partial.id ?? newId("b"),
     name: typeof partial.name === "string" ? partial.name : "",
-    fill: partial.fill ?? palette.fill,
-    pillFill: partial.pillFill ?? PILL_COLORS[0]!.fill,
+    fill,
+    pillFill: partial.pillFill !== undefined ? partial.pillFill : fill,
     values: makeFive(partial.values),
     labelDx: finiteOr(partial.labelDx, 0),
     labelDy: finiteOr(partial.labelDy, 0),
@@ -295,12 +297,12 @@ export function normalizeState(state: BoxPlotState): BoxPlotState {
       : [makeSeries()];
   const series = rawSeries.map((s, i) => {
     const palette = BOX_PALETTE[i % BOX_PALETTE.length]!;
-    const pill = PILL_COLORS[i % PILL_COLORS.length]!;
+    const fill = s.fill || palette.fill;
     return makeSeries({
       ...s,
       id: s.id || newId("b"),
-      fill: s.fill || palette.fill,
-      pillFill: s.pillFill || pill.fill,
+      fill,
+      pillFill: typeof s.pillFill === "string" ? s.pillFill : fill,
       values: s.values,
     });
   });
@@ -315,8 +317,11 @@ export function normalizeState(state: BoxPlotState): BoxPlotState {
     showTitle: Boolean(state.showTitle),
     showGrid: state.showGrid !== false,
     showFrame: state.showFrame !== false,
-    showValueArrows: Boolean(state.showValueArrows),
     showNamePills: state.showNamePills !== false,
+    crossPad: Math.min(
+      MAX_CROSS_PAD,
+      Math.max(MIN_CROSS_PAD, finiteOr(state.crossPad, DEFAULT_CROSS_PAD)),
+    ),
     axisLabelDx: finiteOr(state.axisLabelDx, 0),
     axisLabelDy: finiteOr(state.axisLabelDy, 0),
     titleDx: finiteOr(state.titleDx, 0),
@@ -354,8 +359,8 @@ function baseState(partial: Partial<BoxPlotState> = {}): BoxPlotState {
     showTitle: false,
     showGrid: true,
     showFrame: true,
-    showValueArrows: true,
     showNamePills: true,
+    crossPad: DEFAULT_CROSS_PAD,
     axisLabelDx: 0,
     axisLabelDy: 0,
     titleDx: 0,
@@ -364,7 +369,6 @@ function baseState(partial: Partial<BoxPlotState> = {}): BoxPlotState {
       makeSeries({
         id: "b-a",
         fill: BOX_PALETTE[0].fill,
-        pillFill: PILL_COLORS[0].fill,
         values: { min: 2, q1: 6, median: 8, q3: 14, max: 22 },
       }),
     ],
@@ -382,7 +386,7 @@ export const BOXPLOT_PRESETS: {
   {
     id: "reading-pages",
     title: "가로 · 하나",
-    hint: "최솟값~최댓값, 값 화살표",
+    hint: "최솟값~최댓값, 가로 하나",
     state: baseState(),
   },
   {
@@ -398,12 +402,10 @@ export const BOXPLOT_PRESETS: {
       axisLabel: "(m)",
       title: "나무의 높이",
       showTitle: true,
-      showValueArrows: false,
       series: [
         makeSeries({
           id: "b-a",
           fill: BOX_PALETTE[1].fill,
-          pillFill: PILL_COLORS[0].fill,
           values: { min: 11, q1: 16, median: 21, q3: 24, max: 26 },
         }),
       ],
@@ -422,20 +424,17 @@ export const BOXPLOT_PRESETS: {
       axisLabel: "(켤레)",
       title: "불량품 수",
       showTitle: true,
-      showValueArrows: false,
       series: [
         makeSeries({
           id: "b-a",
           name: "공장 A",
           fill: BOX_PALETTE[2].fill,
-          pillFill: PILL_COLORS[0].fill,
           values: { min: 4, q1: 12, median: 16, q3: 20, max: 24 },
         }),
         makeSeries({
           id: "b-b",
           name: "공장 B",
           fill: BOX_PALETTE[2].fill,
-          pillFill: PILL_COLORS[1].fill,
           values: { min: 10, q1: 16, median: 24, q3: 28, max: 34 },
         }),
       ],
@@ -454,20 +453,17 @@ export const BOXPLOT_PRESETS: {
       axisLabel: "(세)",
       title: "나이",
       showTitle: true,
-      showValueArrows: false,
       series: [
         makeSeries({
           id: "b-a",
           name: "탁구반",
           fill: BOX_PALETTE[3].fill,
-          pillFill: PILL_COLORS[0].fill,
           values: { min: 16, q1: 24, median: 30, q3: 40, max: 46 },
         }),
         makeSeries({
           id: "b-b",
           name: "요가반",
           fill: BOX_PALETTE[3].fill,
-          pillFill: PILL_COLORS[1].fill,
           values: { min: 22, q1: 30, median: 44, q3: 50, max: 58 },
         }),
       ],
@@ -490,7 +486,6 @@ export function cloneState(state: BoxPlotState): BoxPlotState {
 export function addSeries(state: BoxPlotState): BoxPlotState {
   if (state.series.length >= MAX_SERIES) return state;
   const last = state.series[state.series.length - 1]!;
-  const pill = PILL_COLORS[state.series.length % PILL_COLORS.length]!;
   const step = state.majorTick > 0 ? state.majorTick : 1;
   const shifted = makeFive({
     min: last.values.min + step,
@@ -507,7 +502,6 @@ export function addSeries(state: BoxPlotState): BoxPlotState {
         makeSeries({
           name: `상자 ${state.series.length + 1}`,
           fill: last.fill,
-          pillFill: pill.fill,
           values: shifted,
         }),
       ],

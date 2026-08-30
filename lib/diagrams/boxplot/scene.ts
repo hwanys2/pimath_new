@@ -1,20 +1,24 @@
 import { parseMathRuns, parseNameRuns } from "@/lib/diagrams/math-label";
 import type { DiagramScene, SceneCmd, SceneText } from "@/lib/diagrams/scene";
 import {
+  BOX_THICKNESS,
   formatTick,
-  GRAPH_PINK,
   hasChartTitle,
+  hasNameFill,
   namedSeries,
-  STAT_KEYS,
   tickValues,
   type BoxPlotState,
   type BoxSeries,
-  type StatKey,
 } from "@/lib/diagrams/boxplot/model";
 
 export const SCENE_WIDTH = 560;
 export const SCENE_HEIGHT = 456;
 const CORNER_INSET = 40;
+
+function plotCrossSpan(count: number, pad: number): number {
+  const n = Math.max(1, count);
+  return n * BOX_THICKNESS + (n + 1) * pad;
+}
 
 export type BoxBand = {
   seriesId: string;
@@ -70,64 +74,67 @@ export function getBoxLayout(state: BoxPlotState): BoxLayout {
   const titleBand = hasChartTitle(state)
     ? Math.max(26, titleSize * 1.2 + 8)
     : 0;
-  const arrowBand = state.showValueArrows ? 12 : 0;
   const unit = state.axisLabel.trim();
   const unitW = unit ? estimateLabelWidth(unit, nameSize) : 0;
   const tickW = estimateLabelWidth(formatTick(state.axisMax), fontSize);
+  const n = Math.max(1, state.series.length);
+  const gap = state.crossPad;
+  const plotCross = plotCrossSpan(n, gap);
 
   let plotLeft: number;
   let plotRight: number;
   let plotTop: number;
   let plotBottom: number;
+  let width = SCENE_WIDTH;
+  let height = SCENE_HEIGHT;
 
   if (state.orientation === "horizontal") {
     const leftNeed =
       named.length > 0 ? maxPill.w + 14 : Math.max(8, pad * 0.2);
     plotLeft = Math.max(CORNER_INSET, pad * 0.55, leftNeed);
     plotRight = SCENE_WIDTH - Math.max(CORNER_INSET, pad * 0.38, unitW + 18);
-    plotTop =
-      (hasChartTitle(state) ? titleBand : Math.max(16, CORNER_INSET * 0.45)) +
-      arrowBand +
-      6;
+    plotTop = hasChartTitle(state)
+      ? titleBand + 8
+      : Math.max(18, CORNER_INSET * 0.42);
     const tickDrop = 12 + fontSize * 0.75;
-    plotBottom = SCENE_HEIGHT - Math.max(CORNER_INSET, pad * 0.42, tickDrop + 10);
+    const bottomNeed = Math.max(28, tickDrop + 10, CORNER_INSET * 0.5);
+    plotBottom = plotTop + plotCross;
+    height = Math.round(plotBottom + bottomNeed);
   } else {
     plotLeft = Math.max(CORNER_INSET, pad * 0.55, tickW + 16);
     plotRight = SCENE_WIDTH - Math.max(CORNER_INSET, pad * 0.38);
+    width = SCENE_WIDTH;
     const topUnit = unit ? nameSize + 8 : 0;
     plotTop =
       (hasChartTitle(state) ? titleBand : Math.max(14, CORNER_INSET * 0.35)) +
-      Math.max(topUnit, arrowBand) +
+      topUnit +
       8;
     const pillDrop = named.length > 0 ? maxPill.h + 16 : 0;
     plotBottom =
       SCENE_HEIGHT - Math.max(CORNER_INSET, pad * 0.38, pillDrop + 12);
+    height = SCENE_HEIGHT;
   }
 
-  const n = Math.max(1, state.series.length);
+  const half = BOX_THICKNESS / 2;
+  const cap = half * 0.52;
   const bands: BoxBand[] = [];
   if (state.orientation === "horizontal") {
-    const span = Math.max(40, plotBottom - plotTop);
-    const band = span / n;
-    const half = Math.min(band * 0.3, n === 1 ? 42 : 34);
-    const cap = half * 0.52;
     state.series.forEach((s, i) => {
       bands.push({
         seriesId: s.id,
-        center: plotTop + (i + 0.5) * band,
+        center: plotTop + gap + half + i * (BOX_THICKNESS + gap),
         half,
         cap,
       });
     });
   } else {
-    const span = Math.max(40, plotRight - plotLeft);
-    const band = span / n;
-    const half = Math.min(band * 0.3, n === 1 ? 42 : 34);
-    const cap = half * 0.52;
+    const inner = plotRight - plotLeft;
+    const group = n * BOX_THICKNESS + (n - 1) * gap;
+    const start = plotLeft + Math.max(gap, (inner - group) / 2);
     state.series.forEach((s, i) => {
       bands.push({
         seriesId: s.id,
-        center: plotLeft + (i + 0.5) * band,
+        center: start + half + i * (BOX_THICKNESS + gap),
         half,
         cap,
       });
@@ -135,8 +142,8 @@ export function getBoxLayout(state: BoxPlotState): BoxLayout {
   }
 
   return {
-    width: SCENE_WIDTH,
-    height: SCENE_HEIGHT,
+    width,
+    height,
     plotLeft,
     plotRight,
     plotTop,
@@ -176,17 +183,6 @@ export function bandForSeries(layout: BoxLayout, seriesId: string): BoxBand | nu
 function pushText(texts: SceneText[], cmds: SceneCmd[], text: SceneText) {
   texts.push(text);
   cmds.push({ t: "text", text });
-}
-
-function uniqueStatValues(series: BoxSeries[]): number[] {
-  const seen: number[] = [];
-  for (const s of series) {
-    for (const key of STAT_KEYS) {
-      const v = s.values[key];
-      if (!seen.some((x) => Math.abs(x - v) < 1e-9)) seen.push(v);
-    }
-  }
-  return seen;
 }
 
 function drawBox(
@@ -364,33 +360,6 @@ export function buildBoxPlotScene(state: BoxPlotState): BoxPlotScene {
     if (band) drawBox(cmds, series, band, layout, lw);
   }
 
-  if (state.showValueArrows) {
-    for (const v of uniqueStatValues(state.series)) {
-      const p = canvasFromValue(v, layout);
-      if (layout.orientation === "horizontal") {
-        cmds.push({
-          t: "arrowhead",
-          x: p,
-          y: layout.plotTop + 1,
-          ux: 0,
-          uy: 1,
-          size: 9,
-          stroke: GRAPH_PINK,
-        });
-      } else {
-        cmds.push({
-          t: "arrowhead",
-          x: layout.plotLeft + 1,
-          y: p,
-          ux: 1,
-          uy: 0,
-          size: 9,
-          stroke: GRAPH_PINK,
-        });
-      }
-    }
-  }
-
   for (const t of majors) {
     const p = canvasFromValue(t, layout);
     if (layout.orientation === "horizontal") {
@@ -423,15 +392,17 @@ export function buildBoxPlotScene(state: BoxPlotState): BoxPlotScene {
     if (layout.orientation === "horizontal") {
       const cx = layout.plotLeft - 8 - pill.w / 2 + series.labelDx;
       const cy = band.center + series.labelDy;
-      cmds.push({
-        t: "roundRect",
-        x: cx - pill.w / 2,
-        y: cy - pill.h / 2,
-        w: pill.w,
-        h: pill.h,
-        r: pill.h / 2,
-        fill: series.pillFill,
-      });
+      if (hasNameFill(series.pillFill)) {
+        cmds.push({
+          t: "roundRect",
+          x: cx - pill.w / 2,
+          y: cy - pill.h / 2,
+          w: pill.w,
+          h: pill.h,
+          r: pill.h / 2,
+          fill: series.pillFill,
+        });
+      }
       pushText(texts, cmds, {
         id: `series:${series.id}:name`,
         x: cx,
@@ -443,15 +414,17 @@ export function buildBoxPlotScene(state: BoxPlotState): BoxPlotScene {
     } else {
       const cx = band.center + series.labelDx;
       const cy = layout.plotBottom + 10 + pill.h / 2 + series.labelDy;
-      cmds.push({
-        t: "roundRect",
-        x: cx - pill.w / 2,
-        y: cy - pill.h / 2,
-        w: pill.w,
-        h: pill.h,
-        r: pill.h / 2,
-        fill: series.pillFill,
-      });
+      if (hasNameFill(series.pillFill)) {
+        cmds.push({
+          t: "roundRect",
+          x: cx - pill.w / 2,
+          y: cy - pill.h / 2,
+          w: pill.w,
+          h: pill.h,
+          r: pill.h / 2,
+          fill: series.pillFill,
+        });
+      }
       pushText(texts, cmds, {
         id: `series:${series.id}:name`,
         x: cx,
@@ -490,7 +463,7 @@ export function buildBoxPlotScene(state: BoxPlotState): BoxPlotScene {
     const titleSize = state.style.titleSize;
     pushText(texts, cmds, {
       id: "title",
-      x: SCENE_WIDTH / 2 + state.titleDx,
+      x: layout.width / 2 + state.titleDx,
       y: Math.max(titleSize * 0.62, 14) + state.titleDy,
       runs: parseMathRuns(state.title.trim()),
       size: titleSize,
@@ -499,8 +472,8 @@ export function buildBoxPlotScene(state: BoxPlotState): BoxPlotScene {
   }
 
   return {
-    width: SCENE_WIDTH,
-    height: SCENE_HEIGHT,
+    width: layout.width,
+    height: layout.height,
     cmds,
     texts,
     layout,
