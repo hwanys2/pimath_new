@@ -25,13 +25,13 @@ import {
   type Vec,
 } from "@/lib/diagrams/polygon/model";
 import {
-  cevianFromIndex,
-  footPoint,
+  footOf,
   isRightAngle,
   oppositeSide,
   wedgeDeg,
 } from "./geometry";
-import type { ExtraArcs, IsoscelesState, WedgeMark } from "./model";
+import type { CevianFrom, CevianState, ExtraArcs, IsoscelesState, WedgeMark } from "./model";
+import { CEVIAN_INDEX, emptyLabel } from "./model";
 
 export type IsoScene = SharedDiagramScene & {
   layout: SceneLayout;
@@ -39,6 +39,7 @@ export type IsoScene = SharedDiagramScene & {
 
 export type SceneLayout = {
   canvas: Vec[];
+  feet: { from: CevianFrom; index: 0 | 1 | 2; canvas: Vec }[];
   foot: Vec | null;
   fromIndex: 0 | 1 | 2 | null;
   origin: Vec;
@@ -211,8 +212,7 @@ function dimArc(
 
 function mathBBox(state: IsoscelesState): { min: Vec; max: Vec } {
   const pts = [...state.points];
-  const D = footPoint(state);
-  if (D) pts.push(D);
+  for (const cv of state.cevians) pts.push(footOf(state, cv));
   let avg = 0;
   for (let i = 0; i < 3; i += 1) avg += edgeLength(state.points, i);
   avg /= 3;
@@ -256,15 +256,27 @@ export function getSceneLayout(state: IsoscelesState): SceneLayout {
     x: origin.x + (p.x - mid.x) * scale,
     y: origin.y - (p.y - mid.y) * scale,
   }));
-  const fromIdx = cevianFromIndex(state);
-  const D = footPoint(state);
-  const foot = D
-    ? {
+  const feet = state.cevians.map((cv) => {
+    const D = footOf(state, cv);
+    return {
+      from: cv.from,
+      index: CEVIAN_INDEX[cv.from],
+      canvas: {
         x: origin.x + (D.x - mid.x) * scale,
         y: origin.y - (D.y - mid.y) * scale,
-      }
-    : null;
-  return { canvas, foot, fromIndex: fromIdx, origin, mid, scale };
+      },
+    };
+  });
+  const first = feet[0];
+  return {
+    canvas,
+    feet,
+    foot: first?.canvas ?? null,
+    fromIndex: first?.index ?? null,
+    origin,
+    mid,
+    scale,
+  };
 }
 
 export function canvasToMath(p: Vec, layout: SceneLayout): Vec {
@@ -449,6 +461,127 @@ function drawWedge(
   );
 }
 
+const HIDDEN_WEDGE: WedgeMark = {
+  show: true,
+  fill: false,
+  label: emptyLabel("hide"),
+  extraArcs: 0,
+  showDot: false,
+};
+
+function paintCevian(
+  cmds: SceneCmd[],
+  texts: SceneText[],
+  state: IsoscelesState,
+  cv: CevianState,
+  canvas: Vec[],
+  canvasC: Vec,
+  layout: SceneLayout,
+  style: IsoscelesState["style"],
+  phase: "fills" | "lines" | "marks",
+): void {
+  const fromIdx = CEVIAN_INDEX[cv.from];
+  const foot = layout.feet.find((f) => f.from === cv.from)?.canvas;
+  if (!foot) return;
+  const [li, ri] = oppositeSide(fromIdx);
+  const apex = canvas[fromIdx]!;
+  const left = canvas[li]!;
+  const right = canvas[ri]!;
+  const Dmath = footOf(state, cv);
+  const letter = cv.from;
+
+  if (phase === "fills") {
+    const leftDeg = wedgeDeg(Dmath, state.points[fromIdx]!, state.points[li]!);
+    const rightDeg = wedgeDeg(Dmath, state.points[fromIdx]!, state.points[ri]!);
+    drawWedge(cmds, texts, foot, apex, left, cv.footLeft, leftDeg, `w:${letter}:footLeft`, state.unknownLetter, style.fontSize, false);
+    drawWedge(cmds, texts, foot, apex, right, cv.footRight, rightDeg, `w:${letter}:footRight`, state.unknownLetter, style.fontSize, false);
+    const apexLDeg = wedgeDeg(state.points[fromIdx]!, state.points[li]!, Dmath);
+    const apexRDeg = wedgeDeg(state.points[fromIdx]!, state.points[ri]!, Dmath);
+    drawWedge(cmds, texts, apex, left, foot, cv.apexLeft, apexLDeg, `w:${letter}:apexLeft`, state.unknownLetter, style.fontSize, false);
+    drawWedge(cmds, texts, apex, right, foot, cv.apexRight, apexRDeg, `w:${letter}:apexRight`, state.unknownLetter, style.fontSize, false);
+    if (cv.showBisectorMarks) {
+      if (!cv.apexLeft.show) {
+        drawWedge(cmds, texts, apex, left, foot, HIDDEN_WEDGE, apexLDeg, `w:${letter}:bisectorL`, state.unknownLetter, style.fontSize, false);
+      }
+      if (!cv.apexRight.show) {
+        drawWedge(cmds, texts, apex, right, foot, HIDDEN_WEDGE, apexRDeg, `w:${letter}:bisectorR`, state.unknownLetter, style.fontSize, false);
+      }
+    }
+    return;
+  }
+
+  if (phase === "lines") {
+    cmds.push({
+      t: "line",
+      x1: apex.x,
+      y1: apex.y,
+      x2: foot.x,
+      y2: foot.y,
+      stroke: INK,
+    });
+    return;
+  }
+
+  if (cv.showRightAtD) {
+    const leftDeg = wedgeDeg(Dmath, state.points[fromIdx]!, state.points[li]!);
+    const rightDeg = wedgeDeg(Dmath, state.points[fromIdx]!, state.points[ri]!);
+    if (isRightAngle(leftDeg)) drawRightAngle(cmds, foot, apex, left);
+    else if (isRightAngle(rightDeg)) drawRightAngle(cmds, foot, apex, right);
+  }
+  if (cv.showMidpointTicks) {
+    drawEqualTicks(cmds, left, foot, 1, 7);
+    drawEqualTicks(cmds, right, foot, 1, 7);
+  }
+  if (cv.leftLen.show) {
+    const a = left;
+    const mid = mul(add(a, foot), 0.5);
+    const label = resolveLengthText(
+      cv.leftLen.label,
+      len(sub(Dmath, state.points[li]!)),
+      state.unit,
+      state.unknownLetter,
+    );
+    dimArc(cmds, texts, a, foot, sub(mid, canvasC), style.dimOffset, label, `p:${letter}:left:length`, cv.leftLen.label, style.fontSize);
+  }
+  if (cv.rightLen.show) {
+    const a = right;
+    const mid = mul(add(a, foot), 0.5);
+    const label = resolveLengthText(
+      cv.rightLen.label,
+      len(sub(Dmath, state.points[ri]!)),
+      state.unit,
+      state.unknownLetter,
+    );
+    dimArc(cmds, texts, a, foot, sub(mid, canvasC), style.dimOffset, label, `p:${letter}:right:length`, cv.rightLen.label, style.fontSize);
+  }
+  if (cv.length.show) {
+    const a = apex;
+    const mid = mul(add(a, foot), 0.5);
+    const label = resolveLengthText(
+      cv.length.label,
+      len(sub(Dmath, state.points[fromIdx]!)),
+      state.unit,
+      state.unknownLetter,
+    );
+    dimArc(cmds, texts, a, foot, sub(mid, canvasC), style.dimOffset, label, `c:${letter}:length`, cv.length.label, style.fontSize);
+  }
+  if (state.showDots) {
+    cmds.push({ t: "dot", x: foot.x, y: foot.y, r: style.pointRadius });
+  }
+  if (cv.showName && cv.name.trim()) {
+    const away = norm(sub(foot, canvasC));
+    const lp = add(add(foot, mul(away, 16)), { x: cv.nameDx, y: cv.nameDy });
+    pushText(texts, cmds, {
+      id: `d:${letter}:name`,
+      x: lp.x,
+      y: lp.y,
+      runs: parseNameRuns(cv.name.trim()),
+      size: style.pointLabelSize,
+      anchor: "middle",
+    });
+  }
+}
+
 export function buildIsoscelesScene(state: IsoscelesState): IsoScene {
   const { style } = state;
   const layout = getSceneLayout(state);
@@ -457,8 +590,17 @@ export function buildIsoscelesScene(state: IsoscelesState): IsoScene {
   const texts: SceneText[] = [];
   const mathC = centroid(state.points);
   const canvasC = mathToCanvas(mathC, layout);
-  const fromIdx = cevianFromIndex(state);
-  const cFoot = layout.foot;
+  const originSet = new Set(state.cevians.map((c) => CEVIAN_INDEX[c.from]));
+  const splitLenSides = new Set(
+    state.cevians
+      .filter((c) => c.leftLen.show || c.rightLen.show)
+      .map((c) => (CEVIAN_INDEX[c.from] + 1) % 3),
+  );
+  const midpointSides = new Set(
+    state.cevians
+      .filter((c) => c.showMidpointTicks)
+      .map((c) => (CEVIAN_INDEX[c.from] + 1) % 3),
+  );
 
   let avgSide = 0;
   for (let i = 0; i < 3; i += 1) avgSide += edgeLength(state.points, i);
@@ -481,25 +623,15 @@ export function buildIsoscelesScene(state: IsoscelesState): IsoScene {
     }
     const label = resolveAngleText(v.exterior, exterior, state.unknownLetter);
     drawAngle(
-      cmds,
-      texts,
-      p,
-      ext,
-      next,
-      label,
-      `v:${i}:exterior`,
-      v.exterior,
-      style.fontSize,
-      ANGLE_FILL,
-      v.extraArcs,
-      v.showDot,
+      cmds, texts, p, ext, next, label, `v:${i}:exterior`, v.exterior,
+      style.fontSize, ANGLE_FILL, v.extraArcs, v.showDot,
     );
   }
 
   for (let i = 0; i < 3; i += 1) {
     const v = state.vertices[i];
     if (!v?.showInterior || !v.fillInterior) continue;
-    if (fromIdx === i) continue;
+    if (originSet.has(i as 0 | 1 | 2) || originSet.has(i)) continue;
     const p = canvas[i]!;
     const prev = canvas[prevIndex(i, 3)]!;
     const next = canvas[nextIndex(i, 3)]!;
@@ -507,83 +639,13 @@ export function buildIsoscelesScene(state: IsoscelesState): IsoScene {
     if (isDisplayedRightAngle(v.interior, interior)) continue;
     const label = resolveAngleText(v.interior, interior, state.unknownLetter);
     drawAngle(
-      cmds,
-      texts,
-      p,
-      prev,
-      next,
-      label,
-      `v:${i}:interior`,
-      v.interior,
-      style.fontSize,
-      ANGLE_FILL,
-      v.extraArcs,
-      v.showDot,
+      cmds, texts, p, prev, next, label, `v:${i}:interior`, v.interior,
+      style.fontSize, ANGLE_FILL, v.extraArcs, v.showDot,
     );
   }
 
-  if (fromIdx != null && cFoot) {
-    const [li, ri] = oppositeSide(fromIdx);
-    const apex = canvas[fromIdx]!;
-    const left = canvas[li]!;
-    const right = canvas[ri]!;
-    const Dmath = footPoint(state)!;
-    const leftDeg = wedgeDeg(Dmath, state.points[fromIdx]!, state.points[li]!);
-    const rightDeg = wedgeDeg(Dmath, state.points[fromIdx]!, state.points[ri]!);
-    drawWedge(
-      cmds,
-      texts,
-      cFoot,
-      apex,
-      left,
-      state.cevian.footLeft,
-      leftDeg,
-      "w:footLeft",
-      state.unknownLetter,
-      style.fontSize,
-      false,
-    );
-    drawWedge(
-      cmds,
-      texts,
-      cFoot,
-      apex,
-      right,
-      state.cevian.footRight,
-      rightDeg,
-      "w:footRight",
-      state.unknownLetter,
-      style.fontSize,
-      false,
-    );
-    const apexLDeg = wedgeDeg(state.points[fromIdx]!, state.points[li]!, Dmath);
-    const apexRDeg = wedgeDeg(state.points[fromIdx]!, state.points[ri]!, Dmath);
-    drawWedge(
-      cmds,
-      texts,
-      apex,
-      left,
-      cFoot,
-      state.cevian.apexLeft,
-      apexLDeg,
-      "w:apexLeft",
-      state.unknownLetter,
-      style.fontSize,
-      false,
-    );
-    drawWedge(
-      cmds,
-      texts,
-      apex,
-      right,
-      cFoot,
-      state.cevian.apexRight,
-      apexRDeg,
-      "w:apexRight",
-      state.unknownLetter,
-      style.fontSize,
-      false,
-    );
+  for (const cv of state.cevians) {
+    paintCevian(cmds, texts, state, cv, canvas, canvasC, layout, style, "fills");
   }
 
   cmds.push({
@@ -592,15 +654,8 @@ export function buildIsoscelesScene(state: IsoscelesState): IsoScene {
     stroke: INK,
   });
 
-  if (fromIdx != null && cFoot) {
-    cmds.push({
-      t: "line",
-      x1: canvas[fromIdx]!.x,
-      y1: canvas[fromIdx]!.y,
-      x2: cFoot.x,
-      y2: cFoot.y,
-      stroke: INK,
-    });
+  for (const cv of state.cevians) {
+    paintCevian(cmds, texts, state, cv, canvas, canvasC, layout, style, "lines");
   }
 
   for (let i = 0; i < 3; i += 1) {
@@ -621,25 +676,15 @@ export function buildIsoscelesScene(state: IsoscelesState): IsoScene {
     }
     const label = resolveAngleText(v.exterior, exterior, state.unknownLetter);
     drawAngle(
-      cmds,
-      texts,
-      p,
-      ext,
-      next,
-      label,
-      `v:${i}:exterior`,
-      v.exterior,
-      style.fontSize,
-      null,
-      v.extraArcs,
-      v.showDot,
+      cmds, texts, p, ext, next, label, `v:${i}:exterior`, v.exterior,
+      style.fontSize, null, v.extraArcs, v.showDot,
     );
   }
 
   for (let i = 0; i < 3; i += 1) {
     const v = state.vertices[i];
     if (!v?.showInterior) continue;
-    if (fromIdx === i) continue;
+    if (originSet.has(i)) continue;
     const p = canvas[i]!;
     const prev = canvas[prevIndex(i, 3)]!;
     const next = canvas[nextIndex(i, 3)]!;
@@ -651,43 +696,19 @@ export function buildIsoscelesScene(state: IsoscelesState): IsoScene {
     if (v.fillInterior) continue;
     const label = resolveAngleText(v.interior, interior, state.unknownLetter);
     drawAngle(
-      cmds,
-      texts,
-      p,
-      prev,
-      next,
-      label,
-      `v:${i}:interior`,
-      v.interior,
-      style.fontSize,
-      null,
-      v.extraArcs,
-      v.showDot,
+      cmds, texts, p, prev, next, label, `v:${i}:interior`, v.interior,
+      style.fontSize, null, v.extraArcs, v.showDot,
     );
   }
 
-  if (fromIdx != null && cFoot && state.cevian.showRightAtD) {
-    const [li, ri] = oppositeSide(fromIdx);
-    const Dmath = footPoint(state)!;
-    const leftDeg = wedgeDeg(Dmath, state.points[fromIdx]!, state.points[li]!);
-    const rightDeg = wedgeDeg(Dmath, state.points[fromIdx]!, state.points[ri]!);
-    if (isRightAngle(leftDeg) && !state.cevian.footLeft.show) {
-      drawRightAngle(cmds, cFoot, canvas[fromIdx]!, canvas[li]!);
-    } else if (isRightAngle(rightDeg) && !state.cevian.footRight.show) {
-      drawRightAngle(cmds, cFoot, canvas[fromIdx]!, canvas[ri]!);
-    } else if (isRightAngle(leftDeg)) {
-      drawRightAngle(cmds, cFoot, canvas[fromIdx]!, canvas[li]!);
-    } else if (isRightAngle(rightDeg)) {
-      drawRightAngle(cmds, cFoot, canvas[fromIdx]!, canvas[ri]!);
-    }
+  for (const cv of state.cevians) {
+    paintCevian(cmds, texts, state, cv, canvas, canvasC, layout, style, "marks");
   }
 
   for (let i = 0; i < 3; i += 1) {
     const e = state.edges[i];
     if (!e?.showLength) continue;
-    if (fromIdx != null && i === (fromIdx + 1) % 3) {
-      if (state.cevian.leftLen.show || state.cevian.rightLen.show) continue;
-    }
+    if (splitLenSides.has(i)) continue;
     const a = canvas[i]!;
     const b = canvas[nextIndex(i, 3)]!;
     const mid = mul(add(a, b), 0.5);
@@ -699,93 +720,15 @@ export function buildIsoscelesScene(state: IsoscelesState): IsoScene {
       state.unknownLetter,
     );
     dimArc(
-      cmds,
-      texts,
-      a,
-      b,
-      outward,
-      style.dimOffset,
-      label,
-      `e:${i}:length`,
-      e.length,
-      style.fontSize,
+      cmds, texts, a, b, outward, style.dimOffset, label,
+      `e:${i}:length`, e.length, style.fontSize,
     );
-  }
-
-  if (fromIdx != null && cFoot) {
-    const [li, ri] = oppositeSide(fromIdx);
-    const Dmath = footPoint(state)!;
-    if (state.cevian.leftLen.show) {
-      const a = canvas[li]!;
-      const mid = mul(add(a, cFoot), 0.5);
-      const label = resolveLengthText(
-        state.cevian.leftLen.label,
-        len(sub(Dmath, state.points[li]!)),
-        state.unit,
-        state.unknownLetter,
-      );
-      dimArc(
-        cmds,
-        texts,
-        a,
-        cFoot,
-        sub(mid, canvasC),
-        style.dimOffset,
-        label,
-        "p:left:length",
-        state.cevian.leftLen.label,
-        style.fontSize,
-      );
-    }
-    if (state.cevian.rightLen.show) {
-      const a = canvas[ri]!;
-      const mid = mul(add(a, cFoot), 0.5);
-      const label = resolveLengthText(
-        state.cevian.rightLen.label,
-        len(sub(Dmath, state.points[ri]!)),
-        state.unit,
-        state.unknownLetter,
-      );
-      dimArc(
-        cmds,
-        texts,
-        a,
-        cFoot,
-        sub(mid, canvasC),
-        style.dimOffset,
-        label,
-        "p:right:length",
-        state.cevian.rightLen.label,
-        style.fontSize,
-      );
-    }
-    if (state.cevian.length.show) {
-      const a = canvas[fromIdx]!;
-      const mid = mul(add(a, cFoot), 0.5);
-      const label = resolveLengthText(
-        state.cevian.length.label,
-        len(sub(Dmath, state.points[fromIdx]!)),
-        state.unit,
-        state.unknownLetter,
-      );
-      dimArc(
-        cmds,
-        texts,
-        a,
-        cFoot,
-        sub(mid, canvasC),
-        style.dimOffset,
-        label,
-        "c:length",
-        state.cevian.length.label,
-        style.fontSize,
-      );
-    }
   }
 
   for (let i = 0; i < 3; i += 1) {
     const ticks = state.edges[i]?.ticks ?? 0;
     if (ticks === 0) continue;
+    if (midpointSides.has(i)) continue;
     drawEqualTicks(cmds, canvas[i]!, canvas[nextIndex(i, 3)]!, ticks, 7);
   }
 
@@ -808,27 +751,6 @@ export function buildIsoscelesScene(state: IsoscelesState): IsoScene {
     });
   }
 
-  if (cFoot && fromIdx != null) {
-    if (state.showDots) {
-      cmds.push({ t: "dot", x: cFoot.x, y: cFoot.y, r: style.pointRadius });
-    }
-    if (state.cevian.showName && state.cevian.name.trim()) {
-      const away = norm(sub(cFoot, canvasC));
-      const lp = add(add(cFoot, mul(away, 16)), {
-        x: state.cevian.nameDx,
-        y: state.cevian.nameDy,
-      });
-      pushText(texts, cmds, {
-        id: "d:name",
-        x: lp.x,
-        y: lp.y,
-        runs: parseNameRuns(state.cevian.name.trim()),
-        size: style.pointLabelSize,
-        anchor: "middle",
-      });
-    }
-  }
-
   return {
     width: SCENE_WIDTH,
     height: SCENE_HEIGHT,
@@ -837,3 +759,4 @@ export function buildIsoscelesScene(state: IsoscelesState): IsoScene {
     layout,
   };
 }
+

@@ -23,29 +23,35 @@ import {
   applyIsoAngle,
   applyIsoLength,
   applyPartLength,
-  cevianFromIndex,
-  syncDerived,
   clearSelectionMarks,
   cycleExtraArcs,
   cycleTicks,
   edgeLength,
   edgeName,
-  footPoint,
+  footOf,
   partName,
   splitAngleName,
+  syncDerived,
   vertexAngles,
   vertexName,
   wedgeDeg,
+  cevianName,
   type IsoSelection,
 } from "@/lib/diagrams/isosceles-triangle/geometry";
 import {
+  CEVIAN_INDEX,
+  DEFAULT_FOOT_NAME,
   DEFAULT_ISO_STATE,
   ISO_PRESETS,
   cloneState,
+  getCevian,
+  mapCevian,
   normalizeState,
-  setCevianFrom,
+  setCevianRole,
   setEqualApex,
+  toggleCevian,
   type CevianFrom,
+  type CevianRole,
   type EqualApex,
   type IsoscelesState,
   type WedgeMark,
@@ -166,8 +172,17 @@ export default function IsoscelesStudio() {
     i: 0,
   });
   const fonts = useMemo(() => fontsFromNext(), []);
-  const fromIdx = cevianFromIndex(state);
-  const D = footPoint(state);
+  const focusFrom =
+    selected?.t === "foot" || selected?.t === "cevian" || selected?.t === "part"
+      ? selected.from
+      : selected?.t === "vertex"
+        ? getCevian(state, selected.i === 1 ? "B" : selected.i === 2 ? "C" : "A")
+          ? (selected.i === 1 ? "B" : selected.i === 2 ? "C" : "A")
+          : (state.cevians[0]?.from ?? null)
+        : (state.cevians[0]?.from ?? null);
+  const focusCv = focusFrom ? getCevian(state, focusFrom) : undefined;
+  const fromIdx = focusFrom ? CEVIAN_INDEX[focusFrom] : null;
+  const D = focusCv ? footOf(state, focusCv) : null;
   const selVertex =
     selected?.t === "vertex" ? state.vertices[selected.i] : undefined;
   const selEdge = selected?.t === "edge" ? state.edges[selected.i] : undefined;
@@ -228,12 +243,7 @@ export default function IsoscelesStudio() {
     { id: "B", label: `${vertexName(state, 0)}${vertexName(state, 1)}=${vertexName(state, 1)}${vertexName(state, 2)}` },
     { id: "C", label: `${vertexName(state, 0)}${vertexName(state, 2)}=${vertexName(state, 1)}${vertexName(state, 2)}` },
   ];
-  const cevianOptions: { id: CevianFrom; label: string }[] = [
-    { id: "none", label: "없음" },
-    { id: "A", label: `${vertexName(state, 0)}D` },
-    { id: "B", label: `${vertexName(state, 1)}D` },
-    { id: "C", label: `${vertexName(state, 2)}D` },
-  ];
+  const cevianLetters: CevianFrom[] = ["A", "B", "C"];
 
   return (
     <div className={`${notoSerif.variable} ${notoSerifKr.variable} space-y-4`}>
@@ -258,7 +268,8 @@ export default function IsoscelesStudio() {
           </h1>
           <p className="mt-1 max-w-2xl text-sm text-foreground/65">
             등변 표시·밑각·외각·수선·이등분선을 붙여 중2 삼각형의 성질 문제를
-            바로 그립니다. 점을 끌면 이등변 모양이 유지됩니다.
+            바로 그립니다. 보조선은 여러 개 켤 수 있고, 직각·이등분·중점 표시는
+            칩으로 켜고 끕니다.
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -350,27 +361,45 @@ export default function IsoscelesStudio() {
             <p className="mb-1 mt-3 text-[11px] font-semibold text-foreground/50">
               보조선
             </p>
-            <Segmented
-              value={state.cevian.from}
-              onChange={(v) => {
-                const from = v as CevianFrom;
-                setState((prev) => setCevianFrom(prev, from));
-                if (from !== "none") setSelected({ t: "foot" });
-              }}
-              options={cevianOptions}
-            />
-            {fromIdx != null ? (
-              <div className="mt-2">
+            <div className="flex flex-wrap gap-1.5">
+              {cevianLetters.map((from) => {
+                const on = Boolean(getCevian(state, from));
+                const cv = getCevian(state, from);
+                const apex = vertexName(state, CEVIAN_INDEX[from]);
+                const foot = cv?.name.trim() || DEFAULT_FOOT_NAME[from];
+                const focused = focusFrom === from && on;
+                return (
+                  <ChipToggle
+                    key={from}
+                    on={on}
+                    onClick={() => {
+                      if (on) {
+                        if (focused) {
+                          const next = toggleCevian(state, from);
+                          setState(next.state);
+                          setSelected({ t: "vertex", i: 0 });
+                        } else {
+                          setSelected({ t: "foot", from });
+                        }
+                        return;
+                      }
+                      const next = toggleCevian(state, from);
+                      setState(next.state);
+                      setSelected({ t: "foot", from });
+                    }}
+                  >
+                    {apex}
+                    {foot}
+                  </ChipToggle>
+                );
+              })}
+            </div>
+            {focusCv && focusFrom ? (
+              <div className="mt-2 space-y-2">
                 <Segmented
-                  value={state.cevian.role}
+                  value={focusCv.role}
                   onChange={(v) =>
-                    setState((prev) => ({
-                      ...prev,
-                      cevian: {
-                        ...prev.cevian,
-                        role: v as IsoscelesState["cevian"]["role"],
-                      },
-                    }))
+                    setState((prev) => setCevianRole(prev, focusFrom, v as CevianRole))
                   }
                   options={[
                     { id: "free", label: "자유" },
@@ -379,6 +408,47 @@ export default function IsoscelesStudio() {
                     { id: "bisector", label: "이등분" },
                   ]}
                 />
+                <div className="flex flex-wrap gap-1.5">
+                  <ChipToggle
+                    on={focusCv.showRightAtD}
+                    onClick={() =>
+                      setState((prev) =>
+                        mapCevian(prev, focusFrom, (c) => ({
+                          ...c,
+                          showRightAtD: !c.showRightAtD,
+                        })),
+                      )
+                    }
+                  >
+                    직각
+                  </ChipToggle>
+                  <ChipToggle
+                    on={focusCv.showBisectorMarks}
+                    onClick={() =>
+                      setState((prev) =>
+                        mapCevian(prev, focusFrom, (c) => ({
+                          ...c,
+                          showBisectorMarks: !c.showBisectorMarks,
+                        })),
+                      )
+                    }
+                  >
+                    이등분 표시
+                  </ChipToggle>
+                  <ChipToggle
+                    on={focusCv.showMidpointTicks}
+                    onClick={() =>
+                      setState((prev) =>
+                        mapCevian(prev, focusFrom, (c) => ({
+                          ...c,
+                          showMidpointTicks: !c.showMidpointTicks,
+                        })),
+                      )
+                    }
+                  >
+                    같은 길이
+                  </ChipToggle>
+                </div>
               </div>
             ) : null}
 
@@ -397,19 +467,20 @@ export default function IsoscelesStudio() {
                   {v.name || vertexName(state, i)}
                 </button>
               ))}
-              {fromIdx != null ? (
+              {state.cevians.map((cv) => (
                 <button
+                  key={`foot-${cv.from}`}
                   type="button"
-                  onClick={() => setSelected({ t: "foot" })}
+                  onClick={() => setSelected({ t: "foot", from: cv.from })}
                   className={`min-w-[1.5rem] rounded-full px-1.5 py-0.5 text-[11px] font-semibold transition ${
-                    selected?.t === "foot"
+                    selected?.t === "foot" && selected.from === cv.from
                       ? "bg-wood text-cream"
                       : "bg-black/8 text-foreground/55"
                   }`}
                 >
-                  {state.cevian.name || "D"}
+                  {cv.name.trim() || DEFAULT_FOOT_NAME[cv.from]}
                 </button>
-              ) : null}
+              ))}
             </div>
 
             {selected?.t === "vertex" && selVertex ? (
@@ -417,7 +488,12 @@ export default function IsoscelesStudio() {
                 state={state}
                 index={selected.i}
                 vertex={selVertex}
-                isCevianOrigin={fromIdx === selected.i}
+                cevianFrom={
+                  getCevian(
+                    state,
+                    selected.i === 1 ? "B" : selected.i === 2 ? "C" : "A",
+                  )?.from ?? null
+                }
                 setState={setState}
               />
             ) : null}
@@ -430,80 +506,77 @@ export default function IsoscelesStudio() {
               />
             ) : null}
 
-            {selected?.t === "foot" && fromIdx != null && D ? (
-              <FootPanel state={state} fromIdx={fromIdx} D={D} setState={setState} />
+            {selected?.t === "foot" && focusCv && fromIdx != null && D ? (
+              <FootPanel
+                state={state}
+                cv={focusCv}
+                fromIdx={fromIdx}
+                D={D}
+                setState={setState}
+              />
             ) : null}
 
-            {selected?.t === "cevian" && fromIdx != null && D ? (
+            {selected?.t === "cevian" && focusCv && fromIdx != null && D && focusFrom ? (
               <LengthOnly
-                label={`${vertexName(state, fromIdx)}${state.cevian.name || "D"} 길이`}
-                show={state.cevian.length.show}
+                label={`${cevianName(state, focusFrom)} 길이`}
+                show={focusCv.length.show}
                 onToggle={() =>
-                  setState((prev) => ({
-                    ...prev,
-                    cevian: {
-                      ...prev.cevian,
-                      length: { ...prev.cevian.length, show: !prev.cevian.length.show },
-                    },
-                  }))
+                  setState((prev) =>
+                    mapCevian(prev, focusFrom, (c) => ({
+                      ...c,
+                      length: { ...c.length, show: !c.length.show },
+                    })),
+                  )
                 }
                 value={Math.hypot(
                   D.x - state.points[fromIdx]!.x,
                   D.y - state.points[fromIdx]!.y,
                 )}
                 unit={state.unit}
-                mode={state.cevian.length.label.mode}
-                custom={state.cevian.length.label.custom}
+                mode={focusCv.length.label.mode}
+                custom={focusCv.length.label.custom}
                 unknownLetter={state.unknownLetter}
                 onValue={(n) =>
-                  setState((prev) => applyPartLength(prev, "cevian", n))
+                  setState((prev) => applyPartLength(prev, focusFrom, "cevian", n))
                 }
                 onMode={(mode) =>
-                  setState((prev) => ({
-                    ...prev,
-                    cevian: {
-                      ...prev.cevian,
-                      length: { ...prev.cevian.length, label: { ...prev.cevian.length.label, mode } },
-                    },
-                  }))
+                  setState((prev) =>
+                    mapCevian(prev, focusFrom, (c) => ({
+                      ...c,
+                      length: { ...c.length, label: { ...c.length.label, mode } },
+                    })),
+                  )
                 }
                 onCustom={(custom) =>
-                  setState((prev) => ({
-                    ...prev,
-                    cevian: {
-                      ...prev.cevian,
-                      length: { ...prev.cevian.length, label: { ...prev.cevian.length.label, custom } },
-                    },
-                  }))
+                  setState((prev) =>
+                    mapCevian(prev, focusFrom, (c) => ({
+                      ...c,
+                      length: { ...c.length, label: { ...c.length.label, custom } },
+                    })),
+                  )
                 }
               />
             ) : null}
 
-            {selected?.t === "part" && fromIdx != null && D ? (
+            {selected?.t === "part" && focusCv && fromIdx != null && D ? (
               <LengthOnly
-                label={`${partName(state, selected.which)} 길이`}
+                label={`${partName(state, selected.from, selected.which)} 길이`}
                 show={
                   selected.which === "left"
-                    ? state.cevian.leftLen.show
-                    : state.cevian.rightLen.show
+                    ? focusCv.leftLen.show
+                    : focusCv.rightLen.show
                 }
                 onToggle={() =>
                   setState((prev) => {
                     const field = selected.which === "left" ? "leftLen" : "rightLen";
-                    return {
-                      ...prev,
-                      cevian: {
-                        ...prev.cevian,
-                        [field]: { ...prev.cevian[field], show: !prev.cevian[field].show },
-                      },
-                    };
+                    return mapCevian(prev, selected.from, (c) => ({
+                      ...c,
+                      [field]: { ...c[field], show: !c[field].show },
+                    }));
                   })
                 }
                 value={(() => {
-                  const [i, j] = [
-                    (fromIdx + 1) % 3,
-                    (fromIdx + 2) % 3,
-                  ];
+                  const [i, j] = [(fromIdx + 1) % 3, (fromIdx + 2) % 3];
                   const end = selected.which === "left" ? i : j;
                   return Math.hypot(
                     D.x - state.points[end]!.x,
@@ -513,46 +586,34 @@ export default function IsoscelesStudio() {
                 unit={state.unit}
                 mode={
                   selected.which === "left"
-                    ? state.cevian.leftLen.label.mode
-                    : state.cevian.rightLen.label.mode
+                    ? focusCv.leftLen.label.mode
+                    : focusCv.rightLen.label.mode
                 }
                 custom={
                   selected.which === "left"
-                    ? state.cevian.leftLen.label.custom
-                    : state.cevian.rightLen.label.custom
+                    ? focusCv.leftLen.label.custom
+                    : focusCv.rightLen.label.custom
                 }
                 unknownLetter={state.unknownLetter}
                 onValue={(n) =>
-                  setState((prev) => applyPartLength(prev, selected.which, n))
+                  setState((prev) => applyPartLength(prev, selected.from, selected.which, n))
                 }
                 onMode={(mode) =>
                   setState((prev) => {
                     const field = selected.which === "left" ? "leftLen" : "rightLen";
-                    return {
-                      ...prev,
-                      cevian: {
-                        ...prev.cevian,
-                        [field]: {
-                          ...prev.cevian[field],
-                          label: { ...prev.cevian[field].label, mode },
-                        },
-                      },
-                    };
+                    return mapCevian(prev, selected.from, (c) => ({
+                      ...c,
+                      [field]: { ...c[field], label: { ...c[field].label, mode } },
+                    }));
                   })
                 }
                 onCustom={(custom) =>
                   setState((prev) => {
                     const field = selected.which === "left" ? "leftLen" : "rightLen";
-                    return {
-                      ...prev,
-                      cevian: {
-                        ...prev.cevian,
-                        [field]: {
-                          ...prev.cevian[field],
-                          label: { ...prev.cevian[field].label, custom },
-                        },
-                      },
-                    };
+                    return mapCevian(prev, selected.from, (c) => ({
+                      ...c,
+                      [field]: { ...c[field], label: { ...c[field].label, custom } },
+                    }));
                   })
                 }
               />
@@ -697,16 +758,17 @@ function VertexPanel({
   state,
   index,
   vertex,
-  isCevianOrigin,
+  cevianFrom,
   setState,
 }: {
   state: IsoscelesState;
   index: number;
   vertex: IsoscelesState["vertices"][number];
-  isCevianOrigin: boolean;
+  cevianFrom: CevianFrom | null;
   setState: IsoSetter;
 }) {
   const name = vertex.name || vertexName(state, index);
+  const isCevianOrigin = cevianFrom != null;
   return (
     <div className="mt-3 space-y-2">
       <p className="text-[11px] font-semibold text-foreground/50">꼭짓점 {name}</p>
@@ -865,19 +927,19 @@ function VertexPanel({
           />
         </>
       ) : null}
-      {isCevianOrigin ? (
+      {isCevianOrigin && cevianFrom ? (
         <div className="space-y-2">
           <WedgeRow
             state={state}
-            title={`각 ${splitAngleName(state, "apexLeft")}`}
-            mark={state.cevian.apexLeft}
-            onPatch={(patch) => patchWedge(setState, "apexLeft", patch)}
+            title={`각 ${splitAngleName(state, cevianFrom, "apexLeft")}`}
+            mark={getCevian(state, cevianFrom)!.apexLeft}
+            onPatch={(patch) => patchWedge(setState, cevianFrom, "apexLeft", patch)}
           />
           <WedgeRow
             state={state}
-            title={`각 ${splitAngleName(state, "apexRight")}`}
-            mark={state.cevian.apexRight}
-            onPatch={(patch) => patchWedge(setState, "apexRight", patch)}
+            title={`각 ${splitAngleName(state, cevianFrom, "apexRight")}`}
+            mark={getCevian(state, cevianFrom)!.apexRight}
+            onPatch={(patch) => patchWedge(setState, cevianFrom, "apexRight", patch)}
           />
         </div>
       ) : null}
@@ -966,11 +1028,13 @@ function EdgePanel({
 
 function FootPanel({
   state,
+  cv,
   fromIdx,
   D,
   setState,
 }: {
   state: IsoscelesState;
+  cv: NonNullable<ReturnType<typeof getCevian>>;
   fromIdx: 0 | 1 | 2;
   D: { x: number; y: number };
   setState: IsoSetter;
@@ -978,61 +1042,57 @@ function FootPanel({
   const [li, ri] = [(fromIdx + 1) % 3, (fromIdx + 2) % 3];
   const leftDeg = wedgeDeg(D, state.points[fromIdx]!, state.points[li]!);
   const rightDeg = wedgeDeg(D, state.points[fromIdx]!, state.points[ri]!);
+  const from = cv.from;
   return (
     <div className="mt-3 space-y-2">
       <p className="text-[11px] font-semibold text-foreground/50">
-        점 {state.cevian.name || "D"}
+        점 {cv.name.trim() || DEFAULT_FOOT_NAME[from]}
       </p>
       <div className="flex flex-wrap gap-1.5">
         <ChipToggle
-          on={state.cevian.showName}
+          on={cv.showName}
           onClick={() =>
-            setState((prev) => ({
-              ...prev,
-              cevian: { ...prev.cevian, showName: !prev.cevian.showName },
-            }))
+            setState((prev) => mapCevian(prev, from, (c) => ({ ...c, showName: !c.showName })))
           }
         >
           이름
         </ChipToggle>
         <ChipToggle
-          on={state.cevian.showRightAtD}
+          on={cv.showRightAtD}
           onClick={() =>
-            setState((prev) => ({
-              ...prev,
-              cevian: { ...prev.cevian, showRightAtD: !prev.cevian.showRightAtD },
-            }))
+            setState((prev) =>
+              mapCevian(prev, from, (c) => ({ ...c, showRightAtD: !c.showRightAtD })),
+            )
           }
         >
           직각
         </ChipToggle>
         <ChipToggle
-          on={state.cevian.length.show}
+          on={cv.length.show}
           onClick={() =>
-            setState((prev) => ({
-              ...prev,
-              cevian: {
-                ...prev.cevian,
-                length: { ...prev.cevian.length, show: !prev.cevian.length.show },
-              },
-            }))
+            setState((prev) =>
+              mapCevian(prev, from, (c) => ({
+                ...c,
+                length: { ...c.length, show: !c.length.show },
+              })),
+            )
           }
         >
           {vertexName(state, fromIdx)}
-          {state.cevian.name || "D"} 길이
+          {cv.name.trim() || DEFAULT_FOOT_NAME[from]} 길이
         </ChipToggle>
       </div>
       <WedgeRow
         state={state}
-        title={`각 ${splitAngleName(state, "footLeft")} (${leftDeg.toFixed(0)}°)`}
-        mark={state.cevian.footLeft}
-        onPatch={(patch) => patchWedge(setState, "footLeft", patch)}
+        title={`각 ${splitAngleName(state, from, "footLeft")} (${leftDeg.toFixed(0)}°)`}
+        mark={cv.footLeft}
+        onPatch={(patch) => patchWedge(setState, from, "footLeft", patch)}
       />
       <WedgeRow
         state={state}
-        title={`각 ${splitAngleName(state, "footRight")} (${rightDeg.toFixed(0)}°)`}
-        mark={state.cevian.footRight}
-        onPatch={(patch) => patchWedge(setState, "footRight", patch)}
+        title={`각 ${splitAngleName(state, from, "footRight")} (${rightDeg.toFixed(0)}°)`}
+        mark={cv.footRight}
+        onPatch={(patch) => patchWedge(setState, from, "footRight", patch)}
       />
     </div>
   );
@@ -1164,13 +1224,13 @@ function patchEdge(
 
 function patchWedge(
   setState: IsoSetter,
+  from: CevianFrom,
   key: "apexLeft" | "apexRight" | "footLeft" | "footRight",
   patch: Partial<WedgeMark>,
 ) {
-  setState((prev) => ({
-    ...prev,
-    cevian: { ...prev.cevian, [key]: { ...prev.cevian[key], ...patch } },
-  }));
+  setState((prev) =>
+    mapCevian(prev, from, (c) => ({ ...c, [key]: { ...c[key], ...patch } })),
+  );
 }
 
 function listActiveMarks(state: IsoscelesState): {
@@ -1238,12 +1298,15 @@ function listActiveMarks(state: IsoscelesState): {
       });
     }
   });
-  if (state.cevian.from !== "none") {
+  state.cevians.forEach((cv) => {
     items.push({
-      key: "cevian",
-      label: `보조선 ${vertexName(state, cevianFromIndex(state)!)}${state.cevian.name || "D"}`,
-      clear: (prev) => setCevianFrom(prev, "none"),
+      key: `cevian-${cv.from}`,
+      label: `보조선 ${vertexName(state, CEVIAN_INDEX[cv.from])}${cv.name.trim() || DEFAULT_FOOT_NAME[cv.from]}`,
+      clear: (prev) => ({
+        ...prev,
+        cevians: prev.cevians.filter((c) => c.from !== cv.from),
+      }),
     });
-  }
+  });
   return items;
 }

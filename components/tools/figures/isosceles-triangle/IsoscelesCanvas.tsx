@@ -3,7 +3,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   applyEditedLabel,
-  cevianFromIndex,
   hitTestIso,
   moveFoot,
   moveVertexIso,
@@ -11,7 +10,11 @@ import {
   type IsoHit,
   type IsoSelection,
 } from "@/lib/diagrams/isosceles-triangle/geometry";
-import { type IsoscelesState } from "@/lib/diagrams/isosceles-triangle/model";
+import {
+  mapCevian,
+  type CevianFrom,
+  type IsoscelesState,
+} from "@/lib/diagrams/isosceles-triangle/model";
 import { paintDiagramScene } from "@/lib/diagrams/render";
 import {
   buildIsoscelesScene,
@@ -30,7 +33,7 @@ export type IsoSetter = (
 
 type Drag =
   | { t: "vertex"; index: number; x: number; y: number; moved: boolean }
-  | { t: "foot"; x: number; y: number; moved: boolean }
+  | { t: "foot"; from: CevianFrom; x: number; y: number; moved: boolean }
   | { t: "label"; id: string; x: number; y: number; moved: boolean }
   | { t: "dimLine"; id: string; x: number; y: number; moved: boolean };
 
@@ -134,13 +137,12 @@ export default function IsoscelesCanvas({
     const p = scenePoint(e);
     return hitTestIso(
       scene.layout.canvas,
-      scene.layout.foot,
+      scene.layout.feet,
       scene.texts,
       scene.cmds,
       p.x,
       p.y,
       hitScale(),
-      cevianFromIndex(stateRef.current),
     );
   }
 
@@ -182,8 +184,8 @@ export default function IsoscelesCanvas({
             return;
           }
           if (hit?.kind === "foot") {
-            dragRef.current = { t: "foot", x: p.x, y: p.y, moved: false };
-            onSelect({ t: "foot" });
+            dragRef.current = { t: "foot", from: hit.from, x: p.x, y: p.y, moved: false };
+            onSelect({ t: "foot", from: hit.from });
             setCursor("grabbing");
             e.currentTarget.setPointerCapture(e.pointerId);
             return;
@@ -207,19 +209,18 @@ export default function IsoscelesCanvas({
             return;
           }
           if (hit?.kind === "cevian") {
-            onSelect({ t: "cevian" });
-            setState((prev) => ({
-              ...prev,
-              cevian: {
-                ...prev.cevian,
-                length: { ...prev.cevian.length, show: !prev.cevian.length.show },
-              },
-            }));
+            onSelect({ t: "cevian", from: hit.from });
+            setState((prev) =>
+              mapCevian(prev, hit.from, (c) => ({
+                ...c,
+                length: { ...c.length, show: !c.length.show },
+              })),
+            );
             return;
           }
           if (hit?.kind === "part") {
-            onSelect({ t: "part", which: hit.which });
-            setState((prev) => togglePartLength(prev, hit.which));
+            onSelect({ t: "part", from: hit.from, which: hit.which });
+            setState((prev) => togglePartLength(prev, hit.from, hit.which));
             return;
           }
           onSelect(null);
@@ -251,7 +252,7 @@ export default function IsoscelesCanvas({
             const scene = sceneRef.current;
             if (!scene) return;
             const math = canvasToMath(p, scene.layout);
-            setState((prev) => moveFoot(prev, math), false);
+            setState((prev) => moveFoot(prev, drag.from, math), false);
             return;
           }
           setState(
@@ -334,16 +335,14 @@ function toggleEdgeLength(state: IsoscelesState, index: number): IsoscelesState 
 
 function togglePartLength(
   state: IsoscelesState,
+  from: CevianFrom,
   which: "left" | "right",
 ): IsoscelesState {
   const field = which === "left" ? "leftLen" : "rightLen";
-  return {
-    ...state,
-    cevian: {
-      ...state.cevian,
-      [field]: { ...state.cevian[field], show: !state.cevian[field].show },
-    },
-  };
+  return mapCevian(state, from, (c) => ({
+    ...c,
+    [field]: { ...c[field], show: !c[field].show },
+  }));
 }
 
 function sameHit(a: IsoHit | null, b: IsoHit | null): boolean {
@@ -354,7 +353,12 @@ function sameHit(a: IsoHit | null, b: IsoHit | null): boolean {
   }
   if (a.kind === "vertex") return b.kind === "vertex" && a.index === b.index;
   if (a.kind === "edge") return b.kind === "edge" && a.index === b.index;
-  if (a.kind === "part") return b.kind === "part" && a.which === b.which;
+  if (a.kind === "part") {
+    return b.kind === "part" && a.from === b.from && a.which === b.which;
+  }
+  if (a.kind === "foot" || a.kind === "cevian") {
+    return b.kind === a.kind && a.from === (b as { from: CevianFrom }).from;
+  }
   return true;
 }
 
@@ -373,7 +377,10 @@ function paintOverlays(
 ) {
   ctx.save();
   const verts = scene.layout.canvas;
-  const foot = scene.layout.foot;
+  const feet = scene.layout.feet;
+  function footCanvas(from: CevianFrom) {
+    return feet.find((f) => f.from === from)?.canvas;
+  }
   function ringAt(p: { x: number; y: number }, strong: boolean) {
     ctx.beginPath();
     ctx.arc(p.x, p.y, strong ? 10 : 8, 0, Math.PI * 2);
@@ -392,36 +399,48 @@ function paintOverlays(
     ctx.stroke();
   }
   if (selected?.t === "vertex") ringAt(verts[selected.i]!, true);
-  if (selected?.t === "foot" && foot) ringAt(foot, true);
+  if (selected?.t === "foot") {
+    const p = footCanvas(selected.from);
+    if (p) ringAt(p, true);
+  }
   if (selected?.t === "edge") {
     strokeSeg(verts[selected.i]!, verts[(selected.i + 1) % 3]!);
   }
-  if (selected?.t === "cevian" && foot && scene.layout.fromIndex != null) {
-    strokeSeg(verts[scene.layout.fromIndex]!, foot);
+  if (selected?.t === "cevian") {
+    const p = footCanvas(selected.from);
+    const idx = feet.find((f) => f.from === selected.from)?.index;
+    if (p && idx != null) strokeSeg(verts[idx]!, p);
   }
-  if (selected?.t === "part" && foot && scene.layout.fromIndex != null) {
-    const [li, ri] = [
-      (scene.layout.fromIndex + 1) % 3,
-      (scene.layout.fromIndex + 2) % 3,
-    ];
-    const end = selected.which === "left" ? li : ri;
-    strokeSeg(verts[end]!, foot);
+  if (selected?.t === "part") {
+    const p = footCanvas(selected.from);
+    const idx = feet.find((f) => f.from === selected.from)?.index;
+    if (p && idx != null) {
+      const [li, ri] = [(idx + 1) % 3, (idx + 2) % 3];
+      const end = selected.which === "left" ? li : ri;
+      strokeSeg(verts[end]!, p);
+    }
   }
   if (hover?.kind === "vertex") ringAt(verts[hover.index]!, false);
-  if (hover?.kind === "foot" && foot) ringAt(foot, false);
+  if (hover?.kind === "foot") {
+    const p = footCanvas(hover.from);
+    if (p) ringAt(p, false);
+  }
   if (hover?.kind === "edge") {
     strokeSeg(verts[hover.index]!, verts[(hover.index + 1) % 3]!);
   }
-  if (hover?.kind === "cevian" && foot && scene.layout.fromIndex != null) {
-    strokeSeg(verts[scene.layout.fromIndex]!, foot);
+  if (hover?.kind === "cevian") {
+    const p = footCanvas(hover.from);
+    const idx = feet.find((f) => f.from === hover.from)?.index;
+    if (p && idx != null) strokeSeg(verts[idx]!, p);
   }
-  if (hover?.kind === "part" && foot && scene.layout.fromIndex != null) {
-    const [li, ri] = [
-      (scene.layout.fromIndex + 1) % 3,
-      (scene.layout.fromIndex + 2) % 3,
-    ];
-    const end = hover.which === "left" ? li : ri;
-    strokeSeg(verts[end]!, foot);
+  if (hover?.kind === "part") {
+    const p = footCanvas(hover.from);
+    const idx = feet.find((f) => f.from === hover.from)?.index;
+    if (p && idx != null) {
+      const [li, ri] = [(idx + 1) % 3, (idx + 2) % 3];
+      const end = hover.which === "left" ? li : ri;
+      strokeSeg(verts[end]!, p);
+    }
   }
   ctx.restore();
 }

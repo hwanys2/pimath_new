@@ -16,7 +16,11 @@ import {
   ISO_PRESETS,
   cloneState,
   isoscelesFromVertex,
+  makeCevian,
+  mapCevian,
   normalizeState,
+  setCevianRole,
+  toggleCevian,
   triangleFromAngles,
 } from "./model";
 import { buildIsoscelesScene } from "./scene";
@@ -154,8 +158,8 @@ describe("presets", () => {
     almost(D!.x, (state.points[i]!.x + state.points[j]!.x) / 2, 0.05);
     const scene = buildIsoscelesScene(state);
     assert.ok(scene.cmds.some((c) => c.t === "rightAngle"));
-    assert.ok(scene.texts.some((t) => t.id === "w:apexLeft"));
-    assert.ok(scene.texts.some((t) => t.id === "p:left:length"));
+    assert.ok(scene.texts.some((t) => t.id === "w:A:apexLeft"));
+    assert.ok(scene.texts.some((t) => t.id === "p:A:left:length"));
     assert.ok(scene.layout.foot);
   });
 
@@ -170,18 +174,50 @@ describe("presets", () => {
     const bcd = wedgeDeg(C, B, D);
     almost(bcd, 28, 1.2);
     const scene = buildIsoscelesScene(state);
-    assert.ok(scene.texts.some((t) => t.id === "w:apexRight"));
-    assert.ok(scene.texts.some((t) => t.id === "p:right:length"));
+    assert.ok(scene.texts.some((t) => t.id === "w:C:apexRight"));
+    assert.ok(scene.texts.some((t) => t.id === "p:C:right:length"));
   });
 
   it("golden preset places a bisector from B and dots on the split angles", () => {
     const state = ISO_PRESETS[5]!.state;
-    assert.equal(state.cevian.from, "B");
-    assert.equal(state.cevian.role, "bisector");
+    assert.equal(state.cevians[0]?.from, "B");
+    assert.equal(state.cevians[0]?.role, "bisector");
     const scene = buildIsoscelesScene(state);
     const dots = scene.cmds.filter((c) => c.t === "dot");
     assert.ok(dots.length >= 5, "A,B,C,D plus two angle dots");
     assert.ok(scene.cmds.some((c) => c.t === "polygon"));
+  });
+
+  it("can draw two cevians at once", () => {
+    let state = normalizeState(ISO_PRESETS[2]!.state);
+    const added = toggleCevian(state, "B");
+    state = setCevianRole(added.state, "B", "bisector");
+    assert.equal(state.cevians.length, 2);
+    const scene = buildIsoscelesScene(state);
+    assert.equal(scene.layout.feet.length, 2);
+    assert.ok(scene.cmds.some((c) => c.t === "rightAngle"));
+    assert.equal(state.cevians.find((c) => c.from === "B")?.showBisectorMarks, true);
+  });
+
+  it("toggles altitude right-angle and midpoint ticks", () => {
+    let state = normalizeState({
+      ...ISO_PRESETS[0]!.state,
+      cevians: [makeCevian({ from: "A", role: "altitude", showRightAtD: true })],
+    });
+    let scene = buildIsoscelesScene(state);
+    assert.ok(scene.cmds.some((c) => c.t === "rightAngle"));
+    state = mapCevian(state, "A", (c) => ({ ...c, showRightAtD: false }));
+    scene = buildIsoscelesScene(state);
+    assert.ok(!scene.cmds.some((c) => c.t === "rightAngle"));
+
+    state = mapCevian(state, "A", (c) => ({
+      ...c,
+      role: "midpoint" as const,
+      showMidpointTicks: true,
+    }));
+    scene = buildIsoscelesScene(state);
+    const tickLines = scene.cmds.filter((c) => c.t === "line" && !c.id && !c.dashed);
+    assert.ok(tickLines.length >= 2);
   });
 });
 

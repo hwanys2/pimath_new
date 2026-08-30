@@ -22,11 +22,16 @@ import { emptyLabel, type MeasLabel, type Vec } from "@/lib/diagrams/polygon/mod
 import {
   APEX_INDEX,
   CEVIAN_INDEX,
+  DEFAULT_FOOT_NAME,
   fromPolygonState,
+  getCevian,
+  mapCevian,
   normalizeState,
   toPolygonState,
   vertexLetter,
   type CevianFrom,
+  type CevianRole,
+  type CevianState,
   type EqualApex,
   type ExtraArcs,
   type IsoscelesState,
@@ -36,19 +41,19 @@ import {
 
 export type IsoHit =
   | { kind: "vertex"; index: number }
-  | { kind: "foot" }
+  | { kind: "foot"; from: CevianFrom }
   | { kind: "edge"; index: number }
-  | { kind: "cevian" }
-  | { kind: "part"; which: "left" | "right" }
+  | { kind: "cevian"; from: CevianFrom }
+  | { kind: "part"; from: CevianFrom; which: "left" | "right" }
   | { kind: "label"; id: string }
   | { kind: "dimLine"; id: string };
 
 export type IsoSelection =
   | { t: "vertex"; i: number }
   | { t: "edge"; i: number }
-  | { t: "foot" }
-  | { t: "cevian" }
-  | { t: "part"; which: "left" | "right" };
+  | { t: "foot"; from: CevianFrom }
+  | { t: "cevian"; from: CevianFrom }
+  | { t: "part"; from: CevianFrom; which: "left" | "right" };
 
 const MIN_EDGE = 0.35;
 const RIGHT_EPS = 0.75;
@@ -89,18 +94,21 @@ export function unitPerp(v: Vec): Vec {
 }
 
 export function cevianFromIndex(state: IsoscelesState): 0 | 1 | 2 | null {
-  if (state.cevian.from === "none") return null;
-  return CEVIAN_INDEX[state.cevian.from];
+  const first = state.cevians[0];
+  if (!first) return null;
+  return CEVIAN_INDEX[first.from];
 }
 
-export function footPoint(state: IsoscelesState): Vec | null {
-  const from = cevianFromIndex(state);
-  if (from == null) return null;
+export function footOf(
+  state: IsoscelesState,
+  cv: { from: CevianFrom; role: CevianRole; t: number },
+): Vec {
+  const from = CEVIAN_INDEX[cv.from];
   const [i, j] = oppositeSide(from);
   const apex = state.points[from]!;
   const a = state.points[i]!;
   const b = state.points[j]!;
-  switch (state.cevian.role) {
+  switch (cv.role) {
     case "midpoint":
       return midpoint(a, b);
     case "altitude":
@@ -108,8 +116,13 @@ export function footPoint(state: IsoscelesState): Vec | null {
     case "bisector":
       return angleBisectorFoot(apex, a, b);
     default:
-      return lerp(a, b, clamp(state.cevian.t, 0.08, 0.92));
+      return lerp(a, b, clamp(cv.t, 0.08, 0.92));
   }
+}
+
+export function footPoint(state: IsoscelesState): Vec | null {
+  const first = state.cevians[0];
+  return first ? footOf(state, first) : null;
 }
 
 export function snapIsosceles(points: Vec[], apex: 0 | 1 | 2): Vec[] {
@@ -198,47 +211,46 @@ function syncMeasuredLabels(state: IsoscelesState): IsoscelesState {
     ...e,
     length: syncLengthLabel(e.length, edgeLength(state.points, i)),
   }));
-  let cevian = state.cevian;
-  const from = cevianFromIndex(state);
-  const D = footPoint({ ...state, vertices, edges });
-  if (from != null && D) {
+  let cevians = state.cevians.map((cv) => {
+    const D = footOf({ ...state, vertices, edges }, cv);
+    const from = CEVIAN_INDEX[cv.from];
     const [li, ri] = oppositeSide(from);
     const apex = state.points[from]!;
     const left = state.points[li]!;
     const right = state.points[ri]!;
-    cevian = {
-      ...cevian,
+    return {
+      ...cv,
       apexLeft: {
-        ...cevian.apexLeft,
-        label: syncAngleLabel(cevian.apexLeft.label, wedgeDeg(apex, left, D)),
+        ...cv.apexLeft,
+        label: syncAngleLabel(cv.apexLeft.label, wedgeDeg(apex, left, D)),
       },
       apexRight: {
-        ...cevian.apexRight,
-        label: syncAngleLabel(cevian.apexRight.label, wedgeDeg(apex, right, D)),
+        ...cv.apexRight,
+        label: syncAngleLabel(cv.apexRight.label, wedgeDeg(apex, right, D)),
       },
       footLeft: {
-        ...cevian.footLeft,
-        label: syncAngleLabel(cevian.footLeft.label, wedgeDeg(D, apex, left)),
+        ...cv.footLeft,
+        label: syncAngleLabel(cv.footLeft.label, wedgeDeg(D, apex, left)),
       },
       footRight: {
-        ...cevian.footRight,
-        label: syncAngleLabel(cevian.footRight.label, wedgeDeg(D, apex, right)),
+        ...cv.footRight,
+        label: syncAngleLabel(cv.footRight.label, wedgeDeg(D, apex, right)),
       },
       length: {
-        ...cevian.length,
-        label: syncLengthLabel(cevian.length.label, len(sub(D, apex))),
+        ...cv.length,
+        label: syncLengthLabel(cv.length.label, len(sub(D, apex))),
       },
       leftLen: {
-        ...cevian.leftLen,
-        label: syncLengthLabel(cevian.leftLen.label, len(sub(D, left))),
+        ...cv.leftLen,
+        label: syncLengthLabel(cv.leftLen.label, len(sub(D, left))),
       },
       rightLen: {
-        ...cevian.rightLen,
-        label: syncLengthLabel(cevian.rightLen.label, len(sub(D, right))),
+        ...cv.rightLen,
+        label: syncLengthLabel(cv.rightLen.label, len(sub(D, right))),
       },
     };
-  }
-  return { ...state, vertices, edges, cevian };
+  });
+  return { ...state, vertices, edges, cevians };
 }
 
 function validTriangle(points: Vec[]): boolean {
@@ -293,15 +305,13 @@ export function moveVertexIso(
   return syncDerived({ ...state, points });
 }
 
-export function moveFoot(state: IsoscelesState, next: Vec): IsoscelesState {
-  const from = cevianFromIndex(state);
-  if (from == null) return state;
-  const [i, j] = oppositeSide(from);
+export function moveFoot(state: IsoscelesState, from: CevianFrom, next: Vec): IsoscelesState {
+  const cv = getCevian(state, from);
+  if (!cv) return state;
+  const idx = CEVIAN_INDEX[from];
+  const [i, j] = oppositeSide(idx);
   const t = projectT(next, state.points[i]!, state.points[j]!);
-  return syncDerived({
-    ...state,
-    cevian: { ...state.cevian, role: "free", t },
-  });
+  return syncDerived(mapCevian(state, from, (c) => ({ ...c, role: "free", t })));
 }
 
 export function applyIsoAngle(
@@ -348,20 +358,22 @@ function scaleAbout(points: Vec[], center: Vec, s: number): Vec[] {
 
 export function applyPartLength(
   state: IsoscelesState,
+  from: CevianFrom,
   which: "left" | "right" | "cevian",
   newLength: number,
 ): IsoscelesState {
-  const from = cevianFromIndex(state);
-  const D = footPoint(state);
-  if (from == null || !D) return state;
+  const cv = getCevian(state, from);
+  if (!cv) return state;
+  const fromIdx = CEVIAN_INDEX[from];
+  const D = footOf(state, cv);
   const target = clamp(newLength, MIN_EDGE, 40);
   if (which === "cevian") {
-    const apex = state.points[from]!;
+    const apex = state.points[fromIdx]!;
     const dir = norm(sub(apex, D));
     const dist = len(sub(apex, D));
     if (dist < 1e-6) return state;
     const moved = add(D, mul(dir, target));
-    const points = state.points.map((p, i) => (i === from ? moved : p));
+    const points = state.points.map((p, i) => (i === fromIdx ? moved : p));
     if (state.equalApex !== "none" && state.lockEqual) {
       const snapped = snapIsosceles(points, APEX_INDEX[state.equalApex]);
       if (!validTriangle(snapped)) return state;
@@ -370,16 +382,16 @@ export function applyPartLength(
     if (!validTriangle(points)) return state;
     return syncDerived({ ...state, points });
   }
-  const [i, j] = oppositeSide(from);
+  const [i, j] = oppositeSide(fromIdx);
   const end = which === "left" ? state.points[i]! : state.points[j]!;
   const current = len(sub(D, end));
   if (current < 1e-6) return state;
-  if (state.cevian.role === "free") {
+  if (cv.role === "free") {
     const side = len(sub(state.points[j]!, state.points[i]!));
-    let t = state.cevian.t;
+    let t = cv.t;
     if (which === "left") t = clamp(target / side, 0.08, 0.92);
     else t = clamp(1 - target / side, 0.08, 0.92);
-    return syncDerived({ ...state, cevian: { ...state.cevian, t } });
+    return syncDerived(mapCevian(state, from, (c) => ({ ...c, t })));
   }
   const s = target / current;
   const points = scaleAbout(state.points, midpoint(state.points[i]!, state.points[j]!), s);
@@ -406,81 +418,82 @@ function labelFromParse(
 
 function patchWedge(
   state: IsoscelesState,
+  from: CevianFrom,
   key: "apexLeft" | "apexRight" | "footLeft" | "footRight",
   patch: Partial<WedgeMark>,
 ): IsoscelesState {
-  return {
-    ...state,
-    cevian: { ...state.cevian, [key]: { ...state.cevian[key], ...patch } },
-  };
+  return mapCevian(state, from, (c) => ({ ...c, [key]: { ...c[key], ...patch } }));
+}
+
+function resolveCevianFromId(state: IsoscelesState, raw: string | undefined): CevianFrom | null {
+  if (raw === "A" || raw === "B" || raw === "C") return raw;
+  return state.cevians[0]?.from ?? null;
 }
 
 export function applyEditedLabel(state: IsoscelesState, id: string, text: string): IsoscelesState {
-  if (id === "d:name") {
-    const name = text.trim() || state.cevian.name;
-    return { ...state, cevian: { ...state.cevian, name } };
+  const nameMatch = /^d:(?:([ABC]):)?name$/.exec(id);
+  if (nameMatch) {
+    const from = resolveCevianFromId(state, nameMatch[1]);
+    if (!from) return state;
+    const cv = getCevian(state, from);
+    const name = text.trim() || cv?.name || DEFAULT_FOOT_NAME[from];
+    return mapCevian(state, from, (c) => ({ ...c, name }));
   }
-  const wedgeMatch = /^w:(apexLeft|apexRight|footLeft|footRight)$/.exec(id);
+  const wedgeMatch = /^w:(?:([ABC]):)?(apexLeft|apexRight|footLeft|footRight)$/.exec(id);
   if (wedgeMatch) {
-    const key = wedgeMatch[1] as "apexLeft" | "apexRight" | "footLeft" | "footRight";
+    const from = resolveCevianFromId(state, wedgeMatch[1]);
+    if (!from) return state;
+    const key = wedgeMatch[2] as "apexLeft" | "apexRight" | "footLeft" | "footRight";
     const parsed = parseAngleInput(text);
-    const mark = state.cevian[key];
-    return patchWedge(state, key, { label: labelFromParse(parsed, text, mark.label, true) });
+    const mark = getCevian(state, from)?.[key];
+    if (!mark) return state;
+    return patchWedge(state, from, key, { label: labelFromParse(parsed, text, mark.label, true) });
   }
-  if (id === "c:length") {
+  const cevLenMatch = /^c:(?:([ABC]):)?length$/.exec(id);
+  if (cevLenMatch) {
+    const from = resolveCevianFromId(state, cevLenMatch[1]);
+    if (!from) return state;
+    const cv = getCevian(state, from);
+    if (!cv) return state;
     const parsed = parseMeasureInput(text);
     if (parsed.kind === "number" && parsed.value != null) {
-      const next = applyPartLength(state, "cevian", parsed.value);
-      return {
-        ...next,
-        cevian: {
-          ...next.cevian,
-          length: {
-            show: true,
-            label: labelFromParse(parsed, text, state.cevian.length.label, false),
-          },
-        },
-      };
+      const next = applyPartLength(state, from, "cevian", parsed.value);
+      return mapCevian(next, from, (c) => ({
+        ...c,
+        length: { show: true, label: labelFromParse(parsed, text, cv.length.label, false) },
+      }));
     }
-    return {
-      ...state,
-      cevian: {
-        ...state.cevian,
-        length: {
-          show: state.cevian.length.show,
-          label: labelFromParse(parsed, text, state.cevian.length.label, false),
-        },
+    return mapCevian(state, from, (c) => ({
+      ...c,
+      length: {
+        show: c.length.show,
+        label: labelFromParse(parsed, text, c.length.label, false),
       },
-    };
+    }));
   }
-  const partMatch = /^p:(left|right):length$/.exec(id);
+  const partMatch = /^p:(?:([ABC]):)?(left|right):length$/.exec(id);
   if (partMatch) {
-    const which = partMatch[1] as "left" | "right";
+    const from = resolveCevianFromId(state, partMatch[1]);
+    if (!from) return state;
+    const which = partMatch[2] as "left" | "right";
     const field = which === "left" ? "leftLen" : "rightLen";
+    const cv = getCevian(state, from);
+    if (!cv) return state;
     const parsed = parseMeasureInput(text);
     if (parsed.kind === "number" && parsed.value != null) {
-      const next = applyPartLength(state, which, parsed.value);
-      return {
-        ...next,
-        cevian: {
-          ...next.cevian,
-          [field]: {
-            show: true,
-            label: labelFromParse(parsed, text, state.cevian[field].label, false),
-          },
-        },
-      };
+      const next = applyPartLength(state, from, which, parsed.value);
+      return mapCevian(next, from, (c) => ({
+        ...c,
+        [field]: { show: true, label: labelFromParse(parsed, text, cv[field].label, false) },
+      }));
     }
-    return {
-      ...state,
-      cevian: {
-        ...state.cevian,
-        [field]: {
-          show: state.cevian[field].show,
-          label: labelFromParse(parsed, text, state.cevian[field].label, false),
-        },
+    return mapCevian(state, from, (c) => ({
+      ...c,
+      [field]: {
+        show: c[field].show,
+        label: labelFromParse(parsed, text, c[field].label, false),
       },
-    };
+    }));
   }
   const angMatch = /^v:(\d+):(interior|exterior)$/.exec(id);
   if (angMatch) {
@@ -535,21 +548,24 @@ export function nudgeLabel(
   dy: number,
   lineOnly: boolean,
 ): IsoscelesState {
-  if (id === "d:name") {
-    return {
-      ...state,
-      cevian: {
-        ...state.cevian,
-        nameDx: clamp(state.cevian.nameDx + dx, -80, 80),
-        nameDy: clamp(state.cevian.nameDy + dy, -80, 80),
-      },
-    };
+  const nameMatch = /^d:(?:([ABC]):)?name$/.exec(id);
+  if (nameMatch) {
+    const from = resolveCevianFromId(state, nameMatch[1]);
+    if (!from) return state;
+    return mapCevian(state, from, (c) => ({
+      ...c,
+      nameDx: clamp(c.nameDx + dx, -80, 80),
+      nameDy: clamp(c.nameDy + dy, -80, 80),
+    }));
   }
-  const wedgeMatch = /^w:(apexLeft|apexRight|footLeft|footRight)$/.exec(id);
+  const wedgeMatch = /^w:(?:([ABC]):)?(apexLeft|apexRight|footLeft|footRight)$/.exec(id);
   if (wedgeMatch) {
-    const key = wedgeMatch[1] as "apexLeft" | "apexRight" | "footLeft" | "footRight";
-    const label = state.cevian[key].label;
-    return patchWedge(state, key, {
+    const from = resolveCevianFromId(state, wedgeMatch[1]);
+    if (!from) return state;
+    const key = wedgeMatch[2] as "apexLeft" | "apexRight" | "footLeft" | "footRight";
+    const label = getCevian(state, from)?.[key].label;
+    if (!label) return state;
+    return patchWedge(state, from, key, {
       label: {
         ...label,
         dx: clamp(label.dx + dx, -80, 80),
@@ -567,23 +583,24 @@ export function nudgeLabel(
       dy: clamp(label.dy + dy, -160, 160),
     };
   }
-  if (id === "c:length") {
-    return {
-      ...state,
-      cevian: { ...state.cevian, length: { ...state.cevian.length, label: nudgeMeas(state.cevian.length.label) } },
-    };
+  const cevLenMatch = /^c:(?:([ABC]):)?length$/.exec(id);
+  if (cevLenMatch) {
+    const from = resolveCevianFromId(state, cevLenMatch[1]);
+    if (!from) return state;
+    return mapCevian(state, from, (c) => ({
+      ...c,
+      length: { ...c.length, label: nudgeMeas(c.length.label) },
+    }));
   }
-  if (id === "p:left:length") {
-    return {
-      ...state,
-      cevian: { ...state.cevian, leftLen: { ...state.cevian.leftLen, label: nudgeMeas(state.cevian.leftLen.label) } },
-    };
-  }
-  if (id === "p:right:length") {
-    return {
-      ...state,
-      cevian: { ...state.cevian, rightLen: { ...state.cevian.rightLen, label: nudgeMeas(state.cevian.rightLen.label) } },
-    };
+  const partMatch = /^p:(?:([ABC]):)?(left|right):length$/.exec(id);
+  if (partMatch) {
+    const from = resolveCevianFromId(state, partMatch[1]);
+    if (!from) return state;
+    const field = partMatch[2] === "left" ? "leftLen" : "rightLen";
+    return mapCevian(state, from, (c) => ({
+      ...c,
+      [field]: { ...c[field], label: nudgeMeas(c[field].label) },
+    }));
   }
   const poly = nudgePolygonLabel(toPolygonState(state), id, dx, dy, lineOnly);
   return fromPolygonState(poly, state);
@@ -623,30 +640,23 @@ export function clearSelectionMarks(
     };
   }
   if (sel.t === "foot") {
-    return {
-      ...state,
-      cevian: {
-        ...state.cevian,
-        showRightAtD: false,
-        footLeft: { ...state.cevian.footLeft, show: false, fill: false },
-        footRight: { ...state.cevian.footRight, show: false, fill: false },
-      },
-    };
+    return mapCevian(state, sel.from, (c) => ({
+      ...c,
+      showRightAtD: false,
+      showBisectorMarks: false,
+      showMidpointTicks: false,
+      footLeft: { ...c.footLeft, show: false, fill: false },
+      footRight: { ...c.footRight, show: false, fill: false },
+    }));
   }
   if (sel.t === "cevian") {
-    return {
-      ...state,
-      cevian: { ...state.cevian, from: "none" },
-    };
+    return { ...state, cevians: state.cevians.filter((c) => c.from !== sel.from) };
   }
   const field = sel.which === "left" ? "leftLen" : "rightLen";
-  return {
-    ...state,
-    cevian: {
-      ...state.cevian,
-      [field]: { show: false, label: emptyLabel("auto") },
-    },
-  };
+  return mapCevian(state, sel.from, (c) => ({
+    ...c,
+    [field]: { show: false, label: emptyLabel("auto") },
+  }));
 }
 
 export function wedgeDeg(
@@ -671,30 +681,31 @@ export function edgeName(state: IsoscelesState, i: number): string {
   return `${vertexName(state, i)}${vertexName(state, (i + 1) % 3)}`;
 }
 
-export function cevianName(state: IsoscelesState): string {
-  const from = cevianFromIndex(state);
-  if (from == null) return "";
-  return `${vertexName(state, from)}${state.cevian.name.trim() || "D"}`;
+export function cevianName(state: IsoscelesState, from: CevianFrom): string {
+  const cv = getCevian(state, from);
+  const idx = CEVIAN_INDEX[from];
+  return `${vertexName(state, idx)}${cv?.name.trim() || DEFAULT_FOOT_NAME[from]}`;
 }
 
-export function partName(state: IsoscelesState, which: "left" | "right"): string {
-  const from = cevianFromIndex(state);
-  if (from == null) return "";
-  const [i, j] = oppositeSide(from);
+export function partName(state: IsoscelesState, from: CevianFrom, which: "left" | "right"): string {
+  const cv = getCevian(state, from);
+  const idx = CEVIAN_INDEX[from];
+  const [i, j] = oppositeSide(idx);
   const end = which === "left" ? i : j;
-  const d = state.cevian.name.trim() || "D";
+  const d = cv?.name.trim() || DEFAULT_FOOT_NAME[from];
   return `${vertexName(state, end)}${d}`;
 }
 
 export function splitAngleName(
   state: IsoscelesState,
+  from: CevianFrom,
   which: "apexLeft" | "apexRight" | "footLeft" | "footRight",
 ): string {
-  const from = cevianFromIndex(state);
-  if (from == null) return "";
-  const [i, j] = oppositeSide(from);
-  const d = state.cevian.name.trim() || "D";
-  const apex = vertexName(state, from);
+  const cv = getCevian(state, from);
+  const idx = CEVIAN_INDEX[from];
+  const [i, j] = oppositeSide(idx);
+  const d = cv?.name.trim() || DEFAULT_FOOT_NAME[from];
+  const apex = vertexName(state, idx);
   const left = vertexName(state, i);
   const right = vertexName(state, j);
   if (which === "apexLeft") return `${left}${apex}${d}`;
@@ -719,15 +730,16 @@ function distToSeg(
   return Math.hypot(x - (x1 + dx * t), y - (y1 + dy * t));
 }
 
+export type CanvasFoot = { from: CevianFrom; index: 0 | 1 | 2; canvas: Vec };
+
 export function hitTestIso(
   canvasPts: Vec[],
-  foot: Vec | null,
+  feet: CanvasFoot[],
   texts: { id: string; x: number; y: number }[],
   cmds: { t: string; id?: string; x1?: number; y1?: number; x2?: number; y2?: number }[],
   x: number,
   y: number,
   scale = 1,
-  cevianFrom: 0 | 1 | 2 | null,
 ): IsoHit | null {
   const labelR = 22 * Math.max(scale, 0.85);
   let bestText: { id: string; d: number } | null = null;
@@ -743,10 +755,17 @@ export function hitTestIso(
   }
 
   const pointR = 14 * Math.max(scale, 0.85);
-  if (foot) {
-    const d = Math.hypot(foot.x - x, foot.y - y);
-    if (d < pointR) return { kind: "foot" };
+  let bestFoot: CanvasFoot | null = null;
+  let bestFootD = pointR;
+  for (const f of feet) {
+    const d = Math.hypot(f.canvas.x - x, f.canvas.y - y);
+    if (d < bestFootD) {
+      bestFootD = d;
+      bestFoot = f;
+    }
   }
+  if (bestFoot) return { kind: "foot", from: bestFoot.from };
+
   let bestV = -1;
   let bestVd = pointR;
   canvasPts.forEach((p, i) => {
@@ -775,23 +794,37 @@ export function hitTestIso(
   if (bestDim) return bestDim;
 
   const edgeR = 9 * Math.max(scale, 0.85);
-  if (cevianFrom != null && foot) {
-    const apex = canvasPts[cevianFrom]!;
-    const dCev = distToSeg(x, y, apex.x, apex.y, foot.x, foot.y);
-    if (dCev < edgeR) return { kind: "cevian" };
-    const [i, j] = oppositeSide(cevianFrom);
+  let bestCev: IsoHit | null = null;
+  let bestCevD = edgeR;
+  const splitSides = new Set<number>();
+  for (const f of feet) {
+    splitSides.add((f.index + 1) % 3);
+    const apex = canvasPts[f.index]!;
+    const dCev = distToSeg(x, y, apex.x, apex.y, f.canvas.x, f.canvas.y);
+    if (dCev < bestCevD) {
+      bestCevD = dCev;
+      bestCev = { kind: "cevian", from: f.from };
+    }
+    const [i, j] = oppositeSide(f.index);
     const L = canvasPts[i]!;
     const R = canvasPts[j]!;
-    const dL = distToSeg(x, y, L.x, L.y, foot.x, foot.y);
-    const dR = distToSeg(x, y, R.x, R.y, foot.x, foot.y);
-    if (dL < edgeR && dL <= dR) return { kind: "part", which: "left" };
-    if (dR < edgeR) return { kind: "part", which: "right" };
+    const dL = distToSeg(x, y, L.x, L.y, f.canvas.x, f.canvas.y);
+    const dR = distToSeg(x, y, R.x, R.y, f.canvas.x, f.canvas.y);
+    if (dL < bestCevD) {
+      bestCevD = dL;
+      bestCev = { kind: "part", from: f.from, which: "left" };
+    }
+    if (dR < bestCevD) {
+      bestCevD = dR;
+      bestCev = { kind: "part", from: f.from, which: "right" };
+    }
   }
+  if (bestCev) return bestCev;
 
   let bestE = -1;
   let bestEd = edgeR;
   for (let i = 0; i < 3; i += 1) {
-    if (cevianFrom != null && i === (cevianFrom + 1) % 3) continue;
+    if (splitSides.has(i)) continue;
     const a = canvasPts[i]!;
     const b = canvasPts[(i + 1) % 3]!;
     const d = distToSeg(x, y, a.x, a.y, b.x, b.y);

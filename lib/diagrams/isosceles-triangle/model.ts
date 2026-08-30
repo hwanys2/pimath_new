@@ -16,10 +16,16 @@ export { emptyLabel, resolveAngleText, resolveLengthText, DEFAULT_STYLE };
 /** Apex of the equal sides. `"A"` means AB = AC. */
 export type EqualApex = "none" | "A" | "B" | "C";
 
-/** Cevian from this vertex to the opposite side, with foot D. */
-export type CevianFrom = "none" | "A" | "B" | "C";
+/** Cevian from this vertex to the opposite side. */
+export type CevianFrom = "A" | "B" | "C";
 
 export type CevianRole = "free" | "midpoint" | "altitude" | "bisector";
+
+export const DEFAULT_FOOT_NAME: Record<CevianFrom, string> = {
+  A: "D",
+  B: "E",
+  C: "F",
+};
 
 export type TickCount = 0 | 1 | 2 | 3;
 
@@ -62,7 +68,12 @@ export type CevianState = {
   nameDx: number;
   nameDy: number;
   showName: boolean;
+  /** Right-angle box at the foot (typical for an altitude). */
   showRightAtD: boolean;
+  /** Matching arcs on the two halves of the vertex angle. */
+  showBisectorMarks: boolean;
+  /** Equal-length ticks on the two parts of the opposite side. */
+  showMidpointTicks: boolean;
   length: { show: boolean; label: MeasLabel };
   leftLen: { show: boolean; label: MeasLabel };
   rightLen: { show: boolean; label: MeasLabel };
@@ -80,7 +91,7 @@ export type IsoscelesState = {
   referenceEdgeLength: number;
   equalApex: EqualApex;
   lockEqual: boolean;
-  cevian: CevianState;
+  cevians: CevianState[];
   showVertexNames: boolean;
   showDots: boolean;
   unit: string;
@@ -101,7 +112,7 @@ export const APEX_INDEX: Record<Exclude<EqualApex, "none">, 0 | 1 | 2> = {
   C: 2,
 };
 
-export const CEVIAN_INDEX: Record<Exclude<CevianFrom, "none">, 0 | 1 | 2> = {
+export const CEVIAN_INDEX: Record<CevianFrom, 0 | 1 | 2> = {
   A: 0,
   B: 1,
   C: 2,
@@ -167,16 +178,19 @@ function makeEdge(patch: Partial<IsoEdge> = {}): IsoEdge {
   return { showLength: false, length: emptyLabel("auto"), ticks: 0, ...patch };
 }
 
-function makeCevian(patch: Partial<CevianState> = {}): CevianState {
+export function makeCevian(patch: Partial<CevianState> & { from: CevianFrom }): CevianState {
+  const from = patch.from;
   return {
-    from: "none",
+    from,
     role: "free",
     t: 0.5,
-    name: "D",
+    name: DEFAULT_FOOT_NAME[from],
     nameDx: 0,
     nameDy: 0,
     showName: true,
     showRightAtD: false,
+    showBisectorMarks: false,
+    showMidpointTicks: false,
     length: { show: false, label: emptyLabel("auto") },
     leftLen: { show: false, label: emptyLabel("auto") },
     rightLen: { show: false, label: emptyLabel("auto") },
@@ -185,6 +199,7 @@ function makeCevian(patch: Partial<CevianState> = {}): CevianState {
     footLeft: emptyWedge(),
     footRight: emptyWedge(),
     ...patch,
+    from,
   };
 }
 
@@ -195,6 +210,60 @@ function mergeWedge(prev: WedgeMark | undefined, patch?: Partial<WedgeMark>): We
     ...patch,
     label: patch?.label ? { ...emptyLabel("auto"), ...patch.label } : { ...base.label },
   };
+}
+
+function isCevianFrom(value: unknown): value is CevianFrom {
+  return value === "A" || value === "B" || value === "C";
+}
+
+function normalizeOneCevian(raw: Partial<CevianState> | undefined): CevianState | null {
+  if (!raw || !isCevianFrom(raw.from)) return null;
+  const merged = makeCevian({
+    ...raw,
+    from: raw.from,
+    apexLeft: mergeWedge(raw.apexLeft),
+    apexRight: mergeWedge(raw.apexRight),
+    footLeft: mergeWedge(raw.footLeft),
+    footRight: mergeWedge(raw.footRight),
+    length: raw.length
+      ? { show: raw.length.show, label: { ...emptyLabel("auto"), ...raw.length.label } }
+      : undefined,
+    leftLen: raw.leftLen
+      ? { show: raw.leftLen.show, label: { ...emptyLabel("auto"), ...raw.leftLen.label } }
+      : undefined,
+    rightLen: raw.rightLen
+      ? { show: raw.rightLen.show, label: { ...emptyLabel("auto"), ...raw.rightLen.label } }
+      : undefined,
+  });
+  merged.t = clamp(merged.t, 0.08, 0.92);
+  if (
+    merged.role !== "free" &&
+    merged.role !== "midpoint" &&
+    merged.role !== "altitude" &&
+    merged.role !== "bisector"
+  ) {
+    merged.role = "free";
+  }
+  if (!merged.name.trim()) merged.name = DEFAULT_FOOT_NAME[merged.from];
+  return merged;
+}
+
+function collectCevians(state: Partial<IsoscelesState> & { cevian?: Partial<CevianState> }): CevianState[] {
+  const seen = new Set<CevianFrom>();
+  const out: CevianState[] = [];
+  const rawList = Array.isArray(state.cevians) ? state.cevians : null;
+  if (rawList) {
+    for (const item of rawList) {
+      const next = normalizeOneCevian(item);
+      if (!next || seen.has(next.from)) continue;
+      seen.add(next.from);
+      out.push(next);
+    }
+    return out;
+  }
+  const legacy = state.cevian;
+  const next = normalizeOneCevian(legacy);
+  return next ? [next] : [];
 }
 
 /** Triangle ABC with given angles (°) and base BC. y-up. */
@@ -326,7 +395,10 @@ export function fromPolygonState(
 }
 
 export function normalizeState(
-  state: Partial<IsoscelesState> & Pick<IsoscelesState, "points"> | IsoscelesState,
+  state:
+    | (Partial<IsoscelesState> &
+        Pick<IsoscelesState, "points"> & { cevian?: Partial<CevianState> })
+    | IsoscelesState,
 ): IsoscelesState {
   let points = (state.points ?? []).slice(0, 3);
   if (points.length < 3) {
@@ -334,35 +406,7 @@ export function normalizeState(
   }
   const vertices = [0, 1, 2].map((i) => makeVertex(i, state.vertices?.[i]));
   const edges = [0, 1, 2].map((i) => makeEdge(state.edges?.[i]));
-  const prevC = state.cevian;
-  const cevian = makeCevian({
-    ...prevC,
-    apexLeft: mergeWedge(prevC?.apexLeft),
-    apexRight: mergeWedge(prevC?.apexRight),
-    footLeft: mergeWedge(prevC?.footLeft),
-    footRight: mergeWedge(prevC?.footRight),
-    length: prevC?.length
-      ? { show: prevC.length.show, label: { ...emptyLabel("auto"), ...prevC.length.label } }
-      : undefined,
-    leftLen: prevC?.leftLen
-      ? { show: prevC.leftLen.show, label: { ...emptyLabel("auto"), ...prevC.leftLen.label } }
-      : undefined,
-    rightLen: prevC?.rightLen
-      ? { show: prevC.rightLen.show, label: { ...emptyLabel("auto"), ...prevC.rightLen.label } }
-      : undefined,
-  });
-  cevian.t = clamp(cevian.t, 0.08, 0.92);
-  if (cevian.from !== "none" && cevian.from !== "A" && cevian.from !== "B" && cevian.from !== "C") {
-    cevian.from = "none";
-  }
-  if (
-    cevian.role !== "free" &&
-    cevian.role !== "midpoint" &&
-    cevian.role !== "altitude" &&
-    cevian.role !== "bisector"
-  ) {
-    cevian.role = "free";
-  }
+  const cevians = collectCevians(state);
   const equalApex =
     state.equalApex === "A" || state.equalApex === "B" || state.equalApex === "C"
       ? state.equalApex
@@ -382,7 +426,7 @@ export function normalizeState(
     ),
     equalApex,
     lockEqual: state.lockEqual !== false,
-    cevian,
+    cevians,
     showVertexNames: state.showVertexNames !== false,
     showDots: state.showDots !== false,
     unit: state.unit?.trim() ? state.unit : "cm",
@@ -410,7 +454,7 @@ function baseState(points: Vec[], patch: Partial<IsoscelesState> = {}): Isoscele
     edges: [0, 1, 2].map(() => makeEdge()),
     equalApex: "none",
     lockEqual: true,
-    cevian: makeCevian(),
+    cevians: [],
     showVertexNames: true,
     showDots: true,
     unit: "cm",
@@ -487,23 +531,25 @@ export const ISO_PRESETS: IsoscelesPreset[] = [
           interior: emptyLabel("auto"),
         }),
       ],
-      cevian: makeCevian({
-        from: "A",
-        role: "altitude",
-        t: 0.5,
-        showRightAtD: true,
-        leftLen: {
-          show: true,
-          label: { ...emptyLabel("custom"), custom: "3" },
-        },
-        apexLeft: {
-          show: true,
-          fill: false,
-          extraArcs: 0,
-          showDot: false,
-          label: { ...emptyLabel("custom"), custom: "35°" },
-        },
-      }),
+      cevians: [
+        makeCevian({
+          from: "A",
+          role: "altitude",
+          t: 0.5,
+          showRightAtD: true,
+          leftLen: {
+            show: true,
+            label: { ...emptyLabel("custom"), custom: "3" },
+          },
+          apexLeft: {
+            show: true,
+            fill: false,
+            extraArcs: 0,
+            showDot: false,
+            label: { ...emptyLabel("custom"), custom: "35°" },
+          },
+        }),
+      ],
     }),
   },
   {
@@ -565,22 +611,24 @@ export const ISO_PRESETS: IsoscelesPreset[] = [
             length: { ...emptyLabel("x"), custom: "x" },
           }),
         ],
-        cevian: makeCevian({
-          from: "C",
-          role: "free",
-          t,
-          rightLen: {
-            show: true,
-            label: { ...emptyLabel("custom"), custom: "4" },
-          },
-          apexRight: {
-            show: true,
-            fill: false,
-            extraArcs: 0,
-            showDot: false,
-            label: { ...emptyLabel("custom"), custom: "28°" },
-          },
-        }),
+        cevians: [
+          makeCevian({
+            from: "C",
+            role: "free",
+            t,
+            rightLen: {
+              show: true,
+              label: { ...emptyLabel("custom"), custom: "4" },
+            },
+            apexRight: {
+              show: true,
+              fill: false,
+              extraArcs: 0,
+              showDot: false,
+              label: { ...emptyLabel("custom"), custom: "28°" },
+            },
+          }),
+        ],
       });
     })(),
   },
@@ -607,32 +655,35 @@ export const ISO_PRESETS: IsoscelesPreset[] = [
         }),
         makeEdge(),
       ],
-      cevian: makeCevian({
-        from: "B",
-        role: "bisector",
-        t: 0.5,
-        apexLeft: {
-          show: true,
-          fill: false,
-          extraArcs: 0,
-          showDot: true,
-          label: emptyLabel("hide"),
-        },
-        apexRight: {
-          show: true,
-          fill: false,
-          extraArcs: 0,
-          showDot: true,
-          label: emptyLabel("hide"),
-        },
-        footLeft: {
-          show: true,
-          fill: true,
-          extraArcs: 0,
-          showDot: false,
-          label: emptyLabel("hide"),
-        },
-      }),
+      cevians: [
+        makeCevian({
+          from: "B",
+          role: "bisector",
+          t: 0.5,
+          showBisectorMarks: true,
+          apexLeft: {
+            show: true,
+            fill: false,
+            extraArcs: 0,
+            showDot: true,
+            label: emptyLabel("hide"),
+          },
+          apexRight: {
+            show: true,
+            fill: false,
+            extraArcs: 0,
+            showDot: true,
+            label: emptyLabel("hide"),
+          },
+          footLeft: {
+            show: true,
+            fill: true,
+            extraArcs: 0,
+            showDot: false,
+            label: emptyLabel("hide"),
+          },
+        }),
+      ],
     }),
   },
 ];
@@ -659,19 +710,60 @@ export function setEqualApex(state: IsoscelesState, apex: EqualApex): IsoscelesS
   return normalizeState({ ...state, equalApex: apex, lockEqual: true, edges });
 }
 
-export function setCevianFrom(state: IsoscelesState, from: CevianFrom): IsoscelesState {
+export function setCevianFrom(state: IsoscelesState, from: CevianFrom | "none"): IsoscelesState {
   if (from === "none") {
-    return normalizeState({
-      ...state,
-      cevian: makeCevian({ name: state.cevian.name }),
-    });
+    return normalizeState({ ...state, cevians: [] });
   }
-  return normalizeState({
+  return toggleCevian(state, from).state;
+}
+
+export function getCevian(state: IsoscelesState, from: CevianFrom): CevianState | undefined {
+  return state.cevians.find((c) => c.from === from);
+}
+
+export function mapCevian(
+  state: IsoscelesState,
+  from: CevianFrom,
+  fn: (c: CevianState) => CevianState,
+): IsoscelesState {
+  return {
     ...state,
-    cevian: {
-      ...state.cevian,
-      from,
-      showName: true,
-    },
-  });
+    cevians: state.cevians.map((c) => (c.from === from ? fn(c) : c)),
+  };
+}
+
+export function toggleCevian(
+  state: IsoscelesState,
+  from: CevianFrom,
+): { state: IsoscelesState; enabled: boolean } {
+  if (getCevian(state, from)) {
+    return {
+      state: normalizeState({
+        ...state,
+        cevians: state.cevians.filter((c) => c.from !== from),
+      }),
+      enabled: false,
+    };
+  }
+  return {
+    state: normalizeState({
+      ...state,
+      cevians: [...state.cevians, makeCevian({ from, showName: true })],
+    }),
+    enabled: true,
+  };
+}
+
+export function setCevianRole(
+  state: IsoscelesState,
+  from: CevianFrom,
+  role: CevianRole,
+): IsoscelesState {
+  return mapCevian(state, from, (c) => ({
+    ...c,
+    role,
+    showRightAtD: role === "altitude" ? true : c.showRightAtD,
+    showBisectorMarks: role === "bisector" ? true : c.showBisectorMarks,
+    showMidpointTicks: role === "midpoint" ? true : c.showMidpointTicks,
+  }));
 }
