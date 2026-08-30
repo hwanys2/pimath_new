@@ -22,7 +22,9 @@ import {
 import {
   applySideLength,
   applyVertexAngle,
+  applyDisplayedAngle,
   angleDegAt,
+  angleReshapeKind,
   clearSelectionMarks,
   derive,
   displayName,
@@ -593,7 +595,7 @@ export default function TriangleCentersStudio() {
                 >
                   채움
                 </ChipToggle>
-                {isFullVertexAngle(selAngle) ? (
+                {angleReshapeKind(selAngle) ? (
                   <NumberField
                     label="각 값"
                     value={Number(
@@ -601,8 +603,7 @@ export default function TriangleCentersStudio() {
                     )}
                     onChange={(deg) =>
                       setState((prev) => {
-                        const i = selAngle.at === "B" ? 1 : selAngle.at === "C" ? 2 : 0;
-                        const next = applyVertexAngle(prev, i, deg);
+                        const next = applyDisplayedAngle(prev, selAngle, deg);
                         return patchAngle(next, selAngle.id, {
                           label: { ...selAngle.label, mode: "custom", custom: `${deg}°` },
                         });

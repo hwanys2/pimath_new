@@ -1,15 +1,26 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
+  applyDisplayedAngle,
+  applyEditedLabel,
+  applyVertexAngle,
+  angleDegAt,
   circumcenter,
   derive,
   incenter,
   lengthBetween,
   tangentLengths,
+  triangleAngles,
 } from "./geometry";
 import {
   CENTERS_PRESETS,
+  DEFAULT_CENTERS_STATE,
+  angleId,
+  emptyLabel,
   triangleFromAngles,
+  type AngleMark,
+  type PointId,
+  type Vec,
 } from "./model";
 import { buildCentersScene } from "./scene";
 
@@ -100,5 +111,90 @@ describe("triangle centers scene", () => {
     const names = scene.texts.map((t) => t.id);
     assert.ok(names.includes("name:O"));
     assert.ok(names.includes("name:I"));
+  });
+});
+
+function ang(at: PointId, from: PointId, to: PointId): AngleMark {
+  return {
+    id: angleId(at, from, to),
+    at,
+    from,
+    to,
+    label: emptyLabel("auto"),
+    fill: false,
+  };
+}
+
+function baseState() {
+  return {
+    ...DEFAULT_CENTERS_STATE,
+    points: triangleFromAngles(72, 58, 50, 6),
+  };
+}
+
+describe("triangle centers angle reshape", () => {
+  it("rebuilds ABC when a vertex angle changes and keeps BC horizontal", () => {
+    const next = applyVertexAngle(baseState(), 0, 40);
+    const [A, B, C] = triangleAngles(next.points);
+    almost(A, 40, 1e-6);
+    almost(B + C, 140, 1e-6);
+    almost(next.points[1]!.y, 0, 1e-8);
+    almost(next.points[2]!.y, 0, 1e-8);
+    assert.ok(next.points[2]!.x > next.points[1]!.x);
+  });
+
+  it("levels a tilted base when an angle is typed", () => {
+    const tilted = {
+      ...baseState(),
+      points: [
+        { x: 1, y: 5 },
+        { x: 0, y: 1 },
+        { x: 5, y: 3 },
+      ] as [Vec, Vec, Vec],
+    };
+    const next = applyVertexAngle(tilted, 1, 60);
+    almost(next.points[1]!.y, 0, 1e-8);
+    almost(next.points[2]!.y, 0, 1e-8);
+    almost(triangleAngles(next.points)[1], 60, 1e-6);
+  });
+
+  it("maps circum half-angle ∠OBC to vertex A = 90° − value", () => {
+    const next = applyDisplayedAngle(baseState(), ang("B", "O", "C"), 20);
+    almost(triangleAngles(next.points)[0], 70, 1e-6);
+    const d = derive(next);
+    assert.ok(d);
+    almost(angleDegAt(d!, "B", "O", "C"), 20, 1e-4);
+  });
+
+  it("maps circum central ∠BOC to vertex A = value / 2", () => {
+    const next = applyDisplayedAngle(baseState(), ang("O", "B", "C"), 100);
+    almost(triangleAngles(next.points)[0], 50, 1e-6);
+    const d = derive(next);
+    assert.ok(d);
+    almost(angleDegAt(d!, "O", "B", "C"), 100, 1e-4);
+  });
+
+  it("maps incenter half-angle at A to vertex A = 2 × value", () => {
+    const next = applyDisplayedAngle(baseState(), ang("A", "I", "B"), 20);
+    almost(triangleAngles(next.points)[0], 40, 1e-6);
+    const d = derive(next);
+    assert.ok(d);
+    almost(angleDegAt(d!, "A", "I", "B"), 20, 1e-4);
+  });
+
+  it("maps incenter central ∠BIC to vertex A = 2 × (value − 90°)", () => {
+    const next = applyDisplayedAngle(baseState(), ang("I", "B", "C"), 110);
+    almost(triangleAngles(next.points)[0], 40, 1e-6);
+    const d = derive(next);
+    assert.ok(d);
+    almost(angleDegAt(d!, "I", "B", "C"), 110, 1e-4);
+  });
+
+  it("reshapes from a canvas numeric label and keeps BC horizontal", () => {
+    const id = angleId("B", "O", "C");
+    const next = applyEditedLabel(baseState(), id, "20");
+    almost(triangleAngles(next.points)[0], 70, 1e-6);
+    almost(next.points[1]!.y, 0, 1e-8);
+    almost(next.points[2]!.y, 0, 1e-8);
   });
 });

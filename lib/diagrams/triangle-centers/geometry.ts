@@ -1,7 +1,5 @@
 import {
   add,
-  applyEdgeLengthChange,
-  applyInteriorAngleChange,
   clamp,
   edgeLength,
   isConvex,
@@ -23,6 +21,7 @@ import {
   lengthId,
   normalizeState,
   toPolygonState,
+  triangleFromAngles,
   vertexId,
   vertexIndex,
   type AngleMark,
@@ -62,6 +61,8 @@ export type Derived = {
 };
 
 const MIN_EDGE = 0.35;
+const MIN_ANG = 8;
+const MAX_ANG = 164;
 const RIGHT_EPS = 0.75;
 
 export function isRightDeg(deg: number): boolean {
@@ -377,14 +378,125 @@ export function moveVertex(
   return fromPolygonState(poly, state);
 }
 
+export function triangleAngles(points: Vec[]): [number, number, number] {
+  return [
+    vertexAngles(points, 0).interior,
+    vertexAngles(points, 1).interior,
+    vertexAngles(points, 2).interior,
+  ];
+}
+
+function oppositeVertex(a: 0 | 1 | 2, b: 0 | 1 | 2): 0 | 1 | 2 {
+  return (3 - a - b) as 0 | 1 | 2;
+}
+
+export type AngleReshape =
+  | { type: "vertex"; index: 0 | 1 | 2 }
+  | { type: "circum-half"; opposite: 0 | 1 | 2 }
+  | { type: "in-half"; index: 0 | 1 | 2 }
+  | { type: "circum-central"; opposite: 0 | 1 | 2 }
+  | { type: "in-central"; opposite: 0 | 1 | 2 };
+
+export function angleReshapeKind(mark: AngleMark): AngleReshape | null {
+  const atV = vertexIndex(mark.at);
+  const fromV = vertexIndex(mark.from);
+  const toV = vertexIndex(mark.to);
+  if (atV != null && fromV != null && toV != null && fromV !== toV) {
+    return { type: "vertex", index: atV };
+  }
+  if (atV != null) {
+    const center =
+      mark.from === "O" || mark.to === "O"
+        ? "O"
+        : mark.from === "I" || mark.to === "I"
+          ? "I"
+          : null;
+    const other = mark.from === "O" || mark.from === "I" ? mark.to : mark.from;
+    const side = vertexIndex(other);
+    if (center === "O" && side != null && side !== atV) {
+      return { type: "circum-half", opposite: oppositeVertex(atV, side) };
+    }
+    if (center === "I" && side != null && side !== atV) {
+      return { type: "in-half", index: atV };
+    }
+  }
+  if (mark.at === "O" && fromV != null && toV != null && fromV !== toV) {
+    return { type: "circum-central", opposite: oppositeVertex(fromV, toV) };
+  }
+  if (mark.at === "I" && fromV != null && toV != null && fromV !== toV) {
+    return { type: "in-central", opposite: oppositeVertex(fromV, toV) };
+  }
+  return null;
+}
+
+export function interiorTargetFromDisplayed(
+  kind: AngleReshape,
+  displayedDeg: number,
+): { index: 0 | 1 | 2; deg: number } | null {
+  if (kind.type === "vertex") return { index: kind.index, deg: displayedDeg };
+  if (kind.type === "circum-half") return { index: kind.opposite, deg: 90 - displayedDeg };
+  if (kind.type === "in-half") return { index: kind.index, deg: displayedDeg * 2 };
+  if (kind.type === "circum-central") return { index: kind.opposite, deg: displayedDeg / 2 };
+  return { index: kind.opposite, deg: 2 * (displayedDeg - 90) };
+}
+
+function rebuildOnBase(
+  degA: number,
+  degB: number,
+  degC: number,
+  baseBC: number,
+): [Vec, Vec, Vec] | null {
+  if (degA < MIN_ANG || degB < MIN_ANG || degC < MIN_ANG) return null;
+  if (degA > MAX_ANG || degB > MAX_ANG || degC > MAX_ANG) return null;
+  const pts = triangleFromAngles(degA, degB, degC, clamp(baseBC, 0.8, 40));
+  if (!validTriangle(pts)) return null;
+  return pts;
+}
+
+/** Keep BC as the horizontal base. Other two angles keep their current ratio. */
 export function applyVertexAngle(
   state: TriangleCentersState,
   index: number,
   deg: number,
 ): TriangleCentersState {
-  const poly = applyInteriorAngleChange(toPolygonState(state), index, deg);
-  if (!validTriangle(poly.points)) return state;
-  return fromPolygonState(poly, state);
+  const i = index as 0 | 1 | 2;
+  if (i !== 0 && i !== 1 && i !== 2) return state;
+  const angs = triangleAngles(state.points);
+  const target = clamp(deg, MIN_ANG, MAX_ANG);
+  const rest = 180 - target;
+  const j = ((i + 1) % 3) as 0 | 1 | 2;
+  const k = ((i + 2) % 3) as 0 | 1 | 2;
+  const sum = Math.max(angs[j] + angs[k], 1e-6);
+  let jDeg = rest * (angs[j] / sum);
+  let kDeg = rest - jDeg;
+  if (jDeg < MIN_ANG) {
+    jDeg = MIN_ANG;
+    kDeg = rest - MIN_ANG;
+  }
+  if (kDeg < MIN_ANG) {
+    kDeg = MIN_ANG;
+    jDeg = rest - MIN_ANG;
+  }
+  const next: [number, number, number] = [angs[0], angs[1], angs[2]];
+  next[i] = target;
+  next[j] = jDeg;
+  next[k] = kDeg;
+  const bc = len(sub(state.points[2]!, state.points[1]!));
+  const pts = rebuildOnBase(next[0], next[1], next[2], bc);
+  if (!pts) return state;
+  return normalizeState({ ...state, points: pts });
+}
+
+export function applyDisplayedAngle(
+  state: TriangleCentersState,
+  mark: AngleMark,
+  displayedDeg: number,
+): TriangleCentersState {
+  const kind = angleReshapeKind(mark);
+  if (!kind) return state;
+  const target = interiorTargetFromDisplayed(kind, displayedDeg);
+  if (!target) return state;
+  return applyVertexAngle(state, target.index, target.deg);
 }
 
 export function applySideLength(
@@ -392,9 +504,23 @@ export function applySideLength(
   edgeIndex: number,
   length: number,
 ): TriangleCentersState {
-  const poly = applyEdgeLengthChange(toPolygonState(state), edgeIndex, length);
-  if (!validTriangle(poly.points)) return state;
-  return fromPolygonState(poly, state);
+  const [degA, degB, degC] = triangleAngles(state.points);
+  const L = clamp(length, 0.8, 40);
+  const rad = (d: number) => (d * Math.PI) / 180;
+  let sideBC: number;
+  if (edgeIndex === 1) sideBC = L;
+  else if (edgeIndex === 0) {
+    const sC = Math.sin(rad(degC));
+    if (Math.abs(sC) < 1e-8) return state;
+    sideBC = (L * Math.sin(rad(degA))) / sC;
+  } else if (edgeIndex === 2) {
+    const sB = Math.sin(rad(degB));
+    if (Math.abs(sB) < 1e-8) return state;
+    sideBC = (L * Math.sin(rad(degA))) / sB;
+  } else return state;
+  const pts = rebuildOnBase(degA, degB, degC, sideBC);
+  if (!pts) return state;
+  return normalizeState({ ...state, points: pts });
 }
 
 export function findAngle(
@@ -520,9 +646,8 @@ export function applyEditedLabel(
       ...state,
       angles: state.angles.map((a) => (a.id === id ? { ...a, label } : a)),
     };
-    if (parsed.kind === "number" && parsed.value != null && isFullVertexAngle(mark)) {
-      const i = vertexIndex(mark.at);
-      if (i != null) next = applyVertexAngle(next, i, parsed.value);
+    if (parsed.kind === "number" && parsed.value != null) {
+      next = applyDisplayedAngle(next, { ...mark, label }, parsed.value);
     }
     return next;
   }
