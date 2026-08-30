@@ -205,16 +205,59 @@ describe("triangle centers angle reshape", () => {
 });
 
 describe("triangle centers length reshape and feet", () => {
-  it("rebuilds ABC when BC changes and keeps the base horizontal", () => {
-    const next = applySideLength(baseState(), 1, 8);
+  it("rebuilds ABC when BC changes, keeps the other two sides, and levels the base", () => {
+    const start = baseState();
+    const ab0 = Math.hypot(
+      start.points[0]!.x - start.points[1]!.x,
+      start.points[0]!.y - start.points[1]!.y,
+    );
+    const ca0 = Math.hypot(
+      start.points[2]!.x - start.points[0]!.x,
+      start.points[2]!.y - start.points[0]!.y,
+    );
+    const next = applySideLength(start, 1, 8);
     const bc = Math.hypot(
       next.points[2]!.x - next.points[1]!.x,
       next.points[2]!.y - next.points[1]!.y,
     );
+    const ab = Math.hypot(
+      next.points[0]!.x - next.points[1]!.x,
+      next.points[0]!.y - next.points[1]!.y,
+    );
+    const ca = Math.hypot(
+      next.points[2]!.x - next.points[0]!.x,
+      next.points[2]!.y - next.points[0]!.y,
+    );
     almost(bc, 8, 1e-6);
-    almost(triangleAngles(next.points)[0], 72, 1e-6);
+    almost(ab, ab0, 1e-6);
+    almost(ca, ca0, 1e-6);
     almost(next.points[1]!.y, 0, 1e-8);
     almost(next.points[2]!.y, 0, 1e-8);
+    assert.notEqual(
+      Math.round(triangleAngles(next.points)[0] * 10),
+      Math.round(triangleAngles(start.points)[0] * 10),
+    );
+  });
+
+  it("changing one side is not a uniform similarity scale", () => {
+    const start = baseState();
+    const before = [0, 1, 2].map((i) =>
+      Math.hypot(
+        start.points[i]!.x - start.points[(i + 1) % 3]!.x,
+        start.points[i]!.y - start.points[(i + 1) % 3]!.y,
+      ),
+    );
+    const next = applySideLength(start, 0, before[0]! * 1.6);
+    const after = [0, 1, 2].map((i) =>
+      Math.hypot(
+        next.points[i]!.x - next.points[(i + 1) % 3]!.x,
+        next.points[i]!.y - next.points[(i + 1) % 3]!.y,
+      ),
+    );
+    almost(after[0]!, before[0]! * 1.6, 1e-6);
+    const ratios = before.map((len, i) => after[i]! / len);
+    const spread = Math.max(...ratios) - Math.min(...ratios);
+    assert.ok(spread > 0.05, "other edges should not all scale equally");
   });
 
   it("scales from a circumradius length without changing angles", () => {

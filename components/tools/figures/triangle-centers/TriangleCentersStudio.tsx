@@ -670,12 +670,7 @@ export default function TriangleCentersStudio() {
                   label="길이 값"
                   value={Number(lengthBetween(d, selLen.a, selLen.b).toFixed(2))}
                   onChange={(len) =>
-                    setState((prev) => {
-                      const next = applyDisplayedLength(prev, selLen, len);
-                      return patchLength(next, selLen.id, {
-                        label: { ...selLen.label, mode: "custom", custom: String(len) },
-                      });
-                    })
+                    setState((prev) => applyDisplayedLength(prev, selLen, len))
                   }
                   min={0.5}
                   max={40}

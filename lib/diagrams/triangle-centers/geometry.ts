@@ -447,6 +447,39 @@ function rebuildOnBase(
   return pts;
 }
 
+function orientationSign(A: Vec, B: Vec, C: Vec): 1 | -1 {
+  const cross = (C.x - B.x) * (A.y - B.y) - (C.y - B.y) * (A.x - B.x);
+  return cross < 0 ? -1 : 1;
+}
+
+function clampTriangleSide(other1: number, other2: number, want: number): number {
+  const max = Math.min(40, other1 + other2 - MIN_EDGE);
+  const min = Math.max(0.8, Math.abs(other1 - other2) + MIN_EDGE);
+  if (!(max > min)) return clamp(want, 0.8, 40);
+  return clamp(want, min, max);
+}
+
+/** SSS: B at origin, C at (BC, 0), A above or below to match `sign`. */
+function triangleFromSides(
+  sideBC: number,
+  sideCA: number,
+  sideAB: number,
+  sign: 1 | -1 = 1,
+): [Vec, Vec, Vec] | null {
+  const a = sideBC;
+  const b = sideCA;
+  const c = sideAB;
+  if (a < MIN_EDGE || b < MIN_EDGE || c < MIN_EDGE) return null;
+  if (a + b <= c + 1e-6 || b + c <= a + 1e-6 || c + a <= b + 1e-6) return null;
+  const x = (c * c + a * a - b * b) / (2 * a);
+  const y2 = c * c - x * x;
+  if (y2 < 1e-10) return null;
+  const y = sign * Math.sqrt(y2);
+  const pts: [Vec, Vec, Vec] = [{ x, y }, { x: 0, y: 0 }, { x: a, y: 0 }];
+  if (!validTriangle(pts)) return null;
+  return pts;
+}
+
 /** Keep BC as the horizontal base. Other two angles keep their current ratio. */
 export function applyVertexAngle(
   state: TriangleCentersState,
@@ -493,31 +526,29 @@ export function applyDisplayedAngle(
   return applyVertexAngle(state, target.index, target.deg);
 }
 
+/** Keep the other two sides; rebuild ABC so this edge matches. BC stays horizontal. */
 export function applySideLength(
   state: TriangleCentersState,
   edgeIndex: number,
   length: number,
 ): TriangleCentersState {
-  const [degA, degB, degC] = triangleAngles(state.points);
-  const L = clamp(length, 0.8, 40);
-  const rad = (d: number) => (d * Math.PI) / 180;
-  let sideBC: number;
-  if (edgeIndex === 1) sideBC = L;
-  else if (edgeIndex === 0) {
-    const sC = Math.sin(rad(degC));
-    if (Math.abs(sC) < 1e-8) return state;
-    sideBC = (L * Math.sin(rad(degA))) / sC;
-  } else if (edgeIndex === 2) {
-    const sB = Math.sin(rad(degB));
-    if (Math.abs(sB) < 1e-8) return state;
-    sideBC = (L * Math.sin(rad(degA))) / sB;
-  } else return state;
-  const pts = rebuildOnBase(degA, degB, degC, sideBC);
+  const [A, B, C] = state.points;
+  const ab = len(sub(A, B));
+  const bc = len(sub(B, C));
+  const ca = len(sub(C, A));
+  let a = bc;
+  let b = ca;
+  let c = ab;
+  if (edgeIndex === 0) c = clampTriangleSide(a, b, length);
+  else if (edgeIndex === 1) a = clampTriangleSide(b, c, length);
+  else if (edgeIndex === 2) b = clampTriangleSide(a, c, length);
+  else return state;
+  const pts = triangleFromSides(a, b, c, orientationSign(A, B, C));
   if (!pts) return state;
-  return normalizeState({ ...state, points: pts });
+  return normalizeState({ ...state, points: pts, referenceEdgeLength: a });
 }
 
-/** Keep angles; scale so the marked length matches. BC stays horizontal. */
+/** Sides: SSS with the other two lengths kept. Other marks: uniform scale. BC stays horizontal. */
 export function applyDisplayedLength(
   state: TriangleCentersState,
   mark: Pick<LengthMark, "a" | "b">,
