@@ -309,7 +309,8 @@ function snapAltitudeState(state: PythagoreanState): PythagoreanState {
 export function normalizeState(
   state: Partial<PythagoreanState> & Pick<PythagoreanState, "kind">,
 ): PythagoreanState {
-  const rawKind = state.kind === "coordinate" ? "triangle" : state.kind;
+  const rawKind =
+    (state.kind as string) === "coordinate" ? "triangle" : state.kind;
   const kind = PYTHAGOREAN_KINDS.some((k) => k.id === rawKind) ? rawKind : "triangle";
   const style = { ...DEFAULT_STYLE, ...state.style };
   const rv =
@@ -379,6 +380,9 @@ export function normalizeState(
     unit: state.unit?.trim() ? state.unit : "cm",
     unknownLetter:
       state.unknownLetter && /^[A-Za-z]$/.test(state.unknownLetter) ? state.unknownLetter : "x",
+    gridCols: clamp(Math.round(state.gridCols ?? 8), 1, 50),
+    gridRows: clamp(Math.round(state.gridRows ?? 8), 1, 50),
+    gridMargin: clamp(state.gridMargin ?? 1, 0, 5),
     style: {
       ...style,
       lineWidth: clamp(style.lineWidth, 1, 3.5),
