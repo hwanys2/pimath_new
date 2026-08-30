@@ -202,26 +202,20 @@ export function displayName(state: TriangleCentersState, id: PointId): string {
   return id;
 }
 
-function bothCircumInPerps(state: TriangleCentersState): boolean {
-  return (
-    state.circum.on &&
-    state.incenter.on &&
-    state.circum.perps.some(Boolean) &&
-    state.incenter.perps.some(Boolean)
-  );
-}
-
 export function showCircumFootName(state: TriangleCentersState, edge: number): boolean {
   return (
     state.circum.on &&
     state.circum.perps[edge] === true &&
-    state.circum.showFeetNames &&
-    !bothCircumInPerps(state)
+    state.circum.showFeet[edge] === true
   );
 }
 
 export function showInFootName(state: TriangleCentersState, edge: number): boolean {
-  return state.incenter.on && state.incenter.perps[edge] === true && state.incenter.showFeetNames;
+  return (
+    state.incenter.on &&
+    state.incenter.perps[edge] === true &&
+    state.incenter.showFeet[edge] === true
+  );
 }
 
 export type Ray = { id: PointId; pos: Vec };
@@ -523,6 +517,27 @@ export function applySideLength(
   return normalizeState({ ...state, points: pts });
 }
 
+/** Keep angles; scale so the marked length matches. BC stays horizontal. */
+export function applyDisplayedLength(
+  state: TriangleCentersState,
+  mark: Pick<LengthMark, "a" | "b">,
+  length: number,
+): TriangleCentersState {
+  if (isFullSide(mark)) {
+    const edge = sideIndex(mark.a, mark.b);
+    if (edge != null) return applySideLength(state, edge, length);
+  }
+  const d = derive(state);
+  if (!d) return state;
+  const current = lengthBetween(d, mark.a, mark.b);
+  if (current < 1e-8) return state;
+  const [degA, degB, degC] = triangleAngles(state.points);
+  const bc = len(sub(state.points[2]!, state.points[1]!));
+  const pts = rebuildOnBase(degA, degB, degC, bc * (clamp(length, 0.35, 40) / current));
+  if (!pts) return state;
+  return normalizeState({ ...state, points: pts });
+}
+
 export function findAngle(
   state: TriangleCentersState,
   at: PointId,
@@ -661,9 +676,8 @@ export function applyEditedLabel(
       ...state,
       lengths: state.lengths.map((m) => (m.id === id ? { ...m, label } : m)),
     };
-    if (parsed.kind === "number" && parsed.value != null && isFullSide(mark)) {
-      const edge = sideIndex(mark.a, mark.b);
-      if (edge != null) next = applySideLength(next, edge, parsed.value);
+    if (parsed.kind === "number" && parsed.value != null) {
+      next = applyDisplayedLength(next, mark, parsed.value);
     }
     return next;
   }

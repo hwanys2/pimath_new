@@ -2,13 +2,17 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
   applyDisplayedAngle,
+  applyDisplayedLength,
   applyEditedLabel,
+  applySideLength,
   applyVertexAngle,
   angleDegAt,
   circumcenter,
   derive,
   incenter,
   lengthBetween,
+  showCircumFootName,
+  showInFootName,
   tangentLengths,
   triangleAngles,
 } from "./geometry";
@@ -17,6 +21,7 @@ import {
   DEFAULT_CENTERS_STATE,
   angleId,
   emptyLabel,
+  lengthId,
   triangleFromAngles,
   type AngleMark,
   type PointId,
@@ -196,5 +201,79 @@ describe("triangle centers angle reshape", () => {
     almost(triangleAngles(next.points)[0], 70, 1e-6);
     almost(next.points[1]!.y, 0, 1e-8);
     almost(next.points[2]!.y, 0, 1e-8);
+  });
+});
+
+describe("triangle centers length reshape and feet", () => {
+  it("rebuilds ABC when BC changes and keeps the base horizontal", () => {
+    const next = applySideLength(baseState(), 1, 8);
+    const bc = Math.hypot(
+      next.points[2]!.x - next.points[1]!.x,
+      next.points[2]!.y - next.points[1]!.y,
+    );
+    almost(bc, 8, 1e-6);
+    almost(triangleAngles(next.points)[0], 72, 1e-6);
+    almost(next.points[1]!.y, 0, 1e-8);
+    almost(next.points[2]!.y, 0, 1e-8);
+  });
+
+  it("scales from a circumradius length without changing angles", () => {
+    const start = baseState();
+    const d0 = derive(start);
+    assert.ok(d0);
+    const next = applyDisplayedLength(start, { a: "O", b: "A" }, d0!.circumR * 2);
+    const d1 = derive(next);
+    assert.ok(d1);
+    almost(d1!.circumR, d0!.circumR * 2, 1e-4);
+    almost(triangleAngles(next.points)[0], 72, 1e-6);
+    almost(next.points[1]!.y, 0, 1e-8);
+  });
+
+  it("reshapes from a canvas numeric side label", () => {
+    const id = lengthId("B", "C");
+    const start = {
+      ...baseState(),
+      lengths: [{ id, a: "B" as const, b: "C" as const, label: emptyLabel("auto") }],
+    };
+    const next = applyEditedLabel(start, id, "8");
+    const bc = Math.hypot(
+      next.points[2]!.x - next.points[1]!.x,
+      next.points[2]!.y - next.points[1]!.y,
+    );
+    almost(bc, 8, 1e-6);
+  });
+
+  it("draws a vertex right-angle mark only when that interior is 90°", () => {
+    const flaggedAcute = {
+      ...baseState(),
+      vertexRights: [true, false, false] as [boolean, boolean, boolean],
+    };
+    const sceneAcute = buildCentersScene(flaggedAcute);
+    assert.equal(sceneAcute.cmds.filter((c) => c.t === "rightAngle").length, 0);
+
+    const right = {
+      ...baseState(),
+      points: triangleFromAngles(90, 45, 45, 6),
+      vertexRights: [true, false, false] as [boolean, boolean, boolean],
+      angles: [],
+    };
+    const sceneRight = buildCentersScene(right);
+    assert.ok(sceneRight.cmds.some((c) => c.t === "rightAngle"));
+  });
+
+  it("shows a foot name only on the chosen perpendicular", () => {
+    const preset = CENTERS_PRESETS.find((p) => p.id === "circum-circle")!;
+    const state = {
+      ...preset.state,
+      circum: {
+        ...preset.state.circum,
+        perps: [true, false, true] as [boolean, boolean, boolean],
+        showFeet: [true, true, false] as [boolean, boolean, boolean],
+      },
+    };
+    assert.equal(showCircumFootName(state, 0), true);
+    assert.equal(showCircumFootName(state, 1), false);
+    assert.equal(showCircumFootName(state, 2), false);
+    assert.equal(showInFootName(state, 0), false);
   });
 });

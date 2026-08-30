@@ -499,7 +499,11 @@ export function buildCentersScene(state: TriangleCentersState): CentersScene {
     const p = pts[VERTEX_IDS[i]!];
     const prev = pts[VERTEX_IDS[(i + 2) % 3]!];
     const next = pts[VERTEX_IDS[(i + 1) % 3]!];
-    if (p && prev && next) drawRightAngle(cmds, p, prev, next);
+    if (!p || !prev || !next) continue;
+    if (!isRightDeg(angleDegAt(d, VERTEX_IDS[i]!, VERTEX_IDS[(i + 1) % 3]!, VERTEX_IDS[(i + 2) % 3]!))) {
+      continue;
+    }
+    drawRightAngle(cmds, p, prev, next);
   }
 
   if (state.circum.on) {

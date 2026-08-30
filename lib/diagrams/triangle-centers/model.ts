@@ -51,7 +51,7 @@ export type CenterDisplay = {
   showCircle: boolean;
   rays: [boolean, boolean, boolean];
   perps: [boolean, boolean, boolean];
-  showFeetNames: boolean;
+  showFeet: [boolean, boolean, boolean];
   footNames: [string, string, string];
 };
 
@@ -145,9 +145,20 @@ function defaultCenter(name: string, on: boolean): CenterDisplay {
     showCircle: false,
     rays: [on, on, on],
     perps: [false, false, false],
-    showFeetNames: true,
+    showFeet: [true, true, true],
     footNames: ["D", "E", "F"],
   };
+}
+
+function mergeBool3(
+  prev: [boolean, boolean, boolean] | boolean | undefined,
+  fallback: boolean,
+): [boolean, boolean, boolean] {
+  if (Array.isArray(prev)) {
+    return [Boolean(prev[0]), Boolean(prev[1]), Boolean(prev[2])];
+  }
+  if (typeof prev === "boolean") return [prev, prev, prev];
+  return [fallback, fallback, fallback];
 }
 
 function mergeCenter(
@@ -169,6 +180,10 @@ function mergeCenter(
       prev.perps?.[1] ?? false,
       prev.perps?.[2] ?? false,
     ],
+    showFeet: mergeBool3(
+      prev.showFeet ?? (prev as { showFeetNames?: boolean }).showFeetNames,
+      true,
+    ),
     footNames: [
       prev.footNames?.[0] || "D",
       prev.footNames?.[1] || "E",
@@ -475,7 +490,7 @@ export const CENTERS_PRESETS: CentersPreset[] = [
         showCircle: true,
         rays: [true, true, true],
         perps: [true, true, true],
-        showFeetNames: true,
+        showFeet: [true, true, true],
       },
     }),
   },
@@ -489,7 +504,7 @@ export const CENTERS_PRESETS: CentersPreset[] = [
         name: "O",
         rays: [false, false, false],
         perps: [true, true, true],
-        showFeetNames: true,
+        showFeet: [true, true, true],
       },
       lengths: [
         customLen("A", "i0", "5 cm"),

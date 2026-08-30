@@ -20,21 +20,19 @@ import {
   downloadBlob,
 } from "@/lib/diagrams/export-image";
 import {
-  applySideLength,
-  applyVertexAngle,
   applyDisplayedAngle,
+  applyDisplayedLength,
+  applyVertexAngle,
   angleDegAt,
   angleReshapeKind,
   clearSelectionMarks,
   derive,
   displayName,
   fullVertexOn,
-  isFullSide,
-  isFullVertexAngle,
+  isRightDeg,
   lengthBetween,
   patchAngle,
   patchLength,
-  sideIndex,
   toggleFullVertexAngle,
   type CentersSelection,
 } from "@/lib/diagrams/triangle-centers/geometry";
@@ -372,28 +370,35 @@ export default function TriangleCentersStudio() {
                   {label.replace("O", state.circum.name || "O")}
                 </ChipToggle>
               ))}
-              <ChipToggle
-                on={state.circum.on && state.circum.perps.every(Boolean)}
-                onClick={() => {
-                  const all = state.circum.perps.every(Boolean);
-                  patchCenter("circum", {
-                    on: true,
-                    perps: all ? [false, false, false] : [true, true, true],
-                  });
-                }}
-              >
-                수선
-              </ChipToggle>
-              {state.circum.perps.some(Boolean) ? (
+              {([0, 1, 2] as const).map((i) => (
                 <ChipToggle
-                  on={state.circum.showFeetNames}
-                  onClick={() =>
-                    patchCenter("circum", { showFeetNames: !state.circum.showFeetNames })
-                  }
+                  key={`c-perp-${i}`}
+                  on={state.circum.on && state.circum.perps[i] === true}
+                  onClick={() => {
+                    const perps: [boolean, boolean, boolean] = [...state.circum.perps];
+                    perps[i] = !perps[i];
+                    patchCenter("circum", { on: true, perps });
+                  }}
                 >
-                  발 이름
+                  {state.vertexNames[i] || vertexId(i)}
+                  {state.vertexNames[(i + 1) % 3] || vertexId((i + 1) % 3)} 수선
                 </ChipToggle>
-              ) : null}
+              ))}
+              {([0, 1, 2] as const).map((i) =>
+                state.circum.on && state.circum.perps[i] ? (
+                  <ChipToggle
+                    key={`c-foot-${i}`}
+                    on={state.circum.showFeet[i] === true}
+                    onClick={() => {
+                      const showFeet: [boolean, boolean, boolean] = [...state.circum.showFeet];
+                      showFeet[i] = !showFeet[i];
+                      patchCenter("circum", { showFeet });
+                    }}
+                  >
+                    발 {state.circum.footNames[i] || "DEF"[i]}
+                  </ChipToggle>
+                ) : null,
+              )}
             </div>
 
             <p className="mt-3 text-[11px] font-semibold text-foreground/50">내심</p>
@@ -439,28 +444,35 @@ export default function TriangleCentersStudio() {
                   {label.replace("I", state.incenter.name || "I")}
                 </ChipToggle>
               ))}
-              <ChipToggle
-                on={state.incenter.on && state.incenter.perps.every(Boolean)}
-                onClick={() => {
-                  const all = state.incenter.perps.every(Boolean);
-                  patchCenter("in", {
-                    on: true,
-                    perps: all ? [false, false, false] : [true, true, true],
-                  });
-                }}
-              >
-                수선
-              </ChipToggle>
-              {state.incenter.perps.some(Boolean) ? (
+              {([0, 1, 2] as const).map((i) => (
                 <ChipToggle
-                  on={state.incenter.showFeetNames}
-                  onClick={() =>
-                    patchCenter("in", { showFeetNames: !state.incenter.showFeetNames })
-                  }
+                  key={`i-perp-${i}`}
+                  on={state.incenter.on && state.incenter.perps[i] === true}
+                  onClick={() => {
+                    const perps: [boolean, boolean, boolean] = [...state.incenter.perps];
+                    perps[i] = !perps[i];
+                    patchCenter("in", { on: true, perps });
+                  }}
                 >
-                  발 이름
+                  {state.vertexNames[i] || vertexId(i)}
+                  {state.vertexNames[(i + 1) % 3] || vertexId((i + 1) % 3)} 수선
                 </ChipToggle>
-              ) : null}
+              ))}
+              {([0, 1, 2] as const).map((i) =>
+                state.incenter.on && state.incenter.perps[i] ? (
+                  <ChipToggle
+                    key={`i-foot-${i}`}
+                    on={state.incenter.showFeet[i] === true}
+                    onClick={() => {
+                      const showFeet: [boolean, boolean, boolean] = [...state.incenter.showFeet];
+                      showFeet[i] = !showFeet[i];
+                      patchCenter("in", { showFeet });
+                    }}
+                  >
+                    발 {state.incenter.footNames[i] || "DEF"[i]}
+                  </ChipToggle>
+                ) : null,
+              )}
             </div>
 
             <div className="mt-3 flex flex-wrap gap-1">
@@ -520,16 +532,26 @@ export default function TriangleCentersStudio() {
                   >
                     내각
                   </ChipToggle>
-                  <ChipToggle
-                    on={state.vertexRights[selected.i]}
-                    onClick={() => {
-                      const vertexRights = [...state.vertexRights] as typeof state.vertexRights;
-                      vertexRights[selected.i] = !vertexRights[selected.i];
-                      set({ vertexRights });
-                    }}
-                  >
-                    직각
-                  </ChipToggle>
+                  {d &&
+                  isRightDeg(
+                    angleDegAt(
+                      d,
+                      vertexId(selected.i),
+                      vertexId((selected.i + 1) % 3),
+                      vertexId((selected.i + 2) % 3),
+                    ),
+                  ) ? (
+                    <ChipToggle
+                      on={state.vertexRights[selected.i]}
+                      onClick={() => {
+                        const vertexRights = [...state.vertexRights] as typeof state.vertexRights;
+                        vertexRights[selected.i] = !vertexRights[selected.i];
+                        set({ vertexRights });
+                      }}
+                    >
+                      직각
+                    </ChipToggle>
+                  ) : null}
                 </div>
                 <TextField
                   label="이름"
@@ -644,26 +666,22 @@ export default function TriangleCentersStudio() {
                   {displayName(state, selLen.a)}
                   {displayName(state, selLen.b)}
                 </p>
-                {isFullSide(selLen) ? (
-                  <NumberField
-                    label="길이 값"
-                    value={Number(lengthBetween(d, selLen.a, selLen.b).toFixed(2))}
-                    onChange={(len) =>
-                      setState((prev) => {
-                        const edge = sideIndex(selLen.a, selLen.b);
-                        if (edge == null) return prev;
-                        const next = applySideLength(prev, edge, len);
-                        return patchLength(next, selLen.id, {
-                          label: { ...selLen.label, mode: "custom", custom: String(len) },
-                        });
-                      })
-                    }
-                    min={0.5}
-                    max={40}
-                    step={0.1}
-                    suffix={state.unit.trim() || "cm"}
-                  />
-                ) : null}
+                <NumberField
+                  label="길이 값"
+                  value={Number(lengthBetween(d, selLen.a, selLen.b).toFixed(2))}
+                  onChange={(len) =>
+                    setState((prev) => {
+                      const next = applyDisplayedLength(prev, selLen, len);
+                      return patchLength(next, selLen.id, {
+                        label: { ...selLen.label, mode: "custom", custom: String(len) },
+                      });
+                    })
+                  }
+                  min={0.5}
+                  max={40}
+                  step={0.1}
+                  suffix={state.unit.trim() || "cm"}
+                />
                 <LabelModeRow
                   title="길이"
                   mode={selLen.label.mode}
