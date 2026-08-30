@@ -20,6 +20,7 @@ import SimilarSolidsStudio from "@/components/tools/figures/similar-solids/Simil
 import SolidSketchStudio from "@/components/tools/figures/solid-sketch/SolidSketchStudio";
 import TriangleCentersStudio from "@/components/tools/figures/triangle-centers/TriangleCentersStudio";
 import SqrtNumberLineStudio from "@/components/tools/figures/sqrt-number-line/SqrtNumberLineStudio";
+import QuadraticFunctionStudio from "@/components/tools/figures/quadratic-function/QuadraticFunctionStudio";
 import DiagramToolShell from "@/components/tools/figures/DiagramToolShell";
 import { DIAGRAM_TOOLS, getDiagramTool } from "@/lib/diagrams/catalog";
 
@@ -84,6 +85,8 @@ function renderDiagramStudio(toolId: string): ReactNode {
       return <CircleChordsStudio />;
     case "g3-sqrt-number-line":
       return <SqrtNumberLineStudio />;
+    case "g3-quadratic-function":
+      return <QuadraticFunctionStudio />;
     default:
       return null;
   }

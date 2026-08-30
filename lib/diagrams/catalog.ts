@@ -220,6 +220,17 @@ export const DIAGRAM_TOOLS: DiagramToolMeta[] = [
     status: "ready",
   },
   {
+    id: "g3-quadratic-function",
+    grade: 3,
+    title: "이차함수 그래프",
+    description:
+      "좌표평면에 y=a(x-p)²+q를 여러 개 그리고, 꼭짓점·최댓값·평행이동·교점을 붙여 PNG로 저장해요.",
+    unitHint: "2.3 이차함수와 그래프",
+    emoji: "⌢",
+    href: "/tools/figures/g3-quadratic-function",
+    status: "ready",
+  },
+  {
     id: "g3-circle-chords",
     grade: 3,
     title: "원의 현",

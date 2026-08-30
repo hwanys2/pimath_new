@@ -47,6 +47,7 @@
         ├─ 중2 카드들 → /tools/figures/g2-repeating-decimal , /tools/figures/g2-linear-inequality , /tools/figures/g2-linear-function , /tools/figures/g2-triangle-centers , /tools/figures/g2-isosceles-triangle , /tools/figures/g2-similar-solids , /tools/figures/g2-quadrilaterals , /tools/figures/g2-similar-figures , /tools/figures/g2-similar-triangles , /tools/figures/g2-counting-probability , /tools/figures/g2-pythagorean
         └─ 중3 카드들
               ├─ 제곱근 수직선 → /tools/figures/g3-sqrt-number-line
+              ├─ 이차함수 그래프 → /tools/figures/g3-quadratic-function
               └─ 원의 현 → /tools/figures/g3-circle-chords
 ```
 
@@ -192,6 +193,18 @@ components/tools/figures/DiagramToolShell.tsx  ← 공통 뼈대. 손대지 않�
 - O를 축 따라 끌어 시작점, A를 모눈에 스냅해 a·b(따라서 √n) 변경. 글자는 눌러 수정·끌어 옮김.
 - 프리셋: √2 삼각형, √5 정사각형·삼각형, √10, 시작점 2, 점만.
 - 스튜디오는 §5.1 **3열**: 그림 아래 작도 | 표시·수직선 | 빠른 그림·그림 스타일(기본 펼침).
+
+### 이차함수 그래프 (`g3-quadratic-function`)
+
+중3 `2.3 이차함수와 그래프`에서 나오는 시험용 좌표평면 포물선.
+
+- 중1 좌표평면(격자·축·원점) 위에 `y=a(x-p)²+q`와 `y=k`를 여러 개 올린다. 분홍·청록·검정·보라·초록.
+- 꼭짓점·축 수선·대칭축·최댓값/최솟값 가로선·x·y절편·식 라벨을 그래프마다 칩으로 켠다.
+- 평행이동: 같은 `a` 두 포물선 사이 세로·가로·꼭짓점 L자 화살. 이동량 숫자도 켠다.
+- 점: 곡선 위 점 + 축 수선 + 축 숫자. 「점 찍기」로 그림에서 찍는다.
+- 식 입력 `y=x^2`, `y=(x+2)^2+1`, `y=x^2+4x+5`, `y=4`. 그림 위 식도 같은 형식으로 고친다.
+- 프리셋: y=ax² 여러 개, y=x²와 y=ax² 교점, 평행이동, 꼭짓점·절편, 좌우 평행이동, 최댓값.
+- 스튜디오는 §5.1 **3열**: 그림 아래 좌표평면 | 표시·그래프 | 빠른 그림·그림 스타일(기본 펼침).
 
 ### 원의 현 (`g3-circle-chords`)
 
@@ -421,6 +434,7 @@ components/tools/figures/DiagramToolShell.tsx  ← 공통 뼈대. 손대지 않�
 | `g2-similar-solids` | 중2 | 입체도형의 닮음 | ready |
 | `g2-counting-probability` | 중2 | 경우의 수와 확률 | ready |
 | `g3-sqrt-number-line` | 중3 | 제곱근 수직선 | ready |
+| `g3-quadratic-function` | 중3 | 이차함수 그래프 | ready |
 | `g3-circle-chords` | 중3 | 원의 현 | ready |
 
 ---
@@ -517,3 +531,4 @@ components/tools/figures/DiagramToolShell.tsx  ← 공통 뼈대. 손대지 않�
 | 2026-08-30 | 중2 피타고라스의 정리 (`g2-pythagorean`). 직각삼각형·정사각형·증명·수선·좌표·대각선, PNG. |
 | 2026-08-30 | §5.1 열 역할 고정: 1열 그림+큰 설정, 2열 세부 설정, 3열 빠른 그림·그림 스타일. 입체도형의 닮음 도형→1열, 닮음비→2열. |
 | 2026-08-30 | 중3 제곱근 수직선 (`g3-sqrt-number-line`). 정사각형·직각삼각형 작도, 호·점 P/Q, PNG. |
+| 2026-08-30 | 중3 이차함수 그래프 (`g3-quadratic-function`). 포물선·꼭짓점·최댓값·평행이동·교점, PNG. |
