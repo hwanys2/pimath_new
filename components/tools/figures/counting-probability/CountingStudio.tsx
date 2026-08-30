@@ -55,6 +55,7 @@ import {
   setPlaceCount,
   setPouchCount,
   setSliceCount,
+  SPINNER_COLORS,
   type ColorId,
   type CountingState,
   type DieFace,
@@ -578,7 +579,7 @@ export default function CountingStudio() {
             }
           />
           <ColorChips
-            colors={["green", "orange", "yellow", "pink", "blue", "purple"]}
+            colors={SPINNER_COLORS}
             value={slice.color}
             onChange={(color) =>
               setState({
@@ -933,6 +934,35 @@ export default function CountingStudio() {
   );
 }
 
+function colorChipLabel(c: ColorId): string {
+  switch (c) {
+    case "blue":
+      return "파랑";
+    case "red":
+      return "빨강";
+    case "green":
+      return "초록";
+    case "yellow":
+      return "노랑";
+    case "pink":
+      return "분홍";
+    case "purple":
+      return "보라";
+    case "orange":
+      return "주황";
+    case "gray":
+      return "회색";
+    case "white":
+      return "하양";
+    case "beige":
+      return "베이지";
+    case "none":
+      return "색 없음";
+    default:
+      return c;
+  }
+}
+
 function ColorChips({
   colors,
   value,
@@ -948,25 +978,7 @@ function ColorChips({
       <div className="mt-1 flex flex-wrap gap-1">
         {colors.map((c) => (
           <ChipToggle key={c} on={value === c} onClick={() => onChange(c)}>
-            {c === "blue"
-              ? "파랑"
-              : c === "red"
-                ? "빨강"
-                : c === "green"
-                  ? "초록"
-                  : c === "yellow"
-                    ? "노랑"
-                    : c === "pink"
-                      ? "분홍"
-                      : c === "purple"
-                        ? "보라"
-                        : c === "orange"
-                          ? "주황"
-                          : c === "gray"
-                            ? "회색"
-                            : c === "white"
-                              ? "하양"
-                              : "베이지"}
+            {colorChipLabel(c)}
           </ChipToggle>
         ))}
       </div>

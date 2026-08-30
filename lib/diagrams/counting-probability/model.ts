@@ -12,7 +12,8 @@ export type ColorId =
   | "gray"
   | "orange"
   | "white"
-  | "beige";
+  | "beige"
+  | "none";
 
 export type DieFace = 1 | 2 | 3 | 4 | 5 | 6;
 
@@ -124,6 +125,7 @@ export const COLOR_OPTIONS: { id: ColorId; label: string }[] = [
   { id: "gray", label: "회색" },
   { id: "white", label: "하양" },
   { id: "beige", label: "베이지" },
+  { id: "none", label: "색 없음" },
 ];
 
 export const COLORS: Record<
@@ -140,6 +142,7 @@ export const COLORS: Record<
   gray: { fill: "#b0b0b0", stroke: "#808080", light: "rgba(176,176,176,0.25)" },
   white: { fill: "#f8f8f8", stroke: "#aaaaaa", light: "rgba(248,248,248,0.5)" },
   beige: { fill: "#f0e0c0", stroke: "#c0a880", light: "rgba(240,224,192,0.35)" },
+  none: { fill: "#ffffff", stroke: "#bbbbbb", light: "#ffffff" },
 };
 
 export const DICE_COLORS: ColorId[] = ["blue", "red", "green", "gray"];
@@ -160,6 +163,16 @@ export const BALL_COLORS: ColorId[] = [
   "white",
 ];
 export const PATH_COLORS: ColorId[] = ["pink", "blue", "green", "orange", "purple"];
+export const SPINNER_COLORS: ColorId[] = [
+  "none",
+  "gray",
+  "blue",
+  "green",
+  "yellow",
+  "pink",
+  "orange",
+  "purple",
+];
 
 export const MIN_DICE = 1;
 export const MAX_DICE = 12;
@@ -185,6 +198,9 @@ export const SCENE_HEIGHT = 400;
 export const POUCH_BODY_W = 150;
 export const POUCH_BODY_H = 175;
 export const BALL_RADIUS = 13;
+/** Gap between ball edges inside a pouch (px). */
+export const BALL_GAP_X = 10;
+export const BALL_GAP_Y = 9;
 
 export const MAX_DICE_COLS = 6;
 export const MAX_CARD_COLS = 6;
@@ -278,20 +294,10 @@ function defaultPouches(count: number): PouchItem[] {
 }
 
 function defaultSlices(count: number): SpinnerSlice[] {
-  const palette: ColorId[] = [
-    "green",
-    "yellow",
-    "pink",
-    "blue",
-    "purple",
-    "orange",
-    "beige",
-    "gray",
-  ];
   return Array.from({ length: count }, (_, i) => ({
     id: newId("s"),
     text: i < count - 2 ? "당첨" : "꽝",
-    color: palette[i % palette.length]!,
+    color: i % 2 === 0 ? ("none" as ColorId) : ("gray" as ColorId),
   }));
 }
 
@@ -376,46 +382,46 @@ export function layoutCards(items: CardItem[], cols?: number): CardItem[] {
   });
 }
 
+export function pouchBallCols(count: number): number {
+  if (count <= 3) return count;
+  if (count <= 6) return 2;
+  if (count <= 9) return 3;
+  return 4;
+}
+
 export function layoutBallsInPouch(balls: BallItem[]): BallItem[] {
   const n = balls.length;
   if (n === 0) return balls;
-  const r = BALL_RADIUS;
+  const stepX = BALL_RADIUS * 2 + BALL_GAP_X;
+  const stepY = BALL_RADIUS * 2 + BALL_GAP_Y;
+  const bellyY = 12;
   const positions: { x: number; y: number }[] = [];
-  const bellyY = 14;
-  if (n === 1) positions.push({ x: 0, y: bellyY });
-  else if (n === 2) {
-    positions.push({ x: -20, y: bellyY }, { x: 20, y: bellyY });
+
+  if (n === 1) {
+    positions.push({ x: 0, y: bellyY });
+  } else if (n === 2) {
+    positions.push({ x: -stepX / 2, y: bellyY }, { x: stepX / 2, y: bellyY });
   } else if (n === 3) {
-    positions.push({ x: -22, y: bellyY + 6 }, { x: 22, y: bellyY + 6 }, { x: 0, y: bellyY - 14 });
-  } else if (n === 4) {
     positions.push(
-      { x: -22, y: bellyY + 4 },
-      { x: 22, y: bellyY + 4 },
-      { x: -22, y: bellyY - 12 },
-      { x: 22, y: bellyY - 12 },
-    );
-  } else if (n === 5) {
-    positions.push(
-      { x: -24, y: bellyY + 6 },
-      { x: 24, y: bellyY + 6 },
-      { x: -12, y: bellyY - 12 },
-      { x: 12, y: bellyY - 12 },
-      { x: 0, y: bellyY + 18 },
+      { x: -stepX / 2, y: bellyY + stepY * 0.22 },
+      { x: stepX / 2, y: bellyY + stepY * 0.22 },
+      { x: 0, y: bellyY - stepY * 0.55 },
     );
   } else {
-    const cols = Math.min(4, Math.ceil(Math.sqrt(n)));
+    const cols = pouchBallCols(n);
     const rows = Math.ceil(n / cols);
-    const stepX = r * 2 + 5;
-    const stepY = r * 2 + 3;
     for (let i = 0; i < n; i += 1) {
-      const col = i % cols;
       const row = Math.floor(i / cols);
+      const rowStart = row * cols;
+      const ballsInRow = Math.min(cols, n - rowStart);
+      const colInRow = i - rowStart;
       positions.push({
-        x: (col - (cols - 1) / 2) * stepX,
-        y: bellyY + (row - (rows - 1) / 2) * stepY - 4,
+        x: (colInRow - (ballsInRow - 1) / 2) * stepX,
+        y: bellyY + (row - (rows - 1) / 2) * stepY,
       });
     }
   }
+
   return balls.map((ball, i) => ({
     ...ball,
     x: positions[i]?.x ?? ball.x,
@@ -501,7 +507,10 @@ export function normalizeState(state: CountingState): CountingState {
   if (pouches.length < MIN_POUCHES) pouches = defaultPouches(MIN_POUCHES);
 
   let slices = state.spinner?.slices ?? defaultSlices(8);
-  slices = slices.slice(0, MAX_SLICES);
+  slices = slices.slice(0, MAX_SLICES).map((s) => ({
+    ...s,
+    color: s.color in COLORS ? s.color : ("none" as ColorId),
+  }));
   if (slices.length < MIN_SLICES) slices = defaultSlices(MIN_SLICES);
   const spinner: SpinnerState = {
     rotation: state.spinner?.rotation ?? 0,

@@ -3,7 +3,9 @@ import { describe, it } from "node:test";
 import {
   DEFAULT_COUNTING_STATE,
   layoutDice,
+  layoutBallsInPouch,
   normalizeState,
+  pouchBallCols,
   setBallCount,
   setCardCount,
   setDiceCount,
@@ -41,6 +43,22 @@ describe("counting-probability model", () => {
     const pouchId = DEFAULT_COUNTING_STATE.pouches[0]!.id;
     const next = setBallCount(DEFAULT_COUNTING_STATE, pouchId, 8);
     assert.equal(next.pouches[0]!.balls.length, 8);
+  });
+
+  it("lays out six balls in two columns with breathing room", () => {
+    assert.equal(pouchBallCols(6), 2);
+    const balls = layoutBallsInPouch(
+      Array.from({ length: 6 }, (_, i) => ({
+        id: `b${i}`,
+        text: String(i + 1),
+        color: "blue" as const,
+        x: 0,
+        y: 0,
+      })),
+    );
+    const xs = [...new Set(balls.map((b) => b.x))].sort((a, b) => a - b);
+    assert.equal(xs.length, 2);
+    assert.ok(xs[1]! - xs[0]! >= 30);
   });
 
   it("edge count updates bends array", () => {

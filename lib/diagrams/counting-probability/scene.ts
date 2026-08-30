@@ -447,6 +447,15 @@ function addBall(
   });
 }
 
+const SPINNER_RIM = "#444444";
+const SPINNER_DIVIDER = "#666666";
+
+function spinnerSliceFill(color: ColorId): string {
+  if (color === "none") return "#ffffff";
+  if (color === "gray") return "#f4f4f4";
+  return COLORS[color].light;
+}
+
 function buildSpinnerScene(
   state: CountingState,
   cmds: SceneCmd[],
@@ -461,11 +470,19 @@ function buildSpinnerScene(
   const rot = state.spinner.rotation - Math.PI / 2;
   const step = (Math.PI * 2) / n;
 
+  cmds.push({
+    t: "circle",
+    x: cx,
+    y: cy,
+    r: r + 3,
+    stroke: "rgba(0,0,0,0.06)",
+    width: 6,
+  });
+
   for (let i = 0; i < n; i += 1) {
     const slice = state.spinner.slices[i]!;
     const a0 = rot + i * step;
     const a1 = a0 + step;
-    const colors = COLORS[slice.color];
     cmds.push({
       t: "sector",
       cx,
@@ -474,7 +491,7 @@ function buildSpinnerScene(
       a0,
       a1,
       ccw: false,
-      fill: colors.light,
+      fill: spinnerSliceFill(slice.color),
     });
   }
 
@@ -486,12 +503,12 @@ function buildSpinnerScene(
       y1: cy,
       x2: cx + Math.cos(a) * r,
       y2: cy + Math.sin(a) * r,
-      stroke: INK,
-      width: 2,
+      stroke: SPINNER_DIVIDER,
+      width: 1.2,
     });
   }
 
-  cmds.push({ t: "circle", x: cx, y: cy, r, stroke: INK, width: 2 });
+  cmds.push({ t: "circle", x: cx, y: cy, r, stroke: SPINNER_RIM, width: 1.5 });
 
   for (let i = 0; i < n; i += 1) {
     const slice = state.spinner.slices[i]!;
@@ -503,23 +520,23 @@ function buildSpinnerScene(
         t: "arc",
         cx,
         cy,
-        r,
+        r: r - 1,
         a0,
         a1,
         ccw: false,
-        stroke: COLORS[slice.color].stroke,
-        width: 4,
+        stroke: INK,
+        width: 2.5,
       });
     }
     const mid = (a0 + a1) / 2;
-    const tx = cx + Math.cos(mid) * r * 0.62;
-    const ty = cy + Math.sin(mid) * r * 0.62;
+    const tx = cx + Math.cos(mid) * r * 0.58;
+    const ty = cy + Math.sin(mid) * r * 0.58;
     pushText(texts, cmds, {
       id: `slice:${slice.id}`,
       x: tx,
       y: ty,
       runs: parseNameRuns(slice.text),
-      size: state.style.fontSize,
+      size: Math.max(12, state.style.fontSize - 1),
       anchor: "middle",
       fill: INK,
     });
@@ -535,15 +552,25 @@ function buildSpinnerScene(
     });
   }
 
-  cmds.push({ t: "dot", x: cx, y: cy, r: 6, stroke: "#6ec86e" });
+  cmds.push({ t: "circle", x: cx, y: cy, r: 5, stroke: SPINNER_RIM, width: 1.2 });
+  cmds.push({ t: "dot", x: cx, y: cy, r: 3.5, stroke: "#ffffff" });
+  cmds.push({
+    t: "line",
+    x1: cx,
+    y1: cy - r + 2,
+    x2: cx,
+    y2: cy - r - 14,
+    stroke: SPINNER_RIM,
+    width: 1.5,
+  });
   cmds.push({
     t: "arrowhead",
     x: cx,
-    y: cy - r - 8,
+    y: cy - r - 14,
     ux: 0,
     uy: -1,
-    size: 18,
-    stroke: "#e04040",
+    size: 11,
+    stroke: SPINNER_RIM,
   });
 }
 

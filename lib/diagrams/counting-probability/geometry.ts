@@ -105,8 +105,8 @@ export function moveBall(
           b.id === ballId
             ? {
                 ...b,
-                x: clamp(rx, -36, 36),
-                y: clamp(ry, -28, 32),
+                x: clamp(rx, -42, 42),
+                y: clamp(ry, -34, 36),
               }
             : b,
         ),
