@@ -7,6 +7,13 @@ import type { DiagramScene, SceneCmd, SceneText } from "@/lib/diagrams/scene";
 
 const INK = "#111111";
 
+const EMOJI_FONT_FAMILY =
+  '"Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", sans-serif';
+
+function emojiCanvasFont(size: number): string {
+  return `${size}px ${EMOJI_FONT_FAMILY}`;
+}
+
 export function paintDiagramScene(
   ctx: CanvasRenderingContext2D,
   scene: DiagramScene,
@@ -207,6 +214,15 @@ function paintCmd(
       }
       break;
     }
+    case "emoji": {
+      ctx.save();
+      ctx.font = emojiCanvasFont(cmd.size);
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillText(cmd.char, cmd.x, cmd.y);
+      ctx.restore();
+      break;
+    }
     default:
       break;
   }
@@ -247,6 +263,7 @@ export function sceneToSvg(
   for (const cmd of scene.cmds) {
     if (
       cmd.t === "text" ||
+      cmd.t === "emoji" ||
       cmd.t === "polygon" ||
       cmd.t === "sector" ||
       (cmd.t === "roundRect" && cmd.fill && !cmd.stroke)
@@ -257,8 +274,9 @@ export function sceneToSvg(
   parts.push(`</g>`);
 
   for (const cmd of scene.cmds) {
-    if (cmd.t !== "text") continue;
-    parts.push(textToSvg(cmd.text, fonts));
+    if (cmd.t !== "text" && cmd.t !== "emoji") continue;
+    if (cmd.t === "text") parts.push(textToSvg(cmd.text, fonts));
+    else parts.push(emojiToSvg(cmd));
   }
 
   parts.push(`</svg>`);
@@ -394,6 +412,10 @@ function roundRectStrokeToSvg(
     cmd.width != null ? ` stroke-width="${cmd.width}"` : ` stroke-width="${defaultWidth}"`;
   const dash = cmd.dashed ? ' stroke-dasharray="4.2 3.2"' : "";
   return `<rect x="${cmd.x.toFixed(2)}" y="${cmd.y.toFixed(2)}" width="${cmd.w.toFixed(2)}" height="${cmd.h.toFixed(2)}" rx="${rr.toFixed(2)}"${fill}${stroke}${sw}${dash}/>`;
+}
+
+function emojiToSvg(cmd: Extract<SceneCmd, { t: "emoji" }>): string {
+  return `<text x="${cmd.x.toFixed(2)}" y="${cmd.y.toFixed(2)}" text-anchor="middle" dominant-baseline="middle" font-size="${cmd.size}" font-family=${EMOJI_FONT_FAMILY}>${escapeXml(cmd.char)}</text>`;
 }
 
 function textToSvg(t: SceneText, fonts: FontFaces): string {

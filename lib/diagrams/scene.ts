@@ -112,6 +112,7 @@ export type SceneCmd =
       width?: number;
       dashed?: boolean;
     }
+  | { t: "emoji"; x: number; y: number; char: string; size: number }
   | { t: "text"; text: SceneText };
 
 export type DiagramScene = {

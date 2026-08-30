@@ -80,6 +80,9 @@ export type PathEdge = {
 export type PathsState = {
   places: PlaceNode[];
   edges: PathEdge[];
+  /** Show place name text under icons on the figure. */
+  showPlaceLabels: boolean;
+  labelFontSize: number;
 };
 
 export type CountingStyle = {
@@ -91,7 +94,11 @@ export type CountingStyle = {
 export type CountingState = {
   kind: CountingKind;
   dice: DiceItem[];
+  /** 가로 한 줄에 배치할 주사위 개수 */
+  diceCols: number;
   cards: CardItem[];
+  /** 가로 한 줄에 배치할 카드 개수 */
+  cardCols: number;
   pouches: PouchItem[];
   spinner: SpinnerState;
   paths: PathsState;
@@ -169,8 +176,18 @@ export const MAX_PLACES = 6;
 export const MIN_PATHS = 1;
 export const MAX_PATHS = 6;
 
+/** Parallel paths between two places — spacing along the normal (px). */
+export const PATH_LANE_SPACING = 40;
+
 export const SCENE_WIDTH = 560;
 export const SCENE_HEIGHT = 400;
+
+export const POUCH_BODY_W = 150;
+export const POUCH_BODY_H = 175;
+export const BALL_RADIUS = 13;
+
+export const MAX_DICE_COLS = 6;
+export const MAX_CARD_COLS = 6;
 
 const DEFAULT_STYLE: CountingStyle = {
   lineWidth: 1.5,
@@ -218,8 +235,16 @@ function defaultDice(count: number, faces?: DieFace[]): DiceItem[] {
     color: "blue" as ColorId,
     x: 0,
     y: 0,
-    rotation: (i % 2 === 0 ? -8 : 8) + (i % 3) * 2,
+    rotation: 0,
   }));
+}
+
+export function autoDiceCols(count: number): number {
+  return Math.min(MAX_DICE_COLS, Math.max(1, Math.ceil(Math.sqrt(count))));
+}
+
+export function autoCardCols(count: number): number {
+  return Math.min(MAX_CARD_COLS, Math.max(1, Math.ceil(Math.sqrt(count * 1.4))));
 }
 
 function defaultCards(count: number, texts?: string[]): CardItem[] {
@@ -253,10 +278,20 @@ function defaultPouches(count: number): PouchItem[] {
 }
 
 function defaultSlices(count: number): SpinnerSlice[] {
+  const palette: ColorId[] = [
+    "green",
+    "yellow",
+    "pink",
+    "blue",
+    "purple",
+    "orange",
+    "beige",
+    "gray",
+  ];
   return Array.from({ length: count }, (_, i) => ({
     id: newId("s"),
     text: i < count - 2 ? "당첨" : "꽝",
-    color: i < count - 2 ? "green" : "orange",
+    color: palette[i % palette.length]!,
   }));
 }
 
@@ -281,7 +316,7 @@ function defaultEdges(places: PlaceNode[]): PathEdge[] {
       color: PATH_COLORS[i % PATH_COLORS.length]!,
       bends: Array.from({ length: count }, (_, j) => {
         const lane = j - (count - 1) / 2;
-        return lane * 28;
+        return lane * PATH_LANE_SPACING;
       }),
     });
   }
@@ -292,47 +327,47 @@ function defaultEdges(places: PlaceNode[]): PathEdge[] {
       to: places[places.length - 1]!.id,
       count: 2,
       color: "green",
-      bends: [-55, 55],
+      bends: [-PATH_LANE_SPACING * 1.75, PATH_LANE_SPACING * 1.75],
     });
   }
   return edges;
 }
 
-export function layoutDice(items: DiceItem[]): DiceItem[] {
+export function layoutDice(items: DiceItem[], cols?: number): DiceItem[] {
   const size = 72;
   const gap = 16;
-  const cols = Math.min(6, Math.max(1, Math.ceil(Math.sqrt(items.length))));
-  const rows = Math.ceil(items.length / cols);
-  const gridW = cols * size + (cols - 1) * gap;
+  const colCount = clamp(cols ?? autoDiceCols(items.length), 1, MAX_DICE_COLS);
+  const rows = Math.ceil(items.length / colCount);
+  const gridW = colCount * size + (colCount - 1) * gap;
   const gridH = rows * size + (rows - 1) * gap;
   const ox = (SCENE_WIDTH - gridW) / 2 + size / 2;
   const oy = (SCENE_HEIGHT - gridH) / 2 + size / 2;
   return items.map((item, i) => {
-    const col = i % cols;
-    const row = Math.floor(i / cols);
+    const col = i % colCount;
+    const row = Math.floor(i / colCount);
     return {
       ...item,
       x: ox + col * (size + gap),
       y: oy + row * (size + gap),
-      rotation: item.rotation ?? (i % 2 === 0 ? -8 : 8),
+      rotation: 0,
     };
   });
 }
 
-export function layoutCards(items: CardItem[]): CardItem[] {
+export function layoutCards(items: CardItem[], cols?: number): CardItem[] {
   const w = 52;
   const h = 72;
   const gapX = 10;
   const gapY = 12;
-  const cols = Math.min(5, Math.max(1, Math.ceil(Math.sqrt(items.length * 1.4))));
-  const rows = Math.ceil(items.length / cols);
-  const gridW = cols * w + (cols - 1) * gapX;
+  const colCount = clamp(cols ?? autoCardCols(items.length), 1, MAX_CARD_COLS);
+  const rows = Math.ceil(items.length / colCount);
+  const gridW = colCount * w + (colCount - 1) * gapX;
   const gridH = rows * h + (rows - 1) * gapY;
   const ox = (SCENE_WIDTH - gridW) / 2 + w / 2;
   const oy = (SCENE_HEIGHT - gridH) / 2 + h / 2 - 10;
   return items.map((item, i) => {
-    const col = i % cols;
-    const row = Math.floor(i / cols);
+    const col = i % colCount;
+    const row = Math.floor(i / colCount);
     return {
       ...item,
       x: ox + col * (w + gapX),
@@ -344,29 +379,40 @@ export function layoutCards(items: CardItem[]): CardItem[] {
 export function layoutBallsInPouch(balls: BallItem[]): BallItem[] {
   const n = balls.length;
   if (n === 0) return balls;
-  const r = 14;
+  const r = BALL_RADIUS;
   const positions: { x: number; y: number }[] = [];
-  if (n === 1) positions.push({ x: 0, y: 8 });
+  const bellyY = 14;
+  if (n === 1) positions.push({ x: 0, y: bellyY });
   else if (n === 2) {
-    positions.push({ x: -16, y: 8 }, { x: 16, y: 8 });
+    positions.push({ x: -20, y: bellyY }, { x: 20, y: bellyY });
   } else if (n === 3) {
-    positions.push({ x: -18, y: 12 }, { x: 18, y: 12 }, { x: 0, y: -6 });
+    positions.push({ x: -22, y: bellyY + 6 }, { x: 22, y: bellyY + 6 }, { x: 0, y: bellyY - 14 });
   } else if (n === 4) {
     positions.push(
-      { x: -18, y: 10 },
-      { x: 18, y: 10 },
-      { x: -18, y: -8 },
-      { x: 18, y: -8 },
+      { x: -22, y: bellyY + 4 },
+      { x: 22, y: bellyY + 4 },
+      { x: -22, y: bellyY - 12 },
+      { x: 22, y: bellyY - 12 },
+    );
+  } else if (n === 5) {
+    positions.push(
+      { x: -24, y: bellyY + 6 },
+      { x: 24, y: bellyY + 6 },
+      { x: -12, y: bellyY - 12 },
+      { x: 12, y: bellyY - 12 },
+      { x: 0, y: bellyY + 18 },
     );
   } else {
     const cols = Math.min(4, Math.ceil(Math.sqrt(n)));
     const rows = Math.ceil(n / cols);
+    const stepX = r * 2 + 5;
+    const stepY = r * 2 + 3;
     for (let i = 0; i < n; i += 1) {
       const col = i % cols;
       const row = Math.floor(i / cols);
       positions.push({
-        x: (col - (cols - 1) / 2) * (r * 2 + 4),
-        y: (row - (rows - 1) / 2) * (r * 2 + 2) + 4,
+        x: (col - (cols - 1) / 2) * stepX,
+        y: bellyY + (row - (rows - 1) / 2) * stepY - 4,
       });
     }
   }
@@ -378,17 +424,49 @@ export function layoutBallsInPouch(balls: BallItem[]): BallItem[] {
 }
 
 export function layoutPouches(items: PouchItem[]): PouchItem[] {
-  const gap = 40;
-  const pouchW = 110;
+  const gap = 28;
+  const pouchW = POUCH_BODY_W + 16;
   const totalW = items.length * pouchW + (items.length - 1) * gap;
   const startX = (SCENE_WIDTH - totalW) / 2 + pouchW / 2;
-  const cy = SCENE_HEIGHT / 2 - 10;
+  const cy = SCENE_HEIGHT / 2 - 6;
   return items.map((pouch, i) => ({
     ...pouch,
     x: startX + i * (pouchW + gap),
     y: cy,
     balls: layoutBallsInPouch(pouch.balls),
   }));
+}
+
+export function edgeFrame(a: PlaceNode, b: PlaceNode) {
+  const dx = b.x - a.x;
+  const dy = b.y - a.y;
+  const len = Math.hypot(dx, dy) || 1;
+  return {
+    nx: -dy / len,
+    ny: dx / len,
+    midX: (a.x + b.x) / 2,
+    midY: (a.y + b.y) / 2,
+    direct: Math.abs(dx) > Math.abs(dy) * 1.2,
+  };
+}
+
+export function edgeLaneMidpoint(
+  a: PlaceNode,
+  b: PlaceNode,
+  bend: number,
+): { x: number; y: number; nx: number; ny: number } {
+  const frame = edgeFrame(a, b);
+  return {
+    x: frame.midX + frame.nx * bend,
+    y: frame.midY + frame.ny * bend,
+    nx: frame.nx,
+    ny: frame.ny,
+  };
+}
+
+export function defaultEdgeBend(edgeCount: number, laneIndex: number): number {
+  const lane = laneIndex - (edgeCount - 1) / 2;
+  return lane * PATH_LANE_SPACING;
 }
 
 export function layoutPlaces(places: PlaceNode[]): PlaceNode[] {
@@ -447,13 +525,37 @@ export function normalizeState(state: CountingState): CountingState {
     edges = defaultEdges(places);
   }
 
+  const paths: PathsState = {
+    places,
+    edges,
+    showPlaceLabels: state.paths?.showPlaceLabels ?? true,
+    labelFontSize: clamp(
+      state.paths?.labelFontSize ?? style.fontSize,
+      10,
+      28,
+    ),
+  };
+
+  const diceCols = clamp(
+    state.diceCols ?? autoDiceCols(dice.length),
+    1,
+    MAX_DICE_COLS,
+  );
+  const cardCols = clamp(
+    state.cardCols ?? autoCardCols(cards.length),
+    1,
+    MAX_CARD_COLS,
+  );
+
   return {
     kind,
     dice,
+    diceCols,
     cards,
+    cardCols,
     pouches,
     spinner,
-    paths: { places, edges },
+    paths,
     style,
   };
 }
@@ -463,7 +565,7 @@ export function setDiceCount(state: CountingState, count: number): CountingState
   let dice = [...state.dice];
   if (n > dice.length) {
     const added = defaultDice(n - dice.length);
-    const laid = layoutDice([...dice, ...added]);
+    const laid = layoutDice([...dice, ...added], state.diceCols);
     dice = [
       ...dice,
       ...added.map((d, i) => ({
@@ -479,7 +581,16 @@ export function setDiceCount(state: CountingState, count: number): CountingState
 }
 
 export function relayoutDice(state: CountingState): CountingState {
-  return { ...state, dice: layoutDice(state.dice) };
+  return { ...state, dice: layoutDice(state.dice, state.diceCols) };
+}
+
+export function setDiceCols(state: CountingState, cols: number): CountingState {
+  const diceCols = clamp(cols, 1, MAX_DICE_COLS);
+  return normalizeState({
+    ...state,
+    diceCols,
+    dice: layoutDice(state.dice, diceCols),
+  });
 }
 
 export function setCardCount(state: CountingState, count: number): CountingState {
@@ -487,7 +598,7 @@ export function setCardCount(state: CountingState, count: number): CountingState
   let cards = [...state.cards];
   if (n > cards.length) {
     const added = defaultCards(n - cards.length);
-    const laid = layoutCards([...cards, ...added]);
+    const laid = layoutCards([...cards, ...added], state.cardCols);
     cards = [
       ...cards,
       ...added.map((c, i) => ({
@@ -503,7 +614,16 @@ export function setCardCount(state: CountingState, count: number): CountingState
 }
 
 export function relayoutCards(state: CountingState): CountingState {
-  return { ...state, cards: layoutCards(state.cards) };
+  return { ...state, cards: layoutCards(state.cards, state.cardCols) };
+}
+
+export function setCardCols(state: CountingState, cols: number): CountingState {
+  const cardCols = clamp(cols, 1, MAX_CARD_COLS);
+  return normalizeState({
+    ...state,
+    cardCols,
+    cards: layoutCards(state.cards, cardCols),
+  });
 }
 
 export function setPouchCount(state: CountingState, count: number): CountingState {
@@ -581,7 +701,7 @@ export function setPlaceCount(state: CountingState, count: number): CountingStat
     );
     return normalizeState({
       ...state,
-      paths: { places: layoutPlaces(places), edges },
+      paths: { ...state.paths, places: layoutPlaces(places), edges },
     });
   }
   return normalizeState({
@@ -601,7 +721,7 @@ export function setEdgeCount(
     const bends: number[] = [];
     for (let i = 0; i < n; i += 1) {
       const lane = i - (n - 1) / 2;
-      bends.push(e.bends[i] ?? lane * 28);
+      bends.push(e.bends[i] ?? lane * PATH_LANE_SPACING);
     }
     return { ...e, count: n, bends };
   });
@@ -625,7 +745,7 @@ export function addDirectEdge(
     to: toId,
     count: 2,
     color: "green",
-    bends: [-40, 40],
+    bends: [-PATH_LANE_SPACING, PATH_LANE_SPACING],
   };
   return normalizeState({
     ...state,
@@ -637,8 +757,8 @@ export function relayoutPaths(state: CountingState): CountingState {
   return normalizeState({
     ...state,
     paths: {
+      ...state.paths,
       places: layoutPlaces(state.paths.places),
-      edges: state.paths.edges,
     },
   });
 }
@@ -647,8 +767,10 @@ const DEFAULT_PLACES = defaultPlaces();
 
 export const DEFAULT_COUNTING_STATE: CountingState = normalizeState({
   kind: "dice",
-  dice: layoutDice(defaultDice(2, [3, 6])),
-  cards: layoutCards(defaultCards(10)),
+  dice: layoutDice(defaultDice(2, [3, 6]), 2),
+  diceCols: 2,
+  cards: layoutCards(defaultCards(10), 5),
+  cardCols: 5,
   pouches: layoutPouches(defaultPouches(2)),
   spinner: { rotation: 0, slices: defaultSlices(8) },
   paths: {
@@ -674,7 +796,8 @@ export const COUNTING_PRESETS: {
       normalizeState({
         ...s,
         kind: "dice",
-        dice: layoutDice(defaultDice(2, [3, 6])),
+        dice: layoutDice(defaultDice(2, [3, 6]), 2),
+        diceCols: 2,
       }),
   },
   {
@@ -686,7 +809,8 @@ export const COUNTING_PRESETS: {
       normalizeState({
         ...s,
         kind: "dice",
-        dice: layoutDice(defaultDice(3, [1, 4, 6])),
+        dice: layoutDice(defaultDice(3, [1, 4, 6]), 3),
+        diceCols: 3,
       }),
   },
   {
@@ -698,7 +822,8 @@ export const COUNTING_PRESETS: {
       normalizeState({
         ...s,
         kind: "cards",
-        cards: layoutCards(defaultCards(10)),
+        cards: layoutCards(defaultCards(10), 5),
+        cardCols: 5,
       }),
   },
   {
@@ -710,7 +835,8 @@ export const COUNTING_PRESETS: {
       normalizeState({
         ...s,
         kind: "cards",
-        cards: layoutCards(defaultCards(3, ["A", "B", "C"])),
+        cards: layoutCards(defaultCards(3, ["A", "B", "C"]), 3),
+        cardCols: 3,
       }),
   },
   {
@@ -751,7 +877,7 @@ export const COUNTING_PRESETS: {
       return normalizeState({
         ...s,
         kind: "paths",
-        paths: { places, edges: defaultEdges(places) },
+        paths: { ...s.paths, places, edges: defaultEdges(places) },
       });
     },
   },

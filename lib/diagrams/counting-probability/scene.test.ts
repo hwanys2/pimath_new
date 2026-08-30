@@ -28,4 +28,46 @@ describe("counting-probability scene", () => {
     });
     assert.ok(scene.cmds.some((c) => c.t === "sector"));
   });
+
+  it("includes spinner radial dividers from center", () => {
+    const scene = buildCountingScene({
+      ...DEFAULT_COUNTING_STATE,
+      kind: "spinner",
+    });
+    const cx = 280;
+    const cy = 210;
+    const n = DEFAULT_COUNTING_STATE.spinner.slices.length;
+    const dividers = scene.cmds.filter(
+      (c) =>
+        c.t === "line" &&
+        c.x1 === cx &&
+        c.y1 === cy &&
+        Math.hypot(c.x2 - cx, c.y2 - cy) > 120,
+    );
+    assert.equal(dividers.length, n);
+  });
+
+  it("renders card labels in paint cmds", () => {
+    const scene = buildCountingScene({
+      ...DEFAULT_COUNTING_STATE,
+      kind: "cards",
+    });
+    assert.ok(
+      scene.cmds.some(
+        (c) => c.t === "text" && c.text.id.startsWith("card:"),
+      ),
+    );
+  });
+
+  it("uses emoji icons on paths", () => {
+    const scene = buildCountingScene({
+      ...DEFAULT_COUNTING_STATE,
+      kind: "paths",
+    });
+    assert.ok(scene.cmds.some((c) => c.t === "emoji"));
+    assert.equal(
+      scene.cmds.filter((c) => c.t === "emoji").length,
+      DEFAULT_COUNTING_STATE.paths.places.length,
+    );
+  });
 });

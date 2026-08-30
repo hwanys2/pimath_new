@@ -51,6 +51,7 @@ export default function CountingCanvas({
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const sceneRef = useRef<CountingScene | null>(null);
   const dragRef = useRef<DragState | null>(null);
+  const pointerStartRef = useRef<{ x: number; y: number } | null>(null);
   const stateRef = useRef(state);
   const selectedRef = useRef(selected);
   const [edit, setEdit] = useState<{
@@ -87,13 +88,38 @@ export default function CountingCanvas({
   ) {
     if (!showPathControls || !scene.uiControls?.length) return;
     for (const c of scene.uiControls) {
+      if (c.action === "label") {
+        if (!c.text) continue;
+        ctx.save();
+        ctx.font = "600 12px system-ui, sans-serif";
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        const metrics = ctx.measureText(c.text);
+        const padX = 10;
+        const w = metrics.width + padX * 2;
+        const h = 22;
+        ctx.fillStyle = "rgba(255,255,255,0.94)";
+        ctx.strokeStyle = "rgba(0,0,0,0.12)";
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.roundRect(c.x - w / 2, c.y - h / 2, w, h, 8);
+        ctx.fill();
+        ctx.stroke();
+        ctx.fillStyle = "#333333";
+        ctx.fillText(c.text, c.x, c.y + 0.5);
+        ctx.restore();
+        continue;
+      }
       ctx.save();
       ctx.beginPath();
       ctx.arc(c.x, c.y, c.r, 0, Math.PI * 2);
       ctx.fillStyle = c.action === "inc" ? "#4a90d9" : "#e85a5a";
       ctx.fill();
+      ctx.strokeStyle = "rgba(0,0,0,0.15)";
+      ctx.lineWidth = 1;
+      ctx.stroke();
       ctx.fillStyle = "#ffffff";
-      ctx.font = "bold 14px system-ui, sans-serif";
+      ctx.font = "bold 16px system-ui, sans-serif";
       ctx.textAlign = "center";
       ctx.textBaseline = "middle";
       ctx.fillText(c.action === "inc" ? "+" : "−", c.x, c.y + 0.5);
@@ -141,7 +167,7 @@ export default function CountingCanvas({
       case "spinner":
         return "등분할 원판. 칸을 눌러 고르고 글자를 바꿀 수 있어요.";
       case "paths":
-        return "길. 장소를 끌고 +/−로 길 개수를 바꿀 수 있어요.";
+        return "길. 장소와 길을 눌러 고르고, 길은 끌어 간격을 맞출 수 있어요.";
       default:
         return "경우의 수와 확률 그림";
     }
@@ -164,9 +190,11 @@ export default function CountingCanvas({
           const scene = sceneRef.current;
           if (!scene) return;
           const p = scenePoint(e);
+          pointerStartRef.current = p;
 
           const ui = hitTestUiControl(scene, p.x, p.y);
           if (ui && onEdgeCountChange) {
+            onSelect(`edge:${ui.edgeId}`);
             onEdgeCountChange(ui.edgeId, ui.action === "inc" ? 1 : -1);
             return;
           }
@@ -195,12 +223,16 @@ export default function CountingCanvas({
         onPointerUp={(e) => {
           const drag = dragRef.current;
           dragRef.current = null;
+          const start = pointerStartRef.current;
+          pointerStartRef.current = null;
           persist();
-          if (drag && drag.t !== "edge") {
-            const p = scenePoint(e);
+          const p = scenePoint(e);
+          const moved = start ? Math.hypot(p.x - start.x, p.y - start.y) : 999;
+          if (drag && drag.t !== "edge" && moved < 6) {
             const hit = hitAt(p);
             if (hit && isTextEditableHit(hit)) {
               const scene = sceneRef.current;
+              const current = stateRef.current;
               const textId =
                 hit.t === "card"
                   ? `card:${hit.id}`
@@ -213,14 +245,38 @@ export default function CountingCanvas({
                         : hit.t === "pouch"
                           ? `pouch:${hit.id}`
                           : null;
-              const text = scene?.texts.find((t) => t.id === textId);
-              if (text && Math.hypot(p.x - text.x, p.y - text.y) < 24) {
-                setEdit({
-                  id: textId!,
-                  value: sceneTextPlain(text),
-                  x: text.x,
-                  y: text.y,
-                });
+              if (textId) {
+                let value = "";
+                let x = p.x;
+                let y = p.y;
+                if (hit.t === "card") {
+                  value = current.cards.find((c) => c.id === hit.id)?.text ?? "";
+                  const card = current.cards.find((c) => c.id === hit.id);
+                  if (card) {
+                    x = card.x;
+                    y = card.y;
+                  }
+                  setEdit({ id: textId, value, x, y });
+                } else if (hit.t === "ball") {
+                  const pouch = current.pouches.find((p0) => p0.id === hit.pouchId);
+                  const ball = pouch?.balls.find((b) => b.id === hit.id);
+                  value = ball?.text ?? "";
+                  if (pouch && ball) {
+                    x = pouch.x + ball.x;
+                    y = pouch.y + ball.y;
+                  }
+                  setEdit({ id: textId, value, x, y });
+                } else {
+                  const text = scene?.texts.find((t) => t.id === textId);
+                  if (text && Math.hypot(p.x - text.x, p.y - text.y) < 24) {
+                    setEdit({
+                      id: textId,
+                      value: sceneTextPlain(text),
+                      x: text.x,
+                      y: text.y,
+                    });
+                  }
+                }
               }
             }
           }

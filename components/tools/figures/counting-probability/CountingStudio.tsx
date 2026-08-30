@@ -32,6 +32,8 @@ import {
   MAX_PLACES,
   MAX_POUCHES,
   MAX_SLICES,
+  MAX_CARD_COLS,
+  MAX_DICE_COLS,
   MIN_BALLS,
   MIN_CARDS,
   MIN_DICE,
@@ -45,7 +47,9 @@ import {
   relayoutPaths,
   relayoutPouches,
   setBallCount,
+  setCardCols,
   setCardCount,
+  setDiceCols,
   setDiceCount,
   setEdgeCount,
   setPlaceCount,
@@ -276,23 +280,41 @@ export default function CountingStudio() {
     switch (state.kind) {
       case "dice":
         return (
-          <Stepper
-            label="주사위 개수"
-            value={state.dice.length}
-            min={MIN_DICE}
-            max={MAX_DICE}
-            onChange={(n) => setState(setDiceCount(state, n))}
-          />
+          <div className="space-y-3">
+            <Stepper
+              label="주사위 개수"
+              value={state.dice.length}
+              min={MIN_DICE}
+              max={MAX_DICE}
+              onChange={(n) => setState(setDiceCount(state, n))}
+            />
+            <Stepper
+              label="가로 배치 (한 줄)"
+              value={state.diceCols}
+              min={1}
+              max={MAX_DICE_COLS}
+              onChange={(n) => setState(setDiceCols(state, n))}
+            />
+          </div>
         );
       case "cards":
         return (
-          <Stepper
-            label="카드 개수"
-            value={state.cards.length}
-            min={MIN_CARDS}
-            max={MAX_CARDS}
-            onChange={(n) => setState(setCardCount(state, n))}
-          />
+          <div className="space-y-3">
+            <Stepper
+              label="카드 개수"
+              value={state.cards.length}
+              min={MIN_CARDS}
+              max={MAX_CARDS}
+              onChange={(n) => setState(setCardCount(state, n))}
+            />
+            <Stepper
+              label="가로 배치 (한 줄)"
+              value={state.cardCols}
+              min={1}
+              max={MAX_CARD_COLS}
+              onChange={(n) => setState(setCardCols(state, n))}
+            />
+          </div>
         );
       case "pouches":
         return (
@@ -318,7 +340,7 @@ export default function CountingStudio() {
               />
             ) : (
               <p className="text-[11px] text-foreground/45">
-                주머니를 누르면 공 개수를 바꿀 수 있어요.
+                주머니를 누르면 공 개수를, 공을 누르면 이름·색을 바꿀 수 있어요.
               </p>
             )}
           </div>
@@ -335,13 +357,48 @@ export default function CountingStudio() {
         );
       case "paths":
         return (
-          <Stepper
-            label="장소 개수"
-            value={state.paths.places.length}
-            min={MIN_PLACES}
-            max={MAX_PLACES}
-            onChange={(n) => setState(setPlaceCount(state, n))}
-          />
+          <div className="space-y-3">
+            <Stepper
+              label="장소 개수"
+              value={state.paths.places.length}
+              min={MIN_PLACES}
+              max={MAX_PLACES}
+              onChange={(n) => setState(setPlaceCount(state, n))}
+            />
+            <div>
+              <p className="text-xs font-semibold text-foreground/60">장소 이름</p>
+              <div className="mt-1.5">
+                <ChipToggle
+                  on={state.paths.showPlaceLabels}
+                  onClick={() =>
+                    set({
+                      paths: {
+                        ...state.paths,
+                        showPlaceLabels: !state.paths.showPlaceLabels,
+                      },
+                    })
+                  }
+                >
+                  그림 아래 표시
+                </ChipToggle>
+              </div>
+            </div>
+            {state.paths.showPlaceLabels ? (
+              <SliderField
+                label="이름 글자 크기"
+                value={state.paths.labelFontSize}
+                onChange={(labelFontSize) =>
+                  set({
+                    paths: { ...state.paths, labelFontSize },
+                  })
+                }
+                min={10}
+                max={28}
+                step={1}
+                display={`${state.paths.labelFontSize}px`}
+              />
+            ) : null}
+          </div>
         );
       default:
         return null;
@@ -353,7 +410,9 @@ export default function CountingStudio() {
       return (
         <p className="text-[11px] leading-snug text-foreground/45">
           그림에서 항목을 누르면 눈·글자·색을 고칠 수 있어요. 주사위·카드·주머니·공·장소는
-          끌어 재배치할 수 있습니다.
+          끌어 재배치할 수 있습니다. 길 모드에서는 길을 누르면 +/−로 개수를, 길 선을
+          끌면 간격을 조절할 수 있어요. 가로 배치는 1열 설정에서, 균등 정렬은 「다시
+          정렬」을 누르세요.
         </p>
       );
     }
@@ -574,12 +633,15 @@ export default function CountingStudio() {
                     },
                   })
                 }
-                className={`rounded-lg px-2 py-1.5 text-left text-[11px] font-semibold ${
+                className={`flex items-center gap-1.5 rounded-lg px-2 py-1.5 text-left text-[11px] font-semibold ${
                   place.icon === opt.id
                     ? "bg-wood text-cream"
                     : "bg-black/5 text-foreground/70 hover:bg-black/10"
                 }`}
               >
+                <span className="text-base leading-none" aria-hidden>
+                  {opt.emoji}
+                </span>
                 {opt.label}
               </button>
             ))}
@@ -605,6 +667,9 @@ export default function CountingStudio() {
             max={MAX_PATHS}
             onChange={(n) => setState(setEdgeCount(state, edge.id, n))}
           />
+          <p className="text-[11px] text-foreground/45">
+            길 선을 끌어 간격·위치를 맞추세요. +/−는 그림 위에도 표시됩니다.
+          </p>
         </div>
       );
     }
@@ -759,48 +824,36 @@ export default function CountingStudio() {
             {state.kind === "paths" && state.paths.places.length >= 2 ? (
               <div className="mt-3 space-y-2">
                 <p className="text-xs font-semibold text-foreground/60">직통 길 추가</p>
-                <div className="grid grid-cols-2 gap-2">
-                  <PlaceSelect
-                    label="출발"
-                    places={state.paths.places}
-                    value={state.paths.places[0]?.id ?? ""}
-                    onChange={() => {}}
-                    id="path-from"
-                    readOnly
-                  />
-                </div>
                 <p className="text-[11px] text-foreground/45">
                   구간을 누르면 길 개수를 바꿀 수 있어요. 그림 위 +/− 버튼도
                   사용할 수 있습니다.
                 </p>
-                {state.paths.places.length >= 2 ? (
-                  <div className="flex flex-wrap gap-1">
-                    {state.paths.places.map((from) =>
-                      state.paths.places
-                        .filter((to) => to.id !== from.id)
-                        .map((to) => {
-                          const exists = state.paths.edges.some(
-                            (e) =>
-                              (e.from === from.id && e.to === to.id) ||
-                              (e.from === to.id && e.to === from.id),
-                          );
-                          if (exists) return null;
-                          return (
-                            <button
-                              key={`${from.id}-${to.id}`}
-                              type="button"
-                              onClick={() =>
-                                setState(addDirectEdge(state, from.id, to.id))
-                              }
-                              className="rounded-lg bg-black/5 px-2 py-1 text-[11px] font-semibold text-foreground/70 hover:bg-black/10"
-                            >
-                              {from.label}↔{to.label}
-                            </button>
-                          );
-                        }),
-                    )}
-                  </div>
-                ) : null}
+                <div className="flex flex-wrap gap-1">
+                  {state.paths.places.map((from) =>
+                    state.paths.places
+                      .filter((to) => to.id !== from.id)
+                      .map((to) => {
+                        const exists = state.paths.edges.some(
+                          (e) =>
+                            (e.from === from.id && e.to === to.id) ||
+                            (e.from === to.id && e.to === from.id),
+                        );
+                        if (exists) return null;
+                        return (
+                          <button
+                            key={`${from.id}-${to.id}`}
+                            type="button"
+                            onClick={() =>
+                              setState(addDirectEdge(state, from.id, to.id))
+                            }
+                            className="rounded-lg bg-black/5 px-2 py-1 text-[11px] font-semibold text-foreground/70 hover:bg-black/10"
+                          >
+                            {from.label}↔{to.label}
+                          </button>
+                        );
+                      }),
+                  )}
+                </div>
               </div>
             ) : null}
           </section>
@@ -918,40 +971,5 @@ function ColorChips({
         ))}
       </div>
     </div>
-  );
-}
-
-function PlaceSelect({
-  label,
-  places,
-  value,
-  onChange,
-  id,
-  readOnly,
-}: {
-  label: string;
-  places: { id: string; label: string }[];
-  value: string;
-  onChange: (id: string) => void;
-  id: string;
-  readOnly?: boolean;
-}) {
-  return (
-    <label className="block">
-      <span className="text-xs font-semibold text-foreground/60">{label}</span>
-      <select
-        id={id}
-        value={value}
-        disabled={readOnly}
-        onChange={(e) => onChange(e.target.value)}
-        className="mt-1 w-full rounded-xl border-2 border-wood/20 bg-white px-2 py-1.5 text-sm outline-none focus:border-wood"
-      >
-        {places.map((p) => (
-          <option key={p.id} value={p.id}>
-            {p.label}
-          </option>
-        ))}
-      </select>
-    </label>
   );
 }

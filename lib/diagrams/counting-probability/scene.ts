@@ -1,8 +1,15 @@
 import { appendIconCmds } from "@/lib/diagrams/counting-probability/icons";
 import {
+  BALL_RADIUS,
   COLORS,
+  defaultEdgeBend,
   DIE_SIZE,
+  edgeFrame,
+  edgeLaneMidpoint,
+  PATH_LANE_SPACING,
   PIP_LAYOUT,
+  POUCH_BODY_H,
+  POUCH_BODY_W,
   SCENE_HEIGHT,
   SCENE_WIDTH,
   type BallItem,
@@ -14,14 +21,15 @@ import {
   type PouchItem,
 } from "@/lib/diagrams/counting-probability/model";
 import { parseNameRuns } from "@/lib/diagrams/math-label";
-import type { DiagramScene, SceneCmd, SceneText } from "@/lib/diagrams/scene";
+import type { DiagramScene, SceneCmd, SceneText, Vec } from "@/lib/diagrams/scene";
 
 const INK = "#111111";
 const CARD_W = 52;
 const CARD_H = 72;
 const CARD_R = 10;
-const POUCH_W = 90;
-const POUCH_H = 100;
+const POUCH_W = POUCH_BODY_W;
+const POUCH_H = POUCH_BODY_H;
+const RIBBON = "#c03030";
 
 export type CountingHit =
   | { t: "dice"; id: string }
@@ -48,11 +56,17 @@ export type CountingHitRegion = CountingHit & {
 export type UiControl = {
   id: string;
   edgeId: string;
-  action: "inc" | "dec";
+  action: "inc" | "dec" | "label";
   x: number;
   y: number;
   r: number;
+  text?: string;
 };
+
+function pushText(texts: SceneText[], cmds: SceneCmd[], text: SceneText): void {
+  texts.push(text);
+  cmds.push({ t: "text", text });
+}
 
 export function buildCountingScene(
   state: CountingState,
@@ -101,7 +115,6 @@ function addDie(
 ): void {
   const half = DIE_SIZE / 2;
   const colors = COLORS[die.color];
-  const rad = (die.rotation * Math.PI) / 180;
   const cx = die.x;
   const cy = die.y;
 
@@ -119,10 +132,8 @@ function addDie(
 
   const pipR = DIE_SIZE * 0.07;
   for (const [px, py] of PIP_LAYOUT[die.face]) {
-    const lx = (px - 0.5) * DIE_SIZE * 0.72;
-    const ly = (py - 0.5) * DIE_SIZE * 0.72;
-    const x = cx + lx * Math.cos(rad) - ly * Math.sin(rad);
-    const y = cy + lx * Math.sin(rad) + ly * Math.cos(rad);
+    const x = cx + (px - 0.5) * DIE_SIZE * 0.72;
+    const y = cy + (py - 0.5) * DIE_SIZE * 0.72;
     cmds.push({ t: "dot", x, y, r: pipR, stroke: "#ffffff" });
   }
 
@@ -189,7 +200,7 @@ function addCard(
     width: selected ? 2.5 : 1.8,
     dashed: true,
   });
-  texts.push({
+  pushText(texts, cmds, {
     id: `card:${card.id}`,
     x: card.x,
     y: card.y,
@@ -201,15 +212,82 @@ function addCard(
   hits.push({ t: "card", id: card.id, x, y, w: CARD_W, h: CARD_H });
 }
 
-function pouchPolygon(cx: number, cy: number): { x: number; y: number }[] {
-  const hw = POUCH_W / 2;
-  const hh = POUCH_H / 2;
+function pouchBodyPoints(cx: number, cy: number): Vec[] {
+  const hw = POUCH_W * 0.48;
+  const hh = POUCH_H * 0.46;
   return [
-    { x: cx - hw * 0.85, y: cy - hh * 0.15 },
-    { x: cx + hw * 0.85, y: cy - hh * 0.15 },
-    { x: cx + hw * 0.75, y: cy + hh * 0.55 },
-    { x: cx - hw * 0.75, y: cy + hh * 0.55 },
+    { x: cx - hw * 0.38, y: cy - hh * 0.58 },
+    { x: cx - hw * 0.52, y: cy - hh * 0.38 },
+    { x: cx - hw * 0.98, y: cy - hh * 0.02 },
+    { x: cx - hw * 0.82, y: cy + hh * 0.62 },
+    { x: cx, y: cy + hh * 0.78 },
+    { x: cx + hw * 0.82, y: cy + hh * 0.62 },
+    { x: cx + hw * 0.98, y: cy - hh * 0.02 },
+    { x: cx + hw * 0.52, y: cy - hh * 0.38 },
+    { x: cx + hw * 0.38, y: cy - hh * 0.58 },
   ];
+}
+
+function pouchNeckPoints(cx: number, cy: number): Vec[] {
+  const hw = POUCH_W * 0.48;
+  const hh = POUCH_H * 0.46;
+  const ny = cy - hh * 0.42;
+  return [
+    { x: cx - hw * 0.38, y: ny },
+    { x: cx - hw * 0.22, y: ny - hh * 0.12 },
+    { x: cx + hw * 0.22, y: ny - hh * 0.12 },
+    { x: cx + hw * 0.38, y: ny },
+  ];
+}
+
+function drawPouchRibbon(cx: number, cy: number, cmds: SceneCmd[]): void {
+  const hh = POUCH_H * 0.46;
+  const ny = cy - hh * 0.42;
+  const bowY = ny - hh * 0.1;
+  cmds.push({
+    t: "line",
+    x1: cx - POUCH_W * 0.22,
+    y1: ny,
+    x2: cx + POUCH_W * 0.22,
+    y2: ny,
+    stroke: RIBBON,
+    width: 2.4,
+  });
+  cmds.push({
+    t: "circle",
+    x: cx - 10,
+    y: bowY,
+    r: 7,
+    stroke: RIBBON,
+    width: 2,
+  });
+  cmds.push({
+    t: "circle",
+    x: cx + 10,
+    y: bowY,
+    r: 7,
+    stroke: RIBBON,
+    width: 2,
+  });
+  cmds.push({ t: "dot", x: cx, y: bowY, r: 4, stroke: RIBBON });
+  cmds.push({
+    t: "line",
+    x1: cx - 10,
+    y1: bowY,
+    x2: cx - 18,
+    y2: bowY + 10,
+    stroke: RIBBON,
+    width: 1.6,
+  });
+  cmds.push({
+    t: "line",
+    x1: cx + 10,
+    y1: bowY,
+    x2: cx + 18,
+    y2: bowY + 10,
+    stroke: RIBBON,
+    width: 1.6,
+  });
 }
 
 function buildPouchesScene(
@@ -243,23 +321,44 @@ function addPouch(
 ): void {
   const cx = pouch.x;
   const cy = pouch.y;
-  const pts = pouchPolygon(cx, cy);
-  cmds.push({ t: "polygon", points: pts, fill: COLORS.beige.fill });
+  const body = pouchBodyPoints(cx, cy);
+  const neck = pouchNeckPoints(cx, cy);
+
   cmds.push({
-    t: "polyline",
-    pts,
-    stroke: selected ? INK : COLORS.beige.stroke,
-    width: selected ? 2.2 : 1.4,
+    t: "ellipseArc",
+    cx,
+    cy: cy + POUCH_H * 0.34,
+    ux: POUCH_W * 0.34,
+    uy: 0,
+    vx: 0,
+    vy: 10,
+    a0: 0,
+    a1: Math.PI,
+    stroke: "rgba(0,0,0,0.08)",
+    width: 1,
   });
+
+  cmds.push({ t: "polygon", points: body, fill: COLORS.beige.fill });
   cmds.push({
-    t: "line",
-    x1: cx - 28,
-    y1: cy - POUCH_H * 0.15,
-    x2: cx + 28,
-    y2: cy - POUCH_H * 0.15,
-    stroke: "#c03030",
-    width: 2,
+    t: "polygon",
+    points: [
+      { x: cx - POUCH_W * 0.3, y: cy + POUCH_H * 0.08 },
+      { x: cx + POUCH_W * 0.3, y: cy + POUCH_H * 0.08 },
+      { x: cx + POUCH_W * 0.18, y: cy + POUCH_H * 0.38 },
+      { x: cx - POUCH_W * 0.18, y: cy + POUCH_H * 0.38 },
+    ],
+    fill: "rgba(192,168,128,0.18)",
   });
+
+  hits.push({
+    t: "pouch",
+    id: pouch.id,
+    x: cx - POUCH_W / 2,
+    y: cy - POUCH_H / 2,
+    w: POUCH_W,
+    h: POUCH_H + 28,
+  });
+
   for (const ball of pouch.balls) {
     addBall(
       pouch.id,
@@ -273,22 +372,32 @@ function addPouch(
       fontSize * 0.85,
     );
   }
-  texts.push({
+
+  cmds.push({ t: "polygon", points: neck, fill: COLORS.beige.fill });
+  cmds.push({
+    t: "polyline",
+    pts: neck,
+    stroke: COLORS.beige.stroke,
+    width: 1.2,
+  });
+
+  drawPouchRibbon(cx, cy, cmds);
+
+  cmds.push({
+    t: "polyline",
+    pts: body,
+    stroke: selected ? INK : COLORS.beige.stroke,
+    width: selected ? 2.4 : 1.6,
+  });
+
+  pushText(texts, cmds, {
     id: `pouch:${pouch.id}`,
     x: cx,
-    y: cy + POUCH_H * 0.72,
+    y: cy + POUCH_H * 0.52,
     runs: parseNameRuns(pouch.label),
     size: fontSize + 2,
     anchor: "middle",
     fill: INK,
-  });
-  hits.push({
-    t: "pouch",
-    id: pouch.id,
-    x: cx - POUCH_W / 2,
-    y: cy - POUCH_H / 2,
-    w: POUCH_W,
-    h: POUCH_H + 24,
   });
 }
 
@@ -305,7 +414,7 @@ function addBall(
 ): void {
   const x = pouchCx + ball.x;
   const y = pouchCy + ball.y;
-  const r = 14;
+  const r = BALL_RADIUS;
   const colors = COLORS[ball.color];
   cmds.push({ t: "dot", x, y, r, stroke: colors.fill });
   cmds.push({
@@ -314,25 +423,27 @@ function addBall(
     y,
     r,
     stroke: selected ? INK : colors.stroke,
-    width: selected ? 2 : 1.2,
+    width: selected ? 2.4 : 1.2,
   });
-  texts.push({
-    id: `ball:${pouchId}:${ball.id}`,
-    x,
-    y,
-    runs: parseNameRuns(ball.text || "?"),
-    size: fontSize,
-    anchor: "middle",
-    fill: ball.color === "white" ? INK : "#ffffff",
-  });
+  if (ball.text.trim()) {
+    pushText(texts, cmds, {
+      id: `ball:${pouchId}:${ball.id}`,
+      x,
+      y,
+      runs: parseNameRuns(ball.text),
+      size: fontSize,
+      anchor: "middle",
+      fill: ball.color === "white" || ball.color === "yellow" ? INK : "#ffffff",
+    });
+  }
   hits.push({
     t: "ball",
     pouchId,
     id: ball.id,
-    x: x - r,
-    y: y - r,
-    w: r * 2,
-    h: r * 2,
+    x: x - r - 2,
+    y: y - r - 2,
+    w: (r + 2) * 2,
+    h: (r + 2) * 2,
   });
 }
 
@@ -365,21 +476,45 @@ function buildSpinnerScene(
       ccw: false,
       fill: colors.light,
     });
+  }
+
+  for (let i = 0; i < n; i += 1) {
+    const a = rot + i * step;
     cmds.push({
-      t: "arc",
-      cx,
-      cy,
-      r,
-      a0,
-      a1,
-      ccw: false,
-      stroke: selected === `slice:${slice.id}` ? INK : "#ffffff",
-      width: selected === `slice:${slice.id}` ? 3 : 2,
+      t: "line",
+      x1: cx,
+      y1: cy,
+      x2: cx + Math.cos(a) * r,
+      y2: cy + Math.sin(a) * r,
+      stroke: INK,
+      width: 2,
     });
+  }
+
+  cmds.push({ t: "circle", x: cx, y: cy, r, stroke: INK, width: 2 });
+
+  for (let i = 0; i < n; i += 1) {
+    const slice = state.spinner.slices[i]!;
+    const a0 = rot + i * step;
+    const a1 = a0 + step;
+    const isSelected = selected === `slice:${slice.id}`;
+    if (isSelected) {
+      cmds.push({
+        t: "arc",
+        cx,
+        cy,
+        r,
+        a0,
+        a1,
+        ccw: false,
+        stroke: COLORS[slice.color].stroke,
+        width: 4,
+      });
+    }
     const mid = (a0 + a1) / 2;
     const tx = cx + Math.cos(mid) * r * 0.62;
     const ty = cy + Math.sin(mid) * r * 0.62;
-    texts.push({
+    pushText(texts, cmds, {
       id: `slice:${slice.id}`,
       x: tx,
       y: ty,
@@ -400,7 +535,6 @@ function buildSpinnerScene(
     });
   }
 
-  cmds.push({ t: "circle", x: cx, y: cy, r, stroke: INK, width: 1.5 });
   cmds.push({ t: "dot", x: cx, y: cy, r: 6, stroke: "#6ec86e" });
   cmds.push({
     t: "arrowhead",
@@ -446,7 +580,8 @@ function buildPathsScene(
       cmds,
       texts,
       hits,
-      state.style.fontSize,
+      state.paths.labelFontSize,
+      state.paths.showPlaceLabels,
       selected === `place:${place.id}`,
     );
   }
@@ -462,77 +597,117 @@ function addPathEdge(
   selected: boolean,
 ): void {
   const colors = COLORS[edge.color];
-  const dx = b.x - a.x;
-  const dy = b.y - a.y;
-  const len = Math.hypot(dx, dy) || 1;
-  const nx = -dy / len;
-  const ny = dx / len;
-  const direct = Math.abs(dx) > Math.abs(dy) * 1.2;
+  const frame = edgeFrame(a, b);
+  const { nx, ny, direct } = frame;
+  const pathLift = 28;
 
   for (let i = 0; i < edge.count; i += 1) {
-    const bend = edge.bends[i] ?? (i - (edge.count - 1) / 2) * 28;
-    const mx = (a.x + b.x) / 2 + nx * bend;
-    const my = (a.y + b.y) / 2 + ny * bend;
-    if (direct && Math.abs(bend) < 8) {
+    const bend = edge.bends[i] ?? defaultEdgeBend(edge.count, i);
+    const lane = edgeLaneMidpoint(a, b, bend);
+    const mx = lane.x;
+    const my = lane.y;
+    const curveCy = my - pathLift;
+
+    if (direct && Math.abs(bend) < 10) {
       cmds.push({
         t: "line",
         x1: a.x,
-        y1: a.y - 28,
+        y1: a.y - pathLift,
         x2: b.x,
-        y2: b.y - 28,
+        y2: b.y - pathLift,
         stroke: colors.stroke,
-        width: selected ? 2.8 : 2,
+        width: selected ? 3 : 2,
       });
     } else {
       cmds.push({
         t: "quad",
         x1: a.x,
-        y1: a.y - 24,
+        y1: a.y - pathLift + 4,
         cx: mx,
-        cy: my - 24,
+        cy: curveCy,
         x2: b.x,
-        y2: b.y - 24,
+        y2: b.y - pathLift + 4,
         stroke: colors.stroke,
-        width: selected ? 2.8 : 2,
+        width: selected ? 3 : 2,
       });
     }
+
+    if (selected) {
+      cmds.push({
+        t: "circle",
+        x: mx,
+        y: curveCy,
+        r: 7,
+        stroke: colors.stroke,
+        width: 2,
+      });
+      cmds.push({ t: "dot", x: mx, y: curveCy, r: 4, stroke: colors.fill });
+    }
+
+    const hitW = 72;
+    const hitH = 52;
     hits.push({
       t: "edge",
       id: edge.id,
       lane: i,
-      x: mx - 20,
-      y: my - 36,
-      w: 40,
-      h: 40,
+      x: mx - hitW / 2,
+      y: curveCy - hitH / 2,
+      w: hitW,
+      h: hitH,
     });
     hits.push({
       t: "edgeControl",
       id: edge.id,
       lane: i,
-      x: mx - 8,
-      y: my - 32,
-      w: 16,
-      h: 16,
+      x: mx - 14,
+      y: curveCy - 14,
+      w: 28,
+      h: 28,
     });
   }
 
-  const midX = (a.x + b.x) / 2;
-  const midY = Math.min(a.y, b.y) - 70;
+  if (!selected) return;
+
+  const midLane = Math.floor((edge.count - 1) / 2);
+  const midBend = edge.bends[midLane] ?? defaultEdgeBend(edge.count, midLane);
+  const anchor = edgeLaneMidpoint(a, b, midBend);
+  const panelX = anchor.x + nx * 8;
+  const panelY = anchor.y + ny * 8 - pathLift - 36;
+  const btnR = 15;
+
+  uiControls.push({
+    id: `${edge.id}-cap`,
+    edgeId: edge.id,
+    action: "label",
+    x: panelX,
+    y: panelY - 18,
+    r: 0,
+    text: `${a.label} → ${b.label}`,
+  });
   uiControls.push({
     id: `${edge.id}-dec`,
     edgeId: edge.id,
     action: "dec",
-    x: midX - 28,
-    y: midY,
-    r: 12,
+    x: panelX - 42,
+    y: panelY,
+    r: btnR,
+  });
+  uiControls.push({
+    id: `${edge.id}-count`,
+    edgeId: edge.id,
+    action: "label",
+    x: panelX,
+    y: panelY,
+    r: 0,
+    text: `${edge.count}개`,
   });
   uiControls.push({
     id: `${edge.id}-inc`,
     edgeId: edge.id,
     action: "inc",
-    x: midX + 28,
-    y: midY,
-    r: 12,
+    x: panelX + 42,
+    y: panelY,
+    r: btnR,
   });
 }
 
@@ -541,7 +716,8 @@ function addPlace(
   cmds: SceneCmd[],
   texts: SceneText[],
   hits: CountingHitRegion[],
-  fontSize: number,
+  labelFontSize: number,
+  showPlaceLabels: boolean,
   selected: boolean,
 ): void {
   appendIconCmds(cmds, place.icon, place.x, place.y - 18, 56);
@@ -557,22 +733,25 @@ function addPlace(
       width: 2,
     });
   }
-  texts.push({
-    id: `place:${place.id}`,
-    x: place.x,
-    y: place.y + 34,
-    runs: parseNameRuns(place.label),
-    size: fontSize,
-    anchor: "middle",
-    fill: INK,
-  });
+  if (showPlaceLabels && place.label.trim()) {
+    pushText(texts, cmds, {
+      id: `place:${place.id}`,
+      x: place.x,
+      y: place.y + 34,
+      runs: parseNameRuns(place.label),
+      size: labelFontSize,
+      anchor: "middle",
+      fill: INK,
+    });
+  }
+  const hitH = showPlaceLabels && place.label.trim() ? 80 : 56;
   hits.push({
     t: "place",
     id: place.id,
     x: place.x - 32,
     y: place.y - 40,
     w: 64,
-    h: 80,
+    h: hitH,
   });
 }
 
@@ -597,7 +776,8 @@ export function hitTestUiControl(
   y: number,
 ): UiControl | null {
   for (const c of scene.uiControls ?? []) {
-    if (Math.hypot(x - c.x, y - c.y) <= c.r + 4) return c;
+    if (c.action === "label") continue;
+    if (Math.hypot(x - c.x, y - c.y) <= c.r + 6) return c;
   }
   return null;
 }

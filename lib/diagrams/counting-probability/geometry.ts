@@ -1,6 +1,12 @@
 import type { CountingHit } from "@/lib/diagrams/counting-probability/scene";
 import type { CountingState } from "@/lib/diagrams/counting-probability/model";
-import { SCENE_HEIGHT, SCENE_WIDTH } from "@/lib/diagrams/counting-probability/model";
+import {
+  defaultEdgeBend,
+  edgeFrame,
+  PATH_LANE_SPACING,
+  SCENE_HEIGHT,
+  SCENE_WIDTH,
+} from "@/lib/diagrams/counting-probability/model";
 
 export function canvasToScene(
   canvasX: number,
@@ -139,6 +145,7 @@ export function setEdgeBend(
   lane: number,
   bend: number,
 ): CountingState {
+  const clamped = clamp(bend, -PATH_LANE_SPACING * 4, PATH_LANE_SPACING * 4);
   return {
     ...state,
     paths: {
@@ -146,7 +153,7 @@ export function setEdgeBend(
       edges: state.paths.edges.map((e) => {
         if (e.id !== edgeId) return e;
         const bends = [...e.bends];
-        bends[lane] = bend;
+        bends[lane] = clamped;
         return { ...e, bends };
       }),
     },
@@ -235,7 +242,7 @@ export type DragState =
   | { t: "pouch"; id: string; ox: number; oy: number }
   | { t: "ball"; pouchId: string; id: string; ox: number; oy: number }
   | { t: "place"; id: string; ox: number; oy: number }
-  | { t: "edge"; edgeId: string; lane: number; startBend: number; startY: number };
+  | { t: "edge"; edgeId: string; lane: number; startBend: number; startX: number; startY: number; nx: number; ny: number };
 
 export function startDrag(
   hit: CountingHit,
@@ -276,15 +283,24 @@ export function startDrag(
       if (!pl) return null;
       return { t: "place", id: hit.id, ox: sceneX - pl.x, oy: sceneY - pl.y };
     }
+    case "edge":
     case "edgeControl": {
       const e = state.paths.edges.find((x) => x.id === hit.id);
       if (!e) return null;
+      const a = state.paths.places.find((p) => p.id === e.from);
+      const b = state.paths.places.find((p) => p.id === e.to);
+      if (!a || !b) return null;
+      const { nx, ny } = edgeFrame(a, b);
+      const bend = e.bends[hit.lane] ?? defaultEdgeBend(e.count, hit.lane);
       return {
         t: "edge",
         edgeId: hit.id,
         lane: hit.lane,
-        startBend: e.bends[hit.lane] ?? 0,
+        startBend: bend,
+        startX: sceneX,
         startY: sceneY,
+        nx,
+        ny,
       };
     }
     default:
@@ -315,13 +331,17 @@ export function applyDrag(
       );
     case "place":
       return movePlace(state, drag.id, sceneX - drag.ox, sceneY - drag.oy);
-    case "edge":
+    case "edge": {
+      const deltaX = sceneX - drag.startX;
+      const deltaY = sceneY - drag.startY;
+      const deltaNormal = deltaX * drag.nx + deltaY * drag.ny;
       return setEdgeBend(
         state,
         drag.edgeId,
         drag.lane,
-        drag.startBend + (sceneY - drag.startY),
+        drag.startBend + deltaNormal,
       );
+    }
     default:
       return state;
   }
@@ -344,6 +364,7 @@ export function isDraggableHit(hit: CountingHit): boolean {
     hit.t === "pouch" ||
     hit.t === "ball" ||
     hit.t === "place" ||
+    hit.t === "edge" ||
     hit.t === "edgeControl"
   );
 }
