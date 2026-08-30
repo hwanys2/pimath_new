@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
+import CountingStudio from "@/components/tools/figures/counting-probability/CountingStudio";
 import CircleChordsStudio from "@/components/tools/figures/circle-chords/CircleChordsStudio";
 import CircleSectorsStudio from "@/components/tools/figures/circle-sectors/CircleSectorsStudio";
 import CoordinatePlaneStudio from "@/components/tools/figures/coordinate-plane/CoordinatePlaneStudio";
@@ -14,6 +15,7 @@ import QuadrilateralStudio from "@/components/tools/figures/quadrilaterals/Quadr
 import RepeatingDecimalStudio from "@/components/tools/figures/repeating-decimal/RepeatingDecimalStudio";
 import SimilarFiguresStudio from "@/components/tools/figures/similar-figures/SimilarFiguresStudio";
 import SimilarTrianglesStudio from "@/components/tools/figures/similar-triangles/SimilarTrianglesStudio";
+import PythagoreanStudio from "@/components/tools/figures/pythagorean/PythagoreanStudio";
 import SimilarSolidsStudio from "@/components/tools/figures/similar-solids/SimilarSolidsStudio";
 import SolidSketchStudio from "@/components/tools/figures/solid-sketch/SolidSketchStudio";
 import TriangleCentersStudio from "@/components/tools/figures/triangle-centers/TriangleCentersStudio";
@@ -73,6 +75,10 @@ function renderDiagramStudio(toolId: string): ReactNode {
       return <SimilarTrianglesStudio />;
     case "g2-similar-solids":
       return <SimilarSolidsStudio />;
+    case "g2-pythagorean":
+      return <PythagoreanStudio />;
+    case "g2-counting-probability":
+      return <CountingStudio />;
     case "g3-circle-chords":
       return <CircleChordsStudio />;
     default:

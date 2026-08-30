@@ -187,6 +187,28 @@ export const DIAGRAM_TOOLS: DiagramToolMeta[] = [
     status: "ready",
   },
   {
+    id: "g2-pythagorean",
+    grade: 2,
+    title: "피타고라스의 정리",
+    description:
+      "직각삼각형·세 변 위 정사각형·넓이 증명·빗변 수선·좌표·사각형 대각선을 시험 그림처럼 그리고 PNG로 저장해요.",
+    unitHint: "3.3 피타고라스의 정리",
+    emoji: "△",
+    href: "/tools/figures/g2-pythagorean",
+    status: "ready",
+  },
+  {
+    id: "g2-counting-probability",
+    grade: 2,
+    title: "경우의 수와 확률",
+    description:
+      "주사위·카드·주머니·등분할 원판·길 그림을 고르고, 개수와 내용을 맞춘 뒤 끌어 재배치하고 PNG로 저장해요.",
+    unitHint: "4. 경우의 수와 확률",
+    emoji: "🎲",
+    href: "/tools/figures/g2-counting-probability",
+    status: "ready",
+  },
+  {
     id: "g3-circle-chords",
     grade: 3,
     title: "원의 현",

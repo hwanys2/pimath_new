@@ -44,7 +44,7 @@
 도구 (/tools) 
   └─ 문제 그림 그리기 (/tools/figures)
         ├─ 중1 카드들 → /tools/figures/g1-number-line , /tools/figures/g1-coordinate-plane , /tools/figures/g1-polygon , /tools/figures/g1-circle-sectors , /tools/figures/g1-solid-sketch , /tools/figures/g1-histogram
-        ├─ 중2 카드들 → /tools/figures/g2-repeating-decimal , /tools/figures/g2-linear-inequality , /tools/figures/g2-linear-function , /tools/figures/g2-triangle-centers , /tools/figures/g2-isosceles-triangle , /tools/figures/g2-similar-solids , /tools/figures/g2-quadrilaterals , /tools/figures/g2-similar-figures , /tools/figures/g2-similar-triangles
+        ├─ 중2 카드들 → /tools/figures/g2-repeating-decimal , /tools/figures/g2-linear-inequality , /tools/figures/g2-linear-function , /tools/figures/g2-triangle-centers , /tools/figures/g2-isosceles-triangle , /tools/figures/g2-similar-solids , /tools/figures/g2-quadrilaterals , /tools/figures/g2-similar-figures , /tools/figures/g2-similar-triangles , /tools/figures/g2-counting-probability , /tools/figures/g2-pythagorean
         └─ 중3 카드들
               └─ 원의 현 → /tools/figures/g3-circle-chords
 ```
@@ -92,6 +92,7 @@ components/tools/figures/DiagramToolShell.tsx  ← 공통 뼈대. 손대지 않�
 6. **중심·꼭짓점은 작은 채운 점** + 바깥쪽 라벨. 라벨이 선과 겹치면 드래그로 옮길 수 있게 한다.
 7. **비율.** 기본은 입력한 길이가 그림과 맞게. 드래그로 모양을 잡을 때는 대략이어도 된다. 보이는 숫자를 고치면 그때 그림을 다시 맞춘다.
 8. **내보내기.** 1순위는 **PNG**(한글·워드·슬라이드에 붙이기). SVG는 있으면 좋다. 화면 미리보기와 다운로드 파일이 같은 장면이어야 한다.
+9. **색 예외(경우의 수·확률).** 주사위·카드·주머니 공·등분할 원판·길은 교과서 확률 그림처럼 파스텔 색을 쓴다. 그림 안에 이모지는 넣지 않는다.
 
 ---
 
@@ -348,6 +349,16 @@ components/tools/figures/DiagramToolShell.tsx  ← 공통 뼈대. 손대지 않�
 - 프리셋: 평행선 DE∥BC, 맞붙은 닮음, 대응변, 각이 같은 보조선, 직각 빗변·기하평균, 나비꼴, 중점연결, 평행선 비, 무게중심.
 - 스튜디오는 §5.1 **3열**: 그림 아래 종류 | 표시 칩·목록 | 빠른 그림·그림 스타일(기본 펼침).
 
+### 피타고라스의 정리 (`g2-pythagorean`)
+
+중2 `3.3 피타고라스의 정리`에서 나오는 시험용 직각삼각형·정사각형·증명·수선 그림.
+
+- 그림 종류: 직각삼각형(기호·숫자·x), 세 변 위 정사각형(모눈·ㄱㄴㄷ·분홍·파랑·노랑), 넓이 증명 `(a+b)²`, 빗변 수선, 좌표평면, 사각형 대각선.
+- 중1 다각형의 설명선(점선 호)·직각 네모·라벨 모드를 재사용한다. 점을 끌면 직각이 유지되고, 길이 숫자를 넣으면 피타고라스로 맞춘다.
+- 이등변직각, 모눈·면 채움·빗변 분할·축 수선은 칩으로 켠다.
+- 프리셋: a,b,c 호, 9·12·x, 24·x·25, 이등변직각, 모눈 3×2·2×2·4×3, 넓이 증명, 30·40 수선, 좌표 3-4-5, 6×8 대각선.
+- 스튜디오는 §5.1 **3열**: 그림 아래 종류·치수 | 표시 칩 | 빠른 그림·그림 스타일(기본 펼침).
+
 ### 입체도형의 닮음 (`g2-similar-solids`)
 
 중2 `3.2 도형의 닮음`에서 나오는 시험용 닮은 입체 쌍.
@@ -359,6 +370,16 @@ components/tools/figures/DiagramToolShell.tsx  ← 공통 뼈대. 손대지 않�
 - 길이 표시(높이·반지름·모서리 설명선)는 왼쪽·오른쪽이 독립이다. 대응하는 변을 같이 켜지 않는다.
 - 프리셋: 삼각기둥 3:5, 삼각뿔 A·B, 직육면체 2:3, 원기둥 1:2, 원뿔, 사각뿔.
 - 스튜디오는 §5.1 **3열**(가로 쌍이라 1열이 남은 폭을 채움): 그림 아래 도형 | 표시·보기·닮음비 | 빠른 그림·그림 스타일(기본 펼침).
+
+### 경우의 수와 확률 (`g2-counting-probability`)
+
+중2 `4. 경우의 수와 확률`에서 나오는 시험용 주사위·카드·주머니·등분할 원판·길 그림.
+
+- 그림 종류: 주사위(눈·색·드래그), 카드(글자·점선·드래그), 주머니(공 색·글자·드래그), 등분할 원판(칸 글자·색·회전), 길(장소 아이콘 20종·구간별 길 개수·곡선 드래그).
+- 1열 그림 아래 **그림 종류**와 개수(주사위·카드·주머니·등분·장소). 2열 세부(눈·글자·색·다시 정렬·길 +/-). 3열 빠른 그림·그림 스타일.
+- 프리셋: 주사위 2·3개, 카드 1–10·ABC, 주머니 A·B, 원판 8등분, 학교–문구점–집.
+- 조작: 항목 드래그 재배치, 글자 클릭 수정, PNG·복사·SVG.
+- 스튜디오는 §5.1 **3열**: 그림+종류 | 세부 설정 | 빠른 그림·그림 스타일(기본 펼침). 색은 §4 예외.
 
 이후 접선, 원주각 등을 넣을 때도 **같은 카탈로그·같은 3열 스튜디오·같은 스타일 규칙·같은 라벨 모드·같은 `DiagramToolShell`(하단 의견)** 을 재사용한다.
 
@@ -382,7 +403,9 @@ components/tools/figures/DiagramToolShell.tsx  ← 공통 뼈대. 손대지 않�
 | `g2-quadrilaterals` | 중2 | 사각형의 성질 | ready |
 | `g2-similar-figures` | 중2 | 평면도형의 닮음 | ready |
 | `g2-similar-triangles` | 중2 | 삼각형의 닮음 | ready |
+| `g2-pythagorean` | 중2 | 피타고라스의 정리 | ready |
 | `g2-similar-solids` | 중2 | 입체도형의 닮음 | ready |
+| `g2-counting-probability` | 중2 | 경우의 수와 확률 | ready |
 | `g3-circle-chords` | 중3 | 원의 현 | ready |
 
 ---
@@ -474,4 +497,6 @@ components/tools/figures/DiagramToolShell.tsx  ← 공통 뼈대. 손대지 않�
 | 2026-08-30 | 중2 삼각형의 닮음 (`g2-similar-triangles`). 평행선·나비꼴·직각 높이·중점연결·무게중심, PNG. |
 | 2026-08-30 | 3열 스튜디오 1열을 `g2-similar-solids`처럼 남은 폭까지 확대. `22rem` 캡 금지. §5.1 기본 그리드를 `1fr` + 좁은 2·3열로 고정. |
 | 2026-08-30 | 삼각형의 닮음: 점 드래그 시 길이·각 숫자 동기화, 숫자 입력 시 그림 맞춤, 평행선 DE·l/m/n 위아래 드래그. |
+| 2026-08-30 | 중2 피타고라스의 정리 (`g2-pythagorean`). 직각삼각형·정사각형·증명·수선·좌표·대각선, PNG. |
 | 2026-08-30 | §5.1 열 역할 고정: 1열 그림+큰 설정, 2열 세부 설정, 3열 빠른 그림·그림 스타일. 입체도형의 닮음 도형→1열, 닮음비→2열. |
+| 2026-08-30 | 중2 경우의 수와 확률 (`g2-counting-probability`). 주사위·카드·주머니·원판·길, 드래그 재배치, PNG. |
