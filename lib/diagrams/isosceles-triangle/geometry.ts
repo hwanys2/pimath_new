@@ -17,6 +17,7 @@ import {
   sub,
   vertexAngles,
 } from "@/lib/diagrams/polygon/geometry";
+import { formatNiceNumber } from "@/lib/diagrams/math-label";
 import { emptyLabel, type MeasLabel, type Vec } from "@/lib/diagrams/polygon/model";
 import {
   APEX_INDEX,
@@ -144,6 +145,102 @@ export function setIsoscelesVertexAngle(
   return points.map((p, k) => (k === apex ? nextA : p));
 }
 
+/** Side opposite the equal apex, or BC when the triangle is not locked isosceles. */
+export function floorApex(state: IsoscelesState): 0 | 1 | 2 {
+  return state.equalApex === "none" ? 0 : APEX_INDEX[state.equalApex];
+}
+
+/** Rotate so the base is horizontal and the third vertex sits above it. */
+export function levelOnBase(points: Vec[], apex: 0 | 1 | 2): Vec[] {
+  const [i, j] = oppositeSide(apex);
+  const B = points[i]!;
+  const C = points[j]!;
+  const M = midpoint(B, C);
+  const along = sub(C, B);
+  const ang = Math.atan2(along.y, along.x);
+  const c = Math.cos(-ang);
+  const s = Math.sin(-ang);
+  const rotated = points.map((p) => {
+    const q = sub(p, M);
+    return { x: M.x + q.x * c - q.y * s, y: M.y + q.x * s + q.y * c };
+  });
+  const baseY = rotated[i]!.y;
+  if (rotated[apex]!.y + 1e-9 >= baseY) return rotated;
+  return rotated.map((p) => ({ x: p.x, y: 2 * baseY - p.y }));
+}
+
+function syncAngleLabel(label: MeasLabel, deg: number): MeasLabel {
+  if (label.mode !== "custom") return label;
+  const parsed = parseAngleInput(label.custom);
+  if (parsed.kind !== "number") return label;
+  return { ...label, custom: `${formatNiceNumber(deg)}°` };
+}
+
+function syncLengthLabel(label: MeasLabel, value: number): MeasLabel {
+  if (label.mode !== "custom") return label;
+  const parsed = parseMeasureInput(label.custom);
+  if (parsed.kind !== "number") return label;
+  const unit = label.custom.match(/\b(cm|mm)\b/i)?.[1] ?? "";
+  const n = formatNiceNumber(value);
+  return { ...label, custom: unit ? `${n} ${unit}` : n };
+}
+
+function syncMeasuredLabels(state: IsoscelesState): IsoscelesState {
+  const vertices = state.vertices.map((v, i) => {
+    const { interior, exterior } = vertexAngles(state.points, i);
+    return {
+      ...v,
+      interior: syncAngleLabel(v.interior, interior),
+      exterior: syncAngleLabel(v.exterior, exterior),
+    };
+  });
+  const edges = state.edges.map((e, i) => ({
+    ...e,
+    length: syncLengthLabel(e.length, edgeLength(state.points, i)),
+  }));
+  let cevian = state.cevian;
+  const from = cevianFromIndex(state);
+  const D = footPoint({ ...state, vertices, edges });
+  if (from != null && D) {
+    const [li, ri] = oppositeSide(from);
+    const apex = state.points[from]!;
+    const left = state.points[li]!;
+    const right = state.points[ri]!;
+    cevian = {
+      ...cevian,
+      apexLeft: {
+        ...cevian.apexLeft,
+        label: syncAngleLabel(cevian.apexLeft.label, wedgeDeg(apex, left, D)),
+      },
+      apexRight: {
+        ...cevian.apexRight,
+        label: syncAngleLabel(cevian.apexRight.label, wedgeDeg(apex, right, D)),
+      },
+      footLeft: {
+        ...cevian.footLeft,
+        label: syncAngleLabel(cevian.footLeft.label, wedgeDeg(D, apex, left)),
+      },
+      footRight: {
+        ...cevian.footRight,
+        label: syncAngleLabel(cevian.footRight.label, wedgeDeg(D, apex, right)),
+      },
+      length: {
+        ...cevian.length,
+        label: syncLengthLabel(cevian.length.label, len(sub(D, apex))),
+      },
+      leftLen: {
+        ...cevian.leftLen,
+        label: syncLengthLabel(cevian.leftLen.label, len(sub(D, left))),
+      },
+      rightLen: {
+        ...cevian.rightLen,
+        label: syncLengthLabel(cevian.rightLen.label, len(sub(D, right))),
+      },
+    };
+  }
+  return { ...state, vertices, edges, cevian };
+}
+
 function validTriangle(points: Vec[]): boolean {
   if (points.length !== 3 || !isConvex(points)) return false;
   for (let i = 0; i < 3; i += 1) {
@@ -153,10 +250,18 @@ function validTriangle(points: Vec[]): boolean {
 }
 
 export function syncDerived(state: IsoscelesState): IsoscelesState {
+  const floor = floorApex(state);
+  let points = levelOnBase(state.points, floor);
+  if (state.equalApex !== "none" && state.lockEqual) {
+    points = snapIsosceles(points, APEX_INDEX[state.equalApex]);
+    points = levelOnBase(points, APEX_INDEX[state.equalApex]);
+  }
+  const leveled = { ...state, points };
+  const labeled = syncMeasuredLabels(leveled);
   return normalizeState({
-    ...state,
-    interiorAnglesDeg: [0, 1, 2].map((i) => vertexAngles(state.points, i).interior),
-    referenceEdgeLength: edgeLength(state.points, 0),
+    ...labeled,
+    interiorAnglesDeg: [0, 1, 2].map((i) => vertexAngles(labeled.points, i).interior),
+    referenceEdgeLength: edgeLength(labeled.points, 0),
   });
 }
 
@@ -165,12 +270,21 @@ export function moveVertexIso(
   index: number,
   next: Vec,
 ): IsoscelesState {
-  const trial = state.points.map((p, i) => (i === index ? next : p));
+  let target = next;
+  if (state.equalApex !== "none" && state.lockEqual) {
+    const apex = APEX_INDEX[state.equalApex];
+    if (index !== apex) {
+      const [i, j] = oppositeSide(apex);
+      const other = index === i ? j : i;
+      target = { x: next.x, y: state.points[other]!.y };
+    }
+  }
+  const trial = state.points.map((p, i) => (i === index ? target : p));
   let points = trial;
   if (state.equalApex !== "none" && state.lockEqual) {
     points = snapIsosceles(trial, APEX_INDEX[state.equalApex]);
   } else {
-    const moved = movePolygonVertex(toPolygonState(state), index, next);
+    const moved = movePolygonVertex(toPolygonState(state), index, target);
     if (moved.points === state.points && !validTriangle(trial)) return state;
     points = moved.points === state.points ? trial : moved.points;
     if (!validTriangle(points)) return state;
@@ -203,7 +317,7 @@ export function applyIsoAngle(
     return syncDerived({ ...state, points });
   }
   const poly = applyInteriorAngleChange(toPolygonState(state), index, deg);
-  return fromPolygonState(poly, state);
+  return syncDerived(fromPolygonState(poly, state));
 }
 
 export function applyIsoLength(
@@ -225,7 +339,7 @@ export function applyIsoLength(
     return syncDerived({ ...state, points });
   }
   const poly = applyEdgeLengthChange(toPolygonState(state), edgeIndex, target);
-  return fromPolygonState(poly, state);
+  return syncDerived(fromPolygonState(poly, state));
 }
 
 function scaleAbout(points: Vec[], center: Vec, s: number): Vec[] {
@@ -366,6 +480,48 @@ export function applyEditedLabel(state: IsoscelesState, id: string, text: string
           label: labelFromParse(parsed, text, state.cevian[field].label, false),
         },
       },
+    };
+  }
+  const angMatch = /^v:(\d+):(interior|exterior)$/.exec(id);
+  if (angMatch) {
+    const i = Number(angMatch[1]);
+    const which = angMatch[2] as "interior" | "exterior";
+    const parsed = parseAngleInput(text);
+    if (parsed.kind === "number" && parsed.value != null) {
+      const interiorDeg = which === "interior" ? parsed.value : 180 - parsed.value;
+      const next = applyIsoAngle(state, i, interiorDeg);
+      return {
+        ...next,
+        vertices: next.vertices.map((v, idx) =>
+          idx !== i ? v : { ...v, [which]: labelFromParse(parsed, text, v[which], true) },
+        ),
+      };
+    }
+    return {
+      ...state,
+      vertices: state.vertices.map((v, idx) =>
+        idx !== i ? v : { ...v, [which]: labelFromParse(parsed, text, v[which], true) },
+      ),
+    };
+  }
+  const edgeMatch = /^e:(\d+):length$/.exec(id);
+  if (edgeMatch) {
+    const i = Number(edgeMatch[1]);
+    const parsed = parseMeasureInput(text);
+    if (parsed.kind === "number" && parsed.value != null) {
+      const next = applyIsoLength(state, i, parsed.value);
+      return {
+        ...next,
+        edges: next.edges.map((e, idx) =>
+          idx === i ? { ...e, length: labelFromParse(parsed, text, e.length, false) } : e,
+        ),
+      };
+    }
+    return {
+      ...state,
+      edges: state.edges.map((e, idx) =>
+        idx === i ? { ...e, length: labelFromParse(parsed, text, e.length, false) } : e,
+      ),
     };
   }
   const poly = applyPolygonLabel(toPolygonState(state), id, text);

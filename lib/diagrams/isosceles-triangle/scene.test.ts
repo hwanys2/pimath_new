@@ -3,9 +3,11 @@ import { describe, it } from "node:test";
 import {
   altitudeFoot,
   angleBisectorFoot,
+  applyEditedLabel,
   applyIsoAngle,
   cevianFromIndex,
   footPoint,
+  moveVertexIso,
   oppositeSide,
   snapIsosceles,
   wedgeDeg,
@@ -72,6 +74,41 @@ describe("isosceles geometry", () => {
     );
     almost(ab, ac, 1e-4);
     almost(next.interiorAnglesDeg[0]!, 40, 0.3);
+  });
+
+  it("changing a vertex angle keeps the base horizontal", () => {
+    const state = normalizeState(ISO_PRESETS[0]!.state);
+    const next = applyIsoAngle(state, 0, 30);
+    almost(next.points[1]!.y, next.points[2]!.y, 1e-6);
+    almost(next.interiorAnglesDeg[0]!, 30, 0.3);
+    assert.equal(next.vertices[0]!.interior.custom, "30°");
+    assert.equal(next.vertices[1]!.interior.mode, "x");
+  });
+
+  it("levels a tilted base after an angle edit", () => {
+    const state = normalizeState({
+      ...ISO_PRESETS[0]!.state,
+      points: [
+        { x: 0.2, y: 4 },
+        { x: -2.5, y: 0 },
+        { x: 2.4, y: 1.2 },
+      ],
+    });
+    const next = applyEditedLabel(state, "v:0:interior", "30°");
+    almost(next.points[1]!.y, next.points[2]!.y, 1e-6);
+    assert.ok(next.points[0]!.y > next.points[1]!.y);
+    almost(next.interiorAnglesDeg[0]!, 30, 0.3);
+  });
+
+  it("updates numeric angle labels when a vertex is dragged", () => {
+    const state = normalizeState(ISO_PRESETS[0]!.state);
+    const apex = state.points[0]!;
+    const next = moveVertexIso(state, 0, { x: apex.x, y: apex.y + 2 });
+    almost(next.points[1]!.y, next.points[2]!.y, 1e-6);
+    assert.notEqual(next.vertices[0]!.interior.custom, "50°");
+    assert.match(next.vertices[0]!.interior.custom, /°$/);
+    assert.equal(next.vertices[1]!.interior.mode, "x");
+    assert.equal(next.vertices[1]!.interior.custom, "x");
   });
 });
 

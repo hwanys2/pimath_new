@@ -24,6 +24,7 @@ import {
   applyIsoLength,
   applyPartLength,
   cevianFromIndex,
+  syncDerived,
   clearSelectionMarks,
   cycleExtraArcs,
   cycleTicks,
@@ -66,7 +67,7 @@ function parseStoredState(raw: string | null): IsoscelesState {
   try {
     const parsed = JSON.parse(raw) as IsoscelesState;
     if (parsed && Array.isArray(parsed.points) && parsed.style) {
-      return normalizeState(parsed);
+      return syncDerived(normalizeState(parsed));
     }
   } catch {
     /* keep default */
