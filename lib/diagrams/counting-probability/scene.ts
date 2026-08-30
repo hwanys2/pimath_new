@@ -14,6 +14,7 @@ import {
   SCENE_WIDTH,
   type BallItem,
   type CardItem,
+  type ColorId,
   type CountingState,
   type DiceItem,
   type PathEdge,
