@@ -765,6 +765,18 @@ export function relayoutPaths(state: CountingState): CountingState {
 
 const DEFAULT_PLACES = defaultPlaces();
 
+function defaultPathsState(
+  places: PlaceNode[] = layoutPlaces(DEFAULT_PLACES),
+  edges: PathEdge[] = defaultEdges(places),
+): PathsState {
+  return {
+    places,
+    edges,
+    showPlaceLabels: true,
+    labelFontSize: DEFAULT_STYLE.fontSize,
+  };
+}
+
 export const DEFAULT_COUNTING_STATE: CountingState = normalizeState({
   kind: "dice",
   dice: layoutDice(defaultDice(2, [3, 6]), 2),
@@ -773,10 +785,7 @@ export const DEFAULT_COUNTING_STATE: CountingState = normalizeState({
   cardCols: 5,
   pouches: layoutPouches(defaultPouches(2)),
   spinner: { rotation: 0, slices: defaultSlices(8) },
-  paths: {
-    places: layoutPlaces(DEFAULT_PLACES),
-    edges: defaultEdges(DEFAULT_PLACES),
-  },
+  paths: defaultPathsState(),
   style: DEFAULT_STYLE,
 });
 
@@ -877,7 +886,7 @@ export const COUNTING_PRESETS: {
       return normalizeState({
         ...s,
         kind: "paths",
-        paths: { ...s.paths, places, edges: defaultEdges(places) },
+        paths: defaultPathsState(places, defaultEdges(places)),
       });
     },
   },
