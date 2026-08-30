@@ -23,18 +23,21 @@ import {
   applyDiagLength,
   applyQuadAngle,
   applyQuadLength,
+  applyWedgeAngle,
   clearSelectionMarks,
   cycleExtraArcs,
   cycleTicks,
   diagSegPoints,
   edgeLength,
   edgeName,
+  hasExtension,
   patchWedge,
   prevIndex,
   nextIndex,
   segName,
   setDiagonals,
   snapFamily,
+  toggleExtension,
   vertexAngles,
   vertexName,
   wedgeDeg,
@@ -44,6 +47,7 @@ import {
 import {
   DEFAULT_QUAD_STATE,
   DIAG_SEG_IDS,
+  EXT_SLOTS,
   FACE_KEYS,
   QUAD_FAMILIES,
   QUAD_PRESETS,
@@ -62,7 +66,7 @@ import { renderSceneToCanvas, sceneToSvg } from "@/lib/diagrams/render";
 import type { FontFaces } from "@/lib/diagrams/math-label";
 import { len } from "@/lib/diagrams/polygon/geometry";
 
-const STORAGE_KEY = "pm-diagram-g2-quadrilaterals-v1";
+const STORAGE_KEY = "pm-diagram-g2-quadrilaterals-v2";
 
 const storeListeners = new Set<() => void>();
 
@@ -167,10 +171,12 @@ function fontsFromNext(): FontFaces {
 }
 
 const FACE_LABEL: Record<FaceKey, string> = {
-  DBC: "△DBC",
-  ODC: "△ODC",
-  ABC: "△ABC",
   AOB: "△AOB",
+  BOC: "△BOC",
+  ODC: "△ODC",
+  OAD: "△OAD",
+  DBC: "△DBC",
+  ABC: "△ABC",
 };
 
 export default function QuadrilateralStudio() {
@@ -298,8 +304,8 @@ export default function QuadrilateralStudio() {
         </p>
       ) : null}
 
-      <div className="grid items-start gap-5 lg:grid-cols-[minmax(0,22rem)_minmax(16rem,20rem)_minmax(15rem,18rem)]">
-        <div className="mx-auto w-full max-w-[24rem] overflow-hidden rounded-3xl border-2 border-wood/10 bg-white shadow-[0_12px_40px_rgba(61,44,30,0.08)] lg:mx-0">
+      <div className="grid items-start gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(14rem,16rem)_minmax(15rem,18rem)]">
+        <div className="mx-auto w-full max-w-[24rem] overflow-hidden rounded-3xl border-2 border-wood/10 bg-white shadow-[0_12px_40px_rgba(61,44,30,0.08)] lg:mx-0 lg:max-w-none">
           <QuadrilateralCanvas
             state={state}
             fonts={fonts}
@@ -312,6 +318,46 @@ export default function QuadrilateralStudio() {
         </div>
 
         <div className="space-y-4">
+          <section className="rounded-2xl border-2 border-wood/10 bg-white/80 p-3.5">
+            <h2 className="font-display text-sm text-wood-dark">도형</h2>
+            <p className="mb-1 mt-2 text-xs font-semibold text-foreground/60">
+              종류
+            </p>
+            <div className="flex flex-wrap gap-1.5">
+              {QUAD_FAMILIES.map((f) => (
+                <ChipToggle
+                  key={f.id}
+                  on={state.family === f.id}
+                  onClick={() => {
+                    const family = f.id;
+                    setState((prev) =>
+                      normalizeState({
+                        ...prev,
+                        family,
+                        points: snapFamily(prev.points, family, 1),
+                      }),
+                    );
+                  }}
+                >
+                  {f.label}
+                </ChipToggle>
+              ))}
+            </div>
+            <div className="mt-3 grid grid-cols-2 gap-2">
+              <TextField
+                label="단위"
+                value={state.unit}
+                onChange={(unit) => set({ unit })}
+                placeholder="cm"
+              />
+              <TextField
+                label="미지수"
+                value={state.unknownLetter}
+                onChange={(unknownLetter) => set({ unknownLetter })}
+              />
+            </div>
+          </section>
+
           <section className="rounded-2xl border-2 border-wood/10 bg-white/80 p-3.5">
             <h2 className="font-display text-sm text-wood-dark">표시</h2>
             <div className="mt-2 flex flex-wrap gap-1.5">
@@ -353,36 +399,23 @@ export default function QuadrilateralStudio() {
               >
                 평행선
               </ChipToggle>
-              <ChipToggle
-                on={state.extension.show}
-                onClick={() =>
-                  setState((prev) => ({
-                    ...prev,
-                    extension: { ...prev.extension, show: !prev.extension.show },
-                  }))
-                }
-              >
-                변 연장
-              </ChipToggle>
             </div>
-            {state.extension.show ? (
-              <div className="mt-2 flex flex-wrap gap-1.5">
-                {([0, 1, 2, 3] as const).map((i) => (
-                  <ChipToggle
-                    key={`ext-${i}`}
-                    on={state.extension.vertex === i}
-                    onClick={() =>
-                      setState((prev) => ({
-                        ...prev,
-                        extension: { ...prev.extension, vertex: i, show: true },
-                      }))
-                    }
-                  >
-                    {vertexName(state, i)}에서
-                  </ChipToggle>
-                ))}
-              </div>
-            ) : null}
+            <p className="mb-1 mt-3 text-[11px] font-semibold text-foreground/50">
+              변 연장
+            </p>
+            <div className="flex flex-wrap gap-1.5">
+              {EXT_SLOTS.map((slot) => (
+                <ChipToggle
+                  key={`${slot.vertex}:${slot.dir}`}
+                  on={hasExtension(state, slot.vertex, slot.dir)}
+                  onClick={() =>
+                    setState((prev) => toggleExtension(prev, slot.vertex, slot.dir))
+                  }
+                >
+                  {slot.label}
+                </ChipToggle>
+              ))}
+            </div>
 
             <p className="mb-1 mt-3 text-[11px] font-semibold text-foreground/50">
               면 채움
@@ -400,11 +433,11 @@ export default function QuadrilateralStudio() {
                         [key]: cycleFaceFill(prev.faces[key]),
                       },
                       showO:
-                        key === "ODC" || key === "AOB" ? true : prev.showO,
+                        key === "DBC" || key === "ABC" ? prev.showO : true,
                       showDiagAC:
-                        key === "ODC" || key === "AOB" ? true : prev.showDiagAC,
+                        key === "DBC" || key === "ABC" ? prev.showDiagAC : true,
                       showDiagBD:
-                        key === "ODC" || key === "AOB" ? true : prev.showDiagBD,
+                        key === "DBC" || key === "ABC" ? prev.showDiagBD : true,
                     }))
                   }
                 >
@@ -446,19 +479,20 @@ export default function QuadrilateralStudio() {
                   {state.oName || "O"}
                 </button>
               ) : null}
-              {state.extension.show ? (
+              {state.extensions.map((ext, i) => (
                 <button
+                  key={`ext-sel-${i}`}
                   type="button"
-                  onClick={() => setSelected({ t: "extension" })}
+                  onClick={() => setSelected({ t: "extension", i })}
                   className={`min-w-[1.5rem] rounded-full px-1.5 py-0.5 text-[11px] font-semibold transition ${
-                    selected?.t === "extension"
+                    selected?.t === "extension" && selected.i === i
                       ? "bg-wood text-cream"
                       : "bg-black/8 text-foreground/55"
                   }`}
                 >
-                  {state.extension.name || "E"}
+                  {ext.name || "E"}
                 </button>
-              ) : null}
+              ))}
             </div>
 
             {selected?.t === "vertex" && selVertex ? (
@@ -485,16 +519,21 @@ export default function QuadrilateralStudio() {
               <SegPanel state={state} id={selected.id} setState={setState} />
             ) : null}
 
-            {selected?.t === "extension" ? (
+            {selected?.t === "extension" && state.extensions[selected.i] ? (
               <p className="mt-3 text-[11px] text-foreground/50">
-                연장점 {state.extension.name || "E"} · 꼭짓점{" "}
-                {vertexName(state, state.extension.vertex)}에서 변을 늘립니다.
+                연장점 {state.extensions[selected.i]!.name || "E"} ·{" "}
+                {EXT_SLOTS.find(
+                  (s) =>
+                    s.vertex === state.extensions[selected.i]!.vertex &&
+                    s.dir === state.extensions[selected.i]!.dir,
+                )?.label ?? "변 연장"}
               </p>
             ) : null}
 
             <p className="mt-2 text-[11px] leading-snug text-foreground/45">
               점을 끌면 고른 도형의 성질이 유지됩니다. 변을 누르면 길이가
-              켜지고, 글자를 눌러 숫자나 x로 고칩니다.
+              켜지고, 글자와 설명선은 각각 끌어 옮깁니다. 글자를 눌러 각·길이를
+              숫자로 넣으면 모양이 따라갑니다.
             </p>
 
             {activeMarks.length > 0 ? (
@@ -538,46 +577,6 @@ export default function QuadrilateralStudio() {
                   </span>
                 </button>
               ))}
-            </div>
-          </section>
-
-          <section className="rounded-2xl border-2 border-wood/10 bg-white/80 p-3.5">
-            <h2 className="font-display text-sm text-wood-dark">도형</h2>
-            <p className="mb-1 mt-2 text-xs font-semibold text-foreground/60">
-              종류
-            </p>
-            <div className="flex flex-wrap gap-1.5">
-              {QUAD_FAMILIES.map((f) => (
-                <ChipToggle
-                  key={f.id}
-                  on={state.family === f.id}
-                  onClick={() => {
-                    const family = f.id;
-                    setState((prev) =>
-                      normalizeState({
-                        ...prev,
-                        family,
-                        points: snapFamily(prev.points, family, 1),
-                      }),
-                    );
-                  }}
-                >
-                  {f.label}
-                </ChipToggle>
-              ))}
-            </div>
-            <div className="mt-3 grid grid-cols-2 gap-2">
-              <TextField
-                label="단위"
-                value={state.unit}
-                onChange={(unit) => set({ unit })}
-                placeholder="cm"
-              />
-              <TextField
-                label="미지수"
-                value={state.unknownLetter}
-                onChange={(unknownLetter) => set({ unknownLetter })}
-              />
             </div>
           </section>
 
@@ -768,36 +767,43 @@ function VertexPanel({
           </>
         ) : null}
       </div>
+      <NumberField
+        label="각 크기"
+        value={Number(vertexAngles(state.points, index).interior.toFixed(1))}
+        onChange={(deg) =>
+          setState((prev) => {
+            const next = applyQuadAngle(prev, index, deg);
+            return {
+              ...next,
+              vertices: next.vertices.map((v, idx) =>
+                idx === index
+                  ? {
+                      ...v,
+                      showInterior: true,
+                      interior: {
+                        ...v.interior,
+                        mode: "custom" as const,
+                        custom: `${deg}°`,
+                      },
+                    }
+                  : v,
+              ),
+            };
+          })
+        }
+        min={8}
+        max={172}
+        step={1}
+        suffix="°"
+        disabled={state.family === "rectangle" || state.family === "square"}
+        hint={
+          state.family === "rectangle" || state.family === "square"
+            ? "직각은 바꿀 수 없어요."
+            : "각을 바꾸면 도형 모양이 따라갑니다."
+        }
+      />
       {vertex.showInterior ? (
         <>
-          <NumberField
-            label="내각 값"
-            value={Number(vertexAngles(state.points, index).interior.toFixed(1))}
-            onChange={(deg) =>
-              setState((prev) => {
-                const next = applyQuadAngle(prev, index, deg);
-                return {
-                  ...next,
-                  vertices: next.vertices.map((v, idx) =>
-                    idx === index
-                      ? {
-                          ...v,
-                          interior: {
-                            ...v.interior,
-                            mode: "custom" as const,
-                            custom: `${deg}°`,
-                          },
-                        }
-                      : v,
-                  ),
-                };
-              })
-            }
-            min={1}
-            max={179}
-            step={1}
-            suffix="°"
-          />
           <LabelModeRow
             title="내각 표시"
             mode={vertex.interior.mode}
@@ -879,12 +885,24 @@ function WedgeFields({
       <NumberField
         label="각"
         value={Number(deg.toFixed(1))}
-        onChange={() => undefined}
-        min={1}
-        max={179}
+        onChange={(value) =>
+          setState((prev) => {
+            const next = applyWedgeAngle(prev, index, value);
+            return patchWedge(next, index, key, {
+              label: { ...mark.label, mode: "custom", custom: `${value}°` },
+            });
+          })
+        }
+        min={4}
+        max={170}
         step={1}
         suffix="°"
-        disabled
+        disabled={state.family === "rectangle" || state.family === "square"}
+        hint={
+          state.family === "rectangle" || state.family === "square"
+            ? "직각은 바꿀 수 없어요."
+            : "각을 바꾸면 도형 모양이 따라갑니다."
+        }
       />
       <LabelModeRow
         title="각 표시"
@@ -1232,15 +1250,15 @@ function listActiveMarks(state: QuadState): {
       clear: (prev) => setDiagonals(prev, false),
     });
   }
-  if (state.extension.show) {
+  state.extensions.forEach((ext, i) => {
     items.push({
-      key: "ext",
-      label: `연장 ${state.extension.name || "E"}`,
+      key: `ext-${i}`,
+      label: `연장 ${ext.name || "E"}`,
       clear: (prev) => ({
         ...prev,
-        extension: { ...prev.extension, show: false },
+        extensions: prev.extensions.filter((_, idx) => idx !== i),
       }),
     });
-  }
+  });
   return items;
 }

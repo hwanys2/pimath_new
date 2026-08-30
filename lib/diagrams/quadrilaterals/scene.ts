@@ -26,16 +26,17 @@ import {
 } from "@/lib/diagrams/polygon/model";
 import {
   diagonalMeet,
-  extensionPoint,
+  extensionPoints,
   isRightAngle,
   wedgeDeg,
 } from "./geometry";
-import type {
-  AngleFill,
-  ExtraArcs,
-  FaceFill,
-  FaceKey,
-  QuadState,
+import {
+  FACE_KEYS,
+  type AngleFill,
+  type ExtraArcs,
+  type FaceFill,
+  type FaceKey,
+  type QuadState,
 } from "./model";
 
 export type QuadScene = SharedDiagramScene & {
@@ -45,7 +46,7 @@ export type QuadScene = SharedDiagramScene & {
 export type SceneLayout = {
   canvas: Vec[];
   o: Vec | null;
-  ext: Vec | null;
+  exts: Vec[];
   origin: Vec;
   mid: Vec;
   scale: number;
@@ -181,7 +182,7 @@ function dimArc(
   const lineId = `${labelId}:line`;
 
   const textH = signedHeight(offset + meas.dy);
-  const lineH = signedHeight(offset + meas.dy + (meas.lineDy ?? 0));
+  const lineH = signedHeight(offset + (meas.lineDy ?? 0));
   const textAlong = clamp(meas.dx, -maxAlong, maxAlong);
   const lineSign = lineH < 0 ? -1 : 1;
   const tick = clamp(Math.abs(lineH) * 0.22, 4.5, 8);
@@ -234,8 +235,7 @@ function mathBBox(state: QuadState): { min: Vec; max: Vec } {
   const pts = [...state.points];
   const O = diagonalMeet(state.points);
   if (state.showO || state.showDiagAC || state.showDiagBD) pts.push(O);
-  const E = extensionPoint(state);
-  if (E) pts.push(E);
+  for (const p of extensionPoints(state)) pts.push(p);
   if (state.showGuides) {
     const A = state.points[0]!;
     const B = state.points[1]!;
@@ -300,14 +300,12 @@ export function getSceneLayout(state: QuadState): SceneLayout {
           y: origin.y - (O.y - mid.y) * scale,
         }
       : null;
-  const E = extensionPoint(state);
-  const ext = E
-    ? {
-        x: origin.x + (E.x - mid.x) * scale,
-        y: origin.y - (E.y - mid.y) * scale,
-      }
-    : null;
-  return { canvas, o, ext, origin, mid, scale };
+  const mathExts = extensionPoints(state);
+  const exts = mathExts.map((E) => ({
+    x: origin.x + (E.x - mid.x) * scale,
+    y: origin.y - (E.y - mid.y) * scale,
+  }));
+  return { canvas, o, exts, origin, mid, scale };
 }
 
 export function canvasToMath(p: Vec, layout: SceneLayout): Vec {
@@ -511,6 +509,8 @@ function facePoints(
   if (!o) return null;
   if (key === "ODC") return [o, D, C];
   if (key === "AOB") return [A, o, B];
+  if (key === "BOC") return [B, o, C];
+  if (key === "OAD") return [o, A, D];
   return null;
 }
 
@@ -523,7 +523,7 @@ export function buildQuadScene(state: QuadState): QuadScene {
   const mathC = centroid(state.points);
   const canvasC = mathToCanvas(mathC, layout);
   const cO = layout.o;
-  const cExt = layout.ext;
+  const cExts = layout.exts;
   const Omath = diagonalMeet(state.points);
   const showAC = state.showDiagAC || state.showO;
   const showBD = state.showDiagBD || state.showO;
@@ -533,7 +533,7 @@ export function buildQuadScene(state: QuadState): QuadScene {
   avgSide /= 4;
   const extMath = avgSide * 0.42;
 
-  for (const key of ["DBC", "ODC", "ABC", "AOB"] as FaceKey[]) {
+  for (const key of FACE_KEYS) {
     const fill = faceColor(state.faces[key]);
     if (!fill) continue;
     const pts = facePoints(key, canvas, cO);
@@ -640,14 +640,15 @@ export function buildQuadScene(state: QuadState): QuadScene {
     stroke: INK,
   });
 
-  if (cExt) {
-    const i = state.extension.vertex;
+  for (let i = 0; i < cExts.length; i += 1) {
+    const p = cExts[i]!;
+    const vertex = state.extensions[i]!.vertex;
     cmds.push({
       t: "line",
-      x1: canvas[i]!.x,
-      y1: canvas[i]!.y,
-      x2: cExt.x,
-      y2: cExt.y,
+      x1: canvas[vertex]!.x,
+      y1: canvas[vertex]!.y,
+      x2: p.x,
+      y2: p.y,
       stroke: INK,
     });
   }
@@ -921,21 +922,23 @@ export function buildQuadScene(state: QuadState): QuadScene {
     }
   }
 
-  if (cExt && state.extension.show) {
+  for (let i = 0; i < cExts.length; i += 1) {
+    const p = cExts[i]!;
+    const ext = state.extensions[i]!;
     if (state.showDots) {
-      cmds.push({ t: "dot", x: cExt.x, y: cExt.y, r: style.pointRadius });
+      cmds.push({ t: "dot", x: p.x, y: p.y, r: style.pointRadius });
     }
-    if (state.extension.name.trim()) {
-      const away = norm(sub(cExt, canvasC));
-      const lp = add(add(cExt, mul(away, 16)), {
-        x: state.extension.nameDx,
-        y: state.extension.nameDy,
+    if (ext.name.trim()) {
+      const away = norm(sub(p, canvasC));
+      const lp = add(add(p, mul(away, 16)), {
+        x: ext.nameDx,
+        y: ext.nameDy,
       });
       pushText(texts, cmds, {
-        id: "e:name",
+        id: `e:${i}:name`,
         x: lp.x,
         y: lp.y,
-        runs: parseNameRuns(state.extension.name.trim()),
+        runs: parseNameRuns(ext.name.trim()),
         size: style.pointLabelSize,
         anchor: "middle",
       });

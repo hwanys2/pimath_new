@@ -25,7 +25,7 @@ export type AngleFill = "none" | "pink" | "blue";
 export type AngleMark = "none" | "dot" | "x";
 export type FaceFill = "none" | "green" | "yellow";
 export type DiagSegId = "AO" | "OC" | "BO" | "OD" | "AC" | "BD";
-export type FaceKey = "DBC" | "ODC" | "ABC" | "AOB";
+export type FaceKey = "DBC" | "ODC" | "ABC" | "AOB" | "BOC" | "OAD";
 
 export const QUAD_FAMILIES: { id: QuadFamily; label: string }[] = [
   { id: "parallelogram", label: "평행사변형" },
@@ -36,7 +36,22 @@ export const QUAD_FAMILIES: { id: QuadFamily; label: string }[] = [
 ];
 
 export const DIAG_SEG_IDS: DiagSegId[] = ["AO", "OC", "BO", "OD", "AC", "BD"];
-export const FACE_KEYS: FaceKey[] = ["DBC", "ODC", "ABC", "AOB"];
+export const FACE_KEYS: FaceKey[] = ["AOB", "BOC", "ODC", "OAD", "DBC", "ABC"];
+
+export type ExtDir = "in" | "out";
+
+export const EXT_SLOTS: { vertex: 0 | 1 | 2 | 3; dir: ExtDir; label: string }[] = [
+  { vertex: 0, dir: "in", label: "DA→A" },
+  { vertex: 0, dir: "out", label: "AB→A" },
+  { vertex: 1, dir: "in", label: "AB→B" },
+  { vertex: 1, dir: "out", label: "BC→B" },
+  { vertex: 2, dir: "in", label: "BC→C" },
+  { vertex: 2, dir: "out", label: "CD→C" },
+  { vertex: 3, dir: "in", label: "CD→D" },
+  { vertex: 3, dir: "out", label: "DA→D" },
+];
+
+const EXT_NAMES = ["E", "F", "G", "H", "P", "Q", "R", "S"];
 
 export type WedgeMark = {
   show: boolean;
@@ -76,8 +91,8 @@ export type DiagSeg = {
 };
 
 export type QuadExtension = {
-  show: boolean;
   vertex: 0 | 1 | 2 | 3;
+  dir: ExtDir;
   name: string;
   nameDx: number;
   nameDy: number;
@@ -99,7 +114,7 @@ export type QuadState = {
   showRightAtO: boolean;
   diagSegs: Record<DiagSegId, DiagSeg>;
   faces: Record<FaceKey, FaceFill>;
-  extension: QuadExtension;
+  extensions: QuadExtension[];
   showGuides: boolean;
   guideTopName: string;
   guideBottomName: string;
@@ -211,8 +226,53 @@ function emptyFaces(patch: Partial<Record<FaceKey, FaceFill>> = {}): Record<Face
     ODC: patch.ODC ?? "none",
     ABC: patch.ABC ?? "none",
     AOB: patch.AOB ?? "none",
+    BOC: patch.BOC ?? "none",
+    OAD: patch.OAD ?? "none",
   };
 }
+
+function makeExtension(patch: Partial<QuadExtension> = {}): QuadExtension {
+  const vertex: 0 | 1 | 2 | 3 =
+    patch.vertex === 0 || patch.vertex === 1 || patch.vertex === 2 || patch.vertex === 3
+      ? patch.vertex
+      : 1;
+  return {
+    vertex,
+    dir: patch.dir === "out" ? "out" : "in",
+    name: patch.name?.trim() ? patch.name : "E",
+    nameDx: clamp(patch.nameDx ?? 0, -80, 80),
+    nameDy: clamp(patch.nameDy ?? 0, -80, 80),
+  };
+}
+
+function nextExtName(existing: QuadExtension[]): string {
+  const used = new Set(existing.map((e) => e.name));
+  return EXT_NAMES.find((n) => !used.has(n)) ?? "E";
+}
+
+type LegacyExtension = QuadExtension & { show?: boolean };
+
+function readExtensions(
+  state: Partial<QuadState> & { extension?: LegacyExtension },
+): QuadExtension[] {
+  if (Array.isArray(state.extensions) && state.extensions.length > 0) {
+    const out: QuadExtension[] = [];
+    const seen = new Set<string>();
+    for (const item of state.extensions.slice(0, 8)) {
+      const ext = makeExtension(item);
+      const key = `${ext.vertex}:${ext.dir}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      out.push(ext);
+    }
+    return out;
+  }
+  const legacy = state.extension;
+  if (legacy?.show === true) return [makeExtension(legacy)];
+  return [];
+}
+
+export { makeExtension, nextExtName };
 
 export function parallelogramPoints(A: Vec, B: Vec, C: Vec): Vec[] {
   return [A, B, C, { x: A.x + C.x - B.x, y: A.y + C.y - B.y }];
@@ -336,7 +396,9 @@ export function fromPolygonState(poly: PolygonState, prev: QuadState): QuadState
 }
 
 export function normalizeState(
-  state: Partial<QuadState> & Pick<QuadState, "points"> | QuadState,
+  state: (Partial<QuadState> & Pick<QuadState, "points"> | QuadState) & {
+    extension?: LegacyExtension;
+  },
 ): QuadState {
   let points = (state.points ?? []).slice(0, 4);
   if (points.length < 4) points = defaultParallelogram();
@@ -356,9 +418,6 @@ export function normalizeState(
     state.family === "trapezoid"
       ? state.family
       : "parallelogram";
-  const extV = state.extension?.vertex;
-  const vertex: 0 | 1 | 2 | 3 =
-    extV === 0 || extV === 1 || extV === 2 || extV === 3 ? extV : 1;
   const style = { ...DEFAULT_STYLE, ...state.style };
   return {
     family,
@@ -382,13 +441,7 @@ export function normalizeState(
     showRightAtO: state.showRightAtO === true,
     diagSegs: emptyDiagSegs(state.diagSegs),
     faces: emptyFaces(state.faces),
-    extension: {
-      show: state.extension?.show === true,
-      vertex,
-      name: state.extension?.name?.trim() ? state.extension.name : "E",
-      nameDx: clamp(state.extension?.nameDx ?? 0, -80, 80),
-      nameDy: clamp(state.extension?.nameDy ?? 0, -80, 80),
-    },
+    extensions: readExtensions(state),
     showGuides: state.showGuides === true,
     guideTopName: state.guideTopName?.trim() ? state.guideTopName : "l",
     guideBottomName: state.guideBottomName?.trim() ? state.guideBottomName : "m",

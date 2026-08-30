@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
   applyDiagLength,
+  applyEditedLabel,
   applyQuadAngle,
   applyQuadLength,
   diagonalMeet,
@@ -11,6 +12,7 @@ import {
   oppositeEdgesParallel,
   sidesEqual,
   snapFamily,
+  toggleExtension,
 } from "./geometry";
 import {
   DEFAULT_QUAD_STATE,
@@ -116,5 +118,19 @@ describe("move and measure", () => {
     const next = applyQuadLength(DEFAULT_QUAD_STATE, 0, 6);
     almost(edgeLength(next.points, 0), 6, 0.05);
     almost(edgeLength(next.points, 0), edgeLength(next.points, 2), 1e-5);
+  });
+
+  it("typing an interior angle on a parallelogram changes the shape", () => {
+    const next = applyEditedLabel(DEFAULT_QUAD_STATE, "v:0:interior", "70");
+    almost(next.interiorAnglesDeg[0]!, 70, 1.2);
+    almost(next.interiorAnglesDeg[2]!, 70, 1.2);
+  });
+
+  it("can extend more than one side at once", () => {
+    const one = toggleExtension(DEFAULT_QUAD_STATE, 1, "in");
+    const two = toggleExtension(one, 0, "out");
+    assert.equal(two.extensions.length, 2);
+    assert.equal(two.extensions[0]?.name, "E");
+    assert.equal(two.extensions[1]?.name, "F");
   });
 });

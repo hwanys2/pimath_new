@@ -29,17 +29,20 @@ import {
   type DiagSegId,
   type ExtraArcs,
   type FaceFill,
+  type QuadExtension,
   type QuadFamily,
   type QuadState,
   type TickCount,
   type WedgeMark,
+  makeExtension,
+  nextExtName,
 } from "./model";
 
 export type QuadHit =
   | { kind: "vertex"; index: number }
   | { kind: "edge"; index: number }
   | { kind: "o" }
-  | { kind: "extension" }
+  | { kind: "extension"; index: number }
   | { kind: "seg"; id: DiagSegId }
   | { kind: "diag"; which: "AC" | "BD" }
   | { kind: "label"; id: string }
@@ -49,7 +52,7 @@ export type QuadSelection =
   | { t: "vertex"; i: number }
   | { t: "edge"; i: number }
   | { t: "o" }
-  | { t: "extension" }
+  | { t: "extension"; i: number }
   | { t: "seg"; id: DiagSegId }
   | { t: "diag"; which: "AC" | "BD" };
 
@@ -100,14 +103,51 @@ export function diagonalMeet(points: Vec[]): Vec {
   return intersection(points[0]!, points[2]!, points[1]!, points[3]!);
 }
 
-export function extensionPoint(state: QuadState): Vec | null {
-  if (!state.extension.show) return null;
-  const i = state.extension.vertex;
-  const prev = state.points[prevIndex(i, 4)]!;
+export function extensionPointAt(state: QuadState, ext: QuadExtension): Vec {
+  const i = ext.vertex;
   const p = state.points[i]!;
+  const other =
+    ext.dir === "out" ? state.points[nextIndex(i, 4)]! : state.points[prevIndex(i, 4)]!;
   let avg = 0;
   for (let k = 0; k < 4; k += 1) avg += edgeLength(state.points, k);
-  return extensionEnd(prev, p, (avg / 4) * 0.55);
+  return extensionEnd(other, p, (avg / 4) * 0.55);
+}
+
+export function extensionPoints(state: QuadState): Vec[] {
+  return state.extensions.map((ext) => extensionPointAt(state, ext));
+}
+
+export function hasExtension(
+  state: QuadState,
+  vertex: 0 | 1 | 2 | 3,
+  dir: QuadExtension["dir"],
+): boolean {
+  return state.extensions.some((e) => e.vertex === vertex && e.dir === dir);
+}
+
+export function toggleExtension(
+  state: QuadState,
+  vertex: 0 | 1 | 2 | 3,
+  dir: QuadExtension["dir"],
+): QuadState {
+  const index = state.extensions.findIndex((e) => e.vertex === vertex && e.dir === dir);
+  if (index >= 0) {
+    return {
+      ...state,
+      extensions: state.extensions.filter((_, i) => i !== index),
+    };
+  }
+  return {
+    ...state,
+    extensions: [
+      ...state.extensions,
+      makeExtension({
+        vertex,
+        dir,
+        name: nextExtName(state.extensions),
+      }),
+    ],
+  };
 }
 
 function keepSide(n: Vec, toward: Vec): Vec {
@@ -311,7 +351,7 @@ export function applyQuadAngle(state: QuadState, index: number, deg: number): Qu
     const points = setAngleAtA(state.points, clamp(atA, 8, 172), state.family === "rhombus");
     if (!points) return state;
     const got = vertexAngles(points, index).interior;
-    if (Math.abs(got - target) > 1.5) return state;
+    if (Math.abs(got - target) > 4) return state;
     return syncDerived({ ...state, points });
   }
   const poly = applyInteriorAngleChange(toPolygonState(state), index, target);
@@ -319,6 +359,16 @@ export function applyQuadAngle(state: QuadState, index: number, deg: number): Qu
   const snapped = snapFamily(next.points, state.family, index);
   if (!validQuad(snapped)) return state;
   return syncDerived({ ...next, points: snapped });
+}
+
+export function applyWedgeAngle(state: QuadState, index: number, deg: number): QuadState {
+  const target = clamp(deg, 4, 170);
+  if (state.family === "rectangle" || state.family === "square") return state;
+  if (state.family === "rhombus") {
+    return applyQuadAngle(state, index, clamp(target * 2, 8, 172));
+  }
+  const asInterior = target > 40 ? target : target * 2;
+  return applyQuadAngle(state, index, clamp(asInterior, 8, 172));
 }
 
 export function applyQuadLength(
@@ -409,10 +459,14 @@ export function applyEditedLabel(state: QuadState, id: string, text: string): Qu
   if (id === "o:name") {
     return { ...state, oName: text.trim() || state.oName };
   }
-  if (id === "e:name") {
+  const extName = /^e:(\d+):name$/.exec(id);
+  if (extName) {
+    const i = Number(extName[1]);
     return {
       ...state,
-      extension: { ...state.extension, name: text.trim() || state.extension.name },
+      extensions: state.extensions.map((ext, idx) =>
+        idx === i ? { ...ext, name: text.trim() || ext.name } : ext,
+      ),
     };
   }
   if (id === "guide:top") {
@@ -421,15 +475,38 @@ export function applyEditedLabel(state: QuadState, id: string, text: string): Qu
   if (id === "guide:bottom") {
     return { ...state, guideBottomName: text.trim() || state.guideBottomName };
   }
+  const angMatch = /^v:(\d+):(interior|exterior)$/.exec(id);
+  if (angMatch) {
+    const i = Number(angMatch[1]);
+    const which = angMatch[2] as "interior" | "exterior";
+    const parsed = parseAngleInput(text);
+    let next = state;
+    if (parsed.kind === "number" && parsed.value != null) {
+      const interiorDeg = which === "interior" ? parsed.value : 180 - parsed.value;
+      next = applyQuadAngle(state, i, interiorDeg);
+    }
+    return {
+      ...next,
+      vertices: next.vertices.map((v, idx) =>
+        idx === i
+          ? { ...v, [which]: labelFromParse(parsed, text, v[which], true) }
+          : v,
+      ),
+    };
+  }
   const wedgeMatch = /^w:(\d+):(prev|next)$/.exec(id);
   if (wedgeMatch) {
     const i = Number(wedgeMatch[1]);
     const which = wedgeMatch[2] === "prev" ? "wedgePrev" : "wedgeNext";
     const parsed = parseAngleInput(text);
     const mark = state.vertices[i]![which];
+    let next = state;
+    if (parsed.kind === "number" && parsed.value != null) {
+      next = applyWedgeAngle(state, i, parsed.value);
+    }
     return {
-      ...state,
-      vertices: state.vertices.map((v, idx) =>
+      ...next,
+      vertices: next.vertices.map((v, idx) =>
         idx === i
           ? { ...v, [which]: { ...mark, label: labelFromParse(parsed, text, mark.label, true) } }
           : v,
@@ -482,15 +559,23 @@ export function nudgeLabel(
       oDy: clamp(state.oDy + dy, -80, 80),
     };
   }
-  if (id === "e:name") {
-    return {
-      ...state,
-      extension: {
-        ...state.extension,
-        nameDx: clamp(state.extension.nameDx + dx, -80, 80),
-        nameDy: clamp(state.extension.nameDy + dy, -80, 80),
-      },
-    };
+  if (id === "e:name" || id.startsWith("e:")) {
+    const extName = /^e:(\d+):name$/.exec(id);
+    if (extName) {
+      const i = Number(extName[1]);
+      return {
+        ...state,
+        extensions: state.extensions.map((ext, idx) =>
+          idx === i
+            ? {
+                ...ext,
+                nameDx: clamp(ext.nameDx + dx, -80, 80),
+                nameDy: clamp(ext.nameDy + dy, -80, 80),
+              }
+            : ext,
+        ),
+      };
+    }
   }
   if (id === "guide:top") {
     return {
@@ -587,7 +672,10 @@ export function clearSelectionMarks(state: QuadState, sel: QuadSelection | null)
     return { ...state, showO: false, showRightAtO: false };
   }
   if (sel.t === "extension") {
-    return { ...state, extension: { ...state.extension, show: false } };
+    return {
+      ...state,
+      extensions: state.extensions.filter((_, i) => i !== sel.i),
+    };
   }
   if (sel.t === "seg") {
     return {
@@ -654,12 +742,57 @@ function distToSeg(
   return Math.hypot(x - (x1 + dx * t), y - (y1 + dy * t));
 }
 
+function distToArc(
+  x: number,
+  y: number,
+  cx: number,
+  cy: number,
+  r: number,
+  a0: number,
+  a1: number,
+  ccw: boolean,
+): number {
+  let sweep = a1 - a0;
+  if (ccw) {
+    while (sweep > 0) sweep -= Math.PI * 2;
+    while (sweep > -1e-9) sweep -= Math.PI * 2;
+    sweep = -sweep;
+    if (sweep < 1e-9) sweep += Math.PI * 2;
+  } else {
+    while (sweep < 0) sweep += Math.PI * 2;
+    if (sweep < 1e-9) sweep += Math.PI * 2;
+  }
+  const n = Math.max(12, Math.ceil(sweep / (Math.PI / 18)));
+  let best = Infinity;
+  for (let i = 0; i <= n; i += 1) {
+    const t = i / n;
+    const ang = a0 + (ccw ? -sweep : sweep) * t;
+    const px = cx + r * Math.cos(ang);
+    const py = cy + r * Math.sin(ang);
+    best = Math.min(best, Math.hypot(x - px, y - py));
+  }
+  return best;
+}
+
 export function hitTestQuad(
   canvasPts: Vec[],
   o: Vec | null,
-  ext: Vec | null,
+  exts: Vec[],
   texts: { id: string; x: number; y: number }[],
-  cmds: { t: string; id?: string; x1?: number; y1?: number; x2?: number; y2?: number }[],
+  cmds: {
+    t: string;
+    id?: string;
+    x1?: number;
+    y1?: number;
+    x2?: number;
+    y2?: number;
+    cx?: number;
+    cy?: number;
+    r?: number;
+    a0?: number;
+    a1?: number;
+    ccw?: boolean;
+  }[],
   x: number,
   y: number,
   scale = 1,
@@ -669,25 +802,54 @@ export function hitTestQuad(
   const labelR = 22 * Math.max(scale, 0.85);
   let bestText: { id: string; d: number } | null = null;
   for (const text of texts) {
+    if (text.id.endsWith(":line")) continue;
     const d = Math.hypot(text.x - x, text.y - y);
     if (d < labelR && (!bestText || d < bestText.d)) bestText = { id: text.id, d };
   }
-  if (bestText) {
-    if (bestText.id.endsWith(":line")) {
-      return { kind: "dimLine", id: bestText.id.slice(0, -5) };
+
+  const dimR = 12 * Math.max(scale, 0.85);
+  let bestDim: { id: string; d: number } | null = null;
+  for (const cmd of cmds) {
+    if (!cmd.id || !cmd.id.endsWith(":line")) continue;
+    const id = cmd.id.slice(0, -5);
+    let d = Infinity;
+    if (cmd.t === "line" && cmd.x1 != null && cmd.y1 != null && cmd.x2 != null && cmd.y2 != null) {
+      d = distToSeg(x, y, cmd.x1, cmd.y1, cmd.x2, cmd.y2);
+    } else if (
+      cmd.t === "arc" &&
+      cmd.cx != null &&
+      cmd.cy != null &&
+      cmd.r != null &&
+      cmd.a0 != null &&
+      cmd.a1 != null
+    ) {
+      d = distToArc(x, y, cmd.cx, cmd.cy, cmd.r, cmd.a0, cmd.a1, cmd.ccw === true);
     }
+    if (d < dimR && (!bestDim || d < bestDim.d)) bestDim = { id, d };
+  }
+
+  if (bestText && bestDim) {
+    if (bestDim.d <= bestText.d) return { kind: "dimLine", id: bestDim.id };
     return { kind: "label", id: bestText.id };
   }
+  if (bestDim) return { kind: "dimLine", id: bestDim.id };
+  if (bestText) return { kind: "label", id: bestText.id };
 
   const pointR = 14 * Math.max(scale, 0.85);
   if (o) {
     const d = Math.hypot(o.x - x, o.y - y);
     if (d < pointR) return { kind: "o" };
   }
-  if (ext) {
-    const d = Math.hypot(ext.x - x, ext.y - y);
-    if (d < pointR) return { kind: "extension" };
-  }
+  let bestExt = -1;
+  let bestExtD = pointR;
+  exts.forEach((p, i) => {
+    const d = Math.hypot(p.x - x, p.y - y);
+    if (d < bestExtD) {
+      bestExtD = d;
+      bestExt = i;
+    }
+  });
+  if (bestExt >= 0) return { kind: "extension", index: bestExt };
   let bestV = -1;
   let bestVd = pointR;
   canvasPts.forEach((p, i) => {
@@ -698,22 +860,6 @@ export function hitTestQuad(
     }
   });
   if (bestV >= 0) return { kind: "vertex", index: bestV };
-
-  const dimR = 10 * Math.max(scale, 0.85);
-  let bestDim: QuadHit | null = null;
-  let bestDimD = dimR;
-  for (const cmd of cmds) {
-    if (!cmd.id || !cmd.id.endsWith(":line")) continue;
-    const id = cmd.id.slice(0, -5);
-    if (cmd.t === "line" && cmd.x1 != null && cmd.y1 != null && cmd.x2 != null && cmd.y2 != null) {
-      const d = distToSeg(x, y, cmd.x1, cmd.y1, cmd.x2, cmd.y2);
-      if (d < bestDimD) {
-        bestDimD = d;
-        bestDim = { kind: "dimLine", id };
-      }
-    }
-  }
-  if (bestDim) return bestDim;
 
   const edgeR = 9 * Math.max(scale, 0.85);
   if (o && (showDiagAC || showDiagBD)) {

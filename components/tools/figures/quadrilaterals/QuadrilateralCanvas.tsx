@@ -133,7 +133,7 @@ export default function QuadrilateralCanvas({
     return hitTestQuad(
       scene.layout.canvas,
       scene.layout.o,
-      scene.layout.ext,
+      scene.layout.exts,
       scene.texts,
       scene.cmds,
       p.x,
@@ -199,7 +199,7 @@ export default function QuadrilateralCanvas({
             return;
           }
           if (hit?.kind === "extension") {
-            onSelect({ t: "extension" });
+            onSelect({ t: "extension", i: hit.index });
             return;
           }
           if (hit?.kind === "edge") {
@@ -339,12 +339,14 @@ function sameHit(a: QuadHit | null, b: QuadHit | null): boolean {
   if (a.kind === "edge") return b.kind === "edge" && a.index === b.index;
   if (a.kind === "seg") return b.kind === "seg" && a.id === b.id;
   if (a.kind === "diag") return b.kind === "diag" && a.which === b.which;
+  if (a.kind === "extension") return b.kind === "extension" && a.index === b.index;
   return true;
 }
 
 function cursorForHit(hit: QuadHit | null): string {
   if (!hit) return "default";
   if (hit.kind === "label") return "text";
+  if (hit.kind === "dimLine") return "grab";
   if (hit.kind === "vertex") return "grab";
   return "pointer";
 }

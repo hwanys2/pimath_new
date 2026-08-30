@@ -43,8 +43,8 @@ describe("presets", () => {
 
   it("equal-marks extends a side to E", () => {
     const scene = buildQuadScene(QUAD_PRESETS[4]!.state);
-    assert.ok(scene.layout.ext);
-    assert.ok(scene.texts.some((t) => t.id === "e:name"));
+    assert.ok(scene.layout.exts.length >= 1);
+    assert.ok(scene.texts.some((t) => t.id === "e:0:name"));
   });
 
   it("rhombus-right draws a right angle at O", () => {
@@ -57,5 +57,46 @@ describe("presets", () => {
     assert.ok(scene.cmds.some((c) => c.t === "polygon"));
     assert.ok(scene.texts.some((t) => t.id === "guide:top"));
     assert.ok(scene.texts.some((t) => t.id === "guide:bottom"));
+  });
+
+  it("length text stays put when only the dim line is offset", () => {
+    const base = normalizeState(cloneState(QUAD_PRESETS[0]!.state));
+    const movedLine = normalizeState({
+      ...base,
+      edges: base.edges.map((e, i) =>
+        i === 0 ? { ...e, length: { ...e.length, lineDy: 36 } } : e,
+      ),
+    });
+    const movedText = normalizeState({
+      ...base,
+      edges: base.edges.map((e, i) =>
+        i === 0 ? { ...e, length: { ...e.length, dy: 36 } } : e,
+      ),
+    });
+    const t0 = buildQuadScene(base).texts.find((t) => t.id === "e:0:length");
+    const tLine = buildQuadScene(movedLine).texts.find((t) => t.id === "e:0:length");
+    const tText = buildQuadScene(movedText).texts.find((t) => t.id === "e:0:length");
+    assert.ok(t0 && tLine && tText);
+    assert.ok(Math.abs(t0.y - tLine.y) < 1.5);
+    assert.ok(Math.abs(t0.y - tText.y) > 8);
+  });
+
+  it("diagonal faces include triangle OAD", () => {
+    const state = normalizeState({
+      ...QUAD_PRESETS[0]!.state,
+      showDiagAC: true,
+      showDiagBD: true,
+      showO: true,
+      faces: {
+        DBC: "none",
+        ODC: "none",
+        ABC: "none",
+        AOB: "none",
+        BOC: "none",
+        OAD: "green",
+      },
+    });
+    const scene = buildQuadScene(state);
+    assert.ok(scene.cmds.some((c) => c.t === "polygon"));
   });
 });
