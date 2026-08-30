@@ -9,6 +9,7 @@ import {
   tickValues,
   type BoxPlotState,
   type BoxSeries,
+  type StatKey,
 } from "@/lib/diagrams/boxplot/model";
 
 export const SCENE_WIDTH = 560;
