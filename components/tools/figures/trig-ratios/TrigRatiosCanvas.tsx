@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
+  angleIdFromSceneId,
   applyEditedLabel,
   dimResizeCursor,
   draggableIds,
@@ -64,7 +65,7 @@ function cursorForHit(
     }
     return "grab";
   }
-  if (hit.kind === "seg") return "pointer";
+  if (hit.kind === "seg" || hit.kind === "ang") return "pointer";
   return "default";
 }
 
@@ -197,6 +198,8 @@ export default function TrigRatiosCanvas({
           const hit = hitAt(e);
           const p = scenePoint(e);
           if (hit?.kind === "label") {
+            const angId = angleIdFromSceneId(hit.id);
+            if (angId) onSelect({ t: "ang", id: angId });
             dragRef.current = { t: "label", id: hit.id, x: p.x, y: p.y, moved: false };
             setCursor("grabbing");
             e.currentTarget.setPointerCapture(e.pointerId);
@@ -213,6 +216,11 @@ export default function TrigRatiosCanvas({
             setCursor("grabbing");
             e.currentTarget.setPointerCapture(e.pointerId);
             onSelect({ t: "point", id: hit.id });
+            return;
+          }
+          if (hit?.kind === "ang") {
+            const angId = angleIdFromSceneId(hit.id) ?? hit.id;
+            onSelect({ t: "ang", id: angId });
             return;
           }
           if (hit?.kind === "seg") {

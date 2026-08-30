@@ -21,23 +21,32 @@ import {
 } from "@/lib/diagrams/export-image";
 import {
   applyEditedLabel,
+  interiorAngleDeg,
   rebuildRightForRightVertex,
   rebuildTriangleFromLegs,
   segDisplayName,
   segLength,
   setRotateDeg,
   setThetaDeg,
+  trianglePoints,
+  worldRightTriangle,
   type TrigSelection,
 } from "@/lib/diagrams/trig-ratios/geometry";
 import {
+  ANGLE_FILL_CHIPS,
   DEFAULT_TRIG_STATE,
+  FACE_FILL_CHIPS,
   TRIG_KINDS,
   TRIG_PRESETS,
   cloneState,
   cycleFigurePoint,
+  emptyLabel,
   figurePointIds,
+  findAngle,
   findSeg,
   normalizeState,
+  patchAngleState,
+  patchQuadInterior,
   patchSegState,
   pointDisplayOf,
   pointDisplayTitle,
@@ -46,6 +55,8 @@ import {
   toggleAltitude,
   withKind,
   type AltitudeVertex,
+  type AngleFill,
+  type MeasLabel,
   type TrigRatiosState,
 } from "@/lib/diagrams/trig-ratios/model";
 import { buildTrigScene } from "@/lib/diagrams/trig-ratios/scene";
@@ -163,8 +174,31 @@ export default function TrigRatiosStudio() {
   }
 
   function deleteSelected() {
-    if (!selected || selected.t !== "seg") return;
-    setState((prev) => patchSegState(prev, selected.id, { show: false }));
+    if (!selected) return;
+    if (selected.t === "seg") {
+      setState((prev) => patchSegState(prev, selected.id, { show: false }));
+      return;
+    }
+    if (selected.t === "ang") {
+      if (selected.id.startsWith("v:")) {
+        const i = Number(selected.id.slice(2));
+        setState((prev) => patchQuadInterior(prev, i, { showInterior: false }));
+        return;
+      }
+      if (selected.id === "theta") {
+        set({ showAngleX: false });
+        return;
+      }
+      if (selected.id === "y") {
+        set({ showAngleY: false });
+        return;
+      }
+      if (selected.id === "z") {
+        set({ showAngleZ: false });
+        return;
+      }
+      setState((prev) => patchAngleState(prev, selected.id, { show: false }));
+    }
   }
 
   async function exportPng() {
@@ -204,6 +238,7 @@ export default function TrigRatiosStudio() {
 
   const segPool = state.kind === "triangle-area" ? state.triSegs : state.segs;
   const selSeg = selected?.t === "seg" ? findSeg(state, selected.id) : undefined;
+  const selAngle = selected?.t === "ang" ? selected.id : null;
   const presetsForKind = TRIG_PRESETS.filter((p) => p.state.kind === state.kind);
 
   return (
@@ -445,13 +480,12 @@ export default function TrigRatiosStudio() {
                     <ChipToggle
                       key={a.id}
                       on={a.show}
-                      onClick={() =>
-                        set({
-                          angles: state.angles.map((x) =>
-                            x.id === a.id ? { ...x, show: !x.show } : x,
-                          ),
-                        })
-                      }
+                      onClick={() => {
+                        setState((prev) =>
+                          patchAngleState(prev, a.id, { show: !a.show }),
+                        );
+                        setSelected({ t: "ang", id: a.id });
+                      }}
                     >
                       ∠{a.id}
                     </ChipToggle>
@@ -507,19 +541,28 @@ export default function TrigRatiosStudio() {
                   </ChipToggle>
                   <ChipToggle
                     on={state.showAngleX}
-                    onClick={() => set({ showAngleX: !state.showAngleX })}
+                    onClick={() => {
+                      set({ showAngleX: !state.showAngleX });
+                      setSelected({ t: "ang", id: "theta" });
+                    }}
                   >
                     각 x°
                   </ChipToggle>
                   <ChipToggle
                     on={state.showAngleY}
-                    onClick={() => set({ showAngleY: !state.showAngleY })}
+                    onClick={() => {
+                      set({ showAngleY: !state.showAngleY });
+                      setSelected({ t: "ang", id: "y" });
+                    }}
                   >
                     여각 y°
                   </ChipToggle>
                   <ChipToggle
                     on={state.showAngleZ}
-                    onClick={() => set({ showAngleZ: !state.showAngleZ })}
+                    onClick={() => {
+                      set({ showAngleZ: !state.showAngleZ });
+                      setSelected({ t: "ang", id: "z" });
+                    }}
                   >
                     여각 z°
                   </ChipToggle>
@@ -551,6 +594,20 @@ export default function TrigRatiosStudio() {
                   >
                     밑변 연장
                   </ChipToggle>
+                  {state.triAngles.map((a) => (
+                    <ChipToggle
+                      key={a.id}
+                      on={a.show}
+                      onClick={() => {
+                        setState((prev) =>
+                          patchAngleState(prev, a.id, { show: !a.show }),
+                        );
+                        setSelected({ t: "ang", id: a.id });
+                      }}
+                    >
+                      ∠{a.id}
+                    </ChipToggle>
+                  ))}
                 </>
               ) : null}
               {state.kind === "quad-area" ? (
@@ -567,13 +624,73 @@ export default function TrigRatiosStudio() {
                   >
                     대각선 BD
                   </ChipToggle>
+                  {state.quadVertices.map((v, i) => (
+                    <ChipToggle
+                      key={`qang-${i}`}
+                      on={v.showInterior}
+                      onClick={() => {
+                        setState((prev) =>
+                          patchQuadInterior(prev, i, { showInterior: !v.showInterior }),
+                        );
+                        setSelected({ t: "ang", id: `v:${i}` });
+                      }}
+                    >
+                      ∠{v.name || String.fromCharCode(65 + i)}
+                    </ChipToggle>
+                  ))}
                 </>
               ) : null}
             </div>
+            {state.kind === "triangle-area" ? (
+              <div className="mt-2 space-y-2">
+                <p className="text-[11px] font-semibold text-foreground/50">면 색</p>
+                <div className="flex flex-wrap gap-1">
+                  {FACE_FILL_CHIPS.map((chip) => (
+                    <ChipToggle
+                      key={chip.id}
+                      on={state.showTriFill && state.triFill === chip.id}
+                      onClick={() => set({ triFill: chip.id, showTriFill: true })}
+                    >
+                      {chip.label}
+                    </ChipToggle>
+                  ))}
+                </div>
+                <p className="text-[11px] font-semibold text-foreground/50">수선 색</p>
+                <div className="flex flex-wrap gap-1">
+                  {ANGLE_FILL_CHIPS.map((chip) => (
+                    <ChipToggle
+                      key={chip.id}
+                      on={state.showAltitudeHighlight && state.altitudeColor === chip.id}
+                      onClick={() =>
+                        set({ altitudeColor: chip.id, showAltitudeHighlight: true })
+                      }
+                    >
+                      {chip.label}
+                    </ChipToggle>
+                  ))}
+                </div>
+              </div>
+            ) : null}
+            {state.kind === "quad-area" ? (
+              <div className="mt-2 space-y-2">
+                <p className="text-[11px] font-semibold text-foreground/50">면 색</p>
+                <div className="flex flex-wrap gap-1">
+                  {FACE_FILL_CHIPS.map((chip) => (
+                    <ChipToggle
+                      key={chip.id}
+                      on={state.showQuadFill && state.quadFill === chip.id}
+                      onClick={() => set({ quadFill: chip.id, showQuadFill: true })}
+                    >
+                      {chip.label}
+                    </ChipToggle>
+                  ))}
+                </div>
+              </div>
+            ) : null}
 
             <div className="mt-2">
               <p className="mb-1 text-[11px] leading-snug text-foreground/45">
-                점 버튼을 누르면 이름 → 점 → 안보임. 길이 숫자는 끌어 옮기고, 점선만 잡으면
+                점 버튼을 누르면 이름 → 점 → 안보임. 길이·각 숫자는 끌어 옮기고, 점선만 잡으면
                 설명선만 옮겨요.
               </p>
               <div className="flex flex-wrap gap-1">
@@ -654,6 +771,15 @@ export default function TrigRatiosStudio() {
                   }
                 />
               </div>
+            ) : null}
+
+            {selAngle ? (
+              <AngleDisplayPanel
+                state={state}
+                angId={selAngle}
+                setState={setState}
+                set={set}
+              />
             ) : null}
           </section>
 
@@ -752,6 +878,135 @@ export default function TrigRatiosStudio() {
           </details>
         </div>
       </div>
+    </div>
+  );
+}
+
+function angleChipTitle(angId: string, state: TrigRatiosState): string {
+  if (angId === "theta") return "각 θ";
+  if (angId === "y") return "여각 y";
+  if (angId === "z") return "여각 z";
+  if (angId.startsWith("v:")) {
+    const i = Number(angId.slice(2));
+    const name = state.quadVertices[i]?.name || String.fromCharCode(65 + i);
+    return `각 ${name}`;
+  }
+  return `각 ${angId}`;
+}
+
+function currentAngleDeg(state: TrigRatiosState, angId: string): number {
+  if (angId === "theta") return state.thetaDeg;
+  if (angId === "y" || angId === "z") return 90 - state.thetaDeg;
+  if (angId.startsWith("v:")) {
+    const i = Number(angId.slice(2));
+    return interiorAngleDeg(state.quadPoints, i);
+  }
+  if (state.kind === "triangle-area") {
+    const pts = trianglePoints(state);
+    const idx = { A: 0, B: 1, C: 2 }[angId as "A" | "B" | "C"];
+    if (idx == null || !pts.A || !pts.B || !pts.C) return 0;
+    return interiorAngleDeg([pts.A, pts.B, pts.C], idx);
+  }
+  const math = worldRightTriangle(state);
+  const idx = { A: 0, B: 1, C: 2 }[angId as "A" | "B" | "C"];
+  if (idx == null) return 0;
+  return interiorAngleDeg([math.A, math.B, math.C], idx);
+}
+
+function AngleDisplayPanel({
+  state,
+  angId,
+  setState,
+  set,
+}: {
+  state: TrigRatiosState;
+  angId: string;
+  setState: TrigSetter;
+  set: (patch: Partial<TrigRatiosState>) => void;
+}) {
+  const unit = angId === "theta" || angId === "y" || angId === "z";
+  const quad = angId.startsWith("v:");
+  const quadIndex = quad ? Number(angId.slice(2)) : -1;
+  const mark = unit || quad ? null : findAngle(state, angId);
+  const quadV = quad ? state.quadVertices[quadIndex] : null;
+
+  let fill: AngleFill = "none";
+  let label: MeasLabel = emptyLabel("auto");
+  if (angId === "theta") {
+    fill = state.thetaFill;
+    label = state.thetaLabel;
+  } else if (angId === "y") {
+    fill = state.yAngleFill;
+    label = state.yAngleLabel;
+  } else if (angId === "z") {
+    fill = state.zAngleFill;
+    label = state.zAngleLabel;
+  } else if (quadV) {
+    fill = quadV.fillInterior;
+    label = quadV.interior;
+  } else if (mark) {
+    fill = mark.fill;
+    label = mark.label;
+  }
+
+  function setFill(next: AngleFill) {
+    if (angId === "theta") set({ thetaFill: next });
+    else if (angId === "y") set({ yAngleFill: next });
+    else if (angId === "z") set({ zAngleFill: next });
+    else if (quad) setState((prev) => patchQuadInterior(prev, quadIndex, { fillInterior: next }));
+    else setState((prev) => patchAngleState(prev, angId, { fill: next }));
+  }
+
+  function setLabelMode(mode: MeasLabel["mode"]) {
+    const next = { ...label, mode };
+    if (angId === "theta") set({ thetaLabel: next });
+    else if (angId === "y") set({ yAngleLabel: next });
+    else if (angId === "z") set({ zAngleLabel: next });
+    else if (quad) setState((prev) => patchQuadInterior(prev, quadIndex, { interior: next }));
+    else setState((prev) => patchAngleState(prev, angId, { label: next }));
+  }
+
+  const deg = currentAngleDeg(state, angId);
+  const labelId = quad ? `v:${quadIndex}:interior` : `a:${angId}`;
+  const canEditValue = !unit && (quad || Boolean(mark && (mark.id === "A" || mark.id === "B" || mark.id === "C")));
+
+  return (
+    <div className="mt-3 space-y-2">
+      <p className="text-[11px] font-semibold text-foreground/50">{angleChipTitle(angId, state)}</p>
+      <p className="text-[11px] font-semibold text-foreground/50">각 색</p>
+      <div className="flex flex-wrap gap-1">
+        {ANGLE_FILL_CHIPS.map((chip) => (
+          <ChipToggle
+            key={chip.id}
+            on={fill === chip.id}
+            onClick={() => setFill(fill === chip.id ? "none" : chip.id)}
+          >
+            {chip.label}
+          </ChipToggle>
+        ))}
+      </div>
+      {canEditValue ? (
+        <NumberField
+          label="각 값"
+          value={Number(deg.toFixed(1))}
+          onChange={(n) => setState((prev) => applyEditedLabel(prev, labelId, String(n)))}
+          min={1}
+          max={179}
+          step={1}
+          suffix="°"
+        />
+      ) : null}
+      <LabelModeRow
+        title="각 크기"
+        mode={label.mode}
+        custom={label.custom}
+        unknownLetter={state.unknownLetter}
+        onMode={setLabelMode}
+        onCustom={(custom) => setState((prev) => applyEditedLabel(prev, labelId, custom))}
+      />
+      <p className="text-[11px] leading-snug text-foreground/45">
+        크기를 숨기면 호만 남아요. 색을 끄면 검정 호만 그려요.
+      </p>
     </div>
   );
 }

@@ -20,9 +20,9 @@ export type TrigKind = "right" | "unit-circle" | "triangle-area" | "quad-area";
 
 export type AngleFill = "none" | "pink" | "blue" | "green";
 
-export type TriFill = "green" | "pink";
+export type FaceFill = "pink" | "blue" | "green" | "yellow";
 
-export type QuadFill = "pink" | "yellow";
+export type AltitudeColor = "pink" | "blue" | "green";
 
 export type QuadFamily = "general" | "parallelogram";
 
@@ -87,6 +87,8 @@ export type TrigRatiosState = {
   showVertexNames: boolean;
   showDots: boolean;
   rotateDeg: number;
+  /** Oldest-first ids of numeric length/angle inputs (`s:AB`, `a:A`, `v:0`). */
+  lockOrder: string[];
 
   /** right triangle */
   A: Vec;
@@ -118,6 +120,12 @@ export type TrigRatiosState = {
   showTanValue: boolean;
   axisPrecision: number;
   radiusLabel: MeasLabel;
+  thetaLabel: MeasLabel;
+  yAngleLabel: MeasLabel;
+  zAngleLabel: MeasLabel;
+  thetaFill: AngleFill;
+  yAngleFill: AngleFill;
+  zAngleFill: AngleFill;
 
   /** triangle area */
   triA: Vec;
@@ -131,8 +139,9 @@ export type TrigRatiosState = {
   altitudeFrom: AltitudeVertex;
   altitudes: AltitudeVertex[];
   showTriFill: boolean;
-  triFill: TriFill;
+  triFill: FaceFill;
   showAltitudeHighlight: boolean;
+  altitudeColor: AltitudeColor;
   showAltitudeRight: boolean;
   showBaseExtension: boolean;
 
@@ -142,7 +151,7 @@ export type TrigRatiosState = {
   quadVertices: TriVertexMark[];
   quadEdges: TriEdgeMark[];
   showQuadFill: boolean;
-  quadFill: QuadFill;
+  quadFill: FaceFill;
   showQuadDiagonal: boolean;
 };
 
@@ -153,9 +162,46 @@ export type TrigPreset = {
   state: TrigRatiosState;
 };
 
+function parseAngleFill(value: unknown): AngleFill {
+  if (value === "pink" || value === "blue" || value === "green") return value;
+  return "none";
+}
+
 function clamp(n: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, n));
 }
+
+export function cycleAngleFill(current: AngleFill): AngleFill {
+  if (current === "none") return "pink";
+  if (current === "pink") return "blue";
+  if (current === "blue") return "green";
+  return "none";
+}
+
+function parseFaceFill(value: unknown, fallback: FaceFill): FaceFill {
+  if (value === "pink" || value === "blue" || value === "green" || value === "yellow") {
+    return value;
+  }
+  return fallback;
+}
+
+function parseAltitudeColor(value: unknown): AltitudeColor {
+  if (value === "blue" || value === "green") return value;
+  return "pink";
+}
+
+export const ANGLE_FILL_CHIPS: { id: Exclude<AngleFill, "none">; label: string }[] = [
+  { id: "pink", label: "분홍" },
+  { id: "blue", label: "파랑" },
+  { id: "green", label: "초록" },
+];
+
+export const FACE_FILL_CHIPS: { id: FaceFill; label: string }[] = [
+  { id: "pink", label: "분홍" },
+  { id: "blue", label: "파랑" },
+  { id: "green", label: "초록" },
+  { id: "yellow", label: "노랑" },
+];
 
 export function roundThetaDeg(deg: number): number {
   return clamp(Math.round(deg * 10) / 10, 15, 80);
@@ -418,6 +464,7 @@ function baseDefaults(kind: TrigKind): TrigRatiosState {
     showVertexNames: true,
     showDots: true,
     rotateDeg: 0,
+    lockOrder: [],
     A: { x: 0, y: 0 },
     B: { x: 0, y: 0 },
     C: { x: 0, y: 0 },
@@ -438,13 +485,19 @@ function baseDefaults(kind: TrigKind): TrigRatiosState {
     showUnitRightAngles: true,
     showYProjections: true,
     showAngleX: true,
-    showAngleY: true,
-    showAngleZ: true,
+    showAngleY: false,
+    showAngleZ: false,
     showCosValue: true,
     showSinValue: true,
     showTanValue: true,
     axisPrecision: 2,
     radiusLabel: customLen("1"),
+    thetaLabel: emptyLabel("custom"),
+    yAngleLabel: emptyLabel("custom"),
+    zAngleLabel: emptyLabel("custom"),
+    thetaFill: "none",
+    yAngleFill: "none",
+    zAngleFill: "none",
     triA: { x: -2.8, y: 0 },
     triB: { x: 3.2, y: 0 },
     triC: { x: 0.4, y: 3.6 },
@@ -458,6 +511,7 @@ function baseDefaults(kind: TrigKind): TrigRatiosState {
     showTriFill: true,
     triFill: "green",
     showAltitudeHighlight: true,
+    altitudeColor: "pink",
     showAltitudeRight: true,
     showBaseExtension: true,
     quadFamily: "general",
@@ -520,13 +574,25 @@ export function normalizeState(
     showUnitRightAngles: state.showUnitRightAngles !== false,
     showYProjections: state.showYProjections !== false,
     showAngleX: state.showAngleX !== false,
-    showAngleY: state.showAngleY ?? (state as { showAnglesYZ?: boolean }).showAnglesYZ !== false,
-    showAngleZ: state.showAngleZ ?? (state as { showAnglesYZ?: boolean }).showAnglesYZ !== false,
+    showAngleY:
+      typeof state.showAngleY === "boolean"
+        ? state.showAngleY
+        : (state as { showAnglesYZ?: boolean }).showAnglesYZ === true,
+    showAngleZ:
+      typeof state.showAngleZ === "boolean"
+        ? state.showAngleZ
+        : (state as { showAnglesYZ?: boolean }).showAnglesYZ === true,
     showCosValue: state.showCosValue ?? state.showAxisValues !== false,
     showSinValue: state.showSinValue ?? state.showAxisValues !== false,
     showTanValue: state.showTanValue ?? state.showAxisValues !== false,
     axisPrecision: clamp(Math.round(state.axisPrecision ?? 2), 1, 4),
     radiusLabel: { ...emptyLabel("custom"), custom: "1", ...state.radiusLabel },
+    thetaLabel: { ...emptyLabel("custom"), ...state.thetaLabel },
+    yAngleLabel: { ...emptyLabel("custom"), ...state.yAngleLabel },
+    zAngleLabel: { ...emptyLabel("custom"), ...state.zAngleLabel },
+    thetaFill: parseAngleFill(state.thetaFill),
+    yAngleFill: parseAngleFill(state.yAngleFill),
+    zAngleFill: parseAngleFill(state.zAngleFill),
     triA: state.triA ?? { x: -2.8, y: 0 },
     triB: state.triB ?? { x: 3.2, y: 0 },
     triC: state.triC ?? { x: 0.4, y: 3.6 },
@@ -549,8 +615,9 @@ export function normalizeState(
     altitudeFrom: parseAltitudes(state)[0] ?? "C",
     altitudes: parseAltitudes(state),
     showTriFill: state.showTriFill !== false,
-    triFill: state.triFill === "pink" ? "pink" : "green",
+    triFill: parseFaceFill(state.triFill, "green"),
     showAltitudeHighlight: state.showAltitudeHighlight !== false,
+    altitudeColor: parseAltitudeColor(state.altitudeColor),
     showAltitudeRight: state.showAltitudeRight !== false,
     showBaseExtension: state.showBaseExtension !== false,
     quadFamily,
@@ -563,7 +630,7 @@ export function normalizeState(
     ),
     quadEdges: mergeTriEdges(defaultQuadEdges(), state.quadEdges),
     showQuadFill: state.showQuadFill !== false,
-    quadFill: state.quadFill === "yellow" ? "yellow" : "pink",
+    quadFill: parseFaceFill(state.quadFill, "pink"),
     showQuadDiagonal: state.showQuadDiagonal !== false,
     showVertexNames: state.showVertexNames !== false,
     showDots: state.showDots !== false,
@@ -571,6 +638,9 @@ export function normalizeState(
     unknownLetter:
       state.unknownLetter && /^[A-Za-z]$/.test(state.unknownLetter) ? state.unknownLetter : "x",
     rotateDeg: wrapRotateDeg(Number(state.rotateDeg ?? 0)),
+    lockOrder: Array.isArray(state.lockOrder)
+      ? state.lockOrder.filter((id): id is string => typeof id === "string")
+      : [],
     style: {
       ...style,
       lineWidth: clamp(style.lineWidth, 1, 3.5),
@@ -692,11 +762,11 @@ const rightSqrt3 = withSegs(
 
 const rightHyp46 = withSegs(
   build("right", {
-    rightVertex: "C",
-    legLeft: 4,
-    legRight: 6,
-    ...altitudeTriangleFromLegs(4, 6),
-    refAngleVertex: "A",
+    rightVertex: "A",
+    legLeft: 6,
+    legRight: 4,
+    ...altitudeTriangleFromLegs(6, 4),
+    refAngleVertex: "C",
   }),
   { AC: customLen("4"), AB: customLen("6") },
 );
@@ -782,6 +852,8 @@ const unitXyz = build("unit-circle", {
   thetaDeg: 35,
   showAxisValues: false,
   showRadiusLabel: false,
+  showAngleY: true,
+  showAngleZ: true,
 });
 
 const triHeight = withTriSegs(
@@ -800,7 +872,7 @@ const triHeight = withTriSegs(
 
 const triObtuse = withTriAngle(
   build("triangle-area", {
-    triA: { x: 0, y: 0.2 },
+    triA: { x: 0, y: 0 },
     triB: { x: 4, y: 0 },
     triC: { x: -1.2, y: 2.8 },
     altitudeFrom: "C",
@@ -830,9 +902,9 @@ const tri608 = withTriAngle(
 const tri1357 = withTriAngle(
   withTriSegs(
     build("triangle-area", {
-      triA: { x: -3.5, y: 0.2 },
-      triB: { x: 2.5, y: 0 },
-      triC: { x: -0.8, y: 2.8 },
+      triA: { x: -5, y: 0 },
+      triB: { x: 5, y: 0 },
+      triC: { x: 5 + 7 * Math.cos(Math.PI / 4), y: 7 * Math.sin(Math.PI / 4) },
       altitudeFrom: "C",
     }),
     { AB: customLen("10 cm"), BC: customLen("7 cm") },
@@ -1179,6 +1251,34 @@ function applyLegacyQuadDisplay(
   const showName = showVertexNames !== false;
   const showDot = showDots !== false;
   return merged.map((v) => ({ ...v, showName, showDot }));
+}
+
+export function findAngle(state: TrigRatiosState, id: string): AngleMark | undefined {
+  const pool = state.kind === "triangle-area" ? state.triAngles : state.angles;
+  return pool.find((a) => a.id === id);
+}
+
+export function patchAngleState(
+  state: TrigRatiosState,
+  id: string,
+  patch: Partial<AngleMark>,
+): TrigRatiosState {
+  const key = state.kind === "triangle-area" ? "triAngles" : "angles";
+  return {
+    ...state,
+    [key]: state[key].map((a) => (a.id === id ? { ...a, ...patch } : a)),
+  };
+}
+
+export function patchQuadInterior(
+  state: TrigRatiosState,
+  index: number,
+  patch: Partial<TriVertexMark>,
+): TrigRatiosState {
+  return {
+    ...state,
+    quadVertices: state.quadVertices.map((v, i) => (i === index ? { ...v, ...patch } : v)),
+  };
 }
 
 export function findSeg(state: TrigRatiosState, id: string): SegMark | undefined {

@@ -1,23 +1,33 @@
 import { parseMathRuns, parseNameRuns } from "@/lib/diagrams/math-label";
 import type { DiagramScene, SceneCmd, SceneText, Vec } from "@/lib/diagrams/scene";
 import { add, clamp, len, mul, norm, sub } from "@/lib/diagrams/polygon/geometry";
-import { emptyLabel, type MeasLabel } from "@/lib/diagrams/polygon/model";
+import { type MeasLabel } from "@/lib/diagrams/polygon/model";
 import {
   altitudeBase,
+  angleDeg,
   derivedPoints,
   extensionPoint,
   figureStrokes,
   interiorAngleDeg,
+  isNearRightAngle,
   isObtuseAtA,
   projectT,
   resolveAngleLabel,
+  resolveLengthText,
   resolveSegText,
+  resolveUnitAngleLabel,
   trianglePoints,
   unitCirclePoints,
   worldQuadPoints,
   worldRightTriangle,
 } from "./geometry";
-import { altitudeFootId, formatThetaLabel, type AngleFill, type TrigRatiosState } from "./model";
+import {
+  altitudeFootId,
+  type AltitudeColor,
+  type AngleFill,
+  type FaceFill,
+  type TrigRatiosState,
+} from "./model";
 
 export type SceneLayout = {
   canvas: Record<string, Vec>;
@@ -36,7 +46,9 @@ const FILL_PINK = "#f7c8d2";
 const FILL_BLUE = "#c5dff0";
 const FILL_GREEN = "#d4edda";
 const FILL_YELLOW = "#fce88a";
-const ALTITUDE = "#e879a8";
+const STROKE_PINK = "#e879a8";
+const STROKE_BLUE = "#5b8fc7";
+const STROKE_GREEN = "#3d9b6d";
 const DIAGONAL = "#e879a8";
 const GRID = "#c5dff0";
 
@@ -47,12 +59,17 @@ function fillColor(fill: AngleFill): string | null {
   return null;
 }
 
-function triFillColor(state: TrigRatiosState): string {
-  return state.triFill === "pink" ? FILL_PINK : FILL_GREEN;
+function faceFillColor(fill: FaceFill): string {
+  if (fill === "pink") return FILL_PINK;
+  if (fill === "blue") return FILL_BLUE;
+  if (fill === "green") return FILL_GREEN;
+  return FILL_YELLOW;
 }
 
-function quadFillColor(state: TrigRatiosState): string {
-  return state.quadFill === "yellow" ? FILL_YELLOW : FILL_PINK;
+function altitudeStroke(color: AltitudeColor): string {
+  if (color === "blue") return STROKE_BLUE;
+  if (color === "green") return STROKE_GREEN;
+  return STROKE_PINK;
 }
 
 function pushText(texts: SceneText[], cmds: SceneCmd[], text: SceneText): void {
@@ -169,6 +186,7 @@ function drawAngle(
     a1: arc.a1,
     ccw: arc.ccw,
     stroke: INK,
+    id: labelId,
   });
   if (!label) return;
   const sweep = arcSweep(arc.a0, arc.a1, arc.ccw);
@@ -460,13 +478,19 @@ function paintRightFigure(
     if (!pa || !pb) continue;
     cmds.push({ t: "line", x1: pa.x, y1: pa.y, x2: pb.x, y2: pb.y, stroke: INK, width: style.lineWidth });
   }
-  if (state.showRightAngle) {
-    const rv = state.rightVertex;
-    if (rv === "C" && canvas.C && canvas.B && canvas.A) drawRightAngle(cmds, canvas.C, canvas.B, canvas.A);
-    else if (rv === "A" && canvas.A && canvas.B && canvas.C) drawRightAngle(cmds, canvas.A, canvas.B, canvas.C);
-    else if (rv === "B" && canvas.B && canvas.A && canvas.C) drawRightAngle(cmds, canvas.B, canvas.A, canvas.C);
-  }
   const mathPts = worldRightTriangle(state);
+  if (state.showRightAngle && canvas.A && canvas.B && canvas.C) {
+    const math = [mathPts.A, mathPts.B, mathPts.C];
+    const corners = [
+      { i: 0, v: canvas.A, from: canvas.B, to: canvas.C },
+      { i: 1, v: canvas.B, from: canvas.A, to: canvas.C },
+      { i: 2, v: canvas.C, from: canvas.A, to: canvas.B },
+    ];
+    for (const corner of corners) {
+      if (!isNearRightAngle(interiorAngleDeg(math, corner.i))) continue;
+      drawRightAngle(cmds, corner.v, corner.from, corner.to);
+    }
+  }
   for (const mark of state.angles) {
     if (!mark.show) continue;
     const v = canvas[mark.vertex];
@@ -479,7 +503,7 @@ function paintRightFigure(
         : mark.vertex === "B"
           ? interiorAngleDeg([mathPts.A, mathPts.B, mathPts.C], 1)
           : interiorAngleDeg([mathPts.A, mathPts.B, mathPts.C], 2);
-    if (Math.abs(deg - 90) < 0.75) continue;
+    if (isNearRightAngle(deg)) continue;
     const label = resolveAngleLabel(state, mark, deg);
     const inward = mul(add(add(canvas.A!, canvas.B!), canvas.C!), 1 / 3);
     drawAngle(
@@ -625,8 +649,8 @@ function paintUnitCircle(
   }
 
   if (state.showUnitRightAngles) {
-    drawRightAngle(cmds, A, O, B);
-    drawRightAngle(cmds, C, O, D);
+    if (isNearRightAngle(angleDeg(O, A, B))) drawRightAngle(cmds, A, O, B);
+    if (isNearRightAngle(angleDeg(O, C, D))) drawRightAngle(cmds, C, O, D);
   }
 
   if (state.showRadiusLabel) {
@@ -657,20 +681,42 @@ function paintUnitCircle(
       O,
       toC({ x: 1, y: 0 }),
       B,
-      formatThetaLabel(state.thetaDeg),
+      resolveUnitAngleLabel(state, state.thetaLabel, state.thetaDeg),
       "a:theta",
-      emptyLabel("custom"),
+      state.thetaLabel,
       style.fontSize,
-      null,
+      fillColor(state.thetaFill),
     );
   }
 
   const yDeg = 90 - state.thetaDeg;
   if (state.showAngleY) {
-    drawAngle(cmds, texts, B, O, A, formatThetaLabel(yDeg), "a:y", emptyLabel("custom"), style.fontSize * 0.92, null);
+    drawAngle(
+      cmds,
+      texts,
+      B,
+      O,
+      A,
+      resolveUnitAngleLabel(state, state.yAngleLabel, yDeg),
+      "a:y",
+      state.yAngleLabel,
+      style.fontSize * 0.92,
+      fillColor(state.yAngleFill),
+    );
   }
   if (state.showAngleZ) {
-    drawAngle(cmds, texts, D, C, O, formatThetaLabel(yDeg), "a:z", emptyLabel("custom"), style.fontSize * 0.92, null);
+    drawAngle(
+      cmds,
+      texts,
+      D,
+      C,
+      O,
+      resolveUnitAngleLabel(state, state.zAngleLabel, yDeg),
+      "a:z",
+      state.zAngleLabel,
+      style.fontSize * 0.92,
+      fillColor(state.zAngleFill),
+    );
   }
 
   const p = state.axisPrecision;
@@ -736,7 +782,7 @@ function paintTriangleArea(
   const math = trianglePoints(state);
   const pts = [canvas.A!, canvas.B!, canvas.C!];
   if (state.showTriFill) {
-    cmds.push({ t: "polygon", points: pts, fill: triFillColor(state) });
+      cmds.push({ t: "polygon", points: pts, fill: faceFillColor(state.triFill) });
   }
 
   if (state.showBaseExtension) {
@@ -781,7 +827,7 @@ function paintTriangleArea(
       y1: pa.y,
       x2: pb.x,
       y2: pb.y,
-      stroke: highlight ? ALTITUDE : INK,
+      stroke: highlight ? altitudeStroke(state.altitudeColor) : INK,
       width: highlight ? style.lineWidth + 0.8 : style.lineWidth,
     });
   }
@@ -792,6 +838,7 @@ function paintTriangleArea(
       const apex = canvas[from];
       if (!foot || !apex || !canvas.A || !canvas.B || !canvas.C) continue;
       const base = altitudeBase(from, canvas.A, canvas.B, canvas.C);
+      if (!isNearRightAngle(angleDeg(base.a, foot, apex))) continue;
       drawRightAngle(cmds, foot, base.a, apex);
     }
   }
@@ -860,7 +907,7 @@ function paintQuadArea(
   const mathPts = worldQuadPoints(state);
   const pts = ["A", "B", "C", "D"].map((id) => canvas[id]!);
   if (state.showQuadFill) {
-    cmds.push({ t: "polygon", points: pts, fill: quadFillColor(state) });
+      cmds.push({ t: "polygon", points: pts, fill: faceFillColor(state.quadFill) });
   }
   for (const [a, b] of figureStrokes(state)) {
     const pa = canvas[a];
@@ -887,12 +934,7 @@ function paintQuadArea(
     const cur = canvas[id]!;
     const next = canvas[String.fromCharCode(65 + ((i + 1) % 4))]!;
     const deg = interiorAngleDeg(mathPts, i);
-    const label =
-      v.interior.mode === "custom"
-        ? v.interior.custom
-        : v.interior.mode === "x"
-          ? `$${state.unknownLetter}$`
-          : `${Math.round(deg)}°`;
+    const label = resolveAngleLabel(state, { label: v.interior, vertex: id, from: "", to: "" }, deg);
     drawAngle(
       cmds,
       texts,
@@ -916,12 +958,7 @@ function paintQuadArea(
     const b = canvas[String.fromCharCode(65 + ((i + 1) % 4))]!;
     const mid = mul(add(a, b), 0.5);
     const outward = norm(sub(mid, c));
-    const label =
-      e.length.mode === "custom"
-        ? e.length.custom
-        : e.length.mode === "x"
-          ? `$${state.unknownLetter}$`
-          : `${Math.round(edgeLength(mathPts, i) * 10) / 10} ${state.unit}`.trim();
+    const label = resolveLengthText(state, e.length, edgeLength(mathPts, i));
     dimArc(
       cmds,
       texts,

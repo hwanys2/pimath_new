@@ -21,8 +21,14 @@ import {
   type Vec,
 } from "@/lib/diagrams/polygon/model";
 import {
+  formatHypotenuseLabel,
+  formatRadicalLength,
+  simplifySqrtInt,
+} from "@/lib/diagrams/pythagorean/radical";
+import {
   altitudeFootId,
   findSeg,
+  formatThetaLabel,
   patchSegState,
   roundThetaDeg,
   wrapRotateDeg,
@@ -46,7 +52,8 @@ export type TrigHit =
   | { kind: "point"; id: string }
   | { kind: "seg"; id: string }
   | { kind: "label"; id: string }
-  | { kind: "dimLine"; id: string };
+  | { kind: "dimLine"; id: string }
+  | { kind: "ang"; id: string };
 
 type HitCmd = {
   t: string;
@@ -87,6 +94,12 @@ export function angleDeg(from: Vec, vertex: Vec, to: Vec): number {
   const u = norm(sub(from, vertex));
   const w = norm(sub(to, vertex));
   return (Math.acos(clamp(u.x * w.x + u.y * w.y, -1, 1)) * 180) / Math.PI;
+}
+
+const RIGHT_ANGLE_EPS = 0.75;
+
+export function isNearRightAngle(deg: number): boolean {
+  return Number.isFinite(deg) && Math.abs(deg - 90) < RIGHT_ANGLE_EPS;
 }
 
 export function footToLine(p: Vec, a: Vec, b: Vec, clampToSegment = true): Vec {
@@ -322,6 +335,10 @@ export function rebuildTriangleFromLegs(
   legLeft: number,
   legRight: number,
 ): TrigRatiosState {
+  return unlockShownNumeric(setRightLegs(state, legLeft, legRight));
+}
+
+function setRightLegs(state: TrigRatiosState, legLeft: number, legRight: number): TrigRatiosState {
   return fromPythTriangle(state, pythRebuild(toPythState(state), legLeft, legRight));
 }
 
@@ -329,7 +346,9 @@ export function movePoint(state: TrigRatiosState, id: string, pos: Vec): TrigRat
   switch (state.kind) {
     case "right": {
       const next = fromPythTriangle(state, pythMovePoint(toPythState(state), id, pos));
-      return syncLegFields(next as unknown as PythagoreanState) as unknown as TrigRatiosState;
+      return unlockShownNumeric(
+        syncLegFields(next as unknown as PythagoreanState) as unknown as TrigRatiosState,
+      );
     }
     case "unit-circle": {
       if (id !== "B" && id !== "D") return state;
@@ -337,7 +356,7 @@ export function movePoint(state: TrigRatiosState, id: string, pos: Vec): TrigRat
         id === "D"
           ? (Math.atan2(pos.y, 1) * 180) / Math.PI
           : (Math.atan2(pos.y, pos.x) * 180) / Math.PI;
-      return setThetaDeg(state, ang);
+      return unlockShownNumeric(setThetaDeg(state, ang));
     }
     case "triangle-area": {
       const key = id as "A" | "B" | "C";
@@ -346,7 +365,7 @@ export function movePoint(state: TrigRatiosState, id: string, pos: Vec): TrigRat
       const next = { ...state, ...patch };
       const pts = [next.triA, next.triB, next.triC];
       if (!isConvex(pts) || edgeLength(pts, 0) < 0.4) return state;
-      return next;
+      return unlockShownNumeric(next);
     }
     case "quad-area": {
       const i = "ABCD".indexOf(id);
@@ -354,7 +373,7 @@ export function movePoint(state: TrigRatiosState, id: string, pos: Vec): TrigRat
       const pts = state.quadPoints.slice();
       pts[i] = pos;
       if (!validQuad(state, pts)) return state;
-      return { ...state, quadPoints: pts };
+      return unlockShownNumeric({ ...state, quadPoints: pts });
     }
     default:
       return state;
@@ -400,14 +419,70 @@ export function toggleSeg(state: TrigRatiosState, id: string): TrigRatiosState {
   return patchSegState(state, id, { show: !seg.show });
 }
 
+function formatComputedLength(length: number, unit: string): string {
+  const radical = exactRadicalLength(length, unit);
+  return radical ?? formatMeasure(length, unit);
+}
+
+function exactRadicalLength(length: number, unit: string): string | null {
+  if (!(length > 0) || !Number.isFinite(length)) return null;
+  const sq = length * length;
+  const intSq = Math.round(sq);
+  if (intSq > 0 && Math.abs(sq - intSq) < 1e-3) {
+    const { coeff, radicand } = simplifySqrtInt(intSq);
+    if (coeff > 0 && radicand > 1) return formatRadicalLength(coeff, radicand, unit);
+  }
+  for (let rad = 2; rad <= 15; rad += 1) {
+    const q = length / Math.sqrt(rad);
+    const coeff = Math.round(q);
+    if (coeff < 1) continue;
+    if (Math.abs(q - coeff) < 1e-3) {
+      const { coeff: c, radicand } = simplifySqrtInt(coeff * coeff * rad);
+      if (c > 0 && radicand > 1) return formatRadicalLength(c, radicand, unit);
+    }
+  }
+  return null;
+}
+
+function formatRightSegComputed(state: TrigRatiosState, seg: SegMark, length: number): string {
+  if (state.kind === "right" && rightSegRole(state, seg.id) === "hyp") {
+    const { left, right } = legSides(state);
+    return formatHypotenuseLabel(left, right, state.unit, length);
+  }
+  return formatComputedLength(length, state.unit);
+}
+
+export function resolveLengthText(
+  state: Pick<TrigRatiosState, "unit" | "unknownLetter">,
+  label: MeasLabel,
+  length: number,
+): string | null {
+  if (label.mode === "hide") return null;
+  if (label.mode === "x") return `$${labelUnknownLetter(label, state.unknownLetter)}$`;
+  const computed = formatComputedLength(length, state.unit);
+  if (label.mode === "custom") {
+    const text = label.custom.trim();
+    if (!text) return null;
+    if (isSymbolicLengthLabel(label)) return normalizeSqrtLabel(text);
+    return computed;
+  }
+  return computed;
+}
+
 export function resolveSegText(state: TrigRatiosState, seg: SegMark): string | null {
   if (!seg.show) return null;
   const length = segLength(state, seg);
   const { label } = seg;
   if (label.mode === "hide") return null;
-  if (label.mode === "custom") return normalizeSqrtLabel(label.custom.trim());
   if (label.mode === "x") return `$${labelUnknownLetter(label, state.unknownLetter)}$`;
-  return formatMeasure(length, state.unit);
+  const computed = formatRightSegComputed(state, seg, length);
+  if (label.mode === "custom") {
+    const text = label.custom.trim();
+    if (!text) return null;
+    if (isSymbolicLengthLabel(label)) return normalizeSqrtLabel(text);
+    return computed;
+  }
+  return computed;
 }
 
 export function resolveAngleLabel(
@@ -417,9 +492,39 @@ export function resolveAngleLabel(
 ): string | null {
   const { label } = mark;
   if (label.mode === "hide") return null;
-  if (label.mode === "custom") return normalizeSqrtLabel(label.custom.trim());
+  if (label.mode === "custom") {
+    const text = label.custom.trim();
+    const parsed = parseAngleInput(text);
+    if (parsed.kind === "number") return `${Math.round(deg * 10) / 10}°`;
+    return text ? normalizeSqrtLabel(text) : `${Math.round(deg * 10) / 10}°`;
+  }
   if (label.mode === "x") return `$${labelUnknownLetter(label, state.unknownLetter)}$`;
   return `${Math.round(deg * 10) / 10}°`;
+}
+
+export function resolveUnitAngleLabel(
+  state: TrigRatiosState,
+  label: MeasLabel,
+  deg: number,
+): string | null {
+  if (label.mode === "hide") return null;
+  if (label.mode === "x") return `$${labelUnknownLetter(label, state.unknownLetter)}$`;
+  if (label.mode === "custom") {
+    const text = label.custom.trim();
+    const parsed = parseAngleInput(text);
+    if (parsed.kind === "number") return formatThetaLabel(deg);
+    return text ? normalizeSqrtLabel(text) : formatThetaLabel(deg);
+  }
+  return formatThetaLabel(deg);
+}
+
+export function angleIdFromSceneId(id: string): string | null {
+  if (id.startsWith("a:")) return id.slice(2);
+  if (id.startsWith("v:")) {
+    const i = Number(id.split(":")[1]);
+    return Number.isFinite(i) ? `v:${i}` : null;
+  }
+  return null;
 }
 
 function labelFromMeasureParse(
@@ -452,6 +557,449 @@ function labelFromAngleParse(
   return { ...prev, mode: "custom", custom: text.trim() };
 }
 
+function measureNumber(text: string): number | null {
+  const parsed = parseMeasureInput(text);
+  if (parsed.kind === "number" && parsed.value != null && Number.isFinite(parsed.value)) {
+    return parsed.value;
+  }
+  const raw = text.trim();
+  const latex = raw.match(
+    /^\$?\s*(\d+(?:\.\d+)?)?\s*\\sqrt\{(\d+)\}\s*\$?(?:\s*(?:cm|mm))?$/i,
+  );
+  if (latex) {
+    const coeff = latex[1] ? Number(latex[1]) : 1;
+    const rad = Number(latex[2]);
+    if (coeff > 0 && rad >= 0) return coeff * Math.sqrt(rad);
+  }
+  const uni = raw.match(/^\$?\s*(\d+(?:\.\d+)?)?\s*√\s*(\d+)\s*\$?(?:\s*(?:cm|mm))?$/);
+  if (uni) {
+    const coeff = uni[1] ? Number(uni[1]) : 1;
+    const rad = Number(uni[2]);
+    if (coeff > 0 && rad >= 0) return coeff * Math.sqrt(rad);
+  }
+  return null;
+}
+
+function isSymbolicLengthLabel(label: MeasLabel): boolean {
+  if (label.mode === "x") return true;
+  if (label.mode === "custom") {
+    if (measureNumber(label.custom) != null) return false;
+    return parseMeasureInput(label.custom).kind === "unknown";
+  }
+  return false;
+}
+
+function autoLengthLabel(label: MeasLabel): MeasLabel {
+  if (isSymbolicLengthLabel(label) || label.mode === "hide") return label;
+  return { ...label, mode: "auto", custom: "" };
+}
+
+function autoAngleLabel(label: MeasLabel): MeasLabel {
+  if (label.mode === "x" || label.mode === "hide") return label;
+  const parsed = parseAngleInput(label.custom);
+  if (label.mode === "custom" && parsed.kind !== "number") return label;
+  return { ...label, mode: "auto", custom: "" };
+}
+
+function customLengthValue(label: MeasLabel): number | null {
+  if (label.mode !== "custom") return null;
+  if (isSymbolicLengthLabel(label)) return null;
+  return measureNumber(label.custom);
+}
+
+function customAngleValue(label: MeasLabel): number | null {
+  if (label.mode !== "custom") return null;
+  const parsed = parseAngleInput(label.custom);
+  if (parsed.kind === "number" && parsed.value != null) return parsed.value;
+  return null;
+}
+
+type MeasureLock =
+  | { t: "seg"; id: string; value: number }
+  | { t: "ang"; id: string; value: number }
+  | { t: "qang"; index: number; value: number };
+
+function lockKey(lock: MeasureLock): string {
+  if (lock.t === "seg") return `s:${lock.id}`;
+  if (lock.t === "qang") return `v:${lock.index}`;
+  return `a:${lock.id}`;
+}
+
+function unlockShownNumeric(state: TrigRatiosState): TrigRatiosState {
+  return {
+    ...reconcileNumericLabels(state, new Set()),
+    lockOrder: [],
+  };
+}
+
+function reconcileNumericLabels(state: TrigRatiosState, keep: Set<string>): TrigRatiosState {
+  const segs = (s: SegMark) =>
+    s.show && !keep.has(`s:${s.id}`) ? { ...s, label: autoLengthLabel(s.label) } : s;
+  const angs = (a: { id: string; label: MeasLabel; show: boolean }) =>
+    a.show && !keep.has(`a:${a.id}`) ? { ...a, label: autoAngleLabel(a.label) } : a;
+
+  if (state.kind === "unit-circle") {
+    return {
+      ...state,
+      thetaLabel: keep.has("a:theta") ? state.thetaLabel : autoAngleLabel(state.thetaLabel),
+      yAngleLabel: keep.has("a:y") ? state.yAngleLabel : autoAngleLabel(state.yAngleLabel),
+      zAngleLabel: keep.has("a:z") ? state.zAngleLabel : autoAngleLabel(state.zAngleLabel),
+    };
+  }
+  if (state.kind === "quad-area") {
+    return {
+      ...state,
+      quadEdges: state.quadEdges.map((e, i) => {
+        const id = ["AB", "BC", "CD", "DA"][i]!;
+        if (!e.showLength || keep.has(`s:${id}`)) return e;
+        return { ...e, length: autoLengthLabel(e.length) };
+      }),
+      quadVertices: state.quadVertices.map((v, i) =>
+        v.showInterior && !keep.has(`v:${i}`) ? { ...v, interior: autoAngleLabel(v.interior) } : v,
+      ),
+    };
+  }
+  if (state.kind === "triangle-area") {
+    return {
+      ...state,
+      triSegs: state.triSegs.map(segs),
+      triAngles: state.triAngles.map(angs),
+    };
+  }
+  return {
+    ...state,
+    segs: state.segs.map(segs),
+    angles: state.angles.map(angs),
+  };
+}
+
+function touchLockOrder(state: TrigRatiosState, id: string): TrigRatiosState {
+  return { ...state, lockOrder: [...state.lockOrder.filter((x) => x !== id), id] };
+}
+
+function collectLocks(state: TrigRatiosState, except?: string): MeasureLock[] {
+  const out: MeasureLock[] = [];
+  if (state.kind === "right") {
+    for (const s of state.segs) {
+      const key = `s:${s.id}`;
+      if (!s.show || key === except) continue;
+      const value = customLengthValue(s.label);
+      if (value != null) out.push({ t: "seg", id: s.id, value });
+    }
+    for (const a of state.angles) {
+      const key = `a:${a.id}`;
+      if (!a.show || key === except || a.vertex === state.rightVertex) continue;
+      const value = customAngleValue(a.label);
+      if (value != null) out.push({ t: "ang", id: a.id, value });
+    }
+  } else if (state.kind === "triangle-area") {
+    for (const s of state.triSegs) {
+      const key = `s:${s.id}`;
+      if (!s.show || key === except) continue;
+      const value = customLengthValue(s.label);
+      if (value != null) out.push({ t: "seg", id: s.id, value });
+    }
+    for (const a of state.triAngles) {
+      if (a.id !== "A" && a.id !== "B" && a.id !== "C") continue;
+      const key = `a:${a.id}`;
+      if (!a.show || key === except) continue;
+      const value = customAngleValue(a.label);
+      if (value != null) out.push({ t: "ang", id: a.id, value });
+    }
+  } else if (state.kind === "quad-area") {
+    for (const [i, id] of ["AB", "BC", "CD", "DA"].entries()) {
+      const e = state.quadEdges[i];
+      const key = `s:${id}`;
+      if (!e?.showLength || key === except) continue;
+      const value = customLengthValue(e.length);
+      if (value != null) out.push({ t: "seg", id, value });
+    }
+    for (const [i, v] of state.quadVertices.entries()) {
+      const key = `v:${i}`;
+      if (!v.showInterior || key === except) continue;
+      const value = customAngleValue(v.interior);
+      if (value != null) out.push({ t: "qang", index: i, value });
+    }
+  }
+  const order = state.lockOrder;
+  out.sort((a, b) => {
+    const ia = order.indexOf(lockKey(a));
+    const ib = order.indexOf(lockKey(b));
+    return (ia < 0 ? -1 : ia) - (ib < 0 ? -1 : ib);
+  });
+  return out;
+}
+
+function pickLockSubset(
+  required: MeasureLock,
+  previous: MeasureLock[],
+  viable: (locks: MeasureLock[]) => boolean,
+): MeasureLock[] | null {
+  const n = Math.min(previous.length, 8);
+  let best: MeasureLock[] | null = null;
+  let bestScore = -1;
+  for (let mask = 0; mask < 1 << n; mask += 1) {
+    const subset: MeasureLock[] = [required];
+    let score = 0;
+    for (let i = 0; i < n; i += 1) {
+      if (mask & (1 << i)) {
+        const lock = previous[i]!;
+        subset.push(lock);
+        const kindBonus = lock.t === required.t ? 10 : 1000;
+        score += kindBonus + (n - i);
+      }
+    }
+    if (!viable(subset)) continue;
+    if (score > bestScore) {
+      best = subset;
+      bestScore = score;
+    }
+  }
+  return best;
+}
+
+const LEN_TOL = 0.2;
+const ANG_TOL = 0.6;
+
+function applyMeasureConstraint(state: TrigRatiosState, required: MeasureLock): TrigRatiosState {
+  const previous = collectLocks(state, lockKey(required));
+  const chosen = pickLockSubset(required, previous, (locks) =>
+    constraintSetFits(state, locks),
+  );
+  if (!chosen) return state;
+  const nextGeom = applyLockSet(state, chosen, required);
+  if (!nextGeom) return state;
+  const keep = new Set(chosen.map(lockKey));
+  return touchLockOrder(reconcileNumericLabels(nextGeom, keep), lockKey(required));
+}
+
+function constraintSetFits(state: TrigRatiosState, locks: MeasureLock[]): boolean {
+  if (state.kind === "right") return solveRightLegs(state, locks) != null;
+  const applied = applyLockSet(state, locks, locks[0]!);
+  if (!applied) return false;
+  return lockSetHolds(applied, locks);
+}
+
+function applyLockSet(
+  state: TrigRatiosState,
+  locks: MeasureLock[],
+  required: MeasureLock,
+): TrigRatiosState | null {
+  if (state.kind === "right") {
+    const legs = solveRightLegs(state, locks);
+    if (!legs) return null;
+    return setRightLegs(state, legs.left, legs.right);
+  }
+  if (state.kind === "triangle-area") {
+    if (required.t === "seg" && ALTITUDE_SEGS[required.id]) {
+      return applyAltitudeLength(state, ALTITUDE_SEGS[required.id]!, required.value);
+    }
+    const poly = trianglePolyWithLocks(state, locks);
+    const next =
+      required.t === "seg"
+        ? applyEdgeLengthChange(poly, TRI_SIDE_IDS.indexOf(required.id as (typeof TRI_SIDE_IDS)[number]), required.value)
+        : required.t === "ang"
+          ? applyInteriorAngleChange(poly, { A: 0, B: 1, C: 2 }[required.id as "A" | "B" | "C"] ?? -1, required.value)
+          : poly;
+    return fromPolygonTri(state, next);
+  }
+  if (state.kind === "quad-area") {
+    const poly = quadPolyWithLocks(state, locks);
+    const next =
+      required.t === "seg"
+        ? applyEdgeLengthChange(poly, ["AB", "BC", "CD", "DA"].indexOf(required.id), required.value)
+        : required.t === "qang"
+          ? applyInteriorAngleChange(poly, required.index, required.value)
+          : poly;
+    return fromQuadPolygon(state, next);
+  }
+  return null;
+}
+
+function lockSetHolds(state: TrigRatiosState, locks: MeasureLock[]): boolean {
+  for (const lock of locks) {
+    if (lock.t === "seg") {
+      const seg = findSeg(state, lock.id);
+      if (!seg) continue;
+      if (Math.abs(segLength(state, seg) - lock.value) > LEN_TOL) return false;
+    } else if (lock.t === "ang") {
+      const pts =
+        state.kind === "triangle-area"
+          ? [state.triA, state.triB, state.triC]
+          : [state.A, state.B, state.C];
+      const idx = { A: 0, B: 1, C: 2 }[lock.id as "A" | "B" | "C"];
+      if (idx == null) continue;
+      if (Math.abs(interiorAngleDeg(pts, idx) - lock.value) > ANG_TOL) return false;
+    } else {
+      const pts = state.quadPoints;
+      if (Math.abs(vertexAngles(pts, lock.index).interior - lock.value) > ANG_TOL) return false;
+    }
+  }
+  return true;
+}
+
+function solveRightLegs(
+  state: TrigRatiosState,
+  locks: MeasureLock[],
+): { left: number; right: number } | null {
+  const roles = new Map<"left" | "right" | "hyp", number>();
+  const angs = new Map<string, number>();
+  for (const lock of locks) {
+    if (lock.t === "seg") {
+      const role = rightSegRole(state, lock.id);
+      if (!role) continue;
+      const prev = roles.get(role);
+      if (prev != null && Math.abs(prev - lock.value) > LEN_TOL) return null;
+      roles.set(role, lock.value);
+    } else if (lock.t === "ang") {
+      if (lock.id === state.rightVertex) continue;
+      angs.set(lock.id, clamp(lock.value, 1, 89.5));
+    }
+  }
+  if (angs.size === 2) {
+    const vals = [...angs.values()];
+    if (Math.abs(vals[0]! + vals[1]! - 90) > ANG_TOL) return null;
+  }
+
+  let left = roles.get("left") ?? null;
+  let right = roles.get("right") ?? null;
+  const hyp = roles.get("hyp") ?? null;
+
+  if (left != null && right != null) {
+    const h = Math.hypot(left, right);
+    if (hyp != null && Math.abs(hyp - h) > LEN_TOL) return null;
+    if (!rightAnglesMatch(state, left, right, angs)) return null;
+    return { left, right };
+  }
+  if (hyp != null && left != null) {
+    if (hyp <= left + 1e-6) return null;
+    right = Math.sqrt(hyp * hyp - left * left);
+    if (!rightAnglesMatch(state, left, right, angs)) return null;
+    return { left, right };
+  }
+  if (hyp != null && right != null) {
+    if (hyp <= right + 1e-6) return null;
+    left = Math.sqrt(hyp * hyp - right * right);
+    if (!rightAnglesMatch(state, left, right, angs)) return null;
+    return { left, right };
+  }
+
+  const angEntry = angs.size ? [...angs.entries()][0]! : null;
+  const lengthRole = left != null ? "left" : right != null ? "right" : hyp != null ? "hyp" : null;
+  const lengthVal = left ?? right ?? hyp ?? null;
+
+  if (angEntry && lengthVal != null && lengthRole) {
+    const solved = legsFromAngleAndLength(state, angEntry[0], angEntry[1], lengthRole, lengthVal);
+    if (!solved || !rightAnglesMatch(state, solved.left, solved.right, angs)) return null;
+    return solved;
+  }
+  if (angEntry && lengthVal == null) {
+    const { hyp: h0 } = legSides(state);
+    const solved = legsFromAngleAndLength(state, angEntry[0], angEntry[1], "hyp", h0);
+    if (!solved || !rightAnglesMatch(state, solved.left, solved.right, angs)) return null;
+    return solved;
+  }
+  if (lengthVal != null && angs.size === 0 && lengthRole) {
+    const cur = legSides(state);
+    const k =
+      lengthRole === "left"
+        ? lengthVal / Math.max(cur.left, 1e-6)
+        : lengthRole === "right"
+          ? lengthVal / Math.max(cur.right, 1e-6)
+          : lengthVal / Math.max(cur.hyp, 1e-6);
+    return { left: cur.left * k, right: cur.right * k };
+  }
+  return null;
+}
+
+function rightAnglesMatch(
+  state: TrigRatiosState,
+  left: number,
+  right: number,
+  angs: Map<string, number>,
+): boolean {
+  if (angs.size === 0) return true;
+  const tri = triangleForRightVertex(left, right, state.rightVertex);
+  const pts = [tri.A, tri.B, tri.C];
+  for (const [id, deg] of angs) {
+    const mark = state.angles.find((a) => a.id === id);
+    if (!mark) continue;
+    const idx = { A: 0, B: 1, C: 2 }[mark.vertex as "A" | "B" | "C"];
+    if (idx == null) continue;
+    if (Math.abs(interiorAngleDeg(pts, idx) - deg) > ANG_TOL) return false;
+  }
+  return true;
+}
+
+function legsFromAngleAndLength(
+  state: TrigRatiosState,
+  angId: string,
+  deg: number,
+  role: "left" | "right" | "hyp",
+  value: number,
+): { left: number; right: number } | null {
+  const t = Math.tan((deg * Math.PI) / 180);
+  if (!(t > 1e-6) || !Number.isFinite(t)) return null;
+  const leftOverRight = tanIsLeftOverRight(state, angId);
+  let left: number;
+  let right: number;
+  if (leftOverRight) {
+    if (role === "left") {
+      left = value;
+      right = value / t;
+    } else if (role === "right") {
+      right = value;
+      left = value * t;
+    } else {
+      right = value / Math.sqrt(t * t + 1);
+      left = right * t;
+    }
+  } else if (role === "left") {
+    left = value;
+    right = value * t;
+  } else if (role === "right") {
+    right = value;
+    left = value / t;
+  } else {
+    left = value / Math.sqrt(t * t + 1);
+    right = left * t;
+  }
+  if (left < 0.4 || right < 0.4) return null;
+  return { left, right };
+}
+
+function tanIsLeftOverRight(state: TrigRatiosState, angId: string): boolean {
+  const mark = state.angles.find((a) => a.id === angId);
+  if (!mark) return true;
+  const { left, right } = legSides(state);
+  const idx = { A: 0, B: 1, C: 2 }[mark.vertex as "A" | "B" | "C"];
+  if (idx == null) return true;
+  const deg = interiorAngleDeg([state.A, state.B, state.C], idx);
+  const tan = Math.tan((deg * Math.PI) / 180);
+  return Math.abs(tan - left / right) <= Math.abs(tan - right / left);
+}
+
+function patchShownLength(
+  state: TrigRatiosState,
+  segId: string,
+  label: MeasLabel,
+): TrigRatiosState {
+  if (state.kind === "quad-area") {
+    const i = ["AB", "BC", "CD", "DA"].indexOf(segId);
+    if (i >= 0) {
+      return {
+        ...state,
+        quadEdges: state.quadEdges.map((e, idx) =>
+          idx === i ? { ...e, showLength: true, length: label } : e,
+        ),
+      };
+    }
+  }
+  const seg = findSeg(state, segId);
+  if (!seg) return state;
+  return patchSegState(state, segId, { show: true, label });
+}
+
 export function applyEditedLabel(
   state: TrigRatiosState,
   labelId: string,
@@ -460,15 +1008,16 @@ export function applyEditedLabel(
   const trimmed = raw.trim();
   if (labelId.startsWith("s:")) {
     const segId = labelId.slice(2);
-    const seg = findSeg(state, segId);
-    if (!seg) return state;
+    const prev =
+      state.kind === "quad-area"
+        ? state.quadEdges[["AB", "BC", "CD", "DA"].indexOf(segId)]?.length
+        : findSeg(state, segId)?.label;
+    if (!prev) return state;
     const parsed = parseMeasureInput(trimmed);
-    let next = patchSegState(state, segId, {
-      show: true,
-      label: labelFromMeasureParse(parsed, trimmed, seg.label),
-    });
-    if (parsed.kind === "number" && parsed.value != null) {
-      next = applySegNumeric(next, segId, parsed.value);
+    const numeric = measureNumber(trimmed);
+    let next = patchShownLength(state, segId, labelFromMeasureParse(parsed, trimmed, prev));
+    if (numeric != null && numeric > 0) {
+      next = applySegNumeric(next, segId, numeric);
     }
     return next;
   }
@@ -476,48 +1025,55 @@ export function applyEditedLabel(
     const angId = labelId.slice(2);
     if (state.kind === "unit-circle" && (angId === "theta" || angId === "y" || angId === "z")) {
       const parsed = parseAngleInput(trimmed);
+      const key =
+        angId === "theta" ? "thetaLabel" : angId === "y" ? "yAngleLabel" : "zAngleLabel";
+      const prev = state[key];
       if (parsed.kind === "number" && parsed.value != null) {
-        if (angId === "theta") return setThetaDeg(state, parsed.value);
-        return setThetaDeg(state, 90 - parsed.value);
+        const next =
+          angId === "theta" ? setThetaDeg(state, parsed.value) : setThetaDeg(state, 90 - parsed.value);
+        return { ...next, [key]: labelFromAngleParse(parsed, trimmed, prev) };
       }
-      return state;
+      return { ...state, [key]: labelFromAngleParse(parsed, trimmed, prev) };
     }
     const pool = state.kind === "triangle-area" ? state.triAngles : state.angles;
     const mark = pool.find((a) => a.id === angId);
     if (!mark) return state;
     const parsed = parseAngleInput(trimmed);
     const key = state.kind === "triangle-area" ? "triAngles" : "angles";
-    if (parsed.kind === "number" && parsed.value != null) {
-      return applyAngleNumeric(state, angId, parsed.value);
-    }
-    return {
+    const labeled = {
       ...state,
       [key]: state[key].map((a) =>
         a.id === angId
-          ? { ...a, label: labelFromAngleParse(parsed, trimmed, a.label) }
+          ? { ...a, show: true, label: labelFromAngleParse(parsed, trimmed, a.label) }
           : a,
       ),
-    };
+    } as TrigRatiosState;
+    if (parsed.kind === "number" && parsed.value != null) {
+      return applyAngleNumeric(labeled, angId, parsed.value);
+    }
+    return labeled;
   }
   if (labelId.startsWith("v:")) {
     const parts = labelId.split(":");
     const vi = Number(parts[1]);
     const parsed = parseAngleInput(trimmed);
     if (state.kind === "quad-area" && Number.isFinite(vi)) {
-      if (parsed.kind === "number" && parsed.value != null) {
-        return applyQuadAngleNumeric(state, vi, parsed.value);
-      }
-      return {
+      const labeled = {
         ...state,
         quadVertices: state.quadVertices.map((v, i) =>
           i === vi
             ? {
                 ...v,
+                showInterior: true,
                 interior: labelFromAngleParse(parsed, trimmed, v.interior),
               }
             : v,
         ),
       };
+      if (parsed.kind === "number" && parsed.value != null) {
+        return applyQuadAngleNumeric(labeled, vi, parsed.value);
+      }
+      return labeled;
     }
   }
   if (labelId.startsWith("n:")) {
@@ -551,20 +1107,7 @@ export function applyEditedLabel(
 
 function applySegNumeric(state: TrigRatiosState, segId: string, value: number): TrigRatiosState {
   const target = clamp(value, 0.4, 40);
-  if (state.kind === "right") {
-    return applyRightSegNumeric(state, segId, target);
-  }
-  if (state.kind === "triangle-area") {
-    return applyTriangleSegNumeric(state, segId, target);
-  }
-  if (state.kind === "quad-area") {
-    const edgeIndex = ["AB", "BC", "CD", "DA"].indexOf(segId);
-    if (edgeIndex < 0) return state;
-    const poly = quadPolygonState(state);
-    const nextPoly = applyEdgeLengthChange(poly, edgeIndex, target);
-    return fromQuadPolygon(state, nextPoly);
-  }
-  return state;
+  return applyMeasureConstraint(state, { t: "seg", id: segId, value: target });
 }
 
 function rightSegRole(
@@ -581,59 +1124,12 @@ function rightSegRole(
   return null;
 }
 
-function hasDisplayedAcuteAngle(state: TrigRatiosState): boolean {
-  return state.angles.some((a) => {
-    if (!a.show) return false;
-    if (a.vertex === state.rightVertex) return false;
-    if (a.label.mode === "hide" || a.label.mode === "x") return false;
-    return true;
-  });
-}
-
-function applyRightSegNumeric(
-  state: TrigRatiosState,
-  segId: string,
-  value: number,
-): TrigRatiosState {
-  const role = rightSegRole(state, segId);
-  if (!role) return state;
-  const { left, right, hyp } = legSides(state);
-  if (hasDisplayedAcuteAngle(state) || role === "hyp") {
-    const current = role === "left" ? left : role === "right" ? right : hyp;
-    const k = value / Math.max(current, 1e-6);
-    return rebuildTriangleFromLegs(state, left * k, right * k);
-  }
-  if (role === "left") return rebuildTriangleFromLegs(state, value, right);
-  return rebuildTriangleFromLegs(state, left, value);
-}
-
 const TRI_SIDE_IDS = ["AB", "BC", "AC"] as const;
 const ALTITUDE_SEGS: Record<string, AltitudeVertex> = {
   CH: "C",
   AHa: "A",
   BHb: "B",
 };
-
-function applyTriangleSegNumeric(
-  state: TrigRatiosState,
-  segId: string,
-  value: number,
-): TrigRatiosState {
-  const from = ALTITUDE_SEGS[segId];
-  if (from) return applyAltitudeLength(state, from, value);
-  const edgeIndex = TRI_SIDE_IDS.indexOf(segId as (typeof TRI_SIDE_IDS)[number]);
-  if (edgeIndex < 0) return state;
-  const poly = polygonFromTri(state);
-  const edges = poly.edges.map((e, i) => {
-    if (i === edgeIndex) return e;
-    return {
-      showLength: true,
-      length: { ...emptyLabel("custom"), custom: String(edgeLength(poly.points, i)) },
-    };
-  });
-  const nextPoly = applyEdgeLengthChange({ ...poly, edges }, edgeIndex, value);
-  return fromPolygonTri(state, nextPoly);
-}
 
 function applyAltitudeLength(
   state: TrigRatiosState,
@@ -690,57 +1186,53 @@ function legSides(state: TrigRatiosState): { left: number; right: number; hyp: n
 }
 
 function applyAngleNumeric(state: TrigRatiosState, angId: string, value: number): TrigRatiosState {
+  const deg = clamp(value, 1, 179);
   if (state.kind === "right") {
     const mark = state.angles.find((a) => a.id === angId);
-    if (!mark) return state;
-    const side = state.segs.find((s) => s.show && s.label.mode === "auto");
-    const known = side ? segLength(state, side) : state.legLeft;
-    const rad = (value * Math.PI) / 180;
-    let ll = known;
-    let lr = known * Math.tan(rad);
-    if (state.rightVertex === "C") {
-      return rebuildTriangleFromLegs(state, lr, ll);
-    }
-    return rebuildTriangleFromLegs(state, ll, lr);
+    if (!mark || mark.vertex === state.rightVertex) return state;
+    return applyMeasureConstraint(state, { t: "ang", id: angId, value: clamp(deg, 1, 89.5) });
   }
   if (state.kind === "triangle-area") {
-    const poly = polygonFromTri(state);
-    const idx = { A: 0, B: 1, C: 2 }[angId as "A" | "B" | "C"] ?? -1;
-    if (idx < 0) return state;
-    const nextPoly = applyInteriorAngleChange(poly, idx, value);
-    return fromPolygonTri(state, nextPoly);
+    if (angId !== "A" && angId !== "B" && angId !== "C") return state;
+    return applyMeasureConstraint(state, { t: "ang", id: angId, value: deg });
   }
   return state;
 }
 
 function applyQuadAngleNumeric(state: TrigRatiosState, vi: number, value: number): TrigRatiosState {
-  const poly = quadPolygonState(state);
-  const nextPoly = applyInteriorAngleChange(poly, vi, value);
-  return fromQuadPolygon(state, nextPoly);
+  return applyMeasureConstraint(state, { t: "qang", index: vi, value: clamp(value, 1, 179) });
 }
 
 function polygonFromTri(state: TrigRatiosState) {
   return {
     points: [state.triA, state.triB, state.triC],
-    vertices: state.triVertices.map((v) => ({
-      name: v.name,
-      nameDx: v.nameDx,
-      nameDy: v.nameDy,
-      showInterior: v.showInterior,
-      showExterior: false,
-      fillExterior: false,
-      interior: v.interior,
-      exterior: emptyLabel("auto"),
-    })),
-    edges: TRI_SIDE_IDS.map((id, i) => {
-      const seg = findSeg(state, id);
-      if (seg?.show && seg.label.mode === "custom") {
-        return { showLength: true, length: seg.label };
-      }
-      const e = state.triEdges[i];
+    vertices: state.triVertices.map((v, i) => {
+      const id = ["A", "B", "C"][i]!;
+      const ang = state.triAngles.find((a) => a.id === id);
+      const locked = ang ? customAngleValue(ang.label) : null;
       return {
-        showLength: e?.showLength ?? false,
-        length: e?.length ?? emptyLabel("auto"),
+        name: v.name,
+        nameDx: v.nameDx,
+        nameDy: v.nameDy,
+        showInterior: Boolean(ang?.show && locked != null),
+        showExterior: false,
+        fillExterior: false,
+        interior:
+          locked != null
+            ? { ...emptyLabel("custom"), custom: `${locked}°` }
+            : emptyLabel("auto"),
+        exterior: emptyLabel("auto"),
+      };
+    }),
+    edges: TRI_SIDE_IDS.map((id) => {
+      const seg = findSeg(state, id);
+      const locked = seg?.show ? customLengthValue(seg.label) : null;
+      return {
+        showLength: locked != null,
+        length:
+          locked != null
+            ? { ...emptyLabel("custom"), custom: String(locked) }
+            : emptyLabel("auto"),
       };
     }),
     diagonals: [] as [number, number][],
@@ -751,6 +1243,32 @@ function polygonFromTri(state: TrigRatiosState) {
     unit: state.unit,
     unknownLetter: state.unknownLetter,
     style: state.style,
+  };
+}
+
+function trianglePolyWithLocks(state: TrigRatiosState, locks: MeasureLock[]) {
+  const base = polygonFromTri(state);
+  return {
+    ...base,
+    vertices: base.vertices.map((v, i) => {
+      const id = ["A", "B", "C"][i]!;
+      const lock = locks.find((l) => l.t === "ang" && l.id === id);
+      if (!lock) return { ...v, showInterior: false, interior: emptyLabel("auto") };
+      return {
+        ...v,
+        showInterior: true,
+        interior: { ...emptyLabel("custom"), custom: `${lock.value}°` },
+      };
+    }),
+    edges: base.edges.map((e, i) => {
+      const id = TRI_SIDE_IDS[i]!;
+      const lock = locks.find((l) => l.t === "seg" && l.id === id);
+      if (!lock) return { ...e, showLength: false, length: emptyLabel("auto") };
+      return {
+        showLength: true,
+        length: { ...emptyLabel("custom"), custom: String(lock.value) },
+      };
+    }),
   };
 }
 
@@ -774,14 +1292,14 @@ function quadPolygonState(state: TrigRatiosState) {
       name: v.name,
       nameDx: v.nameDx,
       nameDy: v.nameDy,
-      showInterior: v.showInterior,
+      showInterior: v.showInterior && customAngleValue(v.interior) != null,
       showExterior: false,
       fillExterior: false,
       interior: v.interior,
       exterior: emptyLabel("auto"),
     })),
     edges: state.quadEdges.map((e) => ({
-      showLength: e.showLength,
+      showLength: e.showLength && customLengthValue(e.length) != null,
       length: e.length,
     })),
     diagonals: [] as [number, number][],
@@ -792,6 +1310,31 @@ function quadPolygonState(state: TrigRatiosState) {
     unit: state.unit,
     unknownLetter: state.unknownLetter,
     style: state.style,
+  };
+}
+
+function quadPolyWithLocks(state: TrigRatiosState, locks: MeasureLock[]) {
+  const base = quadPolygonState(state);
+  return {
+    ...base,
+    vertices: base.vertices.map((v, i) => {
+      const lock = locks.find((l) => l.t === "qang" && l.index === i);
+      if (!lock) return { ...v, showInterior: false, interior: emptyLabel("auto") };
+      return {
+        ...v,
+        showInterior: true,
+        interior: { ...emptyLabel("custom"), custom: `${lock.value}°` },
+      };
+    }),
+    edges: base.edges.map((e, i) => {
+      const id = ["AB", "BC", "CD", "DA"][i]!;
+      const lock = locks.find((l) => l.t === "seg" && l.id === id);
+      if (!lock) return { ...e, showLength: false, length: emptyLabel("auto") };
+      return {
+        showLength: true,
+        length: { ...emptyLabel("custom"), custom: String(lock.value) },
+      };
+    }),
   };
 }
 
@@ -888,7 +1431,47 @@ export function nudgeLabel(
       };
     });
   }
+  if (labelId.startsWith("a:")) {
+    const angId = labelId.slice(2);
+    if (state.kind === "unit-circle") {
+      if (angId === "theta") return { ...state, thetaLabel: nudgeMeas(state.thetaLabel, dx, dy, lineOnly) };
+      if (angId === "y") return { ...state, yAngleLabel: nudgeMeas(state.yAngleLabel, dx, dy, lineOnly) };
+      if (angId === "z") return { ...state, zAngleLabel: nudgeMeas(state.zAngleLabel, dx, dy, lineOnly) };
+    }
+    const key = state.kind === "triangle-area" ? "triAngles" : "angles";
+    return {
+      ...state,
+      [key]: state[key].map((a) =>
+        a.id === angId ? { ...a, label: nudgeMeas(a.label, dx, dy, lineOnly) } : a,
+      ),
+    };
+  }
+  if (labelId.startsWith("v:")) {
+    const vi = Number(labelId.split(":")[1]);
+    if (state.kind === "quad-area" && Number.isFinite(vi)) {
+      return {
+        ...state,
+        quadVertices: state.quadVertices.map((v, i) =>
+          i === vi ? { ...v, interior: nudgeMeas(v.interior, dx, dy, lineOnly) } : v,
+        ),
+      };
+    }
+  }
   return state;
+}
+
+function nudgeMeas(
+  label: MeasLabel,
+  dx: number,
+  dy: number,
+  lineOnly: boolean,
+): MeasLabel {
+  if (lineOnly) return label;
+  return {
+    ...label,
+    dx: clamp(label.dx + dx, -80, 80),
+    dy: clamp(label.dy + dy, -80, 80),
+  };
 }
 
 export function nudgeDimLine(
@@ -1075,6 +1658,11 @@ export function hitTestTrig(
     }
   }
 
+  if (bestText && (bestText.id.startsWith("a:") || bestText.id.startsWith("v:"))) {
+    if (!bestP || bestText.d <= bestP.d + 10) {
+      return { kind: "label", id: bestText.id };
+    }
+  }
   if (bestP && (!bestText || bestP.d <= bestText.d) && (!bestDim || bestP.d <= bestDim.d + 6)) {
     return { kind: "point", id: bestP.id };
   }
@@ -1085,6 +1673,18 @@ export function hitTestTrig(
   if (bestDim) return { kind: "dimLine", id: bestDim.id };
   if (bestText) return { kind: "label", id: bestText.id };
   if (bestP) return { kind: "point", id: bestP.id };
+
+  const angR = 12 * scale;
+  let bestAng: { id: string; d: number } | null = null;
+  for (const cmd of cmds) {
+    if (cmd.t !== "arc" || !cmd.id) continue;
+    if (!(cmd.id.startsWith("a:") || cmd.id.startsWith("v:"))) continue;
+    if (cmd.id.endsWith(":line")) continue;
+    if (cmd.cx == null || cmd.cy == null || cmd.r == null || cmd.a0 == null || cmd.a1 == null) continue;
+    const d = distToArc(x, y, cmd.cx, cmd.cy, cmd.r, cmd.a0, cmd.a1, cmd.ccw === true);
+    if (d < angR && (!bestAng || d < bestAng.d)) bestAng = { id: cmd.id, d };
+  }
+  if (bestAng) return { kind: "ang", id: bestAng.id };
 
   for (const [a, b] of strokes) {
     const pa = canvasPts[a];

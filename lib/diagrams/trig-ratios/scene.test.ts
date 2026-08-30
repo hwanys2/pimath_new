@@ -8,9 +8,12 @@ import {
   lengthDimAxes,
   movePoint,
   nudgeLabel,
+  rebuildTriangleFromLegs,
+  resolveSegText,
   unitCirclePoints,
   isObtuseAtA,
   figureStrokes,
+  interiorAngleDeg,
   segLength,
 } from "./geometry";
 import {
@@ -18,6 +21,7 @@ import {
   cloneState,
   cycleFigurePoint,
   formatThetaLabel,
+  findAngle,
   normalizeState,
   readPointMark,
 } from "./model";
@@ -56,6 +60,87 @@ describe("trig-ratios scene", () => {
     assert.ok(scene.cmds.some((c) => c.t === "rightAngle" || c.t === "polyline"));
   });
 
+  it("4·6 puts the right-angle square at A, not C", () => {
+    const state = normalizeState(cloneState(TRIG_PRESETS.find((p) => p.id === "right-46")!.state));
+    const math = [state.A, state.B, state.C];
+    almost(interiorAngleDeg(math, 0), 90, 0.5);
+    assert.ok(Math.abs(interiorAngleDeg(math, 2) - 90) > 10);
+    assert.equal(state.rightVertex, "A");
+    const scene = buildTrigScene(state);
+    const mark = scene.cmds.find((c) => c.t === "rightAngle");
+    assert.ok(mark && mark.t === "rightAngle");
+    const a = scene.layout.canvas.A!;
+    const c = scene.layout.canvas.C!;
+    assert.ok(Math.hypot(mark.x - a.x, mark.y - a.y) < 2);
+    assert.ok(Math.hypot(mark.x - c.x, mark.y - c.y) > 20);
+  });
+
+  it("does not draw a right-angle square where the angle is not 90°", () => {
+    const start = normalizeState(cloneState(TRIG_PRESETS.find((p) => p.id === "right-sqrt3")!.state));
+    const next = { ...start, rightVertex: "C" as const, showRightAngle: true };
+    const math = [next.A, next.B, next.C];
+    almost(interiorAngleDeg(math, 1), 90, 0.5);
+    assert.ok(Math.abs(interiorAngleDeg(math, 2) - 90) > 10);
+    const scene = buildTrigScene(next);
+    const marks = scene.cmds.filter((c) => c.t === "rightAngle");
+    assert.ok(marks.length >= 1);
+    const b = scene.layout.canvas.B!;
+    const c = scene.layout.canvas.C!;
+    for (const mark of marks) {
+      assert.ok(Math.hypot(mark.x - b.x, mark.y - b.y) < 3);
+      assert.ok(Math.hypot(mark.x - c.x, mark.y - c.y) > 10);
+    }
+  });
+
+  it("can draw an angle arc without the degree number", () => {
+    const start = normalizeState(cloneState(TRIG_PRESETS.find((p) => p.id === "right-306090")!.state));
+    const hidden = {
+      ...start,
+      angles: start.angles.map((a) =>
+        a.id === "A"
+          ? { ...a, show: true, fill: "none" as const, label: { ...a.label, mode: "hide" as const } }
+          : a,
+      ),
+    };
+    const scene = buildTrigScene(hidden);
+    assert.equal(scene.texts.find((t) => t.id === "a:A"), undefined);
+    assert.ok(scene.cmds.some((c) => c.t === "arc" && c.id === "a:A"));
+  });
+
+  it("can fill an angle and still hide the size", () => {
+    const start = normalizeState(cloneState(TRIG_PRESETS.find((p) => p.id === "right-306090")!.state));
+    const filled = {
+      ...start,
+      angles: start.angles.map((a) =>
+        a.id === "A"
+          ? { ...a, show: true, fill: "pink" as const, label: { ...a.label, mode: "hide" as const } }
+          : a,
+      ),
+    };
+    const scene = buildTrigScene(filled);
+    assert.equal(scene.texts.find((t) => t.id === "a:A"), undefined);
+    assert.ok(scene.cmds.some((c) => c.t === "polygon" && c.fill === "#f7c8d2"));
+    const arc = scene.cmds.find((c) => c.t === "arc" && c.id === "a:A");
+    assert.ok(arc && arc.t === "arc");
+    const sweep = arcSweep(arc.a0, arc.a1, arc.ccw);
+    const midAng = arc.a0 + (arc.ccw ? -sweep : sweep) / 2;
+    const hx = arc.cx + Math.cos(midAng) * arc.r;
+    const hy = arc.cy + Math.sin(midAng) * arc.r;
+    const hit = hitTestTrig(
+      scene.layout.canvas,
+      scene.texts,
+      scene.cmds,
+      figureStrokes(filled),
+      filled.segs,
+      hx,
+      hy,
+      1,
+      draggableIds(filled),
+    );
+    assert.equal(hit?.kind, "ang");
+    assert.equal(hit && "id" in hit ? hit.id : "", "a:A");
+  });
+
   it("unit circle B and D follow theta", () => {
     const state = normalizeState(cloneState(TRIG_PRESETS.find((p) => p.id === "unit-48")!.state));
     const pts = unitCirclePoints(state);
@@ -70,6 +155,15 @@ describe("trig-ratios scene", () => {
     assert.ok(isObtuseAtA(state));
     const scene = buildTrigScene(state);
     assert.ok(scene.cmds.some((c) => c.t === "line" && c.dashed));
+  });
+
+  it("triangle-area presets keep base AB horizontal", () => {
+    for (const preset of TRIG_PRESETS.filter((p) => p.state.kind === "triangle-area")) {
+      const state = normalizeState(cloneState(preset.state));
+      assert.equal(state.triA.y, state.triB.y, preset.id);
+    }
+    const obtuse = normalizeState(cloneState(TRIG_PRESETS.find((p) => p.id === "tri-1357")!.state));
+    almost(interiorAngleDeg([obtuse.triA, obtuse.triB, obtuse.triC], 1), 135, 0.5);
   });
 
   it("quad diagonal preset draws pink diagonal", () => {
@@ -112,7 +206,9 @@ describe("trig-ratios scene", () => {
           x: (A.x + B.x + C.x) / 3,
           y: (A.y + B.y + C.y) / 3,
         };
-        const angleArcs = scene.cmds.filter((c) => c.t === "arc" && !c.dashed && !c.id);
+        const angleArcs = scene.cmds.filter(
+          (c) => c.t === "arc" && !c.dashed && typeof c.id === "string" && c.id.startsWith("a:"),
+        );
         assert.ok(angleArcs.length >= 1, `${preset.id} @${rotateDeg}`);
         for (const arc of angleArcs) {
           if (arc.t !== "arc") continue;
@@ -269,6 +365,36 @@ describe("trig-ratios scene", () => {
     assert.ok(Math.abs((moved.label.lineDy ?? 0) - (ab.label.lineDy ?? 0) - step) < 1);
   });
 
+  it("nudgeLabel moves an angle number a little", () => {
+    const start = normalizeState(cloneState(TRIG_PRESETS.find((p) => p.id === "right-306090")!.state));
+    const shown = normalizeState({
+      ...start,
+      angles: start.angles.map((a) => (a.id === "A" ? { ...a, show: true } : a)),
+    });
+    const next = nudgeLabel(shown, "a:A", 12, -8);
+    const mark = next.angles.find((a) => a.id === "A")!;
+    almost(mark.label.dx, 12, 1e-6);
+    almost(mark.label.dy, -8, 1e-6);
+    const scene = buildTrigScene(next);
+    const label = scene.texts.find((t) => t.id === "a:A");
+    const base = buildTrigScene(shown).texts.find((t) => t.id === "a:A");
+    assert.ok(label && base);
+    almost(label.x, base.x + 12, 0.5);
+    almost(label.y, base.y - 8, 0.5);
+    const hit = hitTestTrig(
+      scene.layout.canvas,
+      scene.texts,
+      scene.cmds,
+      figureStrokes(next),
+      next.segs,
+      label.x,
+      label.y,
+      1,
+      draggableIds(next),
+    );
+    assert.deepEqual(hit, { kind: "label", id: "a:A" });
+  });
+
   it("hides a vertex name and dot independently", () => {
     const start = normalizeState(cloneState(TRIG_PRESETS.find((p) => p.id === "right-sqrt3")!.state));
     const dots = cycleFigurePoint(start, "A");
@@ -312,6 +438,31 @@ describe("trig-ratios scene", () => {
     assert.ok(scene.cmds.filter((c) => c.t === "rightAngle").length >= 2);
   });
 
+  it("paints triangle fill and altitude in the chosen colors", () => {
+    const base = normalizeState(cloneState(TRIG_PRESETS.find((p) => p.id === "tri-height")!.state));
+    const greenPink = buildTrigScene(base);
+    assert.ok(greenPink.cmds.some((c) => c.t === "polygon" && c.fill === "#d4edda"));
+    assert.ok(greenPink.cmds.some((c) => c.t === "line" && c.stroke === "#e879a8"));
+
+    const next = normalizeState({
+      ...base,
+      triFill: "blue",
+      altitudeColor: "green",
+      showTriFill: true,
+      showAltitudeHighlight: true,
+    });
+    const scene = buildTrigScene(next);
+    assert.ok(scene.cmds.some((c) => c.t === "polygon" && c.fill === "#c5dff0"));
+    assert.ok(scene.cmds.some((c) => c.t === "line" && c.stroke === "#3d9b6d"));
+  });
+
+  it("paints quad fill in the chosen color", () => {
+    const base = normalizeState(cloneState(TRIG_PRESETS.find((p) => p.id === "quad-para")!.state));
+    const next = normalizeState({ ...base, quadFill: "yellow", showQuadFill: true });
+    const scene = buildTrigScene(next);
+    assert.ok(scene.cmds.some((c) => c.t === "polygon" && c.fill === "#fce88a"));
+  });
+
   it("on-figure length edit of √3·3 keeps the other leg", () => {
     const start = normalizeState(cloneState(TRIG_PRESETS.find((p) => p.id === "right-sqrt3")!.state));
     const ab0 = segLength(start, findSeg(start, "AB")!);
@@ -319,15 +470,113 @@ describe("trig-ratios scene", () => {
     almost(segLength(next, findSeg(next, "BC")!), 5, 1e-4);
     almost(segLength(next, findSeg(next, "AB")!), ab0, 1e-4);
     assert.ok(segLength(next, findSeg(next, "BC")!) > segLength(next, findSeg(next, "AB")!));
+    assert.equal(resolveSegText(next, findSeg(next, "BC")!), "5 cm");
+    assert.equal(resolveSegText(next, findSeg(next, "AB")!), "$\\sqrt{3}$ cm");
+  });
+
+  it("length edit with a shown angle scales other sides and rewrites their labels", () => {
+    const start = normalizeState(cloneState(TRIG_PRESETS.find((p) => p.id === "right-sqrt3")!.state));
+    const shown = normalizeState({
+      ...start,
+      angles: start.angles.map((a) =>
+        a.id === "A" ? { ...a, show: true, label: { ...a.label, mode: "custom" as const, custom: "60°" } } : a,
+      ),
+    });
+    const next = applyEditedLabel(shown, "s:BC", "5");
+    almost(segLength(next, findSeg(next, "BC")!), 5, 1e-4);
+    almost(segLength(next, findSeg(next, "AB")!), (5 / 3) * Math.sqrt(3), 1e-3);
+    assert.equal(resolveSegText(next, findSeg(next, "BC")!), "5 cm");
+    const abText = resolveSegText(next, findSeg(next, "AB")!);
+    assert.equal(abText, "2.89 cm");
+  });
+
+  it("keeps unknown length letters after a numeric side edit", () => {
+    const start = normalizeState(cloneState(TRIG_PRESETS.find((p) => p.id === "right-45xy")!.state));
+    const next = applyEditedLabel(start, "s:AC", "8");
+    almost(segLength(next, findSeg(next, "AC")!), 8, 1e-3);
+    assert.equal(findSeg(next, "AB")!.label.mode, "x");
+    assert.equal(findSeg(next, "BC")!.label.mode, "x");
+    assert.equal(resolveSegText(next, findSeg(next, "AB")!), "$x$");
+    assert.equal(resolveSegText(next, findSeg(next, "BC")!), "$y$");
+  });
+
+  it("leg number fields rewrite shown length labels to the computed sides", () => {
+    const start = normalizeState(cloneState(TRIG_PRESETS.find((p) => p.id === "right-sqrt3")!.state));
+    const next = rebuildTriangleFromLegs(start, 5, start.legRight);
+    almost(segLength(next, findSeg(next, "AB")!), 5, 1e-4);
+    almost(segLength(next, findSeg(next, "BC")!), 3, 1e-4);
+    assert.equal(resolveSegText(next, findSeg(next, "AB")!), "5 cm");
+    assert.equal(resolveSegText(next, findSeg(next, "BC")!), "3 cm");
+  });
+
+  it("shows the √3·3 hypotenuse as 2√3, not a decimal", () => {
+    const start = normalizeState(cloneState(TRIG_PRESETS.find((p) => p.id === "right-sqrt3")!.state));
+    const shown = {
+      ...start,
+      segs: start.segs.map((s) =>
+        s.id === "AC" ? { ...s, show: true, label: { ...s.label, mode: "auto" as const, custom: "" } } : s,
+      ),
+    };
+    assert.equal(resolveSegText(shown, findSeg(shown, "AC")!), "$2\\sqrt{3}$ cm");
+    const decimal = {
+      ...shown,
+      segs: shown.segs.map((s) =>
+        s.id === "AC"
+          ? { ...s, show: true, label: { ...s.label, mode: "custom" as const, custom: "3.46 cm" } }
+          : s,
+      ),
+    };
+    assert.equal(resolveSegText(decimal, findSeg(decimal, "AC")!), "$2\\sqrt{3}$ cm");
   });
 
   it("on-figure length edit changes the named triangle side", () => {
     const start = normalizeState(cloneState(TRIG_PRESETS.find((p) => p.id === "tri-height")!.state));
-    const ab0 = segLength(start, findSeg(start, "AB")!);
     const next = applyEditedLabel(start, "s:AC", "4");
     almost(segLength(next, findSeg(next, "AC")!), 4, 0.2);
-    assert.ok(Math.abs(segLength(next, findSeg(next, "AB")!) - 4) > 1);
-    almost(segLength(next, findSeg(next, "AB")!), ab0, 0.35);
+    assert.match(findSeg(next, "AB")!.label.custom, /c/);
+    assert.equal(resolveSegText(next, findSeg(next, "AB")!), "$c$");
+  });
+
+  it("moving a point rewrites shown length and angle numbers", () => {
+    const start = normalizeState(cloneState(TRIG_PRESETS.find((p) => p.id === "right-sqrt3")!.state));
+    const shown = {
+      ...start,
+      angles: start.angles.map((a) =>
+        a.id === "A" ? { ...a, show: true, label: { ...a.label, mode: "custom" as const, custom: "60°" } } : a,
+      ),
+    };
+    const ab0 = segLength(shown, findSeg(shown, "AB")!);
+    const next = movePoint(shown, "A", { x: shown.A.x + 1.2, y: shown.A.y + 0.8 });
+    const ab1 = segLength(next, findSeg(next, "AB")!);
+    assert.ok(Math.abs(ab1 - ab0) > 0.2);
+    assert.equal(findSeg(next, "AB")!.label.mode, "auto");
+    assert.equal(findAngle(next, "A")!.label.mode, "auto");
+    const scene = buildTrigScene(next);
+    const abText = scene.texts.find((t) => t.id === "s:AB");
+    assert.ok(abText);
+    assert.notEqual(abText.runs.map((r) => r.text).join(""), "$\\sqrt{3}$ cm");
+    const angText = scene.texts.find((t) => t.id === "a:A");
+    assert.ok(angText);
+    assert.match(angText.runs.map((r) => r.text).join(""), /^\d+(\.\d)?°$/);
+  });
+
+  it("keeps a previously typed angle when a later side is typed", () => {
+    const start = normalizeState(cloneState(TRIG_PRESETS.find((p) => p.id === "right-sqrt3")!.state));
+    const withAngle = applyEditedLabel(start, "a:A", "50");
+    almost(interiorAngleDeg([withAngle.A, withAngle.B, withAngle.C], 0), 50, 0.6);
+    const next = applyEditedLabel(withAngle, "s:BC", "5");
+    almost(segLength(next, findSeg(next, "BC")!), 5, 0.2);
+    almost(interiorAngleDeg([next.A, next.B, next.C], 0), 50, 0.6);
+  });
+
+  it("keeps a previously typed side when a later angle is typed", () => {
+    const start = normalizeState(cloneState(TRIG_PRESETS.find((p) => p.id === "right-sqrt3")!.state));
+    const withLen = applyEditedLabel(start, "s:BC", "5");
+    almost(segLength(withLen, findSeg(withLen, "BC")!), 5, 1e-4);
+    const ab = segLength(withLen, findSeg(withLen, "AB")!);
+    const next = applyEditedLabel(withLen, "a:A", "40");
+    almost(interiorAngleDeg([next.A, next.B, next.C], 0), 40, 0.6);
+    almost(segLength(next, findSeg(next, "AB")!), ab, 0.2);
   });
 
   it("unit circle lets B and D set theta to one decimal", () => {
@@ -347,6 +596,11 @@ describe("trig-ratios scene", () => {
 
   it("hides unit-circle y and z angles independently", () => {
     const start = normalizeState(cloneState(TRIG_PRESETS.find((p) => p.id === "unit-48")!.state));
+    assert.equal(start.showAngleY, false);
+    assert.equal(start.showAngleZ, false);
+    const hidden = buildTrigScene(start);
+    assert.ok(!hidden.texts.some((t) => t.id === "a:y"));
+    assert.ok(!hidden.texts.some((t) => t.id === "a:z"));
     const onlyY = normalizeState({ ...start, showAngleY: true, showAngleZ: false });
     const scene = buildTrigScene(onlyY);
     assert.ok(scene.texts.some((t) => t.id === "a:y"));
