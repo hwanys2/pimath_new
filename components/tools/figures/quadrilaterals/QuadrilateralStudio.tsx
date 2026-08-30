@@ -37,6 +37,7 @@ import {
   nextIndex,
   segName,
   setDiagonals,
+  setRotateDeg,
   toggleExtension,
   vertexAngles,
   vertexName,
@@ -67,6 +68,7 @@ import type { FontFaces } from "@/lib/diagrams/math-label";
 import { len } from "@/lib/diagrams/polygon/geometry";
 
 const STORAGE_KEY = "pm-diagram-g2-quadrilaterals-v3";
+const ROTATE_CHIPS = [0, 15, 30, 45, 90, 180];
 
 const storeListeners = new Set<() => void>();
 
@@ -267,7 +269,7 @@ export default function QuadrilateralStudio() {
           </h1>
           <p className="mt-1 max-w-2xl text-sm text-foreground/65">
             밑변을 가로로 두고, 고른 도형의 성질이 유지된 채 점을 옮깁니다.
-            대변·대각선·맞꼭지각 표시를 붙여 PNG로 저장해요.
+            보기에서 대각선 교점을 중심으로 통째로 돌릴 수 있어요.
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -352,6 +354,38 @@ export default function QuadrilateralStudio() {
         </div>
 
         <div className="space-y-4">
+          <section className="rounded-2xl border-2 border-wood/10 bg-white/80 p-3.5">
+            <h2 className="font-display text-sm text-wood-dark">보기</h2>
+            <SliderField
+              label="회전"
+              value={state.rotateDeg}
+              onChange={(rotateDeg) => setState((prev) => setRotateDeg(prev, rotateDeg))}
+              min={0}
+              max={360}
+              step={1}
+              display={`${Math.round(state.rotateDeg)}°`}
+            />
+            <div className="mt-2 flex flex-wrap gap-1">
+              {ROTATE_CHIPS.map((deg) => (
+                <button
+                  key={deg}
+                  type="button"
+                  onClick={() => setState((prev) => setRotateDeg(prev, deg))}
+                  className={`rounded-lg px-2 py-1 text-[11px] font-semibold ${
+                    Math.abs(state.rotateDeg - deg) < 0.6
+                      ? "bg-wood/15 text-wood-dark"
+                      : "bg-black/5 text-foreground/55 hover:bg-black/10"
+                  }`}
+                >
+                  {deg}°
+                </button>
+              ))}
+            </div>
+            <p className="mt-2 text-[11px] leading-snug text-foreground/45">
+              대각선의 교점을 중심으로 도형 전체가 돌아갑니다.
+            </p>
+          </section>
+
           <section className="rounded-2xl border-2 border-wood/10 bg-white/80 p-3.5">
             <h2 className="font-display text-sm text-wood-dark">표시</h2>
             <div className="mt-2 flex flex-wrap gap-1.5">
@@ -525,9 +559,9 @@ export default function QuadrilateralStudio() {
             ) : null}
 
             <p className="mt-2 text-[11px] leading-snug text-foreground/45">
-              밑변은 가로로 두고, 점을 끌면 고른 도형의 성질이 유지됩니다. 변을
-              누르면 길이가 켜지고, 글자와 설명선은 각각 끌어 옮깁니다. 글자를
-              눌러 각·길이를 숫자로 넣으면 모양이 따라갑니다.
+              밑변은 가로로 두고, 점을 끌면 고른 도형의 성질이 유지됩니다. 보기에서
+              통째로 돌릴 수 있어요. 변을 누르면 길이가 켜지고, 글자와 설명선은
+              각각 끌어 옮깁니다.
             </p>
 
             {activeMarks.length > 0 ? (

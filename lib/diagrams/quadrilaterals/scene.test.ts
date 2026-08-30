@@ -100,3 +100,16 @@ describe("presets", () => {
     assert.ok(scene.cmds.some((c) => c.t === "polygon"));
   });
 });
+
+describe("rotation", () => {
+  it("turning 90° moves the canvas vertices off the untilted pose", () => {
+    const base = normalizeState(cloneState(QUAD_PRESETS[0]!.state));
+    const untilted = buildQuadScene(base);
+    const tilted = buildQuadScene(normalizeState({ ...base, rotateDeg: 90 }));
+    const d = Math.hypot(
+      tilted.layout.canvas[0]!.x - untilted.layout.canvas[0]!.x,
+      tilted.layout.canvas[0]!.y - untilted.layout.canvas[0]!.y,
+    );
+    assert.ok(d > 8, `vertex A should move, got ${d}`);
+  });
+});

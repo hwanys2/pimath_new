@@ -128,6 +128,7 @@ export type QuadState = {
   showDots: boolean;
   unit: string;
   unknownLetter: string;
+  rotateDeg: number;
   style: DiagramStyle;
 };
 
@@ -137,6 +138,11 @@ export type QuadPreset = {
   hint: string;
   state: QuadState;
 };
+
+function wrapRotateDeg(n: number): number {
+  if (!Number.isFinite(n)) return 0;
+  return ((n % 360) + 360) % 360;
+}
 
 function clamp(n: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, n));
@@ -480,6 +486,7 @@ export function normalizeState(
       state.unknownLetter && /^[A-Za-z]$/.test(state.unknownLetter)
         ? state.unknownLetter
         : "x",
+    rotateDeg: wrapRotateDeg(Number(state.rotateDeg ?? 0)),
     style: {
       ...style,
       lineWidth: clamp(style.lineWidth, 1, 3.5),

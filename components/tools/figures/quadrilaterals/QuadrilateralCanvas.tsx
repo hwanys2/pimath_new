@@ -6,6 +6,7 @@ import {
   hitTestQuad,
   moveVertexQuad,
   nudgeLabel,
+  toCanonicalPoint,
   type QuadHit,
   type QuadSelection,
 } from "@/lib/diagrams/quadrilaterals/geometry";
@@ -238,7 +239,10 @@ export default function QuadrilateralCanvas({
             const scene = sceneRef.current;
             if (!scene) return;
             const math = canvasToMath(p, scene.layout);
-            setState((prev) => moveVertexQuad(prev, drag.index, math), false);
+            setState(
+              (prev) => moveVertexQuad(prev, drag.index, toCanonicalPoint(prev, math)),
+              false,
+            );
             return;
           }
           setState(

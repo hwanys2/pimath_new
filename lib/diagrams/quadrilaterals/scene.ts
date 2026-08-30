@@ -29,6 +29,7 @@ import {
   extensionPoints,
   isRightAngle,
   wedgeDeg,
+  withWorldPoints,
 } from "./geometry";
 import {
   FACE_KEYS,
@@ -515,6 +516,7 @@ function facePoints(
 }
 
 export function buildQuadScene(state: QuadState): QuadScene {
+  state = withWorldPoints(state);
   const { style } = state;
   const layout = getSceneLayout(state);
   const canvas = layout.canvas;

@@ -105,6 +105,40 @@ export function diagonalMeet(points: Vec[]): Vec {
   return intersection(points[0]!, points[2]!, points[1]!, points[3]!);
 }
 
+export function wrapRotateDeg(deg: number): number {
+  if (!Number.isFinite(deg)) return 0;
+  return ((deg % 360) + 360) % 360;
+}
+
+export function rotateAround(p: Vec, origin: Vec, deg: number): Vec {
+  if (Math.abs(deg) < 1e-9) return p;
+  return add(origin, rotate(sub(p, origin), deg));
+}
+
+/** Points as drawn: rotated about the diagonal intersection. */
+export function worldPoints(state: QuadState): Vec[] {
+  const deg = wrapRotateDeg(state.rotateDeg);
+  if (deg < 1e-9) return state.points;
+  const O = diagonalMeet(state.points);
+  return state.points.map((p) => rotateAround(p, O, deg));
+}
+
+export function withWorldPoints(state: QuadState): QuadState {
+  const deg = wrapRotateDeg(state.rotateDeg);
+  if (deg < 1e-9) return state;
+  return { ...state, points: worldPoints(state), rotateDeg: 0 };
+}
+
+export function toCanonicalPoint(state: QuadState, world: Vec): Vec {
+  const deg = wrapRotateDeg(state.rotateDeg);
+  if (deg < 1e-9) return world;
+  return rotateAround(world, diagonalMeet(state.points), -deg);
+}
+
+export function setRotateDeg(state: QuadState, deg: number): QuadState {
+  return { ...state, rotateDeg: wrapRotateDeg(deg) };
+}
+
 export function extensionPointAt(state: QuadState, ext: QuadExtension): Vec {
   const i = ext.vertex;
   const p = state.points[i]!;

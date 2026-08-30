@@ -12,9 +12,12 @@ import {
   isRectangleAngles,
   moveVertexQuad,
   oppositeEdgesParallel,
+  setRotateDeg,
   sidesEqual,
   snapFamily,
+  toCanonicalPoint,
   toggleExtension,
+  worldPoints,
 } from "./geometry";
 import {
   DEFAULT_QUAD_STATE,
@@ -220,5 +223,44 @@ describe("move and measure", () => {
     assert.equal(two.extensions.length, 2);
     assert.equal(two.extensions[0]?.name, "E");
     assert.equal(two.extensions[1]?.name, "F");
+  });
+});
+
+describe("rotation about O", () => {
+  it("keeps the diagonal intersection fixed and preserves side lengths", () => {
+    const rotated = setRotateDeg(DEFAULT_QUAD_STATE, 40);
+    const O0 = diagonalMeet(DEFAULT_QUAD_STATE.points);
+    const world = worldPoints(rotated);
+    const O1 = diagonalMeet(world);
+    almost(O0.x, O1.x, 1e-6);
+    almost(O0.y, O1.y, 1e-6);
+    for (let i = 0; i < 4; i += 1) {
+      almost(edgeLength(world, i), edgeLength(DEFAULT_QUAD_STATE.points, i), 1e-6);
+    }
+    assert.equal(isBaseHorizontal(world), false);
+  });
+
+  it("wraps angles and inverts back to canonical", () => {
+    const spun = setRotateDeg(DEFAULT_QUAD_STATE, 400);
+    almost(spun.rotateDeg, 40, 1e-9);
+    const back = setRotateDeg(DEFAULT_QUAD_STATE, -15);
+    almost(back.rotateDeg, 345, 1e-9);
+    const world = worldPoints(spun)[0]!;
+    const canonical = toCanonicalPoint(spun, world);
+    almost(canonical.x, DEFAULT_QUAD_STATE.points[0]!.x, 1e-6);
+    almost(canonical.y, DEFAULT_QUAD_STATE.points[0]!.y, 1e-6);
+  });
+
+  it("dragging a rotated rectangle still keeps right angles", () => {
+    const state = setRotateDeg(withFamily("rectangle", rectanglePoints()), 35);
+    const worldA = worldPoints(state)[0]!;
+    const next = moveVertexQuad(
+      state,
+      0,
+      toCanonicalPoint(state, { x: worldA.x + 0.7, y: worldA.y + 0.4 }),
+    );
+    assert.ok(isRectangleAngles(next.points, 0.5));
+    almost(next.rotateDeg, 35, 1e-9);
+    assert.ok(isRectangleAngles(worldPoints(next), 0.5));
   });
 });
