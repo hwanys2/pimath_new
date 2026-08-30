@@ -780,9 +780,9 @@ export default function QuadraticFunctionStudio() {
                     patchSelectedGraph({ labelMode: labelMode as GraphLabelMode })
                   }
                   options={[
-                    { value: "auto", label: "숫자" },
-                    { value: "letter", label: "문자" },
-                    { value: "custom", label: "직접" },
+                    { id: "auto", label: "숫자" },
+                    { id: "letter", label: "문자" },
+                    { id: "custom", label: "직접" },
                   ]}
                 />
                 {selectedGraph.labelMode === "letter" && !isHorizontal(selectedGraph) ? (
@@ -945,9 +945,9 @@ export default function QuadraticFunctionStudio() {
                     patchSelectedTrans({ kind: kind as TranslationKind })
                   }
                   options={[
-                    { value: "vertical", label: "세로" },
-                    { value: "horizontal", label: "가로" },
-                    { value: "vertex", label: "L자" },
+                    { id: "vertical", label: "세로" },
+                    { id: "horizontal", label: "가로" },
+                    { id: "vertex", label: "L자" },
                   ]}
                 />
                 <ChipToggle

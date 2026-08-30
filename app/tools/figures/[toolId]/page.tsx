@@ -21,6 +21,7 @@ import SolidSketchStudio from "@/components/tools/figures/solid-sketch/SolidSket
 import TriangleCentersStudio from "@/components/tools/figures/triangle-centers/TriangleCentersStudio";
 import SqrtNumberLineStudio from "@/components/tools/figures/sqrt-number-line/SqrtNumberLineStudio";
 import QuadraticFunctionStudio from "@/components/tools/figures/quadratic-function/QuadraticFunctionStudio";
+import TrigRatiosStudio from "@/components/tools/figures/trig-ratios/TrigRatiosStudio";
 import DiagramToolShell from "@/components/tools/figures/DiagramToolShell";
 import { DIAGRAM_TOOLS, getDiagramTool } from "@/lib/diagrams/catalog";
 
@@ -87,6 +88,8 @@ function renderDiagramStudio(toolId: string): ReactNode {
       return <SqrtNumberLineStudio />;
     case "g3-quadratic-function":
       return <QuadraticFunctionStudio />;
+    case "g3-trig-ratios":
+      return <TrigRatiosStudio />;
     default:
       return null;
   }
