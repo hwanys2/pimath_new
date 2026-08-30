@@ -29,6 +29,8 @@ import {
   normalizeState,
   pairsFor,
   radicand,
+  SQRT_FILL_PRESETS,
+  normalizeFillColor,
   SQRT_KINDS,
   SQRT_NUMBER_LINE_PRESETS,
   type ShapeSide,
@@ -445,6 +447,46 @@ export default function SqrtNumberLineStudio() {
                 </>
               ) : null}
             </div>
+            {state.showFill ? (
+              <div className="mt-2.5">
+                <p className="text-xs font-semibold text-foreground/60">면 색</p>
+                <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+                  {SQRT_FILL_PRESETS.map((c) => {
+                    const active =
+                      normalizeFillColor(state.fillColor, state.kind) ===
+                      normalizeFillColor(c.hex, state.kind);
+                    return (
+                      <button
+                        key={c.id}
+                        type="button"
+                        title={c.label}
+                        aria-label={c.label}
+                        onClick={() => set({ fillColor: c.hex })}
+                        className={`h-8 w-8 rounded-full border-2 ${
+                          active ? "border-wood" : "border-black/10"
+                        }`}
+                        style={{ background: c.hex }}
+                      />
+                    );
+                  })}
+                  <label className="relative h-8 w-8 overflow-hidden rounded-full border-2 border-black/10">
+                    <span className="sr-only">직접 고르기</span>
+                    <input
+                      type="color"
+                      value={normalizeFillColor(state.fillColor, state.kind)}
+                      onChange={(e) => set({ fillColor: e.target.value })}
+                      className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
+                    />
+                    <span
+                      className="block h-full w-full"
+                      style={{
+                        background: normalizeFillColor(state.fillColor, state.kind),
+                      }}
+                    />
+                  </label>
+                </div>
+              </div>
+            ) : null}
           </section>
 
           <section className="rounded-2xl border-2 border-wood/10 bg-white/80 p-3.5">

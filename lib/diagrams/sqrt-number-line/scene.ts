@@ -19,8 +19,6 @@ export const SCENE_HEIGHT = 400;
 
 const INK = "#111111";
 const ARC_STROKE = "#d44a8c";
-const SQ_FILL = "#c5dff0";
-const TRI_FILL = "#f5c6d6";
 
 export type SqrtLayout = {
   axisY: number;
@@ -340,7 +338,7 @@ function drawShape(
       cmds.push({
         t: "polygon",
         points: [O, B, A],
-        fill: TRI_FILL,
+        fill: state.fillColor,
       });
     }
     cmds.push({ t: "line", x1: O.x, y1: O.y, x2: B.x, y2: B.y });
@@ -359,7 +357,7 @@ function drawShape(
       cmds.push({
         t: "polygon",
         points: [O, A, B, C],
-        fill: SQ_FILL,
+        fill: state.fillColor,
       });
     }
     cmds.push({ t: "line", x1: O.x, y1: O.y, x2: A.x, y2: A.y });
@@ -444,7 +442,6 @@ function drawDotsAndLabels(
     const pm = state.names.P;
     const valueY = axisValueLabelY(layout, style.fontSize);
     if (state.combinePointLabels && state.showPosValue) {
-      const combined = defaultCombinedPointLabel(state.posPointName, state.posValueRaw);
       pushText(texts, cmds, {
         id: "label:pos",
         x: px + pm.dx,

@@ -51,6 +51,17 @@ describe("sqrt-number-line scene", () => {
     assert.match(state.negValueRaw, /\\sqrt\{5\}/);
   });
 
+  it("uses custom fill color on shape polygon", () => {
+    const preset = SQRT_NUMBER_LINE_PRESETS.find((p) => p.id === "tri-sqrt2")!;
+    const state = normalizeState(
+      cloneState({ ...preset.state, fillColor: "#c8e6c9", showFill: true }),
+    );
+    const scene = buildSqrtNumberLineScene(state);
+    const polygon = scene.cmds.find((c) => c.t === "polygon" && "fill" in c);
+    assert.ok(polygon && polygon.t === "polygon");
+    assert.equal(polygon.fill, "#c8e6c9");
+  });
+
   it("square vertices are perpendicular and equal length", () => {
     const preset = SQRT_NUMBER_LINE_PRESETS.find((p) => p.id === "sq-sqrt5")!;
     const state = normalizeState(cloneState(preset.state));

@@ -4,6 +4,31 @@ import { simplifySqrtInt } from "@/lib/diagrams/pythagorean/radical";
 export type SqrtKind = "square" | "triangle";
 export type ShapeSide = "left" | "right";
 
+export const DEFAULT_FILL_SQUARE = "#c5dff0";
+export const DEFAULT_FILL_TRIANGLE = "#f5c6d6";
+
+export const SQRT_FILL_PRESETS: { id: string; hex: string; label: string }[] = [
+  { id: "sky", hex: DEFAULT_FILL_SQUARE, label: "하늘" },
+  { id: "pink", hex: DEFAULT_FILL_TRIANGLE, label: "분홍" },
+  { id: "mint", hex: "#c8e6c9", label: "연두" },
+  { id: "lavender", hex: "#e1bee7", label: "보라" },
+  { id: "gold", hex: "#fff9c4", label: "노랑" },
+];
+
+export function defaultFillColor(kind: SqrtKind): string {
+  return kind === "triangle" ? DEFAULT_FILL_TRIANGLE : DEFAULT_FILL_SQUARE;
+}
+
+export function normalizeFillColor(hex: string | undefined, kind: SqrtKind): string {
+  if (!hex?.trim()) return defaultFillColor(kind);
+  const raw = hex.replace("#", "").trim().toLowerCase();
+  if (/^[0-9a-f]{3}$/.test(raw)) {
+    return `#${raw[0]}${raw[0]}${raw[1]}${raw[1]}${raw[2]}${raw[2]}`;
+  }
+  if (/^[0-9a-f]{6}$/.test(raw)) return `#${raw}`;
+  return defaultFillColor(kind);
+}
+
 export type NameLabel = {
   name: string;
   dx: number;
@@ -40,6 +65,7 @@ export type SqrtNumberLineState = {
   showGrid: boolean;
   showShape: boolean;
   showFill: boolean;
+  fillColor: string;
   showArc: boolean;
   showPosPoint: boolean;
   showNegPoint: boolean;
@@ -243,6 +269,7 @@ export function normalizeState(state: SqrtNumberLineState): SqrtNumberLineState 
     showGrid: state.showGrid ?? true,
     showShape: state.showShape ?? true,
     showFill: state.showFill ?? true,
+    fillColor: normalizeFillColor(state.fillColor, state.kind === "triangle" ? "triangle" : "square"),
     showArc: state.showArc ?? true,
     showPosPoint: state.showPosPoint ?? true,
     showNegPoint: state.showNegPoint ?? true,
@@ -281,6 +308,7 @@ function baseState(partial: Partial<SqrtNumberLineState>): SqrtNumberLineState {
     showGrid: true,
     showShape: true,
     showFill: true,
+    fillColor: "",
     showArc: true,
     showPosPoint: true,
     showNegPoint: true,
