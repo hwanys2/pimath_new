@@ -100,6 +100,18 @@ export type SceneCmd =
       size: number;
       stroke?: string;
     }
+  | {
+      t: "roundRect";
+      x: number;
+      y: number;
+      w: number;
+      h: number;
+      r: number;
+      fill?: string;
+      stroke?: string;
+      width?: number;
+      dashed?: boolean;
+    }
   | { t: "text"; text: SceneText };
 
 export type DiagramScene = {

@@ -174,6 +174,25 @@ function paintCmd(
       ctx.restore();
       break;
     }
+    case "roundRect": {
+      ctx.save();
+      const rr = Math.min(cmd.r, cmd.w / 2, cmd.h / 2);
+      ctx.beginPath();
+      ctx.roundRect(cmd.x, cmd.y, cmd.w, cmd.h, rr);
+      if (cmd.fill) {
+        ctx.fillStyle = cmd.fill;
+        ctx.fill();
+      }
+      if (cmd.stroke) {
+        ctx.strokeStyle = cmd.stroke;
+        if (cmd.width != null) ctx.lineWidth = cmd.width;
+        else ctx.lineWidth = defaultWidth;
+        if (cmd.dashed) ctx.setLineDash([4.2, 3.2]);
+        ctx.stroke();
+      }
+      ctx.restore();
+      break;
+    }
     case "text": {
       const t = cmd.text;
       const fill = t.fill ?? INK;
@@ -220,12 +239,19 @@ export function sceneToSvg(
   for (const cmd of scene.cmds) {
     if (cmd.t === "polygon") parts.push(polygonToSvg(cmd));
     if (cmd.t === "sector") parts.push(sectorToSvg(cmd));
+    if (cmd.t === "roundRect" && cmd.fill) parts.push(roundRectFillToSvg(cmd));
   }
   parts.push(
     `<g fill="none" stroke="${INK}" stroke-width="${lineWidth}" stroke-linecap="round" stroke-linejoin="round">`,
   );
   for (const cmd of scene.cmds) {
-    if (cmd.t === "text" || cmd.t === "polygon" || cmd.t === "sector") continue;
+    if (
+      cmd.t === "text" ||
+      cmd.t === "polygon" ||
+      cmd.t === "sector" ||
+      (cmd.t === "roundRect" && cmd.fill && !cmd.stroke)
+    )
+      continue;
     parts.push(cmdToSvg(cmd, lineWidth));
   }
   parts.push(`</g>`);
@@ -342,9 +368,32 @@ function cmdToSvg(cmd: SceneCmd, defaultWidth: number): string {
       const fill = cmd.stroke ?? INK;
       return `<path d="M ${pts[0]!.x.toFixed(2)} ${pts[0]!.y.toFixed(2)} L ${pts[1]!.x.toFixed(2)} ${pts[1]!.y.toFixed(2)} L ${pts[2]!.x.toFixed(2)} ${pts[2]!.y.toFixed(2)} Z" fill="${fill}" stroke="none"/>`;
     }
+    case "roundRect":
+      return roundRectStrokeToSvg(cmd, defaultWidth);
     default:
       return "";
   }
+}
+
+function roundRectFillToSvg(
+  cmd: Extract<SceneCmd, { t: "roundRect" }>,
+): string {
+  const rr = Math.min(cmd.r, cmd.w / 2, cmd.h / 2);
+  const fill = cmd.fill ? ` fill="${escapeXml(cmd.fill)}"` : "";
+  return `<rect x="${cmd.x.toFixed(2)}" y="${cmd.y.toFixed(2)}" width="${cmd.w.toFixed(2)}" height="${cmd.h.toFixed(2)}" rx="${rr.toFixed(2)}"${fill} stroke="none"/>`;
+}
+
+function roundRectStrokeToSvg(
+  cmd: Extract<SceneCmd, { t: "roundRect" }>,
+  defaultWidth: number,
+): string {
+  const rr = Math.min(cmd.r, cmd.w / 2, cmd.h / 2);
+  const fill = cmd.fill ? ` fill="${escapeXml(cmd.fill)}"` : ' fill="none"';
+  const stroke = cmd.stroke ? ` stroke="${escapeXml(cmd.stroke)}"` : "";
+  const sw =
+    cmd.width != null ? ` stroke-width="${cmd.width}"` : ` stroke-width="${defaultWidth}"`;
+  const dash = cmd.dashed ? ' stroke-dasharray="4.2 3.2"' : "";
+  return `<rect x="${cmd.x.toFixed(2)}" y="${cmd.y.toFixed(2)}" width="${cmd.w.toFixed(2)}" height="${cmd.h.toFixed(2)}" rx="${rr.toFixed(2)}"${fill}${stroke}${sw}${dash}/>`;
 }
 
 function textToSvg(t: SceneText, fonts: FontFaces): string {
