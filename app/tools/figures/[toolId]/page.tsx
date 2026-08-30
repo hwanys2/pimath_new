@@ -23,6 +23,7 @@ import SqrtNumberLineStudio from "@/components/tools/figures/sqrt-number-line/Sq
 import QuadraticFunctionStudio from "@/components/tools/figures/quadratic-function/QuadraticFunctionStudio";
 import TrigRatiosStudio from "@/components/tools/figures/trig-ratios/TrigRatiosStudio";
 import BoxPlotStudio from "@/components/tools/figures/boxplot/BoxPlotStudio";
+import ScatterStudio from "@/components/tools/figures/scatter/ScatterStudio";
 import DiagramToolShell from "@/components/tools/figures/DiagramToolShell";
 import { DIAGRAM_TOOLS, getDiagramTool } from "@/lib/diagrams/catalog";
 
@@ -93,6 +94,8 @@ function renderDiagramStudio(toolId: string): ReactNode {
       return <TrigRatiosStudio />;
     case "g3-boxplot":
       return <BoxPlotStudio />;
+    case "g3-scatter":
+      return <ScatterStudio />;
     default:
       return null;
   }

@@ -263,6 +263,17 @@ export const DIAGRAM_TOOLS: DiagramToolMeta[] = [
     href: "/tools/figures/g3-boxplot",
     status: "ready",
   },
+  {
+    id: "g3-scatter",
+    grade: 3,
+    title: "산점도",
+    description:
+      "상관 구름을 뿌리고 이름·강조점을 찍어 시험용 산점도를 바로 그리고 PNG로 저장해요. 축 끊기와 상관 비교(2×2)도 됩니다.",
+    unitHint: "4.2 상자그림과 산점도",
+    emoji: "∴",
+    href: "/tools/figures/g3-scatter",
+    status: "ready",
+  },
 ];
 
 export function getDiagramTool(id: string): DiagramToolMeta | undefined {
