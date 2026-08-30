@@ -437,17 +437,209 @@ export default function LinearFunctionStudio() {
       ) : null}
 
       <div className="grid items-start gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(14rem,16rem)_minmax(15rem,18rem)]">
-        <div className="mx-auto w-full max-w-[24rem] overflow-hidden rounded-3xl border-2 border-wood/10 bg-white shadow-[0_12px_40px_rgba(61,44,30,0.08)] lg:mx-0 lg:max-w-none">
-          <LinearFunctionCanvas
-            state={state}
-            fonts={fonts}
-            selectedId={selectedId}
-            placingPoint={placingPoint}
-            setState={setState}
-            persist={persistCachedState}
-            onSelect={setSelectedId}
-            onDeleteSelected={deleteSelected}
-          />
+        <div className="mx-auto w-full max-w-[24rem] space-y-4 lg:mx-0 lg:max-w-none">
+          <div className="overflow-hidden rounded-3xl border-2 border-wood/10 bg-white shadow-[0_12px_40px_rgba(61,44,30,0.08)]">
+            <LinearFunctionCanvas
+              state={state}
+              fonts={fonts}
+              selectedId={selectedId}
+              placingPoint={placingPoint}
+              setState={setState}
+              persist={persistCachedState}
+              onSelect={setSelectedId}
+              onDeleteSelected={deleteSelected}
+            />
+          </div>
+
+          <section className="rounded-2xl border-2 border-wood/10 bg-white/80 p-3.5">
+            <div className="flex items-center justify-between gap-2">
+              <h2 className="font-display text-sm text-wood-dark">좌표평면</h2>
+              <ChipToggle
+                on={state.xMin >= -1e-9 && state.yMin >= -1e-9}
+                onClick={() => {
+                  const first = state.xMin >= -1e-9 && state.yMin >= -1e-9;
+                  if (first) {
+                    set({
+                      xMin: -Math.abs(state.xMax),
+                      yMin: -Math.abs(state.yMax),
+                    });
+                  } else {
+                    set({ xMin: 0, yMin: 0 });
+                  }
+                }}
+              >
+                1사분면
+              </ChipToggle>
+            </div>
+            <div className="mt-3 space-y-1.5 text-xs font-semibold text-foreground/55">
+              <div className="flex items-center gap-1.5">
+                <span className="w-7 shrink-0 text-wood-dark">x축</span>
+                <span>시작</span>
+                <InlineNumber
+                  ariaLabel="x 시작"
+                  value={state.xMin}
+                  onChange={(xMin) => set({ xMin })}
+                  className="min-w-0 flex-1"
+                />
+                <span>끝</span>
+                <InlineNumber
+                  ariaLabel="x 끝"
+                  value={state.xMax}
+                  onChange={(xMax) => set({ xMax })}
+                  className="min-w-0 flex-1"
+                />
+              </div>
+              <div className="flex items-center gap-1.5">
+                <span className="w-7 shrink-0 text-wood-dark">y축</span>
+                <span>시작</span>
+                <InlineNumber
+                  ariaLabel="y 시작"
+                  value={state.yMin}
+                  onChange={(yMin) => set({ yMin })}
+                  className="min-w-0 flex-1"
+                />
+                <span>끝</span>
+                <InlineNumber
+                  ariaLabel="y 끝"
+                  value={state.yMax}
+                  onChange={(yMax) => set({ yMax })}
+                  className="min-w-0 flex-1"
+                />
+              </div>
+              <div className="flex items-center gap-1.5">
+                <span className="w-7 shrink-0 text-wood-dark">간격</span>
+                <InlineNumber
+                  ariaLabel="눈금 간격"
+                  value={state.xTick}
+                  onChange={(tick) => set({ xTick: tick, yTick: tick })}
+                  min={0.25}
+                  max={20}
+                  step={0.25}
+                  className="min-w-0 flex-1"
+                />
+              </div>
+              <div className="flex items-center gap-1.5">
+                <span className="w-7 shrink-0 text-wood-dark">숫자</span>
+                <span>x</span>
+                <InlineNumber
+                  ariaLabel="x 숫자 몇 칸마다"
+                  value={state.xLabelEvery}
+                  onChange={(xLabelEvery) => set({ xLabelEvery })}
+                  min={1}
+                  max={10}
+                  step={1}
+                  className="min-w-0 flex-1"
+                />
+                <span>y</span>
+                <InlineNumber
+                  ariaLabel="y 숫자 몇 칸마다"
+                  value={state.yLabelEvery}
+                  onChange={(yLabelEvery) => set({ yLabelEvery })}
+                  min={1}
+                  max={10}
+                  step={1}
+                  className="min-w-0 flex-1"
+                />
+                <span className="shrink-0 font-normal text-foreground/45">
+                  칸마다
+                </span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <span className="w-7 shrink-0 text-wood-dark">이름</span>
+                <span>x</span>
+                <InlineText
+                  ariaLabel="x축 이름"
+                  value={state.xAxisLabel}
+                  onChange={(xAxisLabel) => set({ xAxisLabel })}
+                  placeholder="$x$"
+                />
+                <span>y</span>
+                <InlineText
+                  ariaLabel="y축 이름"
+                  value={state.yAxisLabel}
+                  onChange={(yAxisLabel) => set({ yAxisLabel })}
+                  placeholder="$y$"
+                />
+                <span>O</span>
+                <InlineText
+                  ariaLabel="원점 이름"
+                  value={state.originLabel}
+                  onChange={(originLabel) => set({ originLabel })}
+                  placeholder="O"
+                  className="w-12 shrink-0"
+                />
+              </div>
+            </div>
+            <div className="mt-3 flex flex-wrap gap-1.5">
+              <ChipToggle
+                on={state.showGrid}
+                onClick={() => set({ showGrid: !state.showGrid })}
+              >
+                격자
+              </ChipToggle>
+              {state.showGrid ? (
+                <>
+                  <ChipToggle
+                    on={state.style.gridColor === GRID_COLOR}
+                    onClick={() =>
+                      set({
+                        style: { ...state.style, gridColor: GRID_COLOR },
+                      })
+                    }
+                  >
+                    청록
+                  </ChipToggle>
+                  <ChipToggle
+                    on={state.style.gridColor === GRID_GRAY}
+                    onClick={() =>
+                      set({
+                        style: { ...state.style, gridColor: GRID_GRAY },
+                      })
+                    }
+                  >
+                    회색
+                  </ChipToggle>
+                </>
+              ) : null}
+              <ChipToggle
+                on={state.showOrigin}
+                onClick={() => set({ showOrigin: !state.showOrigin })}
+              >
+                원점
+              </ChipToggle>
+              <ChipToggle
+                on={state.showArrows}
+                onClick={() => set({ showArrows: !state.showArrows })}
+              >
+                화살표
+              </ChipToggle>
+              <ChipToggle
+                on={state.showTickLabels}
+                onClick={() => set({ showTickLabels: !state.showTickLabels })}
+              >
+                눈금 숫자
+              </ChipToggle>
+              <ChipToggle
+                on={state.showTicks}
+                onClick={() => set({ showTicks: !state.showTicks })}
+              >
+                눈금
+              </ChipToggle>
+            </div>
+            <div className="mt-2.5">
+              <SliderField
+                label="그림 여백"
+                value={state.style.padding}
+                onChange={(padding) =>
+                  set({ style: { ...state.style, padding } })
+                }
+                min={48}
+                max={160}
+                step={2}
+                display={`${state.style.padding}px`}
+              />
+            </div>
+          </section>
         </div>
 
         <div className="space-y-4">
@@ -1090,196 +1282,6 @@ export default function LinearFunctionStudio() {
                 })}
               </ul>
             ) : null}
-          </section>
-
-          <section className="rounded-2xl border-2 border-wood/10 bg-white/80 p-3.5">
-            <div className="flex items-center justify-between gap-2">
-              <h2 className="font-display text-sm text-wood-dark">좌표평면</h2>
-              <ChipToggle
-                on={state.xMin >= -1e-9 && state.yMin >= -1e-9}
-                onClick={() => {
-                  const first = state.xMin >= -1e-9 && state.yMin >= -1e-9;
-                  if (first) {
-                    set({
-                      xMin: -Math.abs(state.xMax),
-                      yMin: -Math.abs(state.yMax),
-                    });
-                  } else {
-                    set({ xMin: 0, yMin: 0 });
-                  }
-                }}
-              >
-                1사분면
-              </ChipToggle>
-            </div>
-            <div className="mt-3 space-y-1.5 text-xs font-semibold text-foreground/55">
-              <div className="flex items-center gap-1.5">
-                <span className="w-7 shrink-0 text-wood-dark">x축</span>
-                <span>시작</span>
-                <InlineNumber
-                  ariaLabel="x 시작"
-                  value={state.xMin}
-                  onChange={(xMin) => set({ xMin })}
-                  className="min-w-0 flex-1"
-                />
-                <span>끝</span>
-                <InlineNumber
-                  ariaLabel="x 끝"
-                  value={state.xMax}
-                  onChange={(xMax) => set({ xMax })}
-                  className="min-w-0 flex-1"
-                />
-              </div>
-              <div className="flex items-center gap-1.5">
-                <span className="w-7 shrink-0 text-wood-dark">y축</span>
-                <span>시작</span>
-                <InlineNumber
-                  ariaLabel="y 시작"
-                  value={state.yMin}
-                  onChange={(yMin) => set({ yMin })}
-                  className="min-w-0 flex-1"
-                />
-                <span>끝</span>
-                <InlineNumber
-                  ariaLabel="y 끝"
-                  value={state.yMax}
-                  onChange={(yMax) => set({ yMax })}
-                  className="min-w-0 flex-1"
-                />
-              </div>
-              <div className="flex items-center gap-1.5">
-                <span className="w-7 shrink-0 text-wood-dark">간격</span>
-                <InlineNumber
-                  ariaLabel="눈금 간격"
-                  value={state.xTick}
-                  onChange={(tick) => set({ xTick: tick, yTick: tick })}
-                  min={0.25}
-                  max={20}
-                  step={0.25}
-                  className="min-w-0 flex-1"
-                />
-              </div>
-              <div className="flex items-center gap-1.5">
-                <span className="w-7 shrink-0 text-wood-dark">숫자</span>
-                <span>x</span>
-                <InlineNumber
-                  ariaLabel="x 숫자 몇 칸마다"
-                  value={state.xLabelEvery}
-                  onChange={(xLabelEvery) => set({ xLabelEvery })}
-                  min={1}
-                  max={10}
-                  step={1}
-                  className="min-w-0 flex-1"
-                />
-                <span>y</span>
-                <InlineNumber
-                  ariaLabel="y 숫자 몇 칸마다"
-                  value={state.yLabelEvery}
-                  onChange={(yLabelEvery) => set({ yLabelEvery })}
-                  min={1}
-                  max={10}
-                  step={1}
-                  className="min-w-0 flex-1"
-                />
-                <span className="shrink-0 font-normal text-foreground/45">
-                  칸마다
-                </span>
-              </div>
-              <div className="flex items-center gap-1.5">
-                <span className="w-7 shrink-0 text-wood-dark">이름</span>
-                <span>x</span>
-                <InlineText
-                  ariaLabel="x축 이름"
-                  value={state.xAxisLabel}
-                  onChange={(xAxisLabel) => set({ xAxisLabel })}
-                  placeholder="$x$"
-                />
-                <span>y</span>
-                <InlineText
-                  ariaLabel="y축 이름"
-                  value={state.yAxisLabel}
-                  onChange={(yAxisLabel) => set({ yAxisLabel })}
-                  placeholder="$y$"
-                />
-                <span>O</span>
-                <InlineText
-                  ariaLabel="원점 이름"
-                  value={state.originLabel}
-                  onChange={(originLabel) => set({ originLabel })}
-                  placeholder="O"
-                  className="w-12 shrink-0"
-                />
-              </div>
-            </div>
-            <div className="mt-3 flex flex-wrap gap-1.5">
-              <ChipToggle
-                on={state.showGrid}
-                onClick={() => set({ showGrid: !state.showGrid })}
-              >
-                격자
-              </ChipToggle>
-              {state.showGrid ? (
-                <>
-                  <ChipToggle
-                    on={state.style.gridColor === GRID_COLOR}
-                    onClick={() =>
-                      set({
-                        style: { ...state.style, gridColor: GRID_COLOR },
-                      })
-                    }
-                  >
-                    청록
-                  </ChipToggle>
-                  <ChipToggle
-                    on={state.style.gridColor === GRID_GRAY}
-                    onClick={() =>
-                      set({
-                        style: { ...state.style, gridColor: GRID_GRAY },
-                      })
-                    }
-                  >
-                    회색
-                  </ChipToggle>
-                </>
-              ) : null}
-              <ChipToggle
-                on={state.showOrigin}
-                onClick={() => set({ showOrigin: !state.showOrigin })}
-              >
-                원점
-              </ChipToggle>
-              <ChipToggle
-                on={state.showArrows}
-                onClick={() => set({ showArrows: !state.showArrows })}
-              >
-                화살표
-              </ChipToggle>
-              <ChipToggle
-                on={state.showTickLabels}
-                onClick={() => set({ showTickLabels: !state.showTickLabels })}
-              >
-                눈금 숫자
-              </ChipToggle>
-              <ChipToggle
-                on={state.showTicks}
-                onClick={() => set({ showTicks: !state.showTicks })}
-              >
-                눈금
-              </ChipToggle>
-            </div>
-            <div className="mt-2.5">
-              <SliderField
-                label="그림 여백"
-                value={state.style.padding}
-                onChange={(padding) =>
-                  set({ style: { ...state.style, padding } })
-                }
-                min={48}
-                max={160}
-                step={2}
-                display={`${state.style.padding}px`}
-              />
-            </div>
           </section>
         </div>
 
