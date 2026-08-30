@@ -91,12 +91,12 @@ function sceneFromLayout(
   const fontSize = state.style.fontSize;
   const lineW = state.style.lineWidth;
   const digitW = fontSize * 0.62;
-  const pointGap = digitW * 0.42;
   const rowH = fontSize * 1.22;
   const circleR = fontSize * 0.58;
   const showSame = state.showSameMark && layout.canShowSame;
   const showMarks = state.showRemainderMarks;
   const showQuotient = state.showQuotient;
+  const showPeriodHighlight = state.showPeriodHighlight;
 
   let minPlace = 0;
   let maxPlace = 0;
@@ -126,8 +126,7 @@ function sceneFromLayout(
   const quotientY = padT - fontSize * 0.12;
 
   function placeX(place: number): number {
-    const extra = place >= 1 ? pointGap : 0;
-    return originX + place * digitW + extra;
+    return originX + place * digitW;
   }
 
   function rowY(index: number): number {
@@ -158,7 +157,7 @@ function sceneFromLayout(
   }
 
   const periodDigits = layout.quotient.filter((d) => d.inPeriod);
-  if (showQuotient && periodDigits.length > 0) {
+  if (showQuotient && showPeriodHighlight && periodDigits.length > 0) {
     const left = placeX(periodDigits[0]!.place) - digitW * 0.48;
     const right =
       placeX(periodDigits[periodDigits.length - 1]!.place) + digitW * 0.48;
@@ -301,13 +300,12 @@ function sceneFromLayout(
     }
     const hasDecimal = layout.quotient.some((d) => d.place >= 1);
     if (hasDecimal || layout.integerPart === "0") {
-      pushText(
-        "point",
-        originX + digitW * 0.5 + pointGap * 0.22,
-        quotientY + fontSize * 0.12,
-        ".",
-        fontSize,
-      );
+      cmds.push({
+        t: "dot",
+        x: placeX(0) + digitW * 0.5,
+        y: quotientY + fontSize * 0.22,
+        r: Math.max(1.5, fontSize * 0.068),
+      });
     }
     if (layout.showEllipsis) {
       const last = layout.quotient[layout.quotient.length - 1];

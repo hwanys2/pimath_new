@@ -14,6 +14,7 @@ export type RepeatingDecimalState = {
   dividendInput: string;
   divisorInput: string;
   showQuotient: boolean;
+  showPeriodHighlight: boolean;
   showRemainderMarks: boolean;
   showSameMark: boolean;
   style: RepeatingDecimalStyle;
@@ -36,6 +37,7 @@ export const DEFAULT_REPEATING_DECIMAL_STATE: RepeatingDecimalState = {
   dividendInput: "1",
   divisorInput: "7",
   showQuotient: true,
+  showPeriodHighlight: true,
   showRemainderMarks: true,
   showSameMark: true,
   style: { ...DEFAULT_STYLE },
@@ -112,6 +114,7 @@ export function normalizeState(
     dividendInput: String(state.dividendInput ?? "1"),
     divisorInput: String(state.divisorInput ?? "7"),
     showQuotient: state.showQuotient !== false,
+    showPeriodHighlight: state.showPeriodHighlight !== false,
     showRemainderMarks: state.showRemainderMarks !== false,
     showSameMark: state.showSameMark !== false,
     style: { lineWidth, fontSize, exportScale },

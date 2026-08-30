@@ -290,6 +290,14 @@ export default function RepeatingDecimalStudio() {
                 몫
               </ChipToggle>
               <ChipToggle
+                on={state.showPeriodHighlight}
+                onClick={() =>
+                  set({ showPeriodHighlight: !state.showPeriodHighlight })
+                }
+              >
+                순환마디 색
+              </ChipToggle>
+              <ChipToggle
                 on={state.showRemainderMarks}
                 onClick={() =>
                   set({ showRemainderMarks: !state.showRemainderMarks })
@@ -305,8 +313,8 @@ export default function RepeatingDecimalStudio() {
               </ChipToggle>
             </div>
             <p className="mt-2 text-[11px] leading-snug text-foreground/45">
-              그림 위 몫을 눌러도 보였다 숨겨요. 나머지 색은 순환이 시작·끝나는
-              분홍과 가운데 나머지 파랑이에요.
+              그림 위 몫을 눌러도 보였다 숨겨요. 순환마디 색은 몫의 노란 칸,
+              나머지 색은 순환이 시작·끝나는 분홍과 가운데 나머지 파랑이에요.
             </p>
           </section>
 

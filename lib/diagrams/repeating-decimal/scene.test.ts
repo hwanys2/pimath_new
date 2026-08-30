@@ -54,4 +54,27 @@ describe("repeating decimal scene", () => {
     );
     assert.equal(remainderCircles.length, 0);
   });
+
+  it("hides the yellow period highlight independently of the quotient", () => {
+    const scene = buildRepeatingDecimalScene({
+      ...DEFAULT_REPEATING_DECIMAL_STATE,
+      showPeriodHighlight: false,
+    });
+    assert.ok(scene.texts.some((t) => t.id.startsWith("q-")));
+    assert.equal(
+      scene.cmds.some((c) => c.t === "polygon"),
+      false,
+    );
+  });
+
+  it("keeps even digit columns across the decimal point", () => {
+    const scene = buildRepeatingDecimalScene(DEFAULT_REPEATING_DECIMAL_STATE);
+    const q0 = scene.texts.find((t) => t.id === "q-0");
+    const q1 = scene.texts.find((t) => t.id === "q-1");
+    const q2 = scene.texts.find((t) => t.id === "q-2");
+    assert.ok(q0 && q1 && q2);
+    const step = q1.x - q0.x;
+    assert.ok(step > 8);
+    assert.ok(Math.abs(q2.x - q1.x - step) < 0.01);
+  });
 });
