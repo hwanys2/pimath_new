@@ -24,11 +24,11 @@ import {
   addGraphFromEquation,
   addHorizontalLine,
   addQuadraticGraph,
-  addTranslation,
   applyEquationToGraph,
   cloneState,
   DEFAULT_QUADRATIC_FUNCTION_STATE,
   equationPlainText,
+  findGraphTranslation,
   GRAPH_CYAN,
   GRAPH_GREEN,
   GRAPH_INK,
@@ -36,15 +36,12 @@ import {
   GRAPH_PURPLE,
   GRID_COLOR,
   GRID_GRAY,
-  graphsHaveSameA,
   isHorizontal,
-  isMinimum,
-  makeQuadratic,
-  nextGraphColor,
   normalizeState,
   QUADRATIC_FUNCTION_PRESETS,
   quadraticEquationText,
   removeById,
+  toggleGraphTranslation,
   yOnParabola,
   type GraphLabelMode,
   type QuadraticFunctionState,
@@ -173,36 +170,6 @@ const COLORS = [
   { id: GRAPH_INK, label: "검정" },
 ];
 
-function addParallelTranslate(
-  state: QuadraticFunctionState,
-  graphId: string,
-  kind: TranslationKind,
-): QuadraticFunctionState {
-  const graph = state.graphs.find((g) => g.id === graphId);
-  if (!graph || isHorizontal(graph)) return state;
-  const parallel = state.graphs.find(
-    (g) => g.id !== graphId && graphsHaveSameA(g, graph),
-  );
-  if (parallel) return addTranslation(state, graph.id, parallel.id, kind);
-  const other = state.graphs.find(
-    (g) => g.id !== graphId && !isHorizontal(g),
-  );
-  if (other) return addTranslation(state, graph.id, other.id, kind);
-  const copy = makeQuadratic({
-    a: graph.a,
-    p: graph.p,
-    q: graph.q - 2,
-    color: nextGraphColor(state.graphs),
-    labelMode: "auto",
-  });
-  return addTranslation(
-    { ...state, graphs: [...state.graphs, copy] },
-    graph.id,
-    copy.id,
-    kind,
-  );
-}
-
 export default function QuadraticFunctionStudio() {
   const [state, setState] = useQuadraticFunctionState();
   const [status, setStatus] = useState<string | null>(null);
@@ -300,6 +267,22 @@ export default function QuadraticFunctionStudio() {
     [selectedTrans, setState],
   );
 
+  const toggleParallelTranslate = useCallback(
+    (kind: TranslationKind) => {
+      if (!selectedGraph || isHorizontal(selectedGraph)) return;
+      const existing = findGraphTranslation(state, selectedGraph.id, kind);
+      const next = toggleGraphTranslation(state, selectedGraph.id, kind);
+      setState(next);
+      if (existing) {
+        if (selectedId === existing.id) setSelectedId(selectedGraph.id);
+        return;
+      }
+      const added = findGraphTranslation(next, selectedGraph.id, kind);
+      if (added) setSelectedId(added.id);
+    },
+    [selectedGraph, selectedId, setState, state],
+  );
+
   const deleteSelected = useCallback(() => {
     const id = selectedId;
     if (!id) return;
@@ -374,7 +357,7 @@ export default function QuadraticFunctionStudio() {
           </h1>
           <p className="mt-1 max-w-2xl text-sm text-foreground/65">
             좌표평면에 <span className="italic">y=a(x-p)²+q</span>를 그리고,
-            꼭짓점·최댓값·평행이동을 켜고 PNG로 저장하세요.
+            꼭짓점·대칭축·평행이동을 켜고 PNG로 저장하세요.
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -719,7 +702,7 @@ export default function QuadraticFunctionStudio() {
                           })
                         }
                       >
-                        수선
+                        축 수선
                       </ChipToggle>
                       <ChipToggle
                         on={selectedGraph.showVertexMarks}
@@ -740,16 +723,6 @@ export default function QuadraticFunctionStudio() {
                         }
                       >
                         대칭축
-                      </ChipToggle>
-                      <ChipToggle
-                        on={selectedGraph.showExtrema}
-                        onClick={() =>
-                          patchSelectedGraph({
-                            showExtrema: !selectedGraph.showExtrema,
-                          })
-                        }
-                      >
-                        {isMinimum(selectedGraph) ? "최솟값" : "최댓값"}
                       </ChipToggle>
                       <ChipToggle
                         on={selectedGraph.showXIntercept}
@@ -824,54 +797,24 @@ export default function QuadraticFunctionStudio() {
                 </div>
                 {!isHorizontal(selectedGraph) ? (
                   <div className="flex flex-wrap gap-1.5 pt-1">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        const next = addParallelTranslate(
-                          state,
-                          selectedGraph.id,
-                          "vertical",
-                        );
-                        setState(next);
-                        const added = next.translations[next.translations.length - 1];
-                        if (added) setSelectedId(added.id);
-                      }}
-                      className="rounded-xl bg-black/5 px-2.5 py-1 text-xs font-semibold text-foreground/70 hover:bg-black/10"
+                    <ChipToggle
+                      on={!!findGraphTranslation(state, selectedGraph.id, "vertical")}
+                      onClick={() => toggleParallelTranslate("vertical")}
                     >
                       위아래 평행이동
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        const next = addParallelTranslate(
-                          state,
-                          selectedGraph.id,
-                          "horizontal",
-                        );
-                        setState(next);
-                        const added = next.translations[next.translations.length - 1];
-                        if (added) setSelectedId(added.id);
-                      }}
-                      className="rounded-xl bg-black/5 px-2.5 py-1 text-xs font-semibold text-foreground/70 hover:bg-black/10"
+                    </ChipToggle>
+                    <ChipToggle
+                      on={!!findGraphTranslation(state, selectedGraph.id, "horizontal")}
+                      onClick={() => toggleParallelTranslate("horizontal")}
                     >
                       좌우 평행이동
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        const next = addParallelTranslate(
-                          state,
-                          selectedGraph.id,
-                          "vertex",
-                        );
-                        setState(next);
-                        const added = next.translations[next.translations.length - 1];
-                        if (added) setSelectedId(added.id);
-                      }}
-                      className="rounded-xl bg-black/5 px-2.5 py-1 text-xs font-semibold text-foreground/70 hover:bg-black/10"
+                    </ChipToggle>
+                    <ChipToggle
+                      on={!!findGraphTranslation(state, selectedGraph.id, "vertex")}
+                      onClick={() => toggleParallelTranslate("vertex")}
                     >
                       꼭짓점 L자
-                    </button>
+                    </ChipToggle>
                   </div>
                 ) : null}
               </div>
@@ -961,7 +904,7 @@ export default function QuadraticFunctionStudio() {
               </div>
             ) : (
               <p className="mt-2 text-[11px] text-foreground/45">
-                그래프를 고르면 꼭짓점·최댓값·평행이동을 켤 수 있어요.
+                그래프를 고르면 꼭짓점·대칭축·평행이동을 켤 수 있어요.
               </p>
             )}
           </section>

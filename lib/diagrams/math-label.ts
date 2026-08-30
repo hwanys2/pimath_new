@@ -6,6 +6,8 @@ export type TextRun = {
   fracDen?: TextRun[];
   /** Square root: vinculum over `sqrtBody`. */
   sqrtBody?: TextRun[];
+  /** Superscript after the base `text`. */
+  sup?: TextRun[];
 };
 
 const UNIT_WORDS = new Set(["cm", "mm", "m", "km", "CM", "MM"]);
@@ -69,8 +71,34 @@ export function normalizeSqrtLabel(text: string): string {
  * Point names (A, B, O) use `parseNameRuns` — upright Roman, not italic.
  */
 export function parseMathRuns(text: string): TextRun[] {
+  return attachSuperscripts(parseMathRunsCore(normalizeSqrtLabel(text)));
+}
+
+function emitRestTokens(rest: string, runs: TextRun[]): void {
+  let i = 0;
+  while (i < rest.length) {
+    const sup = rest.slice(i).match(/^(\^\d+|\^\{[^}]+\})/);
+    if (sup) {
+      runs.push({ text: sup[1]!, italic: false });
+      i += sup[1]!.length;
+      continue;
+    }
+    const ch = rest[i]!;
+    if (/[0-9.]/.test(ch)) {
+      let j = i + 1;
+      while (j < rest.length && /[0-9.]/.test(rest[j]!)) j += 1;
+      runs.push({ text: rest.slice(i, j), italic: false });
+      i = j;
+      continue;
+    }
+    runs.push({ text: ch, italic: false });
+    i += 1;
+  }
+}
+
+function parseMathRunsCore(text: string): TextRun[] {
   const runs: TextRun[] = [];
-  const source = normalizeSqrtLabel(text);
+  const source = text;
   const tokenRe =
     /(\$([^$]*)\$)|(\\frac\{)|(\\sqrt\{)|(\\pi)|(℃|°C)|([A-Za-z]+)|([^A-Za-z$\\]+)|(\$|\\)/g;
   let match: RegExpExecArray | null;
@@ -83,15 +111,15 @@ export function parseMathRuns(text: string): TextRun[] {
     const word = match[7];
     const rest = match[8] ?? match[9];
     if (mathInner != null) {
-      runs.push(...parseMathRuns(mathInner));
+      runs.push(...parseMathRunsCore(mathInner));
     } else if (fracOpen) {
       const frac = readFrac(source, match.index);
       if (frac) {
         runs.push({
           text: "",
           italic: false,
-          fracNum: parseMathRuns(frac.num),
-          fracDen: parseMathRuns(frac.den),
+          fracNum: parseMathRunsCore(frac.num),
+          fracDen: parseMathRunsCore(frac.den),
         });
         tokenRe.lastIndex = frac.end;
       } else {
@@ -103,7 +131,7 @@ export function parseMathRuns(text: string): TextRun[] {
         runs.push({
           text: "",
           italic: false,
-          sqrtBody: parseMathRuns(sqrt.body),
+          sqrtBody: parseMathRunsCore(sqrt.body),
         });
         tokenRe.lastIndex = sqrt.end;
       } else {
@@ -116,10 +144,54 @@ export function parseMathRuns(text: string): TextRun[] {
     } else if (word) {
       runs.push({ text: word, italic: !UNIT_WORDS.has(word) });
     } else if (rest) {
-      runs.push({ text: rest, italic: false });
+      emitRestTokens(rest, runs);
     }
   }
   return runs;
+}
+
+function attachSuperscripts(runs: TextRun[]): TextRun[] {
+  const out: TextRun[] = [];
+  for (const run of runs) {
+    if (run.fracNum || run.sqrtBody) {
+      out.push(run);
+      continue;
+    }
+
+    const inline = run.text.match(/^(.*?)\^(\{([^}]+)\}|(\d+))(.*)$/s);
+    if (inline) {
+      const base = inline[1]!;
+      const exp = inline[3] ?? inline[4]!;
+      const tail = inline[5]!;
+      if (base) {
+        out.push({
+          ...run,
+          text: base,
+          sup: parseMathRunsCore(exp),
+        });
+      } else if (out.length > 0) {
+        const prev = out[out.length - 1]!;
+        out[out.length - 1] = { ...prev, sup: parseMathRunsCore(exp) };
+      }
+      if (tail) out.push({ ...run, text: tail });
+      continue;
+    }
+
+    if (/^\^/.test(run.text) && out.length > 0) {
+      const lead = run.text.match(/^\^(\{([^}]+)\}|(\d+))(.*)$/s);
+      if (lead) {
+        const exp = lead[2] ?? lead[3]!;
+        const prev = out[out.length - 1]!;
+        out[out.length - 1] = { ...prev, sup: parseMathRunsCore(exp) };
+        const tail = lead[4]!;
+        if (tail) out.push({ ...run, text: tail });
+        continue;
+      }
+    }
+
+    out.push(run);
+  }
+  return out;
 }
 
 function uprightRuns(runs: TextRun[]): TextRun[] {
@@ -129,6 +201,7 @@ function uprightRuns(runs: TextRun[]): TextRun[] {
     fracNum: run.fracNum ? uprightRuns(run.fracNum) : undefined,
     fracDen: run.fracDen ? uprightRuns(run.fracDen) : undefined,
     sqrtBody: run.sqrtBody ? uprightRuns(run.sqrtBody) : undefined,
+    sup: run.sup ? uprightRuns(run.sup) : undefined,
   }));
 }
 
@@ -146,7 +219,11 @@ export function runsToPlain(runs: TextRun[]): string {
       if (run.sqrtBody) {
         return `√(${runsToPlain(run.sqrtBody)})`;
       }
-      return run.text;
+      const base = run.text;
+      if (run.sup) {
+        return `${base}^${runsToPlain(run.sup)}`;
+      }
+      return base;
     })
     .join("");
 }
@@ -161,19 +238,30 @@ export function formatNiceNumber(value: number): string {
   return String(two);
 }
 
+function gcdInt(a: number, b: number): number {
+  let x = Math.abs(Math.round(a));
+  let y = Math.abs(Math.round(b));
+  while (y > 0) {
+    const t = x % y;
+    x = y;
+    y = t;
+  }
+  return x || 1;
+}
+
 /** Small-denominator fraction if it fits; otherwise a decimal. */
 export function formatNiceCoeff(value: number): string {
   if (!Number.isFinite(value)) return "";
-  const rounded = Math.round(value * 1000) / 1000;
-  if (Math.abs(rounded - Math.round(rounded)) < 1e-6) {
-    return String(Math.round(rounded));
+  if (Math.abs(value - Math.round(value)) < 1e-9) {
+    return String(Math.round(value));
   }
-  const sign = rounded < 0 ? "-" : "";
-  const abs = Math.abs(rounded);
+  const sign = value < 0 ? "-" : "";
+  const abs = Math.abs(value);
   for (let den = 2; den <= 12; den += 1) {
     const num = Math.round(abs * den);
-    if (Math.abs(abs - num / den) < 1e-6) {
-      return `${sign}\\frac{${num}}{${den}}`;
+    if (num > 0 && Math.abs(abs - num / den) < 1e-9) {
+      const g = gcdInt(num, den);
+      return `${sign}\\frac{${num / g}}{${den / g}}`;
     }
   }
   return formatNiceNumber(value);
@@ -212,6 +300,10 @@ function sqrtMetrics(size: number) {
   };
 }
 
+function supMetrics(size: number) {
+  return { supSize: size * 0.62, lift: size * 0.42 };
+}
+
 function measureRun(
   ctx: CanvasRenderingContext2D,
   run: TextRun,
@@ -229,8 +321,16 @@ function measureRun(
     const bodyW = measureRuns(ctx, run.sqrtBody, m.bodySize, fonts);
     return m.hookW + bodyW + m.tail;
   }
-  ctx.font = canvasFont(run.italic, size, fonts);
-  return ctx.measureText(run.text).width;
+  let w = 0;
+  if (run.text) {
+    ctx.font = canvasFont(run.italic, size, fonts);
+    w = ctx.measureText(run.text).width;
+  }
+  if (run.sup) {
+    const { supSize } = supMetrics(size);
+    w += measureRuns(ctx, run.sup, supSize, fonts);
+  }
+  return w;
 }
 
 /**
@@ -378,6 +478,15 @@ function fillRun(
   }
   ctx.fillStyle = fill;
   ctx.font = canvasFont(run.italic, size, fonts);
-  ctx.fillText(run.text, x, y);
-  return ctx.measureText(run.text).width;
+  let w = 0;
+  if (run.text) {
+    ctx.fillText(run.text, x, y);
+    w = ctx.measureText(run.text).width;
+  }
+  if (run.sup) {
+    const { supSize, lift } = supMetrics(size);
+    fillRuns(ctx, run.sup, x + w, y - lift, supSize, fonts, "start", fill);
+    w += measureRuns(ctx, run.sup, supSize, fonts);
+  }
+  return w;
 }

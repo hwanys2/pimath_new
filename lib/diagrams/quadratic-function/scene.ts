@@ -3,7 +3,6 @@ import {
   graphStrokeWidth,
   interceptLabel,
   isHorizontal,
-  isMinimum,
   quadraticEquationText,
   vertexOf,
   xAtY,
@@ -369,6 +368,7 @@ export function buildQuadraticFunctionScene(
 
   for (const graph of state.graphs) {
     if (isHorizontal(graph)) continue;
+    const strokeW = graphStrokeWidth(graph, state.style.graphWidth);
     if (graph.showAxisOfSymmetry && inRange(graph.p, layout.xMin, layout.xMax)) {
       const px = canvasXFromValue(graph.p, layout);
       cmds.push({
@@ -378,8 +378,8 @@ export function buildQuadraticFunctionScene(
         x2: px,
         y2: layout.plotBottom,
         dashed: true,
-        stroke: dash,
-        width: 1.15,
+        stroke: graph.color,
+        width: Math.max(1.35, strokeW * 0.55),
       });
     }
     if (graph.showExtrema) {
@@ -412,26 +412,32 @@ export function buildQuadraticFunctionScene(
     const vx = canvasXFromValue(v.x, layout);
     const vy = canvasYFromValue(v.y, layout);
     if (graph.showVertexDrop) {
-      cmds.push({
-        t: "line",
-        x1: vx,
-        y1: vy,
-        x2: vx,
-        y2: oy,
-        dashed: true,
-        stroke: dash,
-        width: 1.15,
-      });
-      cmds.push({
-        t: "line",
-        x1: vx,
-        y1: vy,
-        x2: ox,
-        y2: vy,
-        dashed: true,
-        stroke: dash,
-        width: 1.15,
-      });
+      const strokeW = graphStrokeWidth(graph, state.style.graphWidth);
+      const dropW = Math.max(1.15, strokeW * 0.5);
+      if (Math.abs(vy - oy) > 0.5) {
+        cmds.push({
+          t: "line",
+          x1: vx,
+          y1: vy,
+          x2: vx,
+          y2: oy,
+          dashed: true,
+          stroke: graph.color,
+          width: dropW,
+        });
+      }
+      if (Math.abs(vx - ox) > 0.5) {
+        cmds.push({
+          t: "line",
+          x1: vx,
+          y1: vy,
+          x2: ox,
+          y2: vy,
+          dashed: true,
+          stroke: graph.color,
+          width: dropW,
+        });
+      }
     }
   }
 

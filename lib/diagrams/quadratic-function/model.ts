@@ -831,6 +831,81 @@ export function addTranslation(
   };
 }
 
+export function findGraphTranslation(
+  state: QuadraticFunctionState,
+  graphId: string,
+  kind: TranslationKind,
+): Translation | undefined {
+  return state.translations.find(
+    (t) =>
+      t.kind === kind &&
+      (t.fromGraphId === graphId || t.toGraphId === graphId),
+  );
+}
+
+export function addParallelTranslation(
+  state: QuadraticFunctionState,
+  graphId: string,
+  kind: TranslationKind,
+): QuadraticFunctionState {
+  const graph = state.graphs.find((g) => g.id === graphId);
+  if (!graph || isHorizontal(graph)) return state;
+  if (findGraphTranslation(state, graphId, kind)) return state;
+  const parallel = state.graphs.find(
+    (g) => g.id !== graphId && graphsHaveSameA(g, graph),
+  );
+  if (parallel) return addTranslation(state, graph.id, parallel.id, kind);
+  const other = state.graphs.find(
+    (g) => g.id !== graphId && !isHorizontal(g),
+  );
+  if (other) return addTranslation(state, graph.id, other.id, kind);
+  const copy = makeQuadratic({
+    a: graph.a,
+    p: graph.p,
+    q: graph.q - 2,
+    color: nextGraphColor(state.graphs),
+    labelMode: "auto",
+  });
+  return addTranslation(
+    { ...state, graphs: [...state.graphs, copy] },
+    graph.id,
+    copy.id,
+    kind,
+  );
+}
+
+export function removeGraphTranslation(
+  state: QuadraticFunctionState,
+  graphId: string,
+  kind: TranslationKind,
+): QuadraticFunctionState {
+  const trans = findGraphTranslation(state, graphId, kind);
+  if (!trans) return state;
+  const partnerId =
+    trans.fromGraphId === graphId ? trans.toGraphId : trans.fromGraphId;
+  const translations = state.translations.filter((t) => t.id !== trans.id);
+  const partnerUsed =
+    translations.some(
+      (t) => t.fromGraphId === partnerId || t.toGraphId === partnerId,
+    ) || state.points.some((p) => p.graphId === partnerId);
+  const graphs =
+    !partnerUsed && state.graphs.length > 1
+      ? state.graphs.filter((g) => g.id !== partnerId)
+      : state.graphs;
+  return normalizeState({ ...state, graphs, translations });
+}
+
+export function toggleGraphTranslation(
+  state: QuadraticFunctionState,
+  graphId: string,
+  kind: TranslationKind,
+): QuadraticFunctionState {
+  if (findGraphTranslation(state, graphId, kind)) {
+    return removeGraphTranslation(state, graphId, kind);
+  }
+  return addParallelTranslation(state, graphId, kind);
+}
+
 export function graphsHaveSameA(a: QuadraticGraph, b: QuadraticGraph): boolean {
   if (isHorizontal(a) || isHorizontal(b)) return false;
   return Math.abs(a.a - b.a) < 1e-6;

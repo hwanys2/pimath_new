@@ -2,11 +2,13 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
   formatQuadraticEquation,
+  findGraphTranslation,
   isMinimum,
   QUADRATIC_FUNCTION_PRESETS,
   parseQuadraticEquation,
   quadraticEquationText,
   makeQuadratic,
+  toggleGraphTranslation,
   vertexOf,
   yOnParabola,
 } from "./model";
@@ -19,10 +21,11 @@ describe("quadratic equation text", () => {
     assert.equal(formatQuadraticEquation(1, 0, 0), "y=x^2");
     assert.equal(formatQuadraticEquation(-1, 0, 0), "y=-x^2");
     assert.equal(formatQuadraticEquation(1, 2, 0), "y=(x-2)^2");
-    assert.match(
+    assert.equal(
       formatQuadraticEquation(-1 / 3, -2, 3),
-      /\(x\+2\)\^2\+3$/,
+      "y=-\\frac{1}{3}(x+2)^2+3",
     );
+    assert.equal(formatQuadraticEquation(-0.33, 0, 0), "y=-0.33x^2");
   });
 
   it("parses common forms", () => {
@@ -77,6 +80,23 @@ describe("vertex and extrema", () => {
   });
 });
 
+describe("parallel translation toggles", () => {
+  it("adds and removes vertex translation for the selected graph", () => {
+    const base = QUADRATIC_FUNCTION_PRESETS.find((p) => p.id === "several-a")!
+      .state;
+    const graph = base.graphs[0]!;
+    assert.equal(findGraphTranslation(base, graph.id, "vertex"), undefined);
+
+    const withTrans = toggleGraphTranslation(base, graph.id, "vertex");
+    const trans = findGraphTranslation(withTrans, graph.id, "vertex");
+    assert.ok(trans);
+    assert.equal(trans.kind, "vertex");
+
+    const removed = toggleGraphTranslation(withTrans, graph.id, "vertex");
+    assert.equal(findGraphTranslation(removed, graph.id, "vertex"), undefined);
+  });
+});
+
 describe("scene", () => {
   it("samples parabola branches inside plot", () => {
     const state = QUADRATIC_FUNCTION_PRESETS.find((p) => p.id === "several-a")!
@@ -109,5 +129,46 @@ describe("scene", () => {
       QUADRATIC_FUNCTION_PRESETS.find((p) => p.id === "translate-pq")!.state,
     );
     assert.ok(vertexMove.cmds.filter((c) => c.t === "arrowhead").length >= 2);
+  });
+
+  it("draws axis of symmetry in the graph color", () => {
+    const graph = makeQuadratic({
+      a: 1,
+      p: 2,
+      color: "#ff00aa",
+      showAxisOfSymmetry: true,
+    });
+    const state = {
+      ...QUADRATIC_FUNCTION_PRESETS[0]!.state,
+      graphs: [graph],
+    };
+    const scene = buildQuadraticFunctionScene(state);
+    const axis = scene.cmds.find(
+      (c) => c.t === "line" && c.dashed && c.x1 === c.x2,
+    );
+    assert.ok(axis && axis.t === "line");
+    assert.equal(axis.stroke, graph.color);
+  });
+
+  it("draws dashed drops from the vertex to both axes", () => {
+    const graph = makeQuadratic({
+      a: 1,
+      p: -2,
+      q: 1,
+      color: "#3366cc",
+      showVertexDrop: true,
+    });
+    const state = {
+      ...QUADRATIC_FUNCTION_PRESETS[0]!.state,
+      graphs: [graph],
+    };
+    const scene = buildQuadraticFunctionScene(state);
+    const drops = scene.cmds.filter(
+      (c) => c.t === "line" && c.dashed && c.stroke === graph.color,
+    );
+    const vertical = drops.find((c) => c.t === "line" && c.x1 === c.x2);
+    const horizontal = drops.find((c) => c.t === "line" && c.y1 === c.y2);
+    assert.ok(vertical);
+    assert.ok(horizontal);
   });
 });

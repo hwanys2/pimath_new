@@ -134,6 +134,23 @@ describe("equation labels", () => {
     assert.equal(runsToPlain(frac!.fracDen!), "x");
   });
 
+  it("parses superscripts for squared terms", () => {
+    const runs = parseMathRuns("y=x^2");
+    const x = runs.find((r) => r.text === "x");
+    assert.ok(x?.sup);
+    assert.equal(runsToPlain(x!.sup!), "2");
+
+    const vertex = parseMathRuns("y=(x+2)^2");
+    const close = vertex.find((r) => r.text === ")");
+    assert.ok(close?.sup);
+    assert.equal(runsToPlain(close!.sup!), "2");
+
+    const frac = parseMathRuns("y=-\\frac{1}{3}(x+2)^2+3");
+    const fracClose = frac.find((r) => r.text === ")" && r.sup);
+    assert.ok(fracClose?.sup);
+    assert.equal(runsToPlain(fracClose!.sup!), "2");
+  });
+
   it("keeps point names upright roman", () => {
     const name = parseNameRuns("A");
     assert.equal(name.length, 1);

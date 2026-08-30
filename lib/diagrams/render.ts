@@ -426,7 +426,7 @@ function textToSvg(t: SceneText, fonts: FontFaces): string {
   if (!hasFrac) {
     const anchor =
       t.anchor === "middle" ? "middle" : t.anchor === "end" ? "end" : "start";
-    return `<text x="${t.x.toFixed(2)}" y="${t.y.toFixed(2)}" text-anchor="${anchor}" dominant-baseline="middle" fill="${escapeXml(t.fill ?? INK)}" font-size="${t.size}"${transform}>${runsToTspans(t.runs, fonts)}</text>`;
+    return `<text x="${t.x.toFixed(2)}" y="${t.y.toFixed(2)}" text-anchor="${anchor}" dominant-baseline="middle" fill="${escapeXml(t.fill ?? INK)}" font-size="${t.size}"${transform}>${runsToTspans(t.runs, fonts, t.size)}</text>`;
   }
   // Approximate frac layout with a group; canvas PNG is the primary export.
   return `<g${transform}>${fracGroupSvg(t, fonts)}</g>`;
@@ -461,7 +461,7 @@ function fracGroupSvg(t: SceneText, fonts: FontFaces): string {
       );
     } else {
       parts.push(
-        `<text x="${cursor.toFixed(2)}" y="${t.y.toFixed(2)}" text-anchor="start" dominant-baseline="middle" fill="${escapeXml(fill)}" font-size="${t.size}">${runsToTspans([run], fonts)}</text>`,
+        `<text x="${cursor.toFixed(2)}" y="${t.y.toFixed(2)}" text-anchor="start" dominant-baseline="middle" fill="${escapeXml(fill)}" font-size="${t.size}">${runsToTspans([run], fonts, t.size)}</text>`,
       );
     }
     cursor += w;
@@ -482,18 +482,37 @@ function estimateRunWidth(run: TextRun, size: number): number {
     return Math.max(nw, dw, size * 0.45) + size * 0.22;
   }
   const italic = run.italic ? 0.52 : 0.56;
-  return Math.max(run.text.length, 0.4) * size * italic;
+  let w = Math.max(run.text.length, 0) * size * italic;
+  if (run.sup) {
+    w += estimateRunsWidth(run.sup, size * 0.62);
+  }
+  if (w === 0 && run.sqrtBody) {
+    return size * 0.8;
+  }
+  return Math.max(w, run.text ? 0 : 0.4 * size * italic);
 }
 
-function runsToTspans(runs: TextRun[], fonts: FontFaces): string {
+function runsToTspans(runs: TextRun[], fonts: FontFaces, baseSize?: number): string {
   return runs
     .filter((run) => !run.fracNum)
-    .map((run) => {
-      const style = run.italic ? "italic" : "normal";
-      const family = `'Times New Roman', ${escapeXml(fonts.math)}, ${escapeXml(fonts.korean)}, Batang, serif`;
-      return `<tspan font-style="${style}" font-family="${family}">${escapeXml(run.text)}</tspan>`;
-    })
+    .map((run) => runToTspan(run, fonts, baseSize))
     .join("");
+}
+
+function runToTspan(run: TextRun, fonts: FontFaces, baseSize?: number): string {
+  const style = run.italic ? "italic" : "normal";
+  const family = `'Times New Roman', ${escapeXml(fonts.math)}, ${escapeXml(fonts.korean)}, Batang, serif`;
+  let out = `<tspan font-style="${style}" font-family="${family}">${escapeXml(run.text)}</tspan>`;
+  if (run.sup && baseSize) {
+    const supSize = baseSize * 0.62;
+    const lift = baseSize * 0.42;
+    const supInner = runsToTspans(run.sup, fonts, supSize);
+    out += supInner.replace(
+      /^<tspan/,
+      `<tspan font-size="${supSize.toFixed(2)}" dy="${(-lift).toFixed(2)}"`,
+    );
+  }
+  return out;
 }
 
 function arrowheadPoints(cmd: Extract<SceneCmd, { t: "arrowhead" }>): {
