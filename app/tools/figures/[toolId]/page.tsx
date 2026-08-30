@@ -10,6 +10,7 @@ import IsoscelesStudio from "@/components/tools/figures/isosceles-triangle/Isosc
 import NumberLineStudio from "@/components/tools/figures/number-line/NumberLineStudio";
 import PolygonStudio from "@/components/tools/figures/polygon/PolygonStudio";
 import LinearFunctionStudio from "@/components/tools/figures/linear-function/LinearFunctionStudio";
+import QuadrilateralStudio from "@/components/tools/figures/quadrilaterals/QuadrilateralStudio";
 import RepeatingDecimalStudio from "@/components/tools/figures/repeating-decimal/RepeatingDecimalStudio";
 import SolidSketchStudio from "@/components/tools/figures/solid-sketch/SolidSketchStudio";
 import TriangleCentersStudio from "@/components/tools/figures/triangle-centers/TriangleCentersStudio";
@@ -61,6 +62,8 @@ function renderDiagramStudio(toolId: string): ReactNode {
       return <IsoscelesStudio />;
     case "g2-triangle-centers":
       return <TriangleCentersStudio />;
+    case "g2-quadrilaterals":
+      return <QuadrilateralStudio />;
     case "g3-circle-chords":
       return <CircleChordsStudio />;
     default:
