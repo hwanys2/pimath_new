@@ -121,6 +121,28 @@ export const DIAGRAM_TOOLS: DiagramToolMeta[] = [
     status: "ready",
   },
   {
+    id: "g2-isosceles-triangle",
+    grade: 2,
+    title: "이등변삼각형",
+    description:
+      "등변 표시·밑각·외각·수선·이등분선을 붙여 중2 삼각형의 성질 문제를 바로 그려 PNG로 저장해요.",
+    unitHint: "3.1 삼각형과 사각형의 성질",
+    emoji: "△",
+    href: "/tools/figures/g2-isosceles-triangle",
+    status: "ready",
+  },
+  {
+    id: "g2-triangle-centers",
+    grade: 2,
+    title: "외심과 내심",
+    description:
+      "삼각형을 끌어 외심·내심을 맞추고, 외접원·내접원·반지름·이등분선·수선·각·길이를 시험 그림처럼 붙여 PNG로 저장해요.",
+    unitHint: "3.1 삼각형과 사각형의 성질",
+    emoji: "△",
+    href: "/tools/figures/g2-triangle-centers",
+    status: "ready",
+  },
+  {
     id: "g3-circle-chords",
     grade: 3,
     title: "원의 현",

@@ -44,7 +44,7 @@
 도구 (/tools) 
   └─ 문제 그림 그리기 (/tools/figures)
         ├─ 중1 카드들 → /tools/figures/g1-number-line , /tools/figures/g1-coordinate-plane , /tools/figures/g1-polygon , /tools/figures/g1-circle-sectors , /tools/figures/g1-solid-sketch , /tools/figures/g1-histogram
-        ├─ 중2 카드들 → /tools/figures/g2-repeating-decimal , /tools/figures/g2-linear-inequality , /tools/figures/g2-linear-function
+        ├─ 중2 카드들 → /tools/figures/g2-repeating-decimal , /tools/figures/g2-linear-inequality , /tools/figures/g2-linear-function , /tools/figures/g2-triangle-centers , /tools/figures/g2-isosceles-triangle
         └─ 중3 카드들
               └─ 원의 현 → /tools/figures/g3-circle-chords
 ```
@@ -269,6 +269,28 @@ components/tools/figures/DiagramToolShell.tsx  ← 공통 뼈대. 손대지 않�
 - 프리셋: 절편, 점의 좌표, 기울기, 평행이동, 여러 그래프, x=a·y=b.
 - 스튜디오는 §5.1 **3열**: 그림 아래 좌표평면 | 표시·그래프(조금 좁게) | 빠른 그림·그림 스타일(기본 펼침). 글자·식 기본값은 크게, 슬라이더는 겨냥도와 비슷하게 더 키울 수 있다.
 
+### 이등변삼각형 (`g2-isosceles-triangle`)
+
+중2 `3.1 삼각형과 사각형의 성질`에서 나오는 시험용 이등변삼각형.
+
+- 중1 다각형의 점·각·길이 솔버를 재사용한다. 꼭짓점을 끌면 이등변(AB=AC 등) 모양이 유지되고, 숫자를 넣으면 그 각·변만 맞춘다.
+- 등변 표시(빗금 1–3개), 내각·외각, 내각 분홍 채움, 같은 각 호·점 표시.
+- 보조선 AD/BD/CD: 자유·중점·수선·이등분선. 발 D에서 직각, 잘린 각·부분 길이.
+- 프리셋: 밑각, 꼭지각·외각, 꼭짓점 수선, 각으로 이등변, 이등변 이어서, 밑각 이등분선.
+- 스튜디오는 §5.1 **3열**: 그림 | 표시·이등변·보조선 | 빠른 그림·그림 스타일(기본 펼침).
+
+### 외심과 내심 (`g2-triangle-centers`)
+
+중2 `3.1 삼각형과 사각형의 성질`에서 나오는 시험용 외심·내심 그림.
+
+- 꼭짓점을 끌면 외심 `$O$`·내심 `$I$`가 따라온다. 중심은 직접 끌지 않는다. 한 그림에 둘 다 켤 수 있다.
+- 외심: 외접원, OA·OB·OC, 변에 수선(발·직각 네모). 둔각이면 외심은 밖, 직각이면 빗변 중점.
+- 내심: 내접원, IA·IB·IC, 변에 수선(접점·직각 네모). 접선 길이는 접점으로 나뉜 선분에 설명선.
+- 반지름·이등분선이 켜진 뒤 각 조각·선분을 누르면 그 각·길이만 붙는다. 미지수는 연한 분홍 채움.
+- 글자를 누르면 숫자·`$x$`·직접 입력. 꼭짓점 내각·세 변 숫자를 넣으면 그 값만 맞추고 중심은 다시 계산한다.
+- 프리셋: 외심 밑각·중심각·원주각, 직각삼각형 외심, 외접원·수선, 내심 접선·반각·중심각, 내접원·세 변, 외심과 내심.
+- 스튜디오는 §5.1 **3열**: 그림 | 표시 칩·목록 | 빠른 그림·그림 스타일(기본 펼침).
+
 이후 접선, 원주각, 닮음 삼각형 등을 넣을 때도 **같은 카탈로그·같은 3열 스튜디오·같은 스타일 규칙·같은 라벨 모드·같은 `DiagramToolShell`(하단 의견)** 을 재사용한다.
 
 ---
@@ -286,6 +308,8 @@ components/tools/figures/DiagramToolShell.tsx  ← 공통 뼈대. 손대지 않�
 | `g2-repeating-decimal` | 중2 | 순환소수 나눗셈 | ready |
 | `g2-linear-inequality` | 중2 | 일차부등식 | ready |
 | `g2-linear-function` | 중2 | 일차함수 그래프 | ready |
+| `g2-isosceles-triangle` | 중2 | 이등변삼각형 | ready |
+| `g2-triangle-centers` | 중2 | 외심과 내심 | ready |
 | `g3-circle-chords` | 중3 | 원의 현 | ready |
 
 ---
@@ -360,3 +384,5 @@ components/tools/figures/DiagramToolShell.tsx  ← 공통 뼈대. 손대지 않�
 | 2026-08-30 | 일차함수 격자를 정사각형 단위로. 식 입력으로 y=ax+b·x=a·y=b 추가. |
 | 2026-08-30 | 일차함수 좌표평면 설정을 1열 그림 바로 아래로 이동. |
 | 2026-08-30 | 순환소수 나눗셈 기호를 각진 세로선 대신 괄호 곡선으로. |
+| 2026-08-30 | 중2 외심과 내심 (`g2-triangle-centers`). 외접원·내접원, 반지름·이등분선·수선, 각·길이, PNG. |
+| 2026-08-30 | 중2 이등변삼각형 (`g2-isosceles-triangle`). 등변 표시·외각·수선·이등분선, PNG. |

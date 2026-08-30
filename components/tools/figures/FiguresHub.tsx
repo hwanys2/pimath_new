@@ -133,6 +133,10 @@ function ToolCard({ tool }: { tool: DiagramToolMeta }) {
             <InequalityThumb />
           ) : tool.id === "g2-linear-function" ? (
             <LinearFunctionThumb />
+          ) : tool.id === "g2-isosceles-triangle" ? (
+            <IsoscelesThumb />
+          ) : tool.id === "g2-triangle-centers" ? (
+            <CentersThumb />
           ) : (
             tool.emoji
           )}
@@ -261,6 +265,33 @@ function LinearFunctionThumb() {
       <line x1="8" y1="36" x2="40" y2="12" stroke="#c45a7a" strokeWidth="1.7" />
       <circle cx="28" cy="21" r="1.7" fill="#6b4423" />
       <line x1="28" y1="21" x2="28" y2="28" stroke="#6b4423" strokeWidth="1" strokeDasharray="2 1.6" />
+    </svg>
+  );
+}
+
+function CentersThumb() {
+  return (
+    <svg viewBox="0 0 48 48" className="h-10 w-10" aria-hidden>
+      <circle cx="24" cy="26" r="16" fill="none" stroke="#6b4423" strokeWidth="1.3" />
+      <polygon points="24,11 9,37 39,35" fill="none" stroke="#6b4423" strokeWidth="1.6" />
+      <line x1="24" y1="26" x2="24" y2="11" stroke="#6b4423" strokeWidth="1.1" />
+      <line x1="24" y1="26" x2="9" y2="37" stroke="#6b4423" strokeWidth="1.1" />
+      <line x1="24" y1="26" x2="39" y2="35" stroke="#6b4423" strokeWidth="1.1" />
+      <circle cx="24" cy="26" r="1.8" fill="#6b4423" />
+    </svg>
+  );
+}
+
+function IsoscelesThumb() {
+  return (
+    <svg viewBox="0 0 48 48" className="h-10 w-10" aria-hidden>
+      <polygon points="24,10 8,38 40,38" fill="none" stroke="#6b4423" strokeWidth="1.6" />
+      <line x1="14.5" y1="22" x2="17.5" y2="24.2" stroke="#6b4423" strokeWidth="1.3" />
+      <line x1="15.6" y1="20.6" x2="18.6" y2="22.8" stroke="#6b4423" strokeWidth="1.3" />
+      <line x1="30.5" y1="24.2" x2="33.5" y2="22" stroke="#6b4423" strokeWidth="1.3" />
+      <line x1="29.4" y1="22.8" x2="32.4" y2="20.6" stroke="#6b4423" strokeWidth="1.3" />
+      <path d="M24 14 A8 8 0 0 1 28.2 16.4" fill="none" stroke="#6b4423" strokeWidth="1.3" />
+      <path d="M11.5 35 A7 7 0 0 1 16.2 33.2" fill="#f7c8d2" stroke="#6b4423" strokeWidth="1.2" />
     </svg>
   );
 }

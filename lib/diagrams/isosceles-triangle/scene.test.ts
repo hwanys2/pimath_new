@@ -1,0 +1,161 @@
+import assert from "node:assert/strict";
+import { describe, it } from "node:test";
+import {
+  altitudeFoot,
+  angleBisectorFoot,
+  applyIsoAngle,
+  cevianFromIndex,
+  footPoint,
+  oppositeSide,
+  snapIsosceles,
+  wedgeDeg,
+} from "./geometry";
+import {
+  ISO_PRESETS,
+  cloneState,
+  isoscelesFromVertex,
+  normalizeState,
+  triangleFromAngles,
+} from "./model";
+import { buildIsoscelesScene } from "./scene";
+
+function almost(a: number, b: number, eps = 1e-3): void {
+  assert.ok(Math.abs(a - b) < eps, `${a} ≉ ${b}`);
+}
+
+describe("isosceles geometry", () => {
+  it("snapIsosceles makes the legs equal", () => {
+    const pts = [
+      { x: 0.4, y: 4 },
+      { x: -2.5, y: 0 },
+      { x: 2.5, y: 0 },
+    ];
+    const snapped = snapIsosceles(pts, 0);
+    const ab = Math.hypot(snapped[0]!.x - snapped[1]!.x, snapped[0]!.y - snapped[1]!.y);
+    const ac = Math.hypot(snapped[0]!.x - snapped[2]!.x, snapped[0]!.y - snapped[2]!.y);
+    almost(ab, ac, 1e-6);
+  });
+
+  it("altitude foot is perpendicular", () => {
+    const A = { x: 0, y: 4 };
+    const B = { x: -3, y: 0 };
+    const C = { x: 3, y: 0 };
+    const D = altitudeFoot(A, B, C);
+    const BC = { x: C.x - B.x, y: C.y - B.y };
+    const DA = { x: A.x - D.x, y: A.y - D.y };
+    almost(BC.x * DA.x + BC.y * DA.y, 0, 1e-6);
+  });
+
+  it("angle bisector divides the opposite side in the ratio of the legs", () => {
+    const pts = triangleFromAngles(40, 60, 80, 6);
+    const A = pts[0]!;
+    const B = pts[1]!;
+    const C = pts[2]!;
+    const D = angleBisectorFoot(A, B, C);
+    const ab = Math.hypot(A.x - B.x, A.y - B.y);
+    const ac = Math.hypot(A.x - C.x, A.y - C.y);
+    const db = Math.hypot(D.x - B.x, D.y - B.y);
+    const dc = Math.hypot(D.x - C.x, D.y - C.y);
+    almost(db / dc, ab / ac, 1e-4);
+  });
+
+  it("changing the vertex angle of a locked isosceles keeps the legs equal", () => {
+    const state = normalizeState(ISO_PRESETS[0]!.state);
+    const next = applyIsoAngle(state, 0, 40);
+    const ab = Math.hypot(
+      next.points[0]!.x - next.points[1]!.x,
+      next.points[0]!.y - next.points[1]!.y,
+    );
+    const ac = Math.hypot(
+      next.points[0]!.x - next.points[2]!.x,
+      next.points[0]!.y - next.points[2]!.y,
+    );
+    almost(ab, ac, 1e-4);
+    almost(next.interiorAnglesDeg[0]!, 40, 0.3);
+  });
+});
+
+describe("presets", () => {
+  it("every preset builds a finite scene", () => {
+    for (const preset of ISO_PRESETS) {
+      const state = normalizeState(cloneState(preset.state));
+      const scene = buildIsoscelesScene(state);
+      assert.ok(scene.cmds.length > 2, preset.id);
+      assert.equal(scene.layout.canvas.length, 3);
+      for (const p of scene.layout.canvas) {
+        assert.ok(Number.isFinite(p.x) && Number.isFinite(p.y), preset.id);
+      }
+      for (const text of scene.texts) {
+        assert.ok(Number.isFinite(text.x) && Number.isFinite(text.y), text.id);
+      }
+    }
+  });
+
+  it("base-angle draws equal-side ticks and a filled unknown", () => {
+    const scene = buildIsoscelesScene(ISO_PRESETS[0]!.state);
+    const ticks = scene.cmds.filter((c) => c.t === "line" && !c.id && !c.dashed);
+    assert.ok(ticks.length >= 4, "two sides × two ticks");
+    assert.ok(scene.cmds.some((c) => c.t === "polygon"));
+    assert.ok(scene.texts.some((t) => t.id === "v:0:interior"));
+    assert.ok(scene.texts.some((t) => t.id === "v:1:interior"));
+  });
+
+  it("exterior preset extends a side", () => {
+    const scene = buildIsoscelesScene(ISO_PRESETS[1]!.state);
+    assert.ok(scene.texts.some((t) => t.id === "v:2:exterior"));
+    assert.ok(scene.texts.some((t) => t.id === "v:0:interior"));
+  });
+
+  it("altitude preset drops D on BC and marks a right angle", () => {
+    const state = ISO_PRESETS[2]!.state;
+    const D = footPoint(state);
+    assert.ok(D);
+    const from = cevianFromIndex(state);
+    assert.equal(from, 0);
+    const [i, j] = oppositeSide(0);
+    almost(D!.y, state.points[i]!.y, 0.05);
+    almost(D!.x, (state.points[i]!.x + state.points[j]!.x) / 2, 0.05);
+    const scene = buildIsoscelesScene(state);
+    assert.ok(scene.cmds.some((c) => c.t === "rightAngle"));
+    assert.ok(scene.texts.some((t) => t.id === "w:apexLeft"));
+    assert.ok(scene.texts.some((t) => t.id === "p:left:length"));
+    assert.ok(scene.layout.foot);
+  });
+
+  it("nested preset keeps D on AB with a 28° split at C", () => {
+    const state = ISO_PRESETS[4]!.state;
+    const D = footPoint(state)!;
+    const A = state.points[0]!;
+    const B = state.points[1]!;
+    const C = state.points[2]!;
+    const cross = (B.x - A.x) * (D.y - A.y) - (B.y - A.y) * (D.x - A.x);
+    almost(cross, 0, 0.05);
+    const bcd = wedgeDeg(C, B, D);
+    almost(bcd, 28, 1.2);
+    const scene = buildIsoscelesScene(state);
+    assert.ok(scene.texts.some((t) => t.id === "w:apexRight"));
+    assert.ok(scene.texts.some((t) => t.id === "p:right:length"));
+  });
+
+  it("golden preset places a bisector from B and dots on the split angles", () => {
+    const state = ISO_PRESETS[5]!.state;
+    assert.equal(state.cevian.from, "B");
+    assert.equal(state.cevian.role, "bisector");
+    const scene = buildIsoscelesScene(state);
+    const dots = scene.cmds.filter((c) => c.t === "dot");
+    assert.ok(dots.length >= 5, "A,B,C,D plus two angle dots");
+    assert.ok(scene.cmds.some((c) => c.t === "polygon"));
+  });
+});
+
+describe("construction helpers", () => {
+  it("isoscelesFromVertex matches the vertex angle", () => {
+    const pts = isoscelesFromVertex(0, 50, 5);
+    const u = { x: pts[1]!.x - pts[0]!.x, y: pts[1]!.y - pts[0]!.y };
+    const w = { x: pts[2]!.x - pts[0]!.x, y: pts[2]!.y - pts[0]!.y };
+    const lu = Math.hypot(u.x, u.y);
+    const lw = Math.hypot(w.x, w.y);
+    const deg = (Math.acos((u.x * w.x + u.y * w.y) / (lu * lw)) * 180) / Math.PI;
+    almost(deg, 50, 0.2);
+  });
+});
