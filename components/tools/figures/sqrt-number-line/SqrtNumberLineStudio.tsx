@@ -25,6 +25,7 @@ import {
   COMMON_SQRT_N,
   DEFAULT_SQRT_NUMBER_LINE_STATE,
   formatSqrtLabel,
+  formatSqrtLabelPlain,
   normalizeState,
   pairsFor,
   radicand,
@@ -307,7 +308,7 @@ export default function SqrtNumberLineStudio() {
                   on={matchesRadicand(state, target)}
                   onClick={() => pickSqrtN(target)}
                 >
-                  {formatSqrtLabel(target)}
+                  {formatSqrtLabelPlain(target)}
                 </ChipToggle>
               ))}
             </div>
@@ -352,13 +353,17 @@ export default function SqrtNumberLineStudio() {
               <NumberField
                 label="시작점 O"
                 value={state.origin}
-                onChange={(origin) => set({ origin })}
+                onChange={(origin) =>
+                  setState((prev) =>
+                    normalizeState({ ...prev, origin, posValueRaw: "", negValueRaw: "" }),
+                  )
+                }
                 step={0.5}
               />
               <div className="flex flex-col justify-end">
                 <p className="text-xs font-semibold text-foreground/60">지금 √n</p>
                 <p className="font-display mt-1 text-lg text-wood-dark">
-                  {formatSqrtLabel(n)}
+                  {formatSqrtLabelPlain(n)}
                 </p>
               </div>
             </div>
@@ -408,6 +413,12 @@ export default function SqrtNumberLineStudio() {
                 onClick={() => set({ showNegValue: !state.showNegValue })}
               >
                 값 −√n
+              </ChipToggle>
+              <ChipToggle
+                on={state.combinePointLabels}
+                onClick={() => set({ combinePointLabels: !state.combinePointLabels })}
+              >
+                P(값) 형식
               </ChipToggle>
               <ChipToggle
                 on={state.showVertexNames}

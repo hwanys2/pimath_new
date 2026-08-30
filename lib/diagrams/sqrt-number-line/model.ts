@@ -45,6 +45,8 @@ export type SqrtNumberLineState = {
   showNegPoint: boolean;
   showPosValue: boolean;
   showNegValue: boolean;
+  /** P(3+√5)처럼 이름과 값을 한 줄로 */
+  combinePointLabels: boolean;
   showVertexNames: boolean;
   showRightAngle: boolean;
   posPointName: string;
@@ -69,7 +71,7 @@ const DEFAULT_STYLE: SqrtNumberLineStyle = {
   pointRadius: 3.6,
   paddingX: 44,
   paddingTop: 36,
-  paddingBottom: 52,
+  paddingBottom: 64,
   exportScale: 3,
   gridColor: GRID_COLOR,
 };
@@ -129,31 +131,60 @@ export function isValidLegPair(legA: number, legB: number): boolean {
   return pairsFor(a * a + b * b).some(([x, y]) => x === a && y === b);
 }
 
-export function formatSqrtLabel(n: number, signed = false): string {
+function sqrtRadicandMath(n: number): string {
   const { coeff, radicand: r } = simplifySqrtInt(n);
-  let core: string;
-  if (r <= 1) {
-    core = String(coeff);
-  } else if (coeff === 1) {
-    core = `$\\sqrt{${r}}$`;
-  } else {
-    core = `$${coeff}\\sqrt{${r}}$`;
-  }
-  if (signed && n < 0) {
-    if (core.startsWith("$")) return `$-${core.slice(1)}`;
-    return `-${core}`;
-  }
-  return core;
+  if (r <= 1) return String(coeff);
+  if (coeff === 1) return `\\sqrt{${r}}`;
+  return `${coeff}\\sqrt{${r}}`;
 }
 
-export function defaultPosValueRaw(state: Pick<SqrtNumberLineState, "legA" | "legB">): string {
-  return formatSqrtLabel(radicand(state));
+/** LaTeX math string for canvas/export (√n 칩용은 formatSqrtLabelPlain). */
+export function formatSqrtLabel(n: number, signed = false): string {
+  const core = sqrtRadicandMath(n);
+  const wrapped = `$${core}$`;
+  if (signed && n < 0) return `$-${core}$`;
+  return wrapped;
 }
 
-export function defaultNegValueRaw(state: Pick<SqrtNumberLineState, "legA" | "legB">): string {
-  const inner = formatSqrtLabel(radicand(state));
-  if (inner.startsWith("$")) return `$-${inner.slice(1)}`;
-  return `-${inner}`;
+/** UI chip용: √17, 2√5 */
+export function formatSqrtLabelPlain(n: number): string {
+  const { coeff, radicand: r } = simplifySqrtInt(n);
+  if (r <= 1) return String(coeff);
+  if (coeff === 1) return `√${r}`;
+  return `${coeff}√${r}`;
+}
+
+function formatAxisOffsetMath(origin: number, radicandN: number, sign: "pos" | "neg"): string {
+  const root = sqrtRadicandMath(radicandN);
+  const o = origin;
+  if (Math.abs(o) < 1e-9) {
+    return sign === "neg" ? `$-${root}$` : `$${root}$`;
+  }
+  if (sign === "neg") {
+    return `$${o}-${root}$`;
+  }
+  if (o > 0) return `$${o}+${root}$`;
+  return `$${o}+${root}$`;
+}
+
+export function defaultPosValueRaw(
+  state: Pick<SqrtNumberLineState, "legA" | "legB" | "origin">,
+): string {
+  return formatAxisOffsetMath(state.origin, radicand(state), "pos");
+}
+
+export function defaultNegValueRaw(
+  state: Pick<SqrtNumberLineState, "legA" | "legB" | "origin">,
+): string {
+  return formatAxisOffsetMath(state.origin, radicand(state), "neg");
+}
+
+export function defaultCombinedPointLabel(
+  name: string,
+  valueRaw: string,
+): string {
+  const inner = valueRaw.trim().replace(/^\$|\$$/g, "");
+  return `${name}($${inner}$)`;
 }
 
 function clampLeg(n: number): number {
@@ -217,6 +248,7 @@ export function normalizeState(state: SqrtNumberLineState): SqrtNumberLineState 
     showNegPoint: state.showNegPoint ?? true,
     showPosValue: state.showPosValue ?? true,
     showNegValue: state.showNegValue ?? true,
+    combinePointLabels: state.combinePointLabels ?? true,
     showVertexNames: state.showVertexNames ?? true,
     showRightAngle: state.showRightAngle ?? true,
     posPointName: state.posPointName?.trim() || "P",
@@ -254,6 +286,7 @@ function baseState(partial: Partial<SqrtNumberLineState>): SqrtNumberLineState {
     showNegPoint: true,
     showPosValue: true,
     showNegValue: true,
+    combinePointLabels: true,
     showVertexNames: true,
     showRightAngle: true,
     posPointName: "P",

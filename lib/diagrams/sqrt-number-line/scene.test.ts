@@ -34,6 +34,23 @@ describe("sqrt-number-line scene", () => {
     assert.ok(Math.abs(Q + r) < 1e-6);
   });
 
+  it("includes origin in default axis value labels", () => {
+    const state = normalizeState(
+      cloneState({
+        ...SQRT_NUMBER_LINE_PRESETS[0]!.state,
+        origin: 3,
+        legA: 2,
+        legB: 1,
+        posValueRaw: "",
+        negValueRaw: "",
+      }),
+    );
+    assert.match(state.posValueRaw, /3/);
+    assert.match(state.posValueRaw, /\\sqrt\{5\}/);
+    assert.match(state.negValueRaw, /3/);
+    assert.match(state.negValueRaw, /\\sqrt\{5\}/);
+  });
+
   it("square vertices are perpendicular and equal length", () => {
     const preset = SQRT_NUMBER_LINE_PRESETS.find((p) => p.id === "sq-sqrt5")!;
     const state = normalizeState(cloneState(preset.state));

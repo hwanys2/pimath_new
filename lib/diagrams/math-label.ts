@@ -54,6 +54,8 @@ function readSqrt(
 /** Turn textbook √ notation into `$…\\sqrt{…}$` for rendering. */
 export function normalizeSqrtLabel(text: string): string {
   let s = text;
+  s = s.replace(/\$sqrt\{/g, "$\\sqrt{");
+  s = s.replace(/(?<!\\)sqrt\{/g, "\\sqrt{");
   s = s.replace(/(\d+)√(\d+)/g, (_, a: string, b: string) => `$${a}\\sqrt{${b}}$`);
   s = s.replace(/(?<!\d)√(\d+)/g, (_, n: string) => `$\\sqrt{${n}}$`);
   return s;
@@ -201,6 +203,15 @@ export function measureRuns(
   return width;
 }
 
+function sqrtMetrics(size: number) {
+  return {
+    bodySize: size * 0.88,
+    hookW: size * 0.54,
+    tail: size * 0.1,
+    bodyNudgeY: size * 0.05,
+  };
+}
+
 function measureRun(
   ctx: CanvasRenderingContext2D,
   run: TextRun,
@@ -214,14 +225,55 @@ function measureRun(
     return Math.max(nw, dw, size * 0.45) + size * 0.22;
   }
   if (run.sqrtBody) {
-    const bodySize = size * 0.88;
-    const hookW = size * 0.5;
-    const gap = size * 0.1;
-    const bodyW = measureRuns(ctx, run.sqrtBody, bodySize, fonts);
-    return hookW + bodyW + gap;
+    const m = sqrtMetrics(size);
+    const bodyW = measureRuns(ctx, run.sqrtBody, m.bodySize, fonts);
+    return m.hookW + bodyW + m.tail;
   }
   ctx.font = canvasFont(run.italic, size, fonts);
   return ctx.measureText(run.text).width;
+}
+
+/**
+ * Draw √ as a path. Serif √ glyphs (Times) have a mid-stem crossbar
+ * that collides with a custom vinculum and looks broken.
+ */
+function strokeRadical(
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  size: number,
+  bodyW: number,
+  fill: string,
+): void {
+  const m = sqrtMetrics(size);
+  const lw = Math.max(1.15, size * 0.065);
+  const topY = y - size * 0.5;
+  const startX = x + size * 0.02;
+  const startY = y + size * 0.06;
+  const dipX = x + size * 0.15;
+  const dipY = y + size * 0.4;
+  const joinX = x + m.hookW;
+  const endX = joinX + bodyW + m.tail * 0.7;
+
+  ctx.save();
+  ctx.strokeStyle = fill;
+  ctx.lineWidth = lw;
+  ctx.lineJoin = "miter";
+  ctx.miterLimit = 2.2;
+
+  ctx.lineCap = "round";
+  ctx.beginPath();
+  ctx.moveTo(startX, startY);
+  ctx.lineTo(dipX, dipY);
+  ctx.lineTo(joinX, topY);
+  ctx.stroke();
+
+  ctx.lineCap = "butt";
+  ctx.beginPath();
+  ctx.moveTo(joinX - lw * 0.35, topY);
+  ctx.lineTo(endX, topY);
+  ctx.stroke();
+  ctx.restore();
 }
 
 export function canvasFont(
@@ -305,30 +357,19 @@ function fillRun(
   }
   if (run.sqrtBody) {
     const w = measureRun(ctx, run, size, fonts);
-    const bodySize = size * 0.88;
-    const hookW = size * 0.5;
-    const gap = size * 0.1;
-    const bodyW = measureRuns(ctx, run.sqrtBody, bodySize, fonts);
-    const lineY = y - size * 0.48;
-    const radX = x + hookW;
-    const lineEnd = radX + bodyW + gap * 0.5;
-
-    ctx.save();
-    ctx.fillStyle = fill;
-    ctx.strokeStyle = fill;
-    ctx.lineWidth = Math.max(1, size * 0.07);
-    ctx.lineCap = "butt";
-    ctx.lineJoin = "miter";
-    ctx.font = canvasFont(false, size * 1.05, fonts);
-    ctx.fillText("√", x, y + size * 0.06);
-    ctx.beginPath();
-    ctx.moveTo(x + size * 0.1, lineY + size * 0.12);
-    ctx.lineTo(x + hookW * 0.32, lineY);
-    ctx.lineTo(lineEnd, lineY);
-    ctx.stroke();
-    ctx.restore();
-
-    fillRuns(ctx, run.sqrtBody, radX, y + size * 0.04, bodySize, fonts, "start", fill);
+    const m = sqrtMetrics(size);
+    const bodyW = measureRuns(ctx, run.sqrtBody, m.bodySize, fonts);
+    strokeRadical(ctx, x, y, size, bodyW, fill);
+    fillRuns(
+      ctx,
+      run.sqrtBody,
+      x + m.hookW,
+      y + m.bodyNudgeY,
+      m.bodySize,
+      fonts,
+      "start",
+      fill,
+    );
     return w;
   }
   ctx.fillStyle = fill;

@@ -1,3 +1,4 @@
+import { normalizeSqrtLabel } from "@/lib/diagrams/math-label";
 import {
   applyLegs,
   normalizeState,
@@ -48,7 +49,11 @@ export function axisPointValues(state: SqrtNumberLineState): { P: number; Q: num
 
 export function parseLabelId(
   id: string,
-): { key: "O" | "A" | "B" | "C" | "P" | "Q" | "posValue" | "negValue" } | null {
+):
+  | { key: "O" | "A" | "B" | "C" | "P" | "Q" | "posValue" | "negValue" | "posCombined" | "negCombined" }
+  | null {
+  if (id === "label:pos") return { key: "posCombined" };
+  if (id === "label:neg") return { key: "negCombined" };
   const m = id.match(/^name:(O|A|B|C|P|Q)$/) ?? id.match(/^value:(pos|neg)$/);
   if (!m) return null;
   if (m[0].startsWith("value:")) {
@@ -173,7 +178,12 @@ export function moveOrigin(
   state: SqrtNumberLineState,
   value: number,
 ): SqrtNumberLineState {
-  return normalizeState({ ...state, origin: value });
+  return normalizeState({
+    ...state,
+    origin: value,
+    posValueRaw: "",
+    negValueRaw: "",
+  });
 }
 
 export function moveVertexA(
@@ -225,11 +235,33 @@ export function applyEditedLabel(
   id: string,
   raw: string,
 ): SqrtNumberLineState {
-  const text = raw.trim();
+  const text = normalizeSqrtLabel(raw.trim());
   const parsed = parseLabelId(id);
   if (!parsed) return state;
   if (parsed.key === "posValue") return { ...state, posValueRaw: text };
   if (parsed.key === "negValue") return { ...state, negValueRaw: text };
+  if (parsed.key === "posCombined") {
+    const m = text.match(/^([A-Za-z])\((.+)\)$/);
+    if (m) {
+      return {
+        ...state,
+        posPointName: m[1]!,
+        posValueRaw: m[2]!.startsWith("$") ? m[2]! : `$${m[2]!}$`,
+      };
+    }
+    return { ...state, posValueRaw: text };
+  }
+  if (parsed.key === "negCombined") {
+    const m = text.match(/^([A-Za-z])\((.+)\)$/);
+    if (m) {
+      return {
+        ...state,
+        negPointName: m[1]!,
+        negValueRaw: m[2]!.startsWith("$") ? m[2]! : `$${m[2]!}$`,
+      };
+    }
+    return { ...state, negValueRaw: text };
+  }
   const names = { ...state.names };
   names[parsed.key] = { ...names[parsed.key], name: text || parsed.key };
   return { ...state, names };

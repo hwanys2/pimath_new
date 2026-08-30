@@ -1,4 +1,4 @@
-import { parseMathRuns, parseNameRuns } from "@/lib/diagrams/math-label";
+import { parseMathRuns, parseNameRuns, type TextRun } from "@/lib/diagrams/math-label";
 import { tickValues } from "@/lib/diagrams/number-line/model";
 import { formatTickLabel } from "@/lib/diagrams/number-line/parse";
 import type { DiagramScene, SceneCmd, SceneText, Vec } from "@/lib/diagrams/scene";
@@ -388,6 +388,19 @@ function drawArcs(
   }
 }
 
+function combinedPointRuns(name: string, valueRaw: string): TextRun[] {
+  const inner = valueRaw.trim().replace(/^\$|\$$/g, "");
+  return [
+    ...parseNameRuns(name),
+    ...parseMathRuns(`($${inner}$)`),
+  ];
+}
+
+function axisValueLabelY(layout: SqrtLayout, fontSize: number): number {
+  const tickH = 12;
+  return layout.axisY + tickH + fontSize * 2.35;
+}
+
 function drawDotsAndLabels(
   cmds: SceneCmd[],
   texts: SceneText[],
@@ -429,23 +442,36 @@ function drawDotsAndLabels(
     const px = layout.axisX(pVal);
     cmds.push({ t: "dot", x: px, y: layout.axisY, r: style.pointRadius });
     const pm = state.names.P;
-    pushText(texts, cmds, {
-      id: "name:P",
-      x: px + pm.dx,
-      y: layout.axisY + pm.dy,
-      runs: parseNameRuns(state.posPointName),
-      size: style.pointLabelSize,
-      anchor: "middle",
-    });
-    if (state.showPosValue) {
+    const valueY = axisValueLabelY(layout, style.fontSize);
+    if (state.combinePointLabels && state.showPosValue) {
+      const combined = defaultCombinedPointLabel(state.posPointName, state.posValueRaw);
       pushText(texts, cmds, {
-        id: "value:pos",
-        x: px,
-        y: layout.axisY + style.fontSize * 1.85,
-        runs: parseMathRuns(state.posValueRaw),
+        id: "label:pos",
+        x: px + pm.dx,
+        y: valueY + pm.dy,
+        runs: combinedPointRuns(state.posPointName, state.posValueRaw),
         size: style.fontSize,
         anchor: "middle",
       });
+    } else {
+      pushText(texts, cmds, {
+        id: "name:P",
+        x: px + pm.dx,
+        y: layout.axisY + pm.dy,
+        runs: parseNameRuns(state.posPointName),
+        size: style.pointLabelSize,
+        anchor: "middle",
+      });
+      if (state.showPosValue) {
+        pushText(texts, cmds, {
+          id: "value:pos",
+          x: px,
+          y: valueY,
+          runs: parseMathRuns(state.posValueRaw),
+          size: style.fontSize,
+          anchor: "middle",
+        });
+      }
     }
   }
 
@@ -453,23 +479,35 @@ function drawDotsAndLabels(
     const qx = layout.axisX(qVal);
     cmds.push({ t: "dot", x: qx, y: layout.axisY, r: style.pointRadius });
     const qm = state.names.Q;
-    pushText(texts, cmds, {
-      id: "name:Q",
-      x: qx + qm.dx,
-      y: layout.axisY + qm.dy,
-      runs: parseNameRuns(state.negPointName),
-      size: style.pointLabelSize,
-      anchor: "middle",
-    });
-    if (state.showNegValue) {
+    const valueY = axisValueLabelY(layout, style.fontSize);
+    if (state.combinePointLabels && state.showNegValue) {
       pushText(texts, cmds, {
-        id: "value:neg",
-        x: qx,
-        y: layout.axisY + style.fontSize * 1.85,
-        runs: parseMathRuns(state.negValueRaw),
+        id: "label:neg",
+        x: qx + qm.dx,
+        y: valueY + qm.dy,
+        runs: combinedPointRuns(state.negPointName, state.negValueRaw),
         size: style.fontSize,
         anchor: "middle",
       });
+    } else {
+      pushText(texts, cmds, {
+        id: "name:Q",
+        x: qx + qm.dx,
+        y: layout.axisY + qm.dy,
+        runs: parseNameRuns(state.negPointName),
+        size: style.pointLabelSize,
+        anchor: "middle",
+      });
+      if (state.showNegValue) {
+        pushText(texts, cmds, {
+          id: "value:neg",
+          x: qx,
+          y: valueY,
+          runs: parseMathRuns(state.negValueRaw),
+          size: style.fontSize,
+          anchor: "middle",
+        });
+      }
     }
   }
 }
