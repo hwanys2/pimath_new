@@ -360,7 +360,7 @@ function paintOverlays(
   ctx.save();
   const verts = scene.layout.canvas;
   const o = scene.layout.o;
-  const ext = scene.layout.ext;
+  const exts = scene.layout.exts;
   function ringAt(p: { x: number; y: number }, strong: boolean) {
     ctx.beginPath();
     ctx.arc(p.x, p.y, strong ? 10 : 8, 0, Math.PI * 2);
@@ -380,7 +380,10 @@ function paintOverlays(
   }
   if (selected?.t === "vertex") ringAt(verts[selected.i]!, true);
   if (selected?.t === "o" && o) ringAt(o, true);
-  if (selected?.t === "extension" && ext) ringAt(ext, true);
+  if (selected?.t === "extension") {
+    const p = exts[selected.i];
+    if (p) ringAt(p, true);
+  }
   if (selected?.t === "edge") {
     strokeSeg(verts[selected.i]!, verts[(selected.i + 1) % 4]!);
   }
@@ -402,7 +405,10 @@ function paintOverlays(
   }
   if (hover?.kind === "vertex") ringAt(verts[hover.index]!, false);
   if (hover?.kind === "o" && o) ringAt(o, false);
-  if (hover?.kind === "extension" && ext) ringAt(ext, false);
+  if (hover?.kind === "extension") {
+    const p = exts[hover.index];
+    if (p) ringAt(p, false);
+  }
   if (hover?.kind === "edge") {
     strokeSeg(verts[hover.index]!, verts[(hover.index + 1) % 4]!);
   }

@@ -595,7 +595,7 @@ export const QUAD_PRESETS: QuadPreset[] = [
         makeVertex(2, { showInterior: true, interior: emptyLabel("hide"), angleMark: "dot" }),
         makeVertex(3, { showInterior: true, interior: emptyLabel("hide"), angleMark: "x" }),
       ],
-      extension: { show: true, vertex: 1, name: "E", nameDx: 0, nameDy: 0 },
+      extensions: [{ vertex: 1, dir: "in", name: "E", nameDx: 0, nameDy: 0 }],
     }),
   },
   {
