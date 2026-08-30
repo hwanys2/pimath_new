@@ -77,8 +77,9 @@ export function figureBLocal(state: SimilarFiguresState): Vec[] {
 }
 
 function layoutGap(state: SimilarFiguresState, boxA: BBox): number {
-  if (state.showGrid) return 2;
-  return Math.max(1.4, 0.38 * Math.max(boxA.maxX - boxA.minX, 1));
+  const scale = Number.isFinite(state.gapScale) ? state.gapScale : 1;
+  if (state.showGrid) return Math.max(0, 2 * scale);
+  return Math.max(0, Math.max(1.4, 0.38 * Math.max(boxA.maxX - boxA.minX, 1)) * scale);
 }
 
 /** Figure B after scale / reflect / rotate and side-by-side placement. */

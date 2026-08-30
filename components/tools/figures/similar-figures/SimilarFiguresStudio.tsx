@@ -691,6 +691,37 @@ export default function SimilarFiguresStudio() {
                 ]}
               />
             </div>
+            <SliderField
+              label="간격"
+              value={state.gapScale}
+              onChange={(gapScale) => set({ gapScale })}
+              min={0}
+              max={3}
+              step={0.05}
+              display={state.gapScale.toFixed(2)}
+            />
+            <div className="mt-2 flex flex-wrap gap-1">
+              {(
+                [
+                  { label: "가깝게", value: 0.35 },
+                  { label: "보통", value: 1 },
+                  { label: "멀리", value: 1.8 },
+                ] as const
+              ).map((chip) => (
+                <button
+                  key={chip.label}
+                  type="button"
+                  onClick={() => set({ gapScale: chip.value })}
+                  className={`rounded-lg px-2 py-1 text-[11px] font-semibold ${
+                    Math.abs(state.gapScale - chip.value) < 0.03
+                      ? "bg-wood/15 text-wood-dark"
+                      : "bg-black/5 text-foreground/55 hover:bg-black/10"
+                  }`}
+                >
+                  {chip.label}
+                </button>
+              ))}
+            </div>
             <button
               type="button"
               onClick={() => set({ shiftB: { x: 0, y: 0 } })}

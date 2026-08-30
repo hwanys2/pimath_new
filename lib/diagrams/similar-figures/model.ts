@@ -33,6 +33,8 @@ export type SimilarFiguresState = {
   reflect: ReflectMode;
   /** Extra translation of figure B after auto layout (math units). */
   shiftB: Vec;
+  /** Multiplier on the side-by-side gap between A and B (1 = default). */
+  gapScale: number;
   showGrid: boolean;
   snapToGrid: boolean;
   showVertexNames: boolean;
@@ -224,6 +226,11 @@ export function normalizeState(
     x: Number.isFinite(state.shiftB?.x) ? clamp(state.shiftB!.x, -40, 40) : 0,
     y: Number.isFinite(state.shiftB?.y) ? clamp(state.shiftB!.y, -40, 40) : 0,
   };
+  const gapScale = clamp(
+    Number.isFinite(state.gapScale) ? Number(state.gapScale) : 1,
+    0,
+    3,
+  );
   const style = poly.style;
   return {
     points: poly.points,
@@ -236,6 +243,7 @@ export function normalizeState(
     rotateDeg,
     reflect,
     shiftB,
+    gapScale,
     showGrid: state.showGrid === true,
     snapToGrid: state.snapToGrid !== false && state.showGrid === true
       ? true
@@ -319,6 +327,7 @@ function baseState(
     rotateDeg: 0,
     reflect: "none",
     shiftB: { x: 0, y: 0 },
+    gapScale: 1,
     showGrid: false,
     snapToGrid: false,
     showVertexNames: true,

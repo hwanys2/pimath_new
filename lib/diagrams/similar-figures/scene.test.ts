@@ -56,6 +56,24 @@ describe("similar scale and placement", () => {
     assert.ok(b.minX > a.maxX - 1e-6);
   });
 
+  it("gapScale moves figure B closer or farther without changing size", () => {
+    const base = normalizeState(cloneState(DEFAULT_SIMILAR_STATE));
+    const close = normalizeState({ ...base, gapScale: 0.3 });
+    const far = normalizeState({ ...base, gapScale: 2 });
+    const a = bbox(base.points);
+    const gap = (s: typeof base) => bbox(figureBPoints(s)).minX - a.maxX;
+    assert.ok(gap(close) < gap(base));
+    assert.ok(gap(far) > gap(base));
+    const k = similarScale(base);
+    const sides = sideLengths(base.points);
+    for (const s of [close, far]) {
+      const b = sideLengths(figureBPoints(s));
+      for (let i = 0; i < sides.length; i += 1) {
+        almost(b[i]!, sides[i]! * k, 1e-6);
+      }
+    }
+  });
+
   it("horizontal reflection flips left-right while keeping the ratio", () => {
     const base = normalizeState(cloneState(DEFAULT_SIMILAR_STATE));
     const flipped = normalizeState({ ...base, reflect: "horizontal" });
