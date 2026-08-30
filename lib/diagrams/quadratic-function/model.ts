@@ -788,20 +788,42 @@ export function defaultTranslationValues(
   state: QuadraticFunctionState,
   kind: TranslationKind,
 ): number[] {
-  const span = state.xMax - state.xMin;
+  if (kind === "vertex") return [];
+  return translationValuesForCount(state, kind, kind === "horizontal" ? 1 : 4);
+}
+
+export function translationValuesForCount(
+  state: QuadraticFunctionState,
+  kind: "horizontal" | "vertical",
+  count: number,
+  seed: number[] = [],
+): number[] {
+  const n = Math.min(8, Math.max(1, Math.round(count)));
   if (kind === "horizontal") {
-    const y = Math.min(state.yMax - state.yTick, Math.max(state.yTick, 4));
-    return [y];
+    const yLo = state.yMin;
+    const yHi = state.yMax;
+    const span = yHi - yLo;
+    if (span < 1e-9) return [yLo];
+    const fallback = Math.min(
+      yHi - state.yTick,
+      Math.max(yLo + state.yTick, yLo + span * 0.35),
+    );
+    const start = seed[0] ?? fallback;
+    const step = n > 1 ? (span * 0.55) / (n - 1) : 0;
+    const ys = Array.from({ length: n }, (_, i) =>
+      Math.round((start + i * step) * 1000) / 1000,
+    ).filter((y) => y >= yLo - 1e-9 && y <= yHi + 1e-9);
+    return ys.length > 0 ? ys : [fallback];
   }
+  const span = state.xMax - state.xMin;
   const step = Math.max(state.xTick * 2, span * 0.16);
-  const start = state.xMin + span * 0.18;
-  const xs: number[] = [];
-  for (let i = 0; i < 4; i += 1) {
-    const x = start + i * step;
-    if (x > state.xMax - span * 0.08) break;
-    xs.push(Math.round(x * 1000) / 1000);
-  }
-  return xs.length >= 2 ? xs : [state.xMin + state.xTick, state.xMin + state.xTick * 3];
+  const start = seed[0] ?? state.xMin + span * 0.18;
+  const xs = Array.from({ length: n }, (_, i) =>
+    Math.round((start + i * step) * 1000) / 1000,
+  ).filter((x) => x >= state.xMin - 1e-9 && x <= state.xMax + 1e-9);
+  return xs.length >= 1
+    ? xs
+    : [state.xMin + state.xTick, state.xMin + state.xTick * 3].slice(0, n);
 }
 
 export function addTranslation(

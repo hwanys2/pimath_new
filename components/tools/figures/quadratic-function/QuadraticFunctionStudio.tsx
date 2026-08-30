@@ -42,6 +42,9 @@ import {
   quadraticEquationText,
   removeById,
   toggleGraphTranslation,
+  TRANSLATION_ORANGE,
+  TRANSLATION_RED,
+  translationValuesForCount,
   yOnParabola,
   type GraphLabelMode,
   type QuadraticFunctionState,
@@ -170,6 +173,62 @@ const COLORS = [
   { id: GRAPH_INK, label: "검정" },
 ];
 
+const TRANSLATION_COLORS = [
+  { id: TRANSLATION_RED, label: "빨강" },
+  { id: TRANSLATION_ORANGE, label: "주황" },
+  ...COLORS,
+];
+
+function ParallelTranslationSettings({
+  title,
+  trans,
+  state,
+  onPatch,
+}: {
+  title: string;
+  trans: Translation;
+  state: QuadraticFunctionState;
+  onPatch: (patch: Partial<Translation>) => void;
+}) {
+  if (trans.kind !== "horizontal" && trans.kind !== "vertical") return null;
+  return (
+    <div className="space-y-2 rounded-xl bg-black/[0.03] p-2.5">
+      <p className="text-[11px] font-semibold text-foreground/55">{title}</p>
+      <NumberField
+        label="화살 개수"
+        value={trans.values.length}
+        onChange={(n) =>
+          onPatch({
+            values: translationValuesForCount(
+              state,
+              trans.kind as "horizontal" | "vertical",
+              n,
+              trans.values,
+            ),
+          })
+        }
+        min={1}
+        max={8}
+        step={1}
+      />
+      <div>
+        <p className="text-[11px] font-semibold text-foreground/50">화살 색</p>
+        <div className="mt-1 flex flex-wrap gap-1.5">
+          {TRANSLATION_COLORS.map((c) => (
+            <ChipToggle
+              key={c.id}
+              on={trans.color === c.id}
+              onClick={() => onPatch({ color: c.id })}
+            >
+              {c.label}
+            </ChipToggle>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function QuadraticFunctionStudio() {
   const [state, setState] = useQuadraticFunctionState();
   const [status, setStatus] = useState<string | null>(null);
@@ -281,6 +340,21 @@ export default function QuadraticFunctionStudio() {
       if (added) setSelectedId(added.id);
     },
     [selectedGraph, selectedId, setState, state],
+  );
+
+  const patchGraphTranslation = useCallback(
+    (kind: TranslationKind, patch: Partial<Translation>) => {
+      if (!selectedGraph) return;
+      const trans = findGraphTranslation(state, selectedGraph.id, kind);
+      if (!trans) return;
+      setState((prev) => ({
+        ...prev,
+        translations: prev.translations.map((t) =>
+          t.id === trans.id ? { ...t, ...patch } : t,
+        ),
+      }));
+    },
+    [selectedGraph, setState, state],
   );
 
   const deleteSelected = useCallback(() => {
@@ -817,6 +891,31 @@ export default function QuadraticFunctionStudio() {
                     </ChipToggle>
                   </div>
                 ) : null}
+                {!isHorizontal(selectedGraph) ? (
+                  <div className="space-y-2 pt-1">
+                    {(["vertical", "horizontal"] as const).map((kind) => {
+                      const trans = findGraphTranslation(
+                        state,
+                        selectedGraph.id,
+                        kind,
+                      );
+                      if (!trans) return null;
+                      return (
+                        <ParallelTranslationSettings
+                          key={kind}
+                          title={
+                            kind === "vertical" ? "위아래 평행이동" : "좌우 평행이동"
+                          }
+                          trans={trans}
+                          state={state}
+                          onPatch={(patch) =>
+                            patchGraphTranslation(kind, patch)
+                          }
+                        />
+                      );
+                    })}
+                  </div>
+                ) : null}
               </div>
             ) : selectedPoint ? (
               <div className="mt-2.5 space-y-2">
@@ -893,6 +992,19 @@ export default function QuadraticFunctionStudio() {
                     { id: "vertex", label: "L자" },
                   ]}
                 />
+                {selectedTrans.kind === "horizontal" ||
+                selectedTrans.kind === "vertical" ? (
+                  <ParallelTranslationSettings
+                    title={
+                      selectedTrans.kind === "vertical"
+                        ? "위아래 평행이동"
+                        : "좌우 평행이동"
+                    }
+                    trans={selectedTrans}
+                    state={state}
+                    onPatch={patchSelectedTrans}
+                  />
+                ) : null}
                 <ChipToggle
                   on={selectedTrans.showDelta}
                   onClick={() =>

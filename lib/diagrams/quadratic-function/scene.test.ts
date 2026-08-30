@@ -9,6 +9,7 @@ import {
   quadraticEquationText,
   makeQuadratic,
   toggleGraphTranslation,
+  translationValuesForCount,
   vertexOf,
   yOnParabola,
 } from "./model";
@@ -94,6 +95,15 @@ describe("parallel translation toggles", () => {
 
     const removed = toggleGraphTranslation(withTrans, graph.id, "vertex");
     assert.equal(findGraphTranslation(removed, graph.id, "vertex"), undefined);
+  });
+
+  it("resizes vertical and horizontal arrow counts", () => {
+    const base = QUADRATIC_FUNCTION_PRESETS.find((p) => p.id === "translate-x")!
+      .state;
+    const three = translationValuesForCount(base, "vertical", 3);
+    assert.equal(three.length, 3);
+    const twoY = translationValuesForCount(base, "horizontal", 2);
+    assert.equal(twoY.length, 2);
   });
 });
 
