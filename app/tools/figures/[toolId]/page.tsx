@@ -8,6 +8,7 @@ import HistogramStudio from "@/components/tools/figures/histogram/HistogramStudi
 import InequalityStudio from "@/components/tools/figures/linear-inequality/InequalityStudio";
 import NumberLineStudio from "@/components/tools/figures/number-line/NumberLineStudio";
 import PolygonStudio from "@/components/tools/figures/polygon/PolygonStudio";
+import LinearFunctionStudio from "@/components/tools/figures/linear-function/LinearFunctionStudio";
 import RepeatingDecimalStudio from "@/components/tools/figures/repeating-decimal/RepeatingDecimalStudio";
 import SolidSketchStudio from "@/components/tools/figures/solid-sketch/SolidSketchStudio";
 import DiagramToolShell from "@/components/tools/figures/DiagramToolShell";
@@ -48,6 +49,8 @@ function renderDiagramStudio(toolId: string): ReactNode {
       return <CircleSectorsStudio />;
     case "g1-histogram":
       return <HistogramStudio />;
+    case "g2-linear-function":
+      return <LinearFunctionStudio />;
     case "g2-repeating-decimal":
       return <RepeatingDecimalStudio />;
     case "g2-linear-inequality":

@@ -44,7 +44,7 @@
 도구 (/tools) 
   └─ 문제 그림 그리기 (/tools/figures)
         ├─ 중1 카드들 → /tools/figures/g1-number-line , /tools/figures/g1-coordinate-plane , /tools/figures/g1-polygon , /tools/figures/g1-circle-sectors , /tools/figures/g1-solid-sketch , /tools/figures/g1-histogram
-        ├─ 중2 카드들 → /tools/figures/g2-repeating-decimal , /tools/figures/g2-linear-inequality
+        ├─ 중2 카드들 → /tools/figures/g2-repeating-decimal , /tools/figures/g2-linear-inequality , /tools/figures/g2-linear-function
         └─ 중3 카드들
               └─ 원의 현 → /tools/figures/g3-circle-chords
 ```
@@ -255,6 +255,18 @@ components/tools/figures/DiagramToolShell.tsx  ← 공통 뼈대. 손대지 않�
 - 프리셋: 빈 수직선, `x > 2`, `x ≤ −1`, `1 ≤ x < 4`, 양쪽(또는).
 - 스튜디오는 §5.1 예외: 가로로 긴 캔버스 + 오른쪽 설정 2열. 축은 중1 수직선과 같다.
 
+### 일차함수 그래프 (`g2-linear-function`)
+
+중2 `2.4 일차함수와 그래프`에서 나오는 시험용 좌표평면 그래프.
+
+- 중1 좌표평면(격자·축·원점)을 그대로 쓰고, 그 위에 `y=ax+b`를 여러 개 올린다. 분홍·청록·검정.
+- 절편: 축과 만나는 곳에 숫자만 (`7`, `-4`). 점을 끌어 다른 절편은 유지한 채 기울기를 바꾼다.
+- 점: 직선 위 점 + 축으로 점선 수선 + 축 숫자. 「점 찍기」로 그림에서 찍는다.
+- 기울기 설명: 두 점 사이 가로·세로 주황 화살과 Δx·Δy. 끝점을 직선 따라 끈다.
+- 평행이동: 같은 기울기 두 직선 사이 빨간 세로 화살. 그래프가 하나면 평행한 직선을 하나 더 만든다.
+- 프리셋: 절편, 점의 좌표, 기울기, 평행이동, 여러 그래프.
+- 스튜디오는 §5.1 **3열**: 그림 | 표시·그래프 목록 | 빠른 그림·좌표평면·그림 스타일(기본 펼침).
+
 이후 접선, 원주각, 닮음 삼각형 등을 넣을 때도 **같은 카탈로그·같은 3열 스튜디오·같은 스타일 규칙·같은 라벨 모드·같은 `DiagramToolShell`(하단 의견)** 을 재사용한다.
 
 ---
@@ -271,6 +283,7 @@ components/tools/figures/DiagramToolShell.tsx  ← 공통 뼈대. 손대지 않�
 | `g1-histogram` | 중1 | 히스토그램 | ready |
 | `g2-repeating-decimal` | 중2 | 순환소수 나눗셈 | ready |
 | `g2-linear-inequality` | 중2 | 일차부등식 | ready |
+| `g2-linear-function` | 중2 | 일차함수 그래프 | ready |
 | `g3-circle-chords` | 중3 | 원의 현 | ready |
 
 ---
@@ -338,3 +351,4 @@ components/tools/figures/DiagramToolShell.tsx  ← 공통 뼈대. 손대지 않�
 | 2026-08-29 | 다각형: 점 드래그 + 국소 각·길이 수정. 숫자로 넣은 값은 고정, 나머지만 최소 변경. |
 | 2026-08-30 | 중2 순환소수 나눗셈 (`g2-repeating-decimal`). 피제수·제수, 몫 클릭 숨김, 나머지 색·같다 표시, PNG. |
 | 2026-08-30 | 중2 일차부등식 (`g2-linear-inequality`). 빈 점·칠한 점, 좌우 꺾은선, 색칠, 빈 수직선, PNG. |
+| 2026-08-30 | 중2 일차함수 그래프 (`g2-linear-function`). 여러 y=ax+b, 절편·수선·기울기 화살·평행이동, PNG. |

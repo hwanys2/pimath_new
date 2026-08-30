@@ -110,6 +110,17 @@ export const DIAGRAM_TOOLS: DiagramToolMeta[] = [
     status: "ready",
   },
   {
+    id: "g2-linear-function",
+    grade: 2,
+    title: "일차함수 그래프",
+    description:
+      "좌표평면에 y=ax+b를 여러 개 그리고, 절편·점의 수선·기울기 화살·평행이동을 붙여 PNG로 저장해요.",
+    unitHint: "2.4 일차함수와 그래프",
+    emoji: "/",
+    href: "/tools/figures/g2-linear-function",
+    status: "ready",
+  },
+  {
     id: "g3-circle-chords",
     grade: 3,
     title: "원의 현",

@@ -83,7 +83,7 @@ export default function FiguresHub() {
             </p>
             <p className="mx-auto mt-2 max-w-md text-sm text-foreground/60">
               소재별로 하나씩 추가할 예정이에요. 지금은 중1 「수직선」·「좌표평면」·「다각형」·「원과 부채꼴」·「겨냥도」·「히스토그램」,
-              중2 「순환소수 나눗셈」·「일차부등식」, 중3 「원의 현」부터 사용할 수 있어요.
+              중2 「순환소수 나눗셈」·「일차부등식」·「일차함수 그래프」, 중3 「원의 현」부터 사용할 수 있어요.
             </p>
             <Link
               href="/tools/figures?grade=1"
@@ -131,6 +131,8 @@ function ToolCard({ tool }: { tool: DiagramToolMeta }) {
             <DivisionThumb />
           ) : tool.id === "g2-linear-inequality" ? (
             <InequalityThumb />
+          ) : tool.id === "g2-linear-function" ? (
+            <LinearFunctionThumb />
           ) : (
             tool.emoji
           )}
@@ -245,6 +247,20 @@ function InequalityThumb() {
       <line x1="22" y1="16" x2="40" y2="16" stroke="#6b4423" strokeWidth="1.3" />
       <polygon points="40,16 36,13.6 36,18.4" fill="#6b4423" />
       <circle cx="22" cy="30" r="2.4" fill="#fff" stroke="#6b4423" strokeWidth="1.4" />
+    </svg>
+  );
+}
+
+function LinearFunctionThumb() {
+  return (
+    <svg viewBox="0 0 48 48" className="h-10 w-10" aria-hidden>
+      <line x1="8" y1="28" x2="42" y2="28" stroke="#6b4423" strokeWidth="1.5" />
+      <line x1="18" y1="40" x2="18" y2="8" stroke="#6b4423" strokeWidth="1.5" />
+      <polygon points="42,28 37,25.4 37,30.6" fill="#6b4423" />
+      <polygon points="18,8 15.4,13 20.6,13" fill="#6b4423" />
+      <line x1="8" y1="36" x2="40" y2="12" stroke="#c45a7a" strokeWidth="1.7" />
+      <circle cx="28" cy="21" r="1.7" fill="#6b4423" />
+      <line x1="28" y1="21" x2="28" y2="28" stroke="#6b4423" strokeWidth="1" strokeDasharray="2 1.6" />
     </svg>
   );
 }
