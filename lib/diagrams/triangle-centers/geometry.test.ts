@@ -28,6 +28,7 @@ import {
   type Vec,
 } from "./model";
 import { buildCentersScene } from "./scene";
+import { sceneTextPlain } from "@/lib/diagrams/scene";
 
 function almost(a: number, b: number, eps = 1e-6): void {
   assert.ok(Math.abs(a - b) < eps, `${a} ≉ ${b}`);
@@ -116,6 +117,18 @@ describe("triangle centers scene", () => {
     const names = scene.texts.map((t) => t.id);
     assert.ok(names.includes("name:O"));
     assert.ok(names.includes("name:I"));
+  });
+
+  it("labels the circumcenter O and the incenter I on every preset", () => {
+    for (const preset of CENTERS_PRESETS) {
+      assert.equal(preset.state.circum.name, "O", preset.id);
+      assert.equal(preset.state.incenter.name, "I", preset.id);
+    }
+    const tangents = CENTERS_PRESETS.find((p) => p.id === "in-tangents")!;
+    const scene = buildCentersScene(tangents.state);
+    const label = scene.texts.find((t) => t.id === "name:I");
+    assert.ok(label);
+    assert.equal(sceneTextPlain(label), "I");
   });
 });
 

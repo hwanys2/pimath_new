@@ -27,6 +27,9 @@ export type PointId =
 
 export type CenterKind = "circum" | "in";
 
+export const CIRCUMCENTER_NAME = "O";
+export const INCENTER_NAME = "I";
+
 export type AngleMark = {
   id: string;
   at: PointId;
@@ -309,8 +312,8 @@ export function normalizeState(
       Boolean(state.vertexRights?.[1]),
       Boolean(state.vertexRights?.[2]),
     ],
-    circum: mergeCenter(state.circum, "O"),
-    incenter: mergeCenter(state.incenter, "I"),
+    circum: mergeCenter(state.circum, CIRCUMCENTER_NAME),
+    incenter: mergeCenter(state.incenter, INCENTER_NAME),
     angles,
     lengths,
     showVertexNames: state.showVertexNames !== false,
@@ -397,8 +400,8 @@ function baseState(
     vertexNameDx: [0, 0, 0],
     vertexNameDy: [0, 0, 0],
     vertexRights: [false, false, false],
-    circum: defaultCenter("O", false),
-    incenter: defaultCenter("I", false),
+    circum: defaultCenter(CIRCUMCENTER_NAME, false),
+    incenter: defaultCenter(INCENTER_NAME, false),
     angles: [],
     lengths: [],
     showVertexNames: true,
@@ -429,7 +432,7 @@ export const CENTERS_PRESETS: CentersPreset[] = [
     hint: "OA·OB·OC · x",
     state: baseState(ACUTE, {
       circum: {
-        ...defaultCenter("O", true),
+        ...defaultCenter(CIRCUMCENTER_NAME, true),
         rays: [true, true, true],
       },
       angles: [
@@ -445,7 +448,7 @@ export const CENTERS_PRESETS: CentersPreset[] = [
     hint: "∠AOB · x",
     state: baseState(triangleFromAngles(66, 48, 66, 5.5), {
       circum: {
-        ...defaultCenter("O", true),
+        ...defaultCenter(CIRCUMCENTER_NAME, true),
         rays: [true, true, true],
       },
       angles: [
@@ -461,7 +464,7 @@ export const CENTERS_PRESETS: CentersPreset[] = [
     hint: "∠A = x · ∠BOC",
     state: baseState(triangleFromAngles(50, 65, 65, 5.6), {
       circum: {
-        ...defaultCenter("O", true),
+        ...defaultCenter(CIRCUMCENTER_NAME, true),
         rays: [false, true, true],
       },
       angles: [xAngle("A", "B", "C"), customAngle("O", "B", "C", "100°")],
@@ -473,7 +476,7 @@ export const CENTERS_PRESETS: CentersPreset[] = [
     hint: "빗변 중점 · 반지름",
     state: baseState(RIGHT_AT_C, {
       circum: {
-        ...defaultCenter("O", true),
+        ...defaultCenter(CIRCUMCENTER_NAME, true),
         rays: [false, true, true],
       },
       vertexRights: [false, false, true],
@@ -486,7 +489,7 @@ export const CENTERS_PRESETS: CentersPreset[] = [
     hint: "원 · OA · 수직이등분선",
     state: baseState(ACUTE, {
       circum: {
-        ...defaultCenter("O", true),
+        ...defaultCenter(CIRCUMCENTER_NAME, true),
         showCircle: true,
         rays: [true, true, true],
         perps: [true, true, true],
@@ -500,8 +503,7 @@ export const CENTERS_PRESETS: CentersPreset[] = [
     hint: "수선 · 접선 길이",
     state: baseState(triangleFromAngles(68, 54, 58, 5.8), {
       incenter: {
-        ...defaultCenter("I", true),
-        name: "O",
+        ...defaultCenter(INCENTER_NAME, true),
         rays: [false, false, false],
         perps: [true, true, true],
         showFeet: [true, true, true],
@@ -520,7 +522,7 @@ export const CENTERS_PRESETS: CentersPreset[] = [
     hint: "이등분선 · x",
     state: baseState(triangleFromAngles(70, 70, 40, 5.5), {
       incenter: {
-        ...defaultCenter("I", true),
+        ...defaultCenter(INCENTER_NAME, true),
         rays: [true, true, true],
       },
       angles: [
@@ -536,7 +538,7 @@ export const CENTERS_PRESETS: CentersPreset[] = [
     hint: "∠BIC = 90°+A/2",
     state: baseState(triangleFromAngles(40, 70, 70, 5.6), {
       incenter: {
-        ...defaultCenter("I", true),
+        ...defaultCenter(INCENTER_NAME, true),
         rays: [false, true, true],
       },
       angles: [xAngle("A", "B", "C"), customAngle("I", "B", "C", "110°")],
@@ -548,7 +550,7 @@ export const CENTERS_PRESETS: CentersPreset[] = [
     hint: "10·10·12 cm",
     state: baseState(ISO_10_10_12, {
       incenter: {
-        ...defaultCenter("I", true),
+        ...defaultCenter(INCENTER_NAME, true),
         showCircle: true,
         rays: [false, false, false],
         perps: [false, false, false],
@@ -566,11 +568,11 @@ export const CENTERS_PRESETS: CentersPreset[] = [
     hint: "O·I 둘 다",
     state: baseState(triangleFromAngles(74, 52, 54, 5.6), {
       circum: {
-        ...defaultCenter("O", true),
+        ...defaultCenter(CIRCUMCENTER_NAME, true),
         rays: [true, true, true],
       },
       incenter: {
-        ...defaultCenter("I", true),
+        ...defaultCenter(INCENTER_NAME, true),
         rays: [true, true, true],
       },
     }),

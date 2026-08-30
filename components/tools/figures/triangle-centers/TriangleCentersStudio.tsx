@@ -38,8 +38,10 @@ import {
 } from "@/lib/diagrams/triangle-centers/geometry";
 import {
   CENTERS_PRESETS,
+  CIRCUMCENTER_NAME,
   cloneState,
   DEFAULT_CENTERS_STATE,
+  INCENTER_NAME,
   normalizeState,
   vertexId,
   type CenterDisplay,
@@ -50,7 +52,7 @@ import { buildCentersScene } from "@/lib/diagrams/triangle-centers/scene";
 import { renderSceneToCanvas, sceneToSvg } from "@/lib/diagrams/render";
 import type { FontFaces } from "@/lib/diagrams/math-label";
 
-const STORAGE_KEY = "pm-diagram-g2-triangle-centers-v1";
+const STORAGE_KEY = "pm-diagram-g2-triangle-centers-v2";
 
 const storeListeners = new Set<() => void>();
 
@@ -344,7 +346,7 @@ export default function TriangleCentersStudio() {
                   }))
                 }
               >
-                외심 {state.circum.name || "O"}
+                외심 {state.circum.name || CIRCUMCENTER_NAME}
               </ChipToggle>
               <ChipToggle
                 on={state.circum.on && state.circum.showCircle}
@@ -367,7 +369,7 @@ export default function TriangleCentersStudio() {
                     patchCenter("circum", { on: true, rays });
                   }}
                 >
-                  {label.replace("O", state.circum.name || "O")}
+                  {label.replace("O", state.circum.name || CIRCUMCENTER_NAME)}
                 </ChipToggle>
               ))}
               {([0, 1, 2] as const).map((i) => (
@@ -418,7 +420,7 @@ export default function TriangleCentersStudio() {
                   }))
                 }
               >
-                내심 {state.incenter.name || "I"}
+                내심 {state.incenter.name || INCENTER_NAME}
               </ChipToggle>
               <ChipToggle
                 on={state.incenter.on && state.incenter.showCircle}
@@ -441,7 +443,7 @@ export default function TriangleCentersStudio() {
                     patchCenter("in", { on: true, rays });
                   }}
                 >
-                  {label.replace("I", state.incenter.name || "I")}
+                  {label.replace("I", state.incenter.name || INCENTER_NAME)}
                 </ChipToggle>
               ))}
               {([0, 1, 2] as const).map((i) => (
@@ -500,7 +502,7 @@ export default function TriangleCentersStudio() {
                       : "bg-black/8 text-foreground/55"
                   }`}
                 >
-                  {state.circum.name || "O"}
+                  {state.circum.name || CIRCUMCENTER_NAME}
                 </button>
               ) : null}
               {state.incenter.on ? (
@@ -513,7 +515,7 @@ export default function TriangleCentersStudio() {
                       : "bg-black/8 text-foreground/55"
                   }`}
                 >
-                  {state.incenter.name || "I"}
+                  {state.incenter.name || INCENTER_NAME}
                 </button>
               ) : null}
             </div>
@@ -598,7 +600,11 @@ export default function TriangleCentersStudio() {
                       : state.incenter.name
                   }
                   onChange={(name) =>
-                    patchCenter(selected.which, { name: name.trim() || (selected.which === "circum" ? "O" : "I") })
+                    patchCenter(selected.which, {
+                      name:
+                        name.trim() ||
+                        (selected.which === "circum" ? CIRCUMCENTER_NAME : INCENTER_NAME),
+                    })
                   }
                 />
               </div>

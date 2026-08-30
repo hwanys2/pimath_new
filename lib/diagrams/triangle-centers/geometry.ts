@@ -14,7 +14,9 @@ import {
 } from "@/lib/diagrams/polygon/geometry";
 import { emptyLabel, type MeasLabel, type Vec } from "@/lib/diagrams/polygon/model";
 import {
+  CIRCUMCENTER_NAME,
   EDGE_FEET,
+  INCENTER_NAME,
   VERTEX_IDS,
   angleId,
   fromPolygonState,
@@ -191,8 +193,8 @@ export function pointPos(d: Derived, id: PointId): Vec | null {
 export function displayName(state: TriangleCentersState, id: PointId): string {
   const vi = vertexIndex(id);
   if (vi != null) return state.vertexNames[vi] || vertexId(vi);
-  if (id === "O") return state.circum.name.trim() || "O";
-  if (id === "I") return state.incenter.name.trim() || "I";
+  if (id === "O") return state.circum.name.trim() || CIRCUMCENTER_NAME;
+  if (id === "I") return state.incenter.name.trim() || INCENTER_NAME;
   if (id === "c0") return state.circum.footNames[0] || "D";
   if (id === "c1") return state.circum.footNames[1] || "E";
   if (id === "c2") return state.circum.footNames[2] || "F";
@@ -670,8 +672,10 @@ export function applyEditedLabel(
       vertexNames[i] = text.trim() || vertexNames[i];
       return { ...state, vertexNames };
     }
-    if (key === "O") return { ...state, circum: { ...state.circum, name: text.trim() || "O" } };
-    if (key === "I") return { ...state, incenter: { ...state.incenter, name: text.trim() || "I" } };
+    if (key === "O")
+      return { ...state, circum: { ...state.circum, name: text.trim() || CIRCUMCENTER_NAME } };
+    if (key === "I")
+      return { ...state, incenter: { ...state.incenter, name: text.trim() || INCENTER_NAME } };
     const foot = /^(c|i)([012])$/.exec(key);
     if (foot) {
       const idx = Number(foot[2]) as 0 | 1 | 2;
