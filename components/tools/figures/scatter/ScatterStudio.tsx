@@ -967,8 +967,8 @@ export default function ScatterStudio() {
                 onChange={(padding) =>
                   set({ style: { ...state.style, padding } })
                 }
-                min={28}
-                max={96}
+                min={40}
+                max={120}
                 step={2}
               />
               <div>

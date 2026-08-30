@@ -85,7 +85,7 @@ const DEFAULT_STYLE: ScatterStyle = {
   titleSize: 20,
   pointRadius: 3.4,
   markRadius: 4.6,
-  padding: 52,
+  padding: 68,
   exportScale: 3,
   gridColor: GRID_GRAY,
 };
@@ -412,7 +412,7 @@ export function normalizeState(state: ScatterState): ScatterState {
     style: {
       ...DEFAULT_STYLE,
       ...state.style,
-      padding: Math.min(96, Math.max(36, state.style?.padding ?? DEFAULT_STYLE.padding)),
+      padding: Math.min(120, Math.max(40, state.style?.padding ?? DEFAULT_STYLE.padding)),
       pointRadius: Math.min(
         8,
         Math.max(1.4, state.style?.pointRadius ?? DEFAULT_STYLE.pointRadius),
@@ -604,7 +604,7 @@ export const SCATTER_PRESETS: {
         cloudSpread: 0.24,
         cloudSeed: 11,
         panelKinds: ["positive", "negative", "none", "circle"],
-        style: { ...DEFAULT_STYLE, pointRadius: 2.15, axisNameSize: 14, padding: 28 },
+        style: { ...DEFAULT_STYLE, pointRadius: 2.15, axisNameSize: 14, padding: 48 },
       }),
     ),
   },

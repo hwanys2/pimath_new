@@ -7,10 +7,10 @@ import {
   type ScatterState,
 } from "@/lib/diagrams/scatter/model";
 
-export const SCENE_WIDTH = 560;
-export const SCENE_HEIGHT = 456;
-export const QUAD_SCENE_HEIGHT = 520;
-const CORNER_INSET = 40;
+export const SCENE_WIDTH = 600;
+export const SCENE_HEIGHT = 500;
+export const QUAD_SCENE_HEIGHT = 560;
+const CORNER_INSET = 56;
 
 export type PlotFrame = {
   panel: number;
@@ -97,7 +97,7 @@ function buildFrame(
 }
 
 export function getScatterLayout(state: ScatterState): ScatterLayout {
-  const pad = Math.max(28, state.style.padding);
+  const pad = Math.max(40, state.style.padding);
   const nameSize = state.style.axisNameSize;
   const fontSize = state.style.fontSize;
   const titleSize = state.style.titleSize;
@@ -105,25 +105,27 @@ export function getScatterLayout(state: ScatterState): ScatterLayout {
   const xName = state.xAxisLabel.trim();
   const yNameW = yName
     ? state.yLabelVertical
-      ? nameSize + 18
-      : estimateLabelWidth(yName, nameSize) + 8
-    : 0;
+      ? nameSize + 36
+      : estimateLabelWidth(yName, nameSize) + 20
+    : 20;
   const tickW = state.showTicks
-    ? estimateLabelWidth(formatTick(state.yMax), fontSize) + 18
+    ? estimateLabelWidth(formatTick(state.yMax), fontSize) + 22
     : 0;
   const titleBand = hasChartTitle(state)
     ? Math.max(26, titleSize * 1.2 + 8)
     : 0;
-  const tickDrop = state.showTicks ? 12 + fontSize * 0.75 : 10;
-  const xNameDrop = xName ? Math.max(tickDrop, 12 + fontSize * 0.5 + nameSize * 0.55) : tickDrop;
+  const tickDrop = state.showTicks ? 14 + fontSize * 0.85 : 12;
+  const xNameDrop = xName
+    ? tickDrop + nameSize + 16
+    : tickDrop + 10;
 
   if (state.kind === "quad") {
     const width = SCENE_WIDTH;
     const height = QUAD_SCENE_HEIGHT;
-    const outerLeft = Math.max(28, pad * 0.55, CORNER_INSET * 0.55);
-    const outerRight = width - Math.max(18, pad * 0.35);
-    const outerTop = Math.max(26, titleBand + 10, pad * 0.4);
-    const outerBottom = height - Math.max(24, pad * 0.42);
+    const outerLeft = Math.max(36, pad * 0.7, CORNER_INSET * 0.7);
+    const outerRight = width - Math.max(28, pad * 0.5);
+    const outerTop = Math.max(32, titleBand + 12, pad * 0.5);
+    const outerBottom = height - Math.max(32, pad * 0.55);
     const gapX = 22;
     const gapY = 28;
     const cellW = (outerRight - outerLeft - gapX) / 2;
@@ -145,13 +147,13 @@ export function getScatterLayout(state: ScatterState): ScatterLayout {
 
   const width = SCENE_WIDTH;
   const height = SCENE_HEIGHT;
-  const plotLeft = Math.max(pad, CORNER_INSET, yNameW + 16, tickW);
-  const plotRight = width - Math.max(CORNER_INSET, pad * 0.38);
+  const plotLeft = Math.max(pad, CORNER_INSET, yNameW, tickW);
+  const plotRight = width - Math.max(CORNER_INSET, pad * 0.72, xName ? 44 : 28);
   const plotTop = hasChartTitle(state)
-    ? titleBand + Math.max(16, nameSize * 0.45)
-    : Math.max(CORNER_INSET * 0.55, nameSize * 0.5 + 8, pad * 0.32);
-  const bottomNeed = Math.max(28, xNameDrop + 8, CORNER_INSET * 0.5);
-  const plotBottom = height - Math.max(CORNER_INSET * 0.7, pad * 0.38, bottomNeed);
+    ? titleBand + Math.max(22, nameSize * 0.7, pad * 0.45)
+    : Math.max(CORNER_INSET, nameSize + 10, pad * 0.7);
+  const bottomNeed = Math.max(40, xNameDrop, CORNER_INSET);
+  const plotBottom = height - Math.max(CORNER_INSET, pad * 0.72, bottomNeed);
   return {
     width,
     height,

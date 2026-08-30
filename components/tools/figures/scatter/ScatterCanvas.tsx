@@ -130,8 +130,8 @@ export default function ScatterCanvas({
     const canvas = canvasRef.current;
     if (!canvas) return { x: 0, y: 0 };
     const scene = sceneRef.current;
-    const width = scene?.width ?? 560;
-    const height = scene?.height ?? 456;
+    const width = scene?.width ?? 600;
+    const height = scene?.height ?? 500;
     const rect = canvas.getBoundingClientRect();
     return {
       x: ((e.clientX - rect.left) / rect.width) * width,
@@ -143,7 +143,7 @@ export default function ScatterCanvas({
     const canvas = canvasRef.current;
     if (!canvas) return 1;
     const scene = sceneRef.current;
-    const sceneWidth = scene?.width ?? 560;
+    const sceneWidth = scene?.width ?? 600;
     const width = canvas.getBoundingClientRect().width;
     return width > 1 ? sceneWidth / width : 1;
   }
@@ -190,8 +190,8 @@ export default function ScatterCanvas({
     <div className="relative">
       <canvas
         ref={canvasRef}
-        width={560}
-        height={456}
+        width={600}
+        height={500}
         className="h-auto w-full touch-none bg-white"
         tabIndex={0}
         aria-label="산점도. 점을 끌어 옮기고, 글자를 눌러 고칠 수 있어요."
@@ -349,8 +349,8 @@ export default function ScatterCanvas({
           }}
           className="absolute z-10 min-w-[4.5rem] rounded-lg border-2 border-wood bg-white px-2 py-0.5 text-center text-[15px] text-black shadow-md outline-none"
           style={{
-            left: `${(edit.x / (sceneRef.current?.width ?? 560)) * 100}%`,
-            top: `${(edit.y / (sceneRef.current?.height ?? 456)) * 100}%`,
+            left: `${(edit.x / (sceneRef.current?.width ?? 600)) * 100}%`,
+            top: `${(edit.y / (sceneRef.current?.height ?? 500)) * 100}%`,
             transform: "translate(-50%, -50%)",
             fontFamily: "Times New Roman, Noto Serif, Batang, serif",
           }}

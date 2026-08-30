@@ -194,4 +194,14 @@ describe("scatter axis and scene", () => {
     assert.ok(dots.every((c) => c.t === "dot" && c.stroke === "#e84a8c"));
     assert.ok(scene.texts.some((t) => t.id.startsWith("origin:")));
   });
+
+  it("keeps gutters around the plot so axis names can be moved", () => {
+    const state = SCATTER_PRESETS.find((p) => p.id === "calories-fat")!.state;
+    const layout = getScatterLayout(state);
+    const frame = layout.frames[0]!;
+    assert.ok(frame.plotLeft >= 56);
+    assert.ok(layout.width - frame.plotRight >= 40);
+    assert.ok(frame.plotTop >= 48);
+    assert.ok(layout.height - frame.plotBottom >= 52);
+  });
 });
