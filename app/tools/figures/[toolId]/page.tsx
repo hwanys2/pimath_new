@@ -12,6 +12,8 @@ import PolygonStudio from "@/components/tools/figures/polygon/PolygonStudio";
 import LinearFunctionStudio from "@/components/tools/figures/linear-function/LinearFunctionStudio";
 import QuadrilateralStudio from "@/components/tools/figures/quadrilaterals/QuadrilateralStudio";
 import RepeatingDecimalStudio from "@/components/tools/figures/repeating-decimal/RepeatingDecimalStudio";
+import SimilarFiguresStudio from "@/components/tools/figures/similar-figures/SimilarFiguresStudio";
+import SimilarSolidsStudio from "@/components/tools/figures/similar-solids/SimilarSolidsStudio";
 import SolidSketchStudio from "@/components/tools/figures/solid-sketch/SolidSketchStudio";
 import TriangleCentersStudio from "@/components/tools/figures/triangle-centers/TriangleCentersStudio";
 import DiagramToolShell from "@/components/tools/figures/DiagramToolShell";
@@ -64,6 +66,10 @@ function renderDiagramStudio(toolId: string): ReactNode {
       return <TriangleCentersStudio />;
     case "g2-quadrilaterals":
       return <QuadrilateralStudio />;
+    case "g2-similar-figures":
+      return <SimilarFiguresStudio />;
+    case "g2-similar-solids":
+      return <SimilarSolidsStudio />;
     case "g3-circle-chords":
       return <CircleChordsStudio />;
     default:

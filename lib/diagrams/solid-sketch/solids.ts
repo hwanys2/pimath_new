@@ -54,6 +54,49 @@ export type SolidMesh = {
   heightTo?: Vec3 | null;
 };
 
+/** Move positions only. Direction vectors (axis, normals) stay as they are. */
+export function transformMesh(mesh: SolidMesh, fn: (p: Vec3) => Vec3): SolidMesh {
+  return {
+    ...mesh,
+    vertices: mesh.vertices.map(fn),
+    circles: mesh.circles.map((c) => ({ ...c, center: fn(c.center) })),
+    baseCenter: mesh.baseCenter ? fn(mesh.baseCenter) : null,
+    topCenter: mesh.topCenter ? fn(mesh.topCenter) : null,
+    hemispheres: mesh.hemispheres?.map((h) => ({ ...h, center: fn(h.center) })),
+    heightFrom: mesh.heightFrom != null ? fn(mesh.heightFrom) : mesh.heightFrom,
+    heightTo: mesh.heightTo != null ? fn(mesh.heightTo) : mesh.heightTo,
+  };
+}
+
+export function meshExtentX(mesh: SolidMesh): { min: number; max: number } {
+  let min = Infinity;
+  let max = -Infinity;
+  const consider = (x: number) => {
+    min = Math.min(min, x);
+    max = Math.max(max, x);
+  };
+  for (const p of mesh.vertices) consider(p.x);
+  for (const c of mesh.circles) {
+    consider(c.center.x - c.radius);
+    consider(c.center.x + c.radius);
+  }
+  if (mesh.sphereRadius != null && mesh.baseCenter) {
+    consider(mesh.baseCenter.x - mesh.sphereRadius);
+    consider(mesh.baseCenter.x + mesh.sphereRadius);
+  }
+  for (const h of mesh.hemispheres ?? []) {
+    consider(h.center.x - h.radius);
+    consider(h.center.x + h.radius);
+  }
+  if (mesh.baseCenter) consider(mesh.baseCenter.x);
+  if (mesh.topCenter) consider(mesh.topCenter.x);
+  if (!Number.isFinite(min)) {
+    min = -1;
+    max = 1;
+  }
+  return { min, max };
+}
+
 const PHI = (1 + Math.sqrt(5)) / 2;
 
 function circumRFromSide(n: number, side: number): number {

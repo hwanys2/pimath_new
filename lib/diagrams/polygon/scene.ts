@@ -364,15 +364,27 @@ function drawAngle(
   });
 }
 
-export function buildPolygonScene(state: PolygonState): PolygonScene {
+export type PolygonDrawOptions = {
+  idPrefix?: string;
+  /** Override auto edge length (math units) used for labels. */
+  lengthAt?: (i: number) => number;
+};
+
+/** Draw one polygon onto an existing scene. Used by 다각형 and 닮은 평면도형. */
+export function appendPolygonFigure(
+  state: PolygonState,
+  canvas: Vec[],
+  toCanvas: (p: Vec) => Vec,
+  cmds: SceneCmd[],
+  texts: SceneText[],
+  options: PolygonDrawOptions = {},
+): void {
+  const prefix = options.idPrefix ?? "";
   const { style } = state;
-  const layout = getSceneLayout(state);
-  const canvas = layout.canvas;
   const n = canvas.length;
-  const cmds: SceneCmd[] = [];
-  const texts: SceneText[] = [];
+  if (n < 3) return;
   const mathC = centroid(state.points);
-  const canvasC = mathToCanvas(mathC, layout);
+  const canvasC = toCanvas(mathC);
 
   let avgSide = 0;
   for (let i = 0; i < n; i += 1) avgSide += edgeLength(state.points, i);
@@ -384,9 +396,8 @@ export function buildPolygonScene(state: PolygonState): PolygonScene {
     if (!v?.showExterior || !v.fillExterior) continue;
     const p = canvas[i]!;
     const next = canvas[nextIndex(i, n)]!;
-    const ext = mathToCanvas(
+    const ext = toCanvas(
       extensionEnd(state.points[prevIndex(i, n)]!, state.points[i]!, extMath),
-      layout,
     );
     const { exterior } = vertexAngles(state.points, i);
     if (isDisplayedRightAngle(v.exterior, exterior)) {
@@ -401,7 +412,7 @@ export function buildPolygonScene(state: PolygonState): PolygonScene {
       ext,
       next,
       label,
-      `v:${i}:exterior`,
+      `${prefix}v:${i}:exterior`,
       v.exterior,
       style.fontSize,
       EXTERIOR_FILL,
@@ -432,9 +443,8 @@ export function buildPolygonScene(state: PolygonState): PolygonScene {
     const v = state.vertices[i];
     if (!v?.showExterior) continue;
     const p = canvas[i]!;
-    const ext = mathToCanvas(
+    const ext = toCanvas(
       extensionEnd(state.points[prevIndex(i, n)]!, state.points[i]!, extMath),
-      layout,
     );
     cmds.push({
       t: "line",
@@ -459,7 +469,7 @@ export function buildPolygonScene(state: PolygonState): PolygonScene {
       ext,
       next,
       label,
-      `v:${i}:exterior`,
+      `${prefix}v:${i}:exterior`,
       v.exterior,
       style.fontSize,
       null,
@@ -485,7 +495,7 @@ export function buildPolygonScene(state: PolygonState): PolygonScene {
       prev,
       next,
       label,
-      `v:${i}:interior`,
+      `${prefix}v:${i}:interior`,
       v.interior,
       style.fontSize,
       null,
@@ -499,9 +509,10 @@ export function buildPolygonScene(state: PolygonState): PolygonScene {
     const b = canvas[nextIndex(i, n)]!;
     const mid = mul(add(a, b), 0.5);
     const outward = sub(mid, canvasC);
+    const autoLen = options.lengthAt?.(i) ?? edgeLength(state.points, i);
     const label = resolveLengthText(
       e.length,
-      edgeLength(state.points, i),
+      autoLen,
       state.unit,
       state.unknownLetter,
     );
@@ -513,7 +524,7 @@ export function buildPolygonScene(state: PolygonState): PolygonScene {
       outward,
       style.dimOffset,
       label,
-      `e:${i}:length`,
+      `${prefix}e:${i}:length`,
       e.length,
       style.fontSize,
     );
@@ -529,7 +540,7 @@ export function buildPolygonScene(state: PolygonState): PolygonScene {
     const away = norm(sub(p, canvasC));
     const lp = add(add(p, mul(away, 16)), { x: v.nameDx, y: v.nameDy });
     pushText(texts, cmds, {
-      id: `v:${i}:name`,
+      id: `${prefix}v:${i}:name`,
       x: lp.x,
       y: lp.y,
       runs: parseNameRuns(v.name.trim()),
@@ -537,7 +548,19 @@ export function buildPolygonScene(state: PolygonState): PolygonScene {
       anchor: "middle",
     });
   }
+}
 
+export function buildPolygonScene(state: PolygonState): PolygonScene {
+  const layout = getSceneLayout(state);
+  const cmds: SceneCmd[] = [];
+  const texts: SceneText[] = [];
+  appendPolygonFigure(
+    state,
+    layout.canvas,
+    (p) => mathToCanvas(p, layout),
+    cmds,
+    texts,
+  );
   return {
     width: SCENE_WIDTH,
     height: SCENE_HEIGHT,

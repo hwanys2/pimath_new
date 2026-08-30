@@ -154,6 +154,28 @@ export const DIAGRAM_TOOLS: DiagramToolMeta[] = [
     status: "ready",
   },
   {
+    id: "g2-similar-figures",
+    grade: 2,
+    title: "평면도형의 닮음",
+    description:
+      "한 도형을 그리면 닮음비에 맞춰 짝이 그려집니다. 오른쪽은 회전·대칭하고, 변·각을 붙여 PNG로 저장해요.",
+    unitHint: "4.1 평면도형의 닮음",
+    emoji: "∽",
+    href: "/tools/figures/g2-similar-figures",
+    status: "ready",
+  },
+  {
+    id: "g2-similar-solids",
+    grade: 2,
+    title: "입체도형의 닮음",
+    description:
+      "입체 하나를 그리고 닮음비만 넣으면 같은 모양의 쌍이 나란히 그려집니다. 꼭짓점 이름·길이·PNG로 저장해요.",
+    unitHint: "3.2 도형의 닮음",
+    emoji: "◇",
+    href: "/tools/figures/g2-similar-solids",
+    status: "ready",
+  },
+  {
     id: "g3-circle-chords",
     grade: 3,
     title: "원의 현",

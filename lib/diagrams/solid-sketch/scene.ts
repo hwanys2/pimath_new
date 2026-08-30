@@ -49,6 +49,15 @@ export type SolidScene = SharedDiagramScene & {
 export const SCENE_WIDTH = 520;
 export const SCENE_HEIGHT = 520;
 
+export type SolidSketchRenderOpts = {
+  width?: number;
+  height?: number;
+  cam?: Cam;
+  fit?: Fit;
+  mesh?: SolidMesh;
+  idPrefix?: string;
+};
+
 export type SolidEdge = {
   key: string;
   a: number;
@@ -230,7 +239,7 @@ function pushRightAngle(
   });
 }
 
-function collectFitPoints(mesh: SolidMesh, cam: Cam): Proj[] {
+export function collectFitPoints(mesh: SolidMesh, cam: Cam): Proj[] {
   const pts: Proj[] = mesh.vertices.map((p) => project3(p, cam));
   for (const circle of mesh.circles) {
     pts.push(project3(circle.center, cam));
@@ -675,12 +684,39 @@ function drawSphere(
   });
 }
 
-export function buildSolidSketchScene(state: SolidSketchState): SolidScene {
-  const width = SCENE_WIDTH;
-  const height = SCENE_HEIGHT;
-  const cam = cameraFromView(state.azimuthDeg, state.elevationDeg);
-  const mesh = buildSolidMesh(state);
-  const fit = fitProjected(collectFitPoints(mesh, cam), width, height, state.style.padding);
+function prefixSceneIds(scene: SolidScene, prefix: string): SolidScene {
+  if (!prefix) return scene;
+  const pid = (id: string) => `${prefix}${id}`;
+  return {
+    ...scene,
+    cmds: scene.cmds.map((cmd) => {
+      if (cmd.t === "text") {
+        return { ...cmd, text: { ...cmd.text, id: pid(cmd.text.id) } };
+      }
+      if ("id" in cmd && typeof cmd.id === "string" && cmd.id.length > 0) {
+        return { ...cmd, id: pid(cmd.id) };
+      }
+      return cmd;
+    }),
+    texts: scene.texts.map((text) => ({ ...text, id: pid(text.id) })),
+    layout: {
+      ...scene.layout,
+      centers: scene.layout.centers.map((c) => ({ ...c, id: pid(c.id) })),
+    },
+  };
+}
+
+export function buildSolidSketchScene(
+  state: SolidSketchState,
+  opts: SolidSketchRenderOpts = {},
+): SolidScene {
+  const width = opts.width ?? SCENE_WIDTH;
+  const height = opts.height ?? SCENE_HEIGHT;
+  const cam = opts.cam ?? cameraFromView(state.azimuthDeg, state.elevationDeg);
+  const mesh = opts.mesh ?? buildSolidMesh(state);
+  const fit =
+    opts.fit ??
+    fitProjected(collectFitPoints(mesh, cam), width, height, state.style.padding);
   const map = canvasMap(fit);
   const verts2 = mesh.vertices.map((p) => map(project3(p, cam)));
   const hidden = hiddenEdgeKeys(mesh, cam);
@@ -936,21 +972,24 @@ export function buildSolidSketchScene(state: SolidSketchState): SolidScene {
     dimArc(cmds, texts, a, b, outwardUp, style.dimOffset, txt, `edge:${key}`, label, style.fontSize);
   }
 
-  return {
-    width,
-    height,
-    cmds,
-    texts,
-    layout: {
-      cam,
-      fit,
-      vertices: verts2,
-      names: mesh.names,
-      edges,
-      centers,
-      mesh,
+  return prefixSceneIds(
+    {
+      width,
+      height,
+      cmds,
+      texts,
+      layout: {
+        cam,
+        fit,
+        vertices: verts2,
+        names: mesh.names,
+        edges,
+        centers,
+        mesh,
+      },
     },
-  };
+    opts.idPrefix ?? "",
+  );
 }
 
 function edgeLength3(mesh: SolidMesh, a: number, b: number): number {

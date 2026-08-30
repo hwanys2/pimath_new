@@ -501,3 +501,20 @@ describe("per-vertex display modes", () => {
     assert.equal(state.vertexModes[1], undefined);
   });
 });
+
+describe("solid sketch render opts", () => {
+  it("prefixes label ids without changing the default canvas size", () => {
+    const plain = buildSolidSketchScene(cloneState(DEFAULT_SOLID_SKETCH_STATE));
+    const prefixed = buildSolidSketchScene(cloneState(DEFAULT_SOLID_SKETCH_STATE), {
+      idPrefix: "L:",
+    });
+    assert.equal(plain.width, 520);
+    assert.equal(prefixed.width, 520);
+    const vertex = prefixed.texts.find((t) => t.id.startsWith("L:vertex:"));
+    assert.ok(vertex);
+    assert.equal(
+      plain.texts.some((t) => t.id.startsWith("vertex:")),
+      true,
+    );
+  });
+});

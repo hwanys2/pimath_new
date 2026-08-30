@@ -44,7 +44,7 @@
 도구 (/tools) 
   └─ 문제 그림 그리기 (/tools/figures)
         ├─ 중1 카드들 → /tools/figures/g1-number-line , /tools/figures/g1-coordinate-plane , /tools/figures/g1-polygon , /tools/figures/g1-circle-sectors , /tools/figures/g1-solid-sketch , /tools/figures/g1-histogram
-        ├─ 중2 카드들 → /tools/figures/g2-repeating-decimal , /tools/figures/g2-linear-inequality , /tools/figures/g2-linear-function , /tools/figures/g2-triangle-centers , /tools/figures/g2-isosceles-triangle , /tools/figures/g2-quadrilaterals
+        ├─ 중2 카드들 → /tools/figures/g2-repeating-decimal , /tools/figures/g2-linear-inequality , /tools/figures/g2-linear-function , /tools/figures/g2-triangle-centers , /tools/figures/g2-isosceles-triangle , /tools/figures/g2-similar-solids , /tools/figures/g2-quadrilaterals , /tools/figures/g2-similar-figures
         └─ 중3 카드들
               └─ 원의 현 → /tools/figures/g3-circle-chords
 ```
@@ -82,7 +82,7 @@ components/tools/figures/DiagramToolShell.tsx  ← 공통 뼈대. 손대지 않�
 모든 도구가 이 규칙을 기본값으로 따른다. 스타일 슬라이더로 미세 조정은 허용하되, 기본값이 시험지처럼 보여야 한다.
 
 1. **흰 배경, 검은 선.** 장식 색·그라데이션·이모지는 그림 안에 넣지 않는다.  
-   예외: **좌표평면**은 교과서처럼 연한 청록 격자와 분홍·청록 그래프를 쓴다. **히스토그램·도수분포다각형**은 막대 채움과 비교 선에 청록·분홍을 쓴다. **일차부등식** 해의 범위는 꺾은선 아래를 연한 분홍 등으로 칠할 수 있다. **순환소수 나눗셈**은 나머지·순환마디를 교과서처럼 분홍·파랑·노란 칸으로 표시한다.
+   예외: **좌표평면**은 교과서처럼 연한 청록 격자와 분홍·청록 그래프를 쓴다. **닮은 평면도형**의 모눈은 교과서 모눈종이처럼 연한 청록 격자다. **히스토그램·도수분포다각형**은 막대 채움과 비교 선에 청록·분홍을 쓴다. **일차부등식** 해의 범위는 꺾은선 아래를 연한 분홍 등으로 칠할 수 있다. **순환소수 나눗셈**은 나머지·순환마디를 교과서처럼 분홍·파랑·노란 칸으로 표시한다.
 2. **선은 가늘고 일정.** 기본 굵기는 인쇄해도 무너지지 않을 정도만.
 3. **수식 세리프.** 변수(`x`, `y`, `a`)는 이탤릭 세리프. **점 이름(`A`, `B`, `O`)은 직립 로만.** 숫자와 단위(`cm`)·한글은 직립.  
    (`16 cm`, `$x$ cm` 가 교과서와 같아야 한다. 점 이름만 기울이지 않는다.)
@@ -301,7 +301,28 @@ components/tools/figures/DiagramToolShell.tsx  ← 공통 뼈대. 손대지 않�
 - 프리셋: 대변 길이, 대각·이웃각, 대각선 교점·전체·이등분, 맞꼭지각 표시, 평행·등변, 직사각형 대각선, 마름모, 평행선 사이, 사다리꼴 대각선.
 - 스튜디오는 §5.1 **3열**: 그림 | 표시·면 채움 | 빠른 그림·도형 종류·그림 스타일(기본 펼침).
 
-이후 접선, 원주각, 닮음 삼각형 등을 넣을 때도 **같은 카탈로그·같은 3열 스튜디오·같은 스타일 규칙·같은 라벨 모드·같은 `DiagramToolShell`(하단 의견)** 을 재사용한다.
+### 평면도형의 닮음 (`g2-similar-figures`)
+
+중2 `4.1 평면도형의 닮음`에서 나오는 시험용 닮은 다각형 쌍.
+
+- 중1 다각형의 점·각·길이 솔버와 설명선(점선 호)을 재사용한다. 왼쪽 도형을 그리면 닮음비에 맞춰 오른쪽이 자동으로 그려진다.
+- 오른쪽은 회전(0–360°)·좌우/상하 대칭. 통째로 끌어 위치를 옮긴다. 모눈을 켜면 연한 청록 격자와 격자 맞춤.
+- 변을 누르면 길이가 켜지고, 대응변·대응각 칩으로 짝에도 붙인다. 왼쪽 숫자를 넣으면 그 각·변만 맞추고 오른쪽은 닮음으로 따라온다.
+- 프리셋: 삼각형 5:4, 삼각형 각·변, 사각형 8:10, 모눈 사각형 1:2 대칭.
+- 스튜디오는 §5.1 **3열**(가로로 긴 쌍이라 1열이 남은 폭을 채움): 그림 | 표시·보기(회전·대칭) | 빠른 그림·닮음비·그림 스타일(기본 펼침).
+
+### 입체도형의 닮음 (`g2-similar-solids`)
+
+중2 `3.2 도형의 닮음`에서 나오는 시험용 닮은 입체 쌍.
+
+- 중1 겨냥도 엔진을 그대로 쓴다. 왼쪽 입체 하나와 닮음비 `m : n`만 넣으면 오른쪽이 `n/m`배로 같이 그려진다.
+- 같은 카메라·같은 픽셀 스케일. 큰 쪽이 실제로 더 크다. 밑면은 같은 높이에 맞춘다.
+- 꼭짓점 이름은 왼쪽 `A, B, …` 다음 글자부터 오른쪽이 이어진다. 도형 이름 `A`·`B`는 칩으로 켠다.
+- 높이·모서리 숫자는 어느 쪽을 고쳐도 비를 유지한다. 비를 바꾸면 왼쪽 숫자는 두고 오른쪽만 다시 계산한다.
+- 프리셋: 삼각기둥 3:5, 삼각뿔 A·B, 직육면체 2:3, 원기둥 1:2, 원뿔, 사각뿔.
+- 스튜디오는 §5.1 **3열**(가로 쌍이라 1열이 남은 폭을 채움): 그림 | 표시·보기 | 빠른 그림·닮음비·도형·그림 스타일(기본 펼침).
+
+이후 접선, 원주각 등을 넣을 때도 **같은 카탈로그·같은 3열 스튜디오·같은 스타일 규칙·같은 라벨 모드·같은 `DiagramToolShell`(하단 의견)** 을 재사용한다.
 
 ---
 
@@ -321,6 +342,8 @@ components/tools/figures/DiagramToolShell.tsx  ← 공통 뼈대. 손대지 않�
 | `g2-isosceles-triangle` | 중2 | 이등변삼각형 | ready |
 | `g2-triangle-centers` | 중2 | 외심과 내심 | ready |
 | `g2-quadrilaterals` | 중2 | 사각형의 성질 | ready |
+| `g2-similar-figures` | 중2 | 평면도형의 닮음 | ready |
+| `g2-similar-solids` | 중2 | 입체도형의 닮음 | ready |
 | `g3-circle-chords` | 중3 | 원의 현 | ready |
 
 ---
@@ -398,4 +421,6 @@ components/tools/figures/DiagramToolShell.tsx  ← 공통 뼈대. 손대지 않�
 | 2026-08-30 | 중2 외심과 내심 (`g2-triangle-centers`). 외접원·내접원, 반지름·이등분선·수선, 각·길이, PNG. |
 | 2026-08-30 | 외심·내심 각 숫자를 바꾸면 삼각형을 다시 그리고 밑변 BC는 수평 유지. |
 | 2026-08-30 | 중2 이등변삼각형 (`g2-isosceles-triangle`). 등변 표시·외각·수선·이등분선, PNG. |
+| 2026-08-30 | 중2 입체도형의 닮음 (`g2-similar-solids`). 겨냥도 재사용, 닮음비로 쌍 자동, PNG. |
 | 2026-08-30 | 중2 사각형의 성질 (`g2-quadrilaterals`). 평행사변형·직사각형·마름모·사다리꼴, 대각선·O, PNG. |
+| 2026-08-30 | 중2 평면도형의 닮음 (`g2-similar-figures`). 한 도형+닮음비로 쌍 생성, 회전·대칭·모눈, PNG. |
