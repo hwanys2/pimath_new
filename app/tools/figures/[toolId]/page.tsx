@@ -22,6 +22,7 @@ import TriangleCentersStudio from "@/components/tools/figures/triangle-centers/T
 import SqrtNumberLineStudio from "@/components/tools/figures/sqrt-number-line/SqrtNumberLineStudio";
 import QuadraticFunctionStudio from "@/components/tools/figures/quadratic-function/QuadraticFunctionStudio";
 import TrigRatiosStudio from "@/components/tools/figures/trig-ratios/TrigRatiosStudio";
+import BoxPlotStudio from "@/components/tools/figures/boxplot/BoxPlotStudio";
 import DiagramToolShell from "@/components/tools/figures/DiagramToolShell";
 import { DIAGRAM_TOOLS, getDiagramTool } from "@/lib/diagrams/catalog";
 
@@ -90,6 +91,8 @@ function renderDiagramStudio(toolId: string): ReactNode {
       return <QuadraticFunctionStudio />;
     case "g3-trig-ratios":
       return <TrigRatiosStudio />;
+    case "g3-boxplot":
+      return <BoxPlotStudio />;
     default:
       return null;
   }

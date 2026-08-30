@@ -252,6 +252,17 @@ export const DIAGRAM_TOOLS: DiagramToolMeta[] = [
     href: "/tools/figures/g3-trig-ratios",
     status: "ready",
   },
+  {
+    id: "g3-boxplot",
+    grade: 3,
+    title: "상자수염 그림",
+    description:
+      "가로·세로 상자수염 그림을 하나 또는 여러 개 그리고, 다섯 값을 끌어 맞춘 뒤 PNG로 저장해요.",
+    unitHint: "4.2 상자그림과 산점도",
+    emoji: "▭",
+    href: "/tools/figures/g3-boxplot",
+    status: "ready",
+  },
 ];
 
 export function getDiagramTool(id: string): DiagramToolMeta | undefined {
