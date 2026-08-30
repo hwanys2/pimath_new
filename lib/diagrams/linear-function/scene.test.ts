@@ -2,10 +2,12 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { parseMathRuns, runsToPlain } from "../math-label";
 import {
+  addGraphFromEquation,
   formatLinearEquation,
   LINEAR_FUNCTION_PRESETS,
   linearEquationText,
   makeLinear,
+  parseLinearEquation,
   toPlaneBackdrop,
   xIntercept,
   yOnLine,
@@ -54,6 +56,41 @@ describe("linear equation text", () => {
       letterA: "a",
     });
     assert.equal(linearEquationText(letterX), "x=a");
+  });
+
+  it("parses typed linear equations", () => {
+    const line = parseLinearEquation("y=2x+1");
+    assert.ok(line);
+    assert.equal(line.kind, "linear");
+    assert.equal(line.a, 2);
+    assert.equal(line.b, 1);
+    const frac = parseLinearEquation("y=(3/4)x-2");
+    assert.ok(frac);
+    assert.ok(Math.abs(frac.a - 3 / 4) < 1e-9);
+    assert.equal(frac.b, -2);
+    const latex = parseLinearEquation("y=\\frac{3}{4}x-2");
+    assert.ok(latex);
+    assert.ok(Math.abs(latex.a - 3 / 4) < 1e-9);
+    const vertical = parseLinearEquation("x=2");
+    assert.ok(vertical);
+    assert.equal(vertical.kind, "vertical");
+    assert.equal(vertical.c, 2);
+    const horizontal = parseLinearEquation("y=-3");
+    assert.ok(horizontal);
+    assert.equal(horizontal.a, 0);
+    assert.equal(horizontal.b, -3);
+    const slopeOnly = parseLinearEquation("y=-x");
+    assert.ok(slopeOnly);
+    assert.equal(slopeOnly.a, -1);
+    assert.equal(slopeOnly.b, 0);
+    const added = addGraphFromEquation(
+      LINEAR_FUNCTION_PRESETS[0]!.state,
+      "y=x+2",
+    );
+    assert.ok(added);
+    const g = added.graphs[added.graphs.length - 1]!;
+    assert.equal(g.a, 1);
+    assert.equal(g.b, 2);
   });
 });
 
@@ -174,5 +211,17 @@ describe("scene", () => {
     assert.ok(clip);
     assert.equal(clip.length, 2);
     assert.ok(Math.abs(clip[0]!.x - clip[1]!.x) < 1e-6);
+  });
+
+  it("keeps one x-unit the same length as one y-unit", () => {
+    const state = LINEAR_FUNCTION_PRESETS.find((p) => p.id === "intercepts")!
+      .state;
+    const layout = getPlaneLayout(toPlaneBackdrop(state));
+    const unitX =
+      (layout.plotRight - layout.plotLeft) / (layout.xMax - layout.xMin);
+    const unitY =
+      (layout.plotBottom - layout.plotTop) / (layout.yMax - layout.yMin);
+    assert.ok(Math.abs(unitX - unitY) < 1e-6);
+    assert.equal(state.xTick, state.yTick);
   });
 });

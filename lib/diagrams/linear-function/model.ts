@@ -274,6 +274,136 @@ export function formatLinearEquation(a: number, b: number): string {
   return `y=${ax}${bText}`;
 }
 
+function latexFracToSlash(text: string): string {
+  return text.replace(/\\frac\{([^}]+)\}\{([^}]+)\}/g, "($1/$2)");
+}
+
+/** Typeable form: y=(3/4)x-2, x=2. */
+export function equationPlainText(graph: LinearGraph): string {
+  if (isVertical(graph)) return latexFracToSlash(`x=${formatNiceCoeff(graph.c)}`);
+  return latexFracToSlash(formatLinearEquation(graph.a, graph.b));
+}
+
+function parseNiceNumber(raw: string): number | null {
+  let t = raw.trim().replace(/[()]/g, "");
+  if (!t) return null;
+  t = t.replace(/−/g, "-");
+  const frac = t.match(/^([+-]?)(\d+)\s*\/\s*(\d+)$/);
+  if (frac) {
+    const den = Number(frac[3]);
+    if (den === 0) return null;
+    const sign = frac[1] === "-" ? -1 : 1;
+    return (sign * Number(frac[2])) / den;
+  }
+  const n = Number(t);
+  return Number.isFinite(n) ? n : null;
+}
+
+export type ParsedLinear = {
+  kind: LinearKind;
+  a: number;
+  b: number;
+  c: number;
+};
+
+export function parseLinearEquation(raw: string): ParsedLinear | null {
+  let s = raw
+    .trim()
+    .replace(/\$/g, "")
+    .replace(/[ \t]/g, "")
+    .replace(/[−–]/g, "-")
+    .replace(/[＝=]/g, "=")
+    .replace(/[＋]/g, "+")
+    .replace(/\*/g, "")
+    .replace(/\\frac\{([^}]+)\}\{([^}]+)\}/g, "($1/$2)")
+    .toLowerCase();
+  if (!s) return null;
+
+  const xeq = s.match(/^x=(.+)$/i);
+  if (xeq && !/[xy]/i.test(xeq[1]!)) {
+    const c = parseNiceNumber(xeq[1]!);
+    if (c == null) return null;
+    return { kind: "vertical", a: 0, b: 0, c };
+  }
+
+  if (/^y=/i.test(s)) s = s.slice(2);
+
+  if (!s.includes("x")) {
+    const b = parseNiceNumber(s);
+    if (b == null) return null;
+    return { kind: "linear", a: 0, b, c: 0 };
+  }
+
+  const m = s.match(
+    /^([+-])?(?:\(([^)]+)\)|(\d+(?:\/\d+)?|\d*\.\d+))?x(.*)$/,
+  );
+  if (!m) return null;
+  const sign = m[1] === "-" ? -1 : 1;
+  const coeffRaw = m[2] ?? m[3];
+  let a: number;
+  if (coeffRaw == null || coeffRaw === "") {
+    a = sign;
+  } else {
+    const mag = parseNiceNumber(coeffRaw);
+    if (mag == null) return null;
+    a = sign * mag;
+  }
+  const rest = m[4] ?? "";
+  if (!rest) return { kind: "linear", a, b: 0, c: 0 };
+  const b = parseNiceNumber(rest);
+  if (b == null) return null;
+  return { kind: "linear", a, b, c: 0 };
+}
+
+export function graphFromParsed(
+  parsed: ParsedLinear,
+  color: string,
+): LinearGraph {
+  return makeLinear({
+    kind: parsed.kind,
+    a: parsed.a,
+    b: parsed.b,
+    c: parsed.c,
+    color,
+    labelMode: "auto",
+  });
+}
+
+export function addGraphFromEquation(
+  state: LinearFunctionState,
+  raw: string,
+): LinearFunctionState | null {
+  const parsed = parseLinearEquation(raw);
+  if (!parsed) return null;
+  const graph = graphFromParsed(parsed, nextGraphColor(state.graphs));
+  return { ...state, graphs: [...state.graphs, graph] };
+}
+
+export function applyEquationToGraph(
+  state: LinearFunctionState,
+  graphId: string,
+  raw: string,
+): LinearFunctionState | null {
+  const parsed = parseLinearEquation(raw);
+  if (!parsed) return null;
+  return {
+    ...state,
+    graphs: state.graphs.map((g) =>
+      g.id === graphId
+        ? {
+            ...g,
+            kind: parsed.kind,
+            a: parsed.a,
+            b: parsed.b,
+            c: parsed.c,
+            labelMode: g.labelMode === "hide" ? "hide" : "auto",
+            custom: "",
+          }
+        : g,
+    ),
+  };
+}
+
 export function linearEquationText(graph: LinearGraph): string | null {
   if (graph.labelMode === "hide") return null;
   if (isVertical(graph)) {
@@ -341,7 +471,8 @@ function baseState(partial: Partial<LinearFunctionState> = {}): LinearFunctionSt
 
 export function normalizeState(state: LinearFunctionState): LinearFunctionState {
   const xs = clampRange(state.xMin, state.xMax, state.xTick);
-  const ys = clampRange(state.yMin, state.yMax, state.yTick);
+  const tick = xs.tick;
+  const ys = clampRange(state.yMin, state.yMax, tick);
   const xLabelEvery = Math.max(1, Math.round(state.xLabelEvery || 1));
   const yLabelEvery = Math.max(1, Math.round(state.yLabelEvery || 1));
   const graphIds = new Set(state.graphs.map((g) => g.id));
@@ -349,10 +480,10 @@ export function normalizeState(state: LinearFunctionState): LinearFunctionState 
     ...state,
     xMin: xs.min,
     xMax: xs.max,
-    xTick: xs.tick,
+    xTick: tick,
     yMin: ys.min,
     yMax: ys.max,
-    yTick: ys.tick,
+    yTick: tick,
     xLabelEvery,
     yLabelEvery,
     xAxisLabelDx: clampOffset(state.xAxisLabelDx),
@@ -468,6 +599,7 @@ export function toPlaneBackdrop(state: LinearFunctionState): CoordPlaneState {
     yLabelVertical: state.yLabelVertical,
     yBreak: false,
     yBreakTo: 0,
+    equalScale: true,
     points: [],
     graphs: [],
     style: state.style,

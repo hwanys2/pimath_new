@@ -44,11 +44,26 @@ export type CoordPlaneScene = DiagramScene & {
 
 export function getPlaneLayout(state: CoordPlaneState): PlaneLayout {
   const pad = Math.max(40, state.style.padding);
-  const plotLeft = pad;
-  const plotRight = SCENE_WIDTH - pad;
-  const plotTop = pad;
-  const plotBottom = SCENE_HEIGHT - pad;
+  let plotLeft = pad;
+  let plotRight = SCENE_WIDTH - pad;
+  let plotTop = pad;
+  let plotBottom = SCENE_HEIGHT - pad;
   const yBreak = state.yBreak && state.yBreakTo > state.yMin + 1e-6;
+  if (state.equalScale && !yBreak) {
+    const plotW = plotRight - plotLeft;
+    const plotH = plotBottom - plotTop;
+    const xSpan = state.xMax - state.xMin;
+    const ySpan = state.yMax - state.yMin;
+    if (xSpan > 1e-9 && ySpan > 1e-9) {
+      const unit = Math.min(plotW / xSpan, plotH / ySpan);
+      const usedW = xSpan * unit;
+      const usedH = ySpan * unit;
+      plotLeft += (plotW - usedW) / 2;
+      plotRight = plotLeft + usedW;
+      plotTop += (plotH - usedH) / 2;
+      plotBottom = plotTop + usedH;
+    }
+  }
   const stubH = yBreak ? 16 : 0;
   const gapH = yBreak ? 22 : 0;
   const dataBottom = yBreak ? plotBottom - stubH - gapH : plotBottom;

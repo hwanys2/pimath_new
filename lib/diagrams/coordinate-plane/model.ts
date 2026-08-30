@@ -105,6 +105,8 @@ export type CoordPlaneState = {
   yLabelVertical: boolean;
   yBreak: boolean;
   yBreakTo: number;
+  /** When true, 1 x-unit and 1 y-unit occupy the same length (square grid). */
+  equalScale?: boolean;
   points: CoordPoint[];
   graphs: PlaneGraph[];
   style: CoordStyle;

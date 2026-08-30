@@ -2,7 +2,7 @@
 
 import { Noto_Serif, Noto_Serif_KR } from "next/font/google";
 import Link from "next/link";
-import { useCallback, useMemo, useState, useSyncExternalStore } from "react";
+import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import {
   ChipToggle,
   InlineNumber,
@@ -23,12 +23,15 @@ import {
 import {
   addHorizontalGraph,
   addLinearGraph,
+  addGraphFromEquation,
   addPointOnGraph,
   addSlopeStep,
   addTranslation,
   addVerticalGraph,
+  applyEquationToGraph,
   cloneState,
   DEFAULT_LINEAR_FUNCTION_STATE,
+  equationPlainText,
   GRAPH_CYAN,
   GRAPH_INK,
   GRAPH_PINK,
@@ -213,6 +216,8 @@ export default function LinearFunctionStudio() {
     () => state.graphs[0]?.id ?? null,
   );
   const [placingPoint, setPlacingPoint] = useState(false);
+  const [eqAdd, setEqAdd] = useState("");
+  const [eqEdit, setEqEdit] = useState<string | null>(null);
   const fonts = useMemo(() => fontsFromNext(), []);
 
   const selectedGraph = state.graphs.find((g) => g.id === selectedId) ?? null;
@@ -240,6 +245,41 @@ export default function LinearFunctionStudio() {
     },
     [selectedGraph, setState],
   );
+
+  useEffect(() => {
+    setEqEdit(null);
+  }, [selectedGraph?.id]);
+
+  function addEquation(raw: string) {
+    const next = addGraphFromEquation(state, raw);
+    if (!next) {
+      setStatus("y=2x+1, x=2, y=-3처럼 넣어 주세요.");
+      return;
+    }
+    setState(next);
+    const added = next.graphs[next.graphs.length - 1];
+    if (added) setSelectedId(added.id);
+    setEqAdd("");
+    setStatus(null);
+  }
+
+  function commitEqEdit(raw: string) {
+    if (!selectedGraph) return;
+    const trimmed = raw.trim();
+    if (!trimmed || trimmed === equationPlainText(selectedGraph)) {
+      setEqEdit(null);
+      return;
+    }
+    const next = applyEquationToGraph(state, selectedGraph.id, trimmed);
+    if (!next) {
+      setStatus("식을 읽지 못했어요. y=2x+1처럼 넣어 주세요.");
+      setEqEdit(null);
+      return;
+    }
+    setState(next);
+    setEqEdit(null);
+    setStatus(null);
+  }
 
   const patchSelectedPoint = useCallback(
     (patch: Partial<LinearPoint>) => {
@@ -332,7 +372,6 @@ export default function LinearFunctionStudio() {
     setStatus("SVG를 저장했어요.");
   }
 
-  const eqPreview = selectedGraph ? linearEquationText(selectedGraph) : null;
   const xi = selectedGraph ? xIntercept(selectedGraph) : null;
 
   return (
@@ -437,9 +476,24 @@ export default function LinearFunctionStudio() {
 
             {selectedGraph ? (
               <div className="mt-2.5 space-y-2">
-                <p className="text-xs font-semibold text-wood-dark">
-                  {eqPreview ?? "식 숨김"}
-                </p>
+                <label className="block">
+                  <span className="text-xs font-semibold text-foreground/60">
+                    식
+                  </span>
+                  <input
+                    type="text"
+                    value={eqEdit ?? equationPlainText(selectedGraph)}
+                    onChange={(e) => setEqEdit(e.target.value)}
+                    onBlur={(e) => commitEqEdit(e.currentTarget.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        (e.target as HTMLInputElement).blur();
+                      }
+                    }}
+                    spellCheck={false}
+                    className="mt-1 w-full rounded-xl border-2 border-wood/20 bg-white px-3 py-2 text-sm outline-none focus:border-wood"
+                  />
+                </label>
                 <Segmented
                   value={
                     isVertical(selectedGraph)
@@ -890,6 +944,32 @@ export default function LinearFunctionStudio() {
             <div className="flex items-center justify-between gap-2">
               <h2 className="font-display text-sm text-wood-dark">그래프</h2>
             </div>
+            <form
+              className="mt-2 flex gap-1.5"
+              onSubmit={(e) => {
+                e.preventDefault();
+                addEquation(eqAdd);
+              }}
+            >
+              <input
+                type="text"
+                value={eqAdd}
+                onChange={(e) => setEqAdd(e.target.value)}
+                placeholder="y=2x+1"
+                aria-label="일차함수 식 추가"
+                spellCheck={false}
+                className="min-w-0 flex-1 rounded-xl border-2 border-wood/20 bg-white px-2.5 py-1.5 text-sm outline-none focus:border-wood"
+              />
+              <button
+                type="submit"
+                className="rounded-xl bg-wood px-2.5 py-1.5 text-xs font-semibold text-cream"
+              >
+                추가
+              </button>
+            </form>
+            <p className="mt-1 text-[11px] leading-snug text-foreground/45">
+              y=2x+1, y=(3/4)x-2, x=2, y=-3
+            </p>
             <div className="mt-2 flex flex-wrap gap-1.5">
               <button
                 type="button"
@@ -899,7 +979,7 @@ export default function LinearFunctionStudio() {
                   const added = next.graphs[next.graphs.length - 1];
                   if (added) setSelectedId(added.id);
                 }}
-                className="rounded-xl bg-wood px-2.5 py-1 text-xs font-semibold text-cream"
+                className="rounded-xl bg-black/5 px-2.5 py-1 text-xs font-semibold text-foreground/70 hover:bg-black/10"
               >
                 y=ax+b
               </button>
@@ -1069,21 +1149,10 @@ export default function LinearFunctionStudio() {
               </div>
               <div className="flex items-center gap-1.5">
                 <span className="w-7 shrink-0 text-wood-dark">간격</span>
-                <span>x</span>
                 <InlineNumber
-                  ariaLabel="x 간격"
+                  ariaLabel="눈금 간격"
                   value={state.xTick}
-                  onChange={(xTick) => set({ xTick })}
-                  min={0.25}
-                  max={20}
-                  step={0.25}
-                  className="min-w-0 flex-1"
-                />
-                <span>y</span>
-                <InlineNumber
-                  ariaLabel="y 간격"
-                  value={state.yTick}
-                  onChange={(yTick) => set({ yTick })}
+                  onChange={(tick) => set({ xTick: tick, yTick: tick })}
                   min={0.25}
                   max={20}
                   step={0.25}

@@ -1,5 +1,6 @@
 import {
   addPointOnGraph,
+  applyEquationToGraph,
   isHorizontal,
   isVertical,
   pointCoords,
@@ -568,6 +569,8 @@ export function applyEditedLabel(
   if (graphParsed?.which === "eq") {
     const next = raw.trim();
     if (!next) return state;
+    const applied = applyEquationToGraph(state, graphParsed.graphId, next);
+    if (applied) return applied;
     return {
       ...state,
       graphs: state.graphs.map((g) =>
