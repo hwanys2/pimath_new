@@ -34,7 +34,7 @@ describe("repeating decimal scene", () => {
       scene.cmds.some((c) => c.t === "arrowhead"),
       false,
     );
-    const layout = buildLongDivision(1n, 7n);
+    const layout = buildLongDivision(BigInt(1), BigInt(7));
     assert.equal(layout.period, "142857");
   });
 

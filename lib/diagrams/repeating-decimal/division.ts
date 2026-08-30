@@ -1,7 +1,10 @@
 import { analyzeRepeatingDecimal } from "@/lib/repeating-decimal-math";
 
+const ZERO = BigInt(0);
+const TEN = BigInt(10);
+
 export const MAX_PERIOD_DIGITS = 30;
-export const MAX_INPUT_VALUE = 999_999n;
+export const MAX_INPUT_VALUE = BigInt(999999);
 
 export type CircleRole = "cycle-start" | "cycle-end" | "mid" | null;
 
@@ -112,7 +115,7 @@ export function parseDivisionInputs(
     }
     return { ok: false, error: "invalid" };
   }
-  if (divisor === 0n) return { ok: false, error: "zero_divisor" };
+  if (divisor === ZERO) return { ok: false, error: "zero_divisor" };
   if (dividend > MAX_INPUT_VALUE || divisor > MAX_INPUT_VALUE) {
     return { ok: false, error: "too_large" };
   }
@@ -183,7 +186,7 @@ export function buildLongDivision(
   const rem = dividend % divisor;
   const intQ = dividend / divisor;
 
-  if (intQ > 0n) {
+  if (intQ > ZERO) {
     rows.push({ kind: "working", digits: dividendDigits, bar: false });
     rows.push({
       kind: "product",
@@ -193,10 +196,10 @@ export function buildLongDivision(
   }
 
   if (decimalDigits.length === 0) {
-    if (intQ === 0n) {
+    if (intQ === ZERO) {
       rows.push({ kind: "working", digits: dividendDigits, bar: false });
     }
-    if (rem === 0n && intQ > 0n) {
+    if (rem === ZERO && intQ > ZERO) {
       rows.push({
         kind: "working",
         digits: [{ ch: "0", place: 0, gray: false, circle: null }],
@@ -216,7 +219,7 @@ export function buildLongDivision(
         digits: placeDigits(product, rightPlace),
         bar: true,
       });
-      currentRem = (currentRem * 10n) % divisor;
+      currentRem = (currentRem * TEN) % divisor;
     }
     rows.push({
       kind: "working",
@@ -233,7 +236,7 @@ export function buildLongDivision(
     cycleRemainder,
     completeCycle,
     truncated,
-    intQ > 0n,
+    intQ > ZERO,
   );
 
   return {
@@ -263,7 +266,7 @@ function remAfterInteger(dividend: bigint, divisor: bigint): string {
   if (analysis.kind !== "repeating" || analysis.periodLength === 0) return "";
   let rem = dividend % divisor;
   for (let i = 0; i < analysis.prePeriod.length; i += 1) {
-    rem = (rem * 10n) % divisor;
+    rem = (rem * TEN) % divisor;
   }
   return rem.toString();
 }

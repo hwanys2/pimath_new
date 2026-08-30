@@ -28,7 +28,7 @@ function workingGrays(layout: ReturnType<typeof buildLongDivision>): string[] {
 }
 
 describe("long division 1÷7", () => {
-  const layout = buildLongDivision(1n, 7n);
+  const layout = buildLongDivision(BigInt(1), BigInt(7));
 
   it("finds the 142857 cycle and can mark 같다", () => {
     assert.equal(layout.kind, "repeating");
@@ -70,7 +70,7 @@ describe("long division 1÷7", () => {
 
 describe("long division mixed and terminating", () => {
   it("1÷6 starts the cycle at remainder 4", () => {
-    const layout = buildLongDivision(1n, 6n);
+    const layout = buildLongDivision(BigInt(1), BigInt(6));
     assert.equal(layout.prePeriod, "1");
     assert.equal(layout.period, "6");
     assert.equal(layout.cycleRemainder, "4");
@@ -81,7 +81,7 @@ describe("long division mixed and terminating", () => {
   });
 
   it("1÷2 terminates at 0.5 without 같다", () => {
-    const layout = buildLongDivision(1n, 2n);
+    const layout = buildLongDivision(BigInt(1), BigInt(2));
     assert.equal(layout.kind, "terminating");
     assert.equal(layout.decimalDigits, "5");
     assert.equal(layout.canShowSame, false);
@@ -92,7 +92,7 @@ describe("long division mixed and terminating", () => {
   });
 
   it("22÷7 keeps the integer 3 and does not circle 22", () => {
-    const layout = buildLongDivision(22n, 7n);
+    const layout = buildLongDivision(BigInt(22), BigInt(7));
     assert.equal(layout.integerPart, "3");
     assert.equal(layout.decimalDigits, "142857");
     const workings = layout.rows.filter((row) => row.kind === "working");
@@ -104,7 +104,7 @@ describe("long division mixed and terminating", () => {
 
 describe("period cap 30", () => {
   it("truncates 1÷47 whose period is 46", () => {
-    const layout = buildLongDivision(1n, 47n);
+    const layout = buildLongDivision(BigInt(1), BigInt(47));
     assert.equal(layout.kind, "truncated");
     assert.equal(layout.period.length, 30);
     assert.equal(layout.periodLength, 46);
