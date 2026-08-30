@@ -232,6 +232,56 @@ function drawRightAngle(
   });
 }
 
+function angularSpan(a0: number, a1: number, ccw: boolean): number {
+  const two = Math.PI * 2;
+  const norm = (a: number) => ((a % two) + two) % two;
+  if (ccw) {
+    let span = norm(a1) - norm(a0);
+    if (span < 0) span += two;
+    return span;
+  }
+  let span = norm(a0) - norm(a1);
+  if (span < 0) span += two;
+  return span;
+}
+
+/** Pick sweep so the arc drops toward the axis without bulging above the start vertex. */
+function chooseArcCcw(
+  a0: number,
+  a1: number,
+  fromLocal: Vec,
+  layout: SqrtLayout,
+  origin: number,
+  O: Vec,
+  r: number,
+): boolean {
+  const ceiling = fromLocal.y + 1e-6;
+  let fallback: boolean | null = null;
+  for (const ccw of [true, false] as const) {
+    const span = angularSpan(a0, a1, ccw);
+    let maxY = -Infinity;
+    const steps = Math.max(8, Math.ceil(span / (Math.PI / 18)));
+    for (let i = 0; i <= steps; i += 1) {
+      const t = i / steps;
+      const ang = ccw ? a0 + span * t : a0 - span * t;
+      const mx = O.x + r * Math.cos(ang);
+      const my = O.y + r * Math.sin(ang);
+      const local = localFromCanvas(layout, origin, mx, my);
+      maxY = Math.max(maxY, local.y);
+    }
+    if (maxY <= ceiling) {
+      if (span <= Math.PI + 1e-6) return ccw;
+      fallback = ccw;
+    }
+  }
+  return fallback ?? false;
+}
+
+function endpointTangent(a1: number, ccw: boolean): Vec {
+  if (ccw) return { x: -Math.sin(a1), y: Math.cos(a1) };
+  return { x: Math.sin(a1), y: -Math.cos(a1) };
+}
+
 function arcToAxis(
   cmds: SceneCmd[],
   layout: SqrtLayout,
@@ -247,7 +297,7 @@ function arcToAxis(
   if (r < 4) return;
   const a0 = Math.atan2(A.y - O.y, A.x - O.x);
   const a1 = Math.atan2(P.y - O.y, P.x - O.x);
-  const ccw = sweepCcw(a0, a1, A, O, P);
+  const ccw = chooseArcCcw(a0, a1, fromLocal, layout, origin, O, r);
   cmds.push({
     t: "arc",
     cx: O.x,
@@ -260,44 +310,19 @@ function arcToAxis(
     width: 1.8,
     id,
   });
-  const tx = P.x - O.x;
-  const ty = P.y - O.y;
-  const tl = Math.hypot(tx, ty) || 1;
+  const tan = endpointTangent(a1, ccw);
+  const tl = Math.hypot(tan.x, tan.y) || 1;
   cmds.push({
     t: "arrowhead",
     x: P.x,
     y: P.y,
-    ux: tx / tl,
-    uy: ty / tl,
+    ux: tan.x / tl,
+    uy: tan.y / tl,
     size: 9,
     stroke: ARC_STROKE,
   });
 }
 
-function sweepCcw(
-  a0: number,
-  a1: number,
-  A: Vec,
-  O: Vec,
-  P: Vec,
-): boolean {
-  const two = Math.PI * 2;
-  const norm = (a: number) => ((a % two) + two) % two;
-  const ccwSpan = (from: number, to: number) => {
-    let d = norm(to) - norm(from);
-    if (d < 0) d += two;
-    return d;
-  };
-  const midAngle = (a0 + a1) / 2;
-  const midR = Math.hypot(A.x - O.x, A.y - O.y) * 0.55;
-  const mid = {
-    x: O.x + Math.cos(midAngle) * midR,
-    y: O.y + Math.sin(midAngle) * midR,
-  };
-  const sag = mid.y - (O.y + P.y) / 2;
-  const ccw = ccwSpan(a0, a1) <= Math.PI;
-  return sag < 0 ? ccw : !ccw;
-}
 
 function drawShape(
   cmds: SceneCmd[],

@@ -91,4 +91,28 @@ describe("sqrt-number-line scene", () => {
     const state = normalizeState(cloneState(preset.state));
     assert.equal(radicand(state), 10);
   });
+
+  it("triangle sqrt2 uses downward arcs from A to both axis points", () => {
+    const preset = SQRT_NUMBER_LINE_PRESETS.find((p) => p.id === "tri-sqrt2")!;
+    const scene = buildSqrtNumberLineScene(normalizeState(cloneState(preset.state)));
+    const arcs = scene.cmds.filter((c) => c.t === "arc");
+    assert.equal(arcs.length, 2);
+    for (const arc of arcs) {
+      assert.ok(arc.t === "arc" && arc.r > 0);
+      const sweep =
+        arc.a1 > arc.a0
+          ? arc.ccw
+            ? arc.a1 - arc.a0
+            : arc.a0 - arc.a1 + Math.PI * 2
+          : arc.ccw
+            ? arc.a1 - arc.a0 + Math.PI * 2
+            : arc.a0 - arc.a1;
+      assert.ok(sweep > 0.2, "arc should have visible sweep");
+    }
+    const posArrow = scene.cmds.find(
+      (c) => c.t === "arrowhead" && c.stroke === "#d44a8c",
+    );
+    assert.ok(posArrow && posArrow.t === "arrowhead");
+    assert.ok(Math.abs(posArrow.uy) > 0.05, "arrow should follow arc tangent, not pure horizontal");
+  });
 });
