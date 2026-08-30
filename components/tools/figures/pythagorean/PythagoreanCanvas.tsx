@@ -134,17 +134,28 @@ export default function PythagoreanCanvas({
     };
   }
 
+  function hitScale() {
+    const canvas = canvasRef.current;
+    if (!canvas) return 1;
+    const width = canvas.getBoundingClientRect().width;
+    return width > 1 ? SCENE_WIDTH / width : 1;
+  }
+
   function hitAt(e: { clientX: number; clientY: number }) {
     const scene = sceneRef.current;
     if (!scene) return null;
     const p = scenePoint(e);
     const current = stateRef.current;
     return hitTestPythagorean(
-      scene.texts,
       scene.layout.canvas,
+      scene.texts,
+      scene.cmds,
       figureStrokes(current),
+      current.segs,
       p.x,
       p.y,
+      hitScale(),
+      draggableIds(current),
     );
   }
 
@@ -222,7 +233,10 @@ export default function PythagoreanCanvas({
             setState((prev) => movePoint(prev, drag.id, math), false);
             return;
           }
-          setState((prev) => nudgeLabel(prev, drag.id, dx, dy), false);
+          setState(
+            (prev) => nudgeLabel(prev, drag.id, dx, dy, drag.t === "dimLine"),
+            false,
+          );
         }}
         onPointerUp={(e) => {
           const drag = dragRef.current;

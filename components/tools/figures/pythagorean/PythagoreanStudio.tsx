@@ -24,6 +24,7 @@ import {
   displayName,
   draggableIds,
   pointIdsFor,
+  rebuildTriangleFromLegs,
   segDisplayName,
   segLength,
   type PythSelection,
@@ -34,10 +35,11 @@ import {
   PYTHAGOREAN_PRESETS,
   cloneState,
   findSeg,
+  fitGridToFigure,
+  figureGridExtent,
   normalizeState,
   patchSegState,
   setPointName,
-  triangleFromLegs,
   withKind,
   type PythagoreanState,
   type RightVertex,
@@ -150,6 +152,7 @@ export default function PythagoreanStudio() {
   const [selected, setSelected] = useState<PythSelection | null>(null);
   const [status, setStatus] = useState("");
   const fonts = useMemo(() => fontsFromNext(), []);
+  const figureGrid = useMemo(() => figureGridExtent(state), [state]);
 
   function set(patch: Partial<PythagoreanState>) {
     setState((prev) => normalizeState({ ...prev, ...patch }));
@@ -163,8 +166,7 @@ export default function PythagoreanStudio() {
   }
 
   function rebuildFromLegs(legLeft: number, legRight: number) {
-    const t = triangleFromLegs(legLeft, legRight);
-    set({ legLeft, legRight, A: t.A, B: t.B, C: t.C });
+    setState((prev) => rebuildTriangleFromLegs(prev, legLeft, legRight));
   }
 
   async function exportPng() {
@@ -234,7 +236,7 @@ export default function PythagoreanStudio() {
             피타고라스의 정리
           </h1>
           <p className="mt-1 max-w-2xl text-sm text-foreground/65">
-            직각삼각형·세 변 위 정사각형·넓이 증명·빗변 수선·좌표·사각형 대각선을
+            직각삼각형·세 변 위 정사각형·넓이 증명·빗변 수선·사각형 대각선을
             시험 그림처럼 그리고 PNG로 저장해요.
           </p>
         </div>
@@ -308,7 +310,7 @@ export default function PythagoreanStudio() {
               ))}
             </div>
 
-            {state.kind === "triangle" || state.kind === "squares" || state.kind === "altitude" ? (
+            {state.kind === "triangle" || state.kind === "squares" ? (
               <div className="mt-3 space-y-2">
                 <p className="text-xs font-semibold text-foreground/60">직각 위치</p>
                 <Segmented
@@ -361,6 +363,39 @@ export default function PythagoreanStudio() {
               </div>
             ) : null}
 
+            {(state.kind === "triangle" || state.kind === "squares") && state.showGrid ? (
+              <div className="mt-3 space-y-2">
+                <p className="text-xs font-semibold text-foreground/60">모눈 크기</p>
+                <div className="grid grid-cols-2 gap-2">
+                  <NumberField
+                    label="가로"
+                    value={state.gridCols}
+                    onChange={(gridCols) => set({ gridCols })}
+                    min={1}
+                    max={50}
+                    step={1}
+                    suffix="칸"
+                  />
+                  <NumberField
+                    label="세로"
+                    value={state.gridRows}
+                    onChange={(gridRows) => set({ gridRows })}
+                    min={1}
+                    max={50}
+                    step={1}
+                    suffix="칸"
+                  />
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setState((prev) => normalizeState(fitGridToFigure(prev)))}
+                  className="w-full rounded-lg bg-black/5 px-2 py-1.5 text-[11px] font-semibold text-foreground/65 hover:bg-black/10"
+                >
+                  도형 비율에 맞춤 ({figureGrid.cols}×{figureGrid.rows})
+                </button>
+              </div>
+            ) : null}
+
             {state.kind === "proof" ? (
               <div className="mt-3 grid grid-cols-2 gap-2">
                 <NumberField
@@ -393,25 +428,6 @@ export default function PythagoreanStudio() {
                     ]}
                   />
                 </div>
-              </div>
-            ) : null}
-
-            {state.kind === "coordinate" ? (
-              <div className="mt-3 grid grid-cols-2 gap-2">
-                <NumberField
-                  label="좌표 최소"
-                  value={state.coordMin}
-                  onChange={(coordMin) => set({ coordMin })}
-                  min={-20}
-                  max={20}
-                />
-                <NumberField
-                  label="좌표 최대"
-                  value={state.coordMax}
-                  onChange={(coordMax) => set({ coordMax })}
-                  min={-20}
-                  max={30}
-                />
               </div>
             ) : null}
 
@@ -482,22 +498,6 @@ export default function PythagoreanStudio() {
                 >
                   모눈
                 </ChipToggle>
-              )}
-              {state.kind === "coordinate" && (
-                <>
-                  <ChipToggle
-                    on={state.showGrid}
-                    onClick={() => set({ showGrid: !state.showGrid })}
-                  >
-                    격자
-                  </ChipToggle>
-                  <ChipToggle
-                    on={state.showAxisDrops}
-                    onClick={() => set({ showAxisDrops: !state.showAxisDrops })}
-                  >
-                    축 수선
-                  </ChipToggle>
-                </>
               )}
               {state.kind === "squares" && (
                 <>
@@ -632,11 +632,21 @@ export default function PythagoreanStudio() {
                       custom={selSeg.label.custom}
                       unknownLetter={state.unknownLetter}
                       onMode={(mode) =>
-                        setState((prev) =>
-                          patchSegState(prev, selected.id, {
-                            label: { ...selSeg.label, mode },
-                          }),
-                        )
+                        setState((prev) => {
+                          const seg = prev.segs.find((s) => s.id === selected.id);
+                          if (!seg) return prev;
+                          const label =
+                            mode === "x"
+                              ? {
+                                  ...seg.label,
+                                  mode,
+                                  custom: /^[A-Za-z]$/.test(seg.label.custom.trim())
+                                    ? seg.label.custom.trim()
+                                    : prev.unknownLetter,
+                                }
+                              : { ...seg.label, mode };
+                          return patchSegState(prev, selected.id, { label });
+                        })
                       }
                       onCustom={(custom) =>
                         setState((prev) =>
@@ -648,20 +658,6 @@ export default function PythagoreanStudio() {
                 ) : null}
               </div>
             ) : null}
-
-            <div className="mt-3 grid grid-cols-2 gap-2">
-              <TextField
-                label="단위"
-                value={state.unit}
-                onChange={(unit) => set({ unit })}
-                placeholder="cm"
-              />
-              <TextField
-                label="미지수"
-                value={state.unknownLetter}
-                onChange={(unknownLetter) => set({ unknownLetter })}
-              />
-            </div>
           </section>
         </div>
 
@@ -674,7 +670,7 @@ export default function PythagoreanStudio() {
                   key={preset.id}
                   type="button"
                   onClick={() => {
-                    setState(cloneState(preset.state));
+                    setState(normalizeState(cloneState(preset.state)));
                     setSelected(null);
                   }}
                   className="rounded-xl bg-black/5 px-2.5 py-2 text-left text-xs font-semibold text-foreground/70 hover:bg-black/10"
@@ -685,6 +681,27 @@ export default function PythagoreanStudio() {
                   </span>
                 </button>
               ))}
+            </div>
+          </section>
+
+          <section className="rounded-2xl border-2 border-wood/10 bg-white/80 p-3.5">
+            <h2 className="font-display text-sm text-wood-dark">길이 표기</h2>
+            <p className="mt-1 text-[11px] text-foreground/45">
+              선분 길이를 켰을 때 숫자·미지수에 붙는 단위예요.
+            </p>
+            <div className="mt-2 grid grid-cols-2 gap-2">
+              <TextField
+                label="단위"
+                value={state.unit}
+                onChange={(unit) => set({ unit })}
+                placeholder="cm"
+              />
+              <TextField
+                label="미지수 글자"
+                value={state.unknownLetter}
+                onChange={(unknownLetter) => set({ unknownLetter })}
+                placeholder="x"
+              />
             </div>
           </section>
 

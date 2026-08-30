@@ -16,7 +16,6 @@ export type PythagoreanKind =
   | "squares"
   | "proof"
   | "altitude"
-  | "coordinate"
   | "rectangle";
 
 export type RightVertex = "A" | "B" | "C";
@@ -28,7 +27,6 @@ export const PYTHAGOREAN_KINDS: { id: PythagoreanKind; label: string }[] = [
   { id: "squares", label: "세 변 위 정사각형" },
   { id: "proof", label: "넓이 증명" },
   { id: "altitude", label: "빗변 수선" },
-  { id: "coordinate", label: "좌표평면" },
   { id: "rectangle", label: "사각형 대각선" },
 ];
 
@@ -63,6 +61,11 @@ export type PythagoreanState = {
   showDots: boolean;
   showRightAngle: boolean;
   showGrid: boolean;
+  /** 모눈 가로·세로 칸 수 (한 칸 = 1 math unit). */
+  gridCols: number;
+  gridRows: number;
+  /** 모눈 바깥 여백(칸). */
+  gridMargin: number;
   showFill: boolean;
   showSquareLabels: boolean;
   showDissection: boolean;
@@ -72,8 +75,12 @@ export type PythagoreanState = {
   proofLegA: number;
   proofLegB: number;
   /** coordinate kind */
-  coordMin: number;
-  coordMax: number;
+  coordXMin: number;
+  coordXMax: number;
+  coordYMin: number;
+  coordYMax: number;
+  /** Extra grid cells beyond axis limits (viewport margin). */
+  coordPadding: number;
   showAxisDrops: boolean;
   /** rectangle kind */
   rectWidth: number;
@@ -98,6 +105,41 @@ function clamp(n: number, min: number, max: number): number {
 
 export function cloneState(state: PythagoreanState): PythagoreanState {
   return structuredClone(state);
+}
+
+/** Leg-aligned grid cell count that fits the current figure (triangle / squares). */
+export function figureGridExtent(
+  state: Pick<PythagoreanState, "kind" | "rightVertex" | "legLeft" | "legRight" | "A" | "B" | "C">,
+): { cols: number; rows: number } {
+  if (state.kind !== "triangle" && state.kind !== "squares") {
+    return { cols: 8, rows: 8 };
+  }
+  const ll = state.legLeft;
+  const lr = state.legRight;
+  if (state.rightVertex === "B") {
+    return { cols: Math.ceil(lr), rows: Math.ceil(ll) };
+  }
+  if (state.rightVertex === "A") {
+    const maxX = Math.max(state.A.x, state.B.x, state.C.x, 0);
+    const maxY = Math.max(state.A.y, state.B.y, state.C.y, 0);
+    return { cols: Math.ceil(maxX), rows: Math.ceil(maxY) };
+  }
+  return { cols: Math.ceil(ll), rows: Math.ceil(lr) };
+}
+
+/** Math bounds for drawing the 모눈 lines (user-set cols × rows + margin). */
+export function gridDrawBounds(state: PythagoreanState): { min: Vec; max: Vec } {
+  const m = state.gridMargin;
+  return {
+    min: { x: -m, y: -m },
+    max: { x: state.gridCols + m, y: state.gridRows + m },
+  };
+}
+
+/** Snap grid cols/rows to match the current leg ratio. */
+export function fitGridToFigure(state: PythagoreanState): PythagoreanState {
+  const { cols, rows } = figureGridExtent(state);
+  return { ...state, gridCols: cols, gridRows: rows };
 }
 
 export function customLen(text: string, patch: Partial<MeasLabel> = {}): MeasLabel {
@@ -132,7 +174,7 @@ export function defaultSegsFor(kind: PythagoreanKind): SegMark[] {
   switch (kind) {
     case "triangle":
     case "squares":
-      return [s("A", "B"), s("B", "C"), s("A", "C"), s("B", "C", "BC"), s("A", "C", "AC")];
+      return [s("A", "B"), s("B", "C"), s("A", "C")];
     case "altitude":
       return [
         s("A", "B"),
@@ -144,8 +186,6 @@ export function defaultSegsFor(kind: PythagoreanKind): SegMark[] {
       ];
     case "proof":
       return [];
-    case "coordinate":
-      return [s("A", "B"), s("B", "C"), s("A", "C")];
     case "rectangle":
       return [s("A", "B"), s("B", "C"), s("C", "D"), s("D", "A"), s("A", "C")];
     default:
@@ -190,22 +230,111 @@ export function triangleFromLegs(legLeft: number, legRight: number): { A: Vec; B
   return { A, B, C };
 }
 
+function fixCoordAxes(state: PythagoreanState): PythagoreanState {
+  let { coordXMin, coordXMax, coordYMin, coordYMax } = state;
+  if (coordXMin > coordXMax) [coordXMin, coordXMax] = [coordXMax, coordXMin];
+  if (coordYMin > coordYMax) [coordYMin, coordYMax] = [coordYMax, coordYMin];
+  if (coordXMax - coordXMin < 1) coordXMax = coordXMin + 1;
+  if (coordYMax - coordYMin < 1) coordYMax = coordYMin + 1;
+  return { ...state, coordXMin, coordXMax, coordYMin, coordYMax };
+}
+
+/** Build A,B,C with right angle at A and hypotenuse BC on the x-axis. */
+export function altitudeTriangleFromLegs(
+  legAB: number,
+  legAC: number,
+): { A: Vec; B: Vec; C: Vec } {
+  const ab = Math.max(0.5, legAB);
+  const ac = Math.max(0.5, legAC);
+  const bc = Math.hypot(ab, ac);
+  const B: Vec = { x: 0, y: 0 };
+  const C: Vec = { x: bc, y: 0 };
+  const x = (ab * ab - ac * ac + bc * bc) / (2 * bc);
+  const y = Math.sqrt(Math.max(0, ab * ab - x * x));
+  const A: Vec = { x, y };
+  return { A, B, C };
+}
+
+/** Build A,B,C with right angle at C, legs along +x (BC) and +y (AC) from C. */
+export function triangleFromLegsAtC(legBC: number, legAC: number): { A: Vec; B: Vec; C: Vec } {
+  const bc = Math.max(0.5, legBC);
+  const ac = Math.max(0.5, legAC);
+  const C: Vec = { x: 0, y: 0 };
+  const B: Vec = { x: bc, y: 0 };
+  const A: Vec = { x: 0, y: ac };
+  return { A, B, C };
+}
+
+/** Pick axis-aligned triangle layout for the given right-angle vertex. */
+export function triangleForRightVertex(
+  legLeft: number,
+  legRight: number,
+  rightVertex: "A" | "B" | "C",
+): { A: Vec; B: Vec; C: Vec } {
+  if (rightVertex === "B") return triangleFromLegsAtB(legLeft, legRight);
+  if (rightVertex === "A") return altitudeTriangleFromLegs(legLeft, legRight);
+  return triangleFromLegsAtC(legLeft, legRight);
+}
+
+/** Build A,B,C with right angle at B. */
+export function triangleFromLegsAtB(legAB: number, legBC: number): { A: Vec; B: Vec; C: Vec } {
+  const lab = Math.max(0.5, legAB);
+  const lbc = Math.max(0.5, legBC);
+  const B: Vec = { x: 0, y: 0 };
+  const A: Vec = { x: 0, y: lab };
+  const C: Vec = { x: lbc, y: 0 };
+  return { A, B, C };
+}
+
+function snapAltitudeState(state: PythagoreanState): PythagoreanState {
+  const { A, B } = state;
+  let { C } = state;
+  const abx = B.x - A.x;
+  const aby = B.y - A.y;
+  const acx = C.x - A.x;
+  const acy = C.y - A.y;
+  const abLen = Math.hypot(abx, aby);
+  const acLen = Math.hypot(acx, acy);
+  if (abLen < 0.4 || acLen < 0.4) {
+    const t = altitudeTriangleFromLegs(state.legLeft, state.legRight);
+    return { ...state, rightVertex: "A", A: t.A, B: t.B, C: t.C };
+  }
+  const nx = -aby / abLen;
+  const ny = abx / abLen;
+  const sign = acx * nx + acy * ny >= 0 ? 1 : -1;
+  C = { x: A.x + nx * sign * acLen, y: A.y + ny * sign * acLen };
+  return { ...state, rightVertex: "A", C };
+}
+
 export function normalizeState(
   state: Partial<PythagoreanState> & Pick<PythagoreanState, "kind">,
 ): PythagoreanState {
-  const kind = PYTHAGOREAN_KINDS.some((k) => k.id === state.kind) ? state.kind : "triangle";
+  const rawKind = state.kind === "coordinate" ? "triangle" : state.kind;
+  const kind = PYTHAGOREAN_KINDS.some((k) => k.id === rawKind) ? rawKind : "triangle";
   const style = { ...DEFAULT_STYLE, ...state.style };
-  const legs = triangleFromLegs(state.legLeft ?? 3, state.legRight ?? 4);
-  const rv = state.rightVertex === "A" || state.rightVertex === "B" ? state.rightVertex : "C";
+  const rv =
+    kind === "altitude"
+      ? "A"
+      : state.rightVertex === "A" || state.rightVertex === "B"
+        ? state.rightVertex
+        : "C";
+  const ll0 = clamp(state.legLeft ?? 3, 0.5, 40);
+  const lr0 = clamp(state.legRight ?? 4, 0.5, 40);
+  const ll = state.isoscelesRight === true ? Math.max(ll0, lr0) : ll0;
+  const lr = state.isoscelesRight === true ? ll : lr0;
+  const legs =
+    kind === "altitude"
+      ? altitudeTriangleFromLegs(ll, lr)
+      : triangleForRightVertex(ll, lr, rv);
 
-  return {
+  let result = fixCoordAxes({
     kind,
     A: state.A ?? legs.A,
     B: state.B ?? legs.B,
     C: state.C ?? legs.C,
     rightVertex: rv,
-    legLeft: clamp(state.legLeft ?? 3, 0.5, 40),
-    legRight: clamp(state.legRight ?? 4, 0.5, 40),
+    legLeft: ll,
+    legRight: lr,
     isoscelesRight: state.isoscelesRight === true,
     names: mergeNames(state.names),
     segs: mergeSegs(kind, state.segs),
@@ -221,8 +350,27 @@ export function normalizeState(
       state.proofView === "inner" || state.proofView === "tiles" ? state.proofView : "both",
     proofLegA: clamp(state.proofLegA ?? 3, 0.5, 20),
     proofLegB: clamp(state.proofLegB ?? 4, 0.5, 20),
-    coordMin: clamp(state.coordMin ?? -1, -20, 20),
-    coordMax: clamp(state.coordMax ?? 8, -20, 30),
+    coordXMin: clamp(
+      state.coordXMin ?? (state as { coordMin?: number }).coordMin ?? -1,
+      -30,
+      30,
+    ),
+    coordXMax: clamp(
+      state.coordXMax ?? (state as { coordMax?: number }).coordMax ?? 8,
+      -30,
+      40,
+    ),
+    coordYMin: clamp(
+      state.coordYMin ?? (state as { coordMin?: number }).coordMin ?? -1,
+      -30,
+      30,
+    ),
+    coordYMax: clamp(
+      state.coordYMax ?? (state as { coordMax?: number }).coordMax ?? 8,
+      -30,
+      40,
+    ),
+    coordPadding: clamp(state.coordPadding ?? 0.5, 0, 5),
     showAxisDrops: state.showAxisDrops === true,
     rectWidth: clamp(state.rectWidth ?? 6, 0.5, 40),
     rectHeight: clamp(state.rectHeight ?? 8, 0.5, 40),
@@ -241,7 +389,41 @@ export function normalizeState(
       padding: clamp(style.padding, 36, 90),
       exportScale: clamp(style.exportScale, 2, 4),
     },
-  };
+  });
+  if (result.kind === "altitude") {
+    result = snapAltitudeState(result);
+  }
+  if (result.kind === "rectangle") {
+    const w = result.rectWidth;
+    const h = result.rectSquare ? w : result.rectHeight;
+    result = {
+      ...result,
+      A: { x: 0, y: 0 },
+      B: { x: w, y: 0 },
+      C: { x: w, y: h },
+      legLeft: w,
+      legRight: h,
+    };
+  }
+  if (result.kind === "triangle" || result.kind === "squares") {
+    const extent = figureGridExtent(result);
+    const gridCols = clamp(Math.round(state.gridCols ?? extent.cols), 1, 50);
+    const gridRows = clamp(Math.round(state.gridRows ?? extent.rows), 1, 50);
+    result = {
+      ...result,
+      gridCols: Math.max(gridCols, extent.cols),
+      gridRows: Math.max(gridRows, extent.rows),
+      gridMargin: clamp(state.gridMargin ?? 1, 0, 5),
+    };
+  } else {
+    result = {
+      ...result,
+      gridCols: clamp(Math.round(state.gridCols ?? 8), 1, 50),
+      gridRows: clamp(Math.round(state.gridRows ?? 8), 1, 50),
+      gridMargin: clamp(state.gridMargin ?? 1, 0, 5),
+    };
+  }
+  return result;
 }
 
 function build(kind: PythagoreanKind, patch: Partial<PythagoreanState> = {}): PythagoreanState {
@@ -268,12 +450,26 @@ function withMarks(
 }
 
 const triABC = withMarks(
-  build("triangle", { legLeft: 3, legRight: 4 }),
+  build("triangle", {
+    legLeft: 3,
+    legRight: 4,
+    showGrid: true,
+    gridCols: 3,
+    gridRows: 4,
+    ...triangleFromLegsAtC(3, 4),
+  }),
   { AB: customLen("c"), BC: customLen("a"), AC: customLen("b") },
 );
 
 const tri912x = withMarks(
-  build("triangle", { legLeft: 9, legRight: 12 }),
+  build("triangle", {
+    legLeft: 9,
+    legRight: 12,
+    showGrid: true,
+    gridCols: 9,
+    gridRows: 12,
+    ...triangleFromLegsAtC(9, 12),
+  }),
   { AB: xLen("x"), BC: customLen("9 cm"), AC: customLen("12 cm") },
 );
 
@@ -281,27 +477,58 @@ const tri24x25 = withMarks(
   build("triangle", {
     legLeft: 7,
     legRight: 24,
-    rightVertex: "B",
-    ...(() => {
-      const t = triangleFromLegs(7, 24);
-      return { A: t.A, B: t.B, C: t.C };
-    })(),
+    showGrid: true,
+    gridCols: 7,
+    gridRows: 24,
+    ...triangleFromLegsAtC(7, 24),
   }),
   { AB: customLen("25 cm"), BC: xLen("x"), AC: customLen("24 cm") },
 );
 
 const isoRight = withMarks(
-  build("triangle", { legLeft: 5, legRight: 5, isoscelesRight: true }),
+  build("triangle", {
+    legLeft: 5,
+    legRight: 5,
+    isoscelesRight: true,
+    showGrid: true,
+    gridCols: 5,
+    gridRows: 5,
+    ...triangleFromLegsAtC(5, 5),
+  }),
   {
-    AB: customLen("5√2 cm"),
+    AB: emptyLabel("auto"),
     BC: customLen("5 cm"),
     AC: customLen("5 cm"),
   },
 );
 
-const sq32 = build("squares", { legLeft: 3, legRight: 2, showGrid: true, showFill: true });
-const sq22 = build("squares", { legLeft: 2, legRight: 2, showGrid: true, showFill: true });
-const sq43 = build("squares", { legLeft: 4, legRight: 3, showGrid: true, showFill: true });
+const sq32 = build("squares", {
+  legLeft: 3,
+  legRight: 2,
+  showGrid: true,
+  showFill: true,
+  gridCols: 3,
+  gridRows: 2,
+  ...triangleFromLegsAtC(3, 2),
+});
+const sq22 = build("squares", {
+  legLeft: 2,
+  legRight: 2,
+  showGrid: true,
+  showFill: true,
+  gridCols: 2,
+  gridRows: 2,
+  ...triangleFromLegsAtC(2, 2),
+});
+const sq43 = build("squares", {
+  legLeft: 4,
+  legRight: 3,
+  showGrid: true,
+  showFill: true,
+  gridCols: 4,
+  gridRows: 3,
+  ...triangleFromLegsAtC(4, 3),
+});
 
 const proofPair = build("proof", { proofLegA: 3, proofLegB: 4, proofView: "both" });
 
@@ -310,24 +537,10 @@ const alt3040 = withMarks(
     legLeft: 30,
     legRight: 40,
     rightVertex: "A",
-    A: { x: 2, y: 4 },
-    B: { x: -1.5, y: 0 },
-    C: { x: 3.5, y: 0 },
+    ...altitudeTriangleFromLegs(30, 40),
   }),
   { AB: customLen("30 cm"), AC: customLen("40 cm") },
 );
-
-const coord345 = build("coordinate", {
-  legLeft: 3,
-  legRight: 4,
-  coordMin: 0,
-  coordMax: 6,
-  showGrid: true,
-  A: { x: 0, y: 0 },
-  B: { x: 3, y: 0 },
-  C: { x: 0, y: 4 },
-  rightVertex: "A",
-});
 
 const rect68 = withMarks(
   build("rectangle", { rectWidth: 6, rectHeight: 8 }),
@@ -336,7 +549,7 @@ const rect68 = withMarks(
 
 const rectSquare = withMarks(
   build("rectangle", { rectWidth: 5, rectHeight: 5, rectSquare: true }),
-  { AB: customLen("5 cm"), AC: customLen("5√2 cm") },
+  { AB: customLen("5 cm"), AC: emptyLabel("auto") },
 );
 
 export const PYTHAGOREAN_PRESETS: PythagoreanPreset[] = [
@@ -349,7 +562,6 @@ export const PYTHAGOREAN_PRESETS: PythagoreanPreset[] = [
   { id: "sq-43", title: "모눈 4×3", hint: "3-4-5", state: sq43 },
   { id: "proof-both", title: "넓이 증명", hint: "c² / a²+b²", state: proofPair },
   { id: "alt-3040", title: "빗변 수선", hint: "30·40 cm", state: alt3040 },
-  { id: "coord-345", title: "좌표 3-4-5", hint: "격자 위", state: coord345 },
   { id: "rect-68", title: "직사각형 6×8", hint: "대각선 10", state: rect68 },
   { id: "rect-sq", title: "정사각형", hint: "대각선 5√2", state: rectSquare },
 ];

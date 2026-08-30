@@ -14,6 +14,7 @@ import {
 } from "@/lib/diagrams/polygon/geometry";
 import {
   emptyLabel,
+  gridDrawBounds,
   type MeasLabel,
   type PythagoreanState,
   type Vec,
@@ -22,6 +23,7 @@ import {
   derivedPoints,
   displayName,
   figureStrokes,
+  gridStep,
   resolveSegText,
   segLength,
 } from "./geometry";
@@ -114,12 +116,15 @@ function dimArc(
   const maxAlong = Math.max(span / 2 - margin, 0);
   const lineId = `${labelId}:line`;
   const textH = signedHeight(offset + meas.dy);
-  const lineH = signedHeight(offset + meas.dy + (meas.lineDy ?? 0));
+  const lineH = signedHeight(offset + (meas.lineDy ?? 0));
   const textAlong = clamp(meas.dx, -maxAlong, maxAlong);
+  const lineAlong = clamp(meas.lineDx ?? 0, -maxAlong, maxAlong);
   const lineSign = lineH < 0 ? -1 : 1;
   const tick = clamp(Math.abs(lineH) * 0.22, 4.5, 8);
-  const aFoot = add(a, mul(u, lineSign * tick));
-  const bFoot = add(b, mul(u, lineSign * tick));
+  const lineA = add(a, mul(along, lineAlong));
+  const lineB = add(b, mul(along, lineAlong));
+  const aFoot = add(lineA, mul(u, lineSign * tick));
+  const bFoot = add(lineB, mul(u, lineSign * tick));
   const sag = lineH - lineSign * tick;
   cmds.push({ t: "line", x1: a.x, y1: a.y, x2: aFoot.x, y2: aFoot.y, id: lineId });
   cmds.push({ t: "line", x1: b.x, y1: b.y, x2: bFoot.x, y2: bFoot.y, id: lineId });
@@ -208,9 +213,6 @@ function mathPoints(state: PythagoreanState): Record<string, Vec> {
       D: { x: 0, y: h },
     };
   }
-  if (state.kind === "coordinate") {
-    return { A: state.A, B: state.B, C: state.C };
-  }
   if (state.kind === "proof") {
     const a = state.proofLegA;
     const b = state.proofLegB;
@@ -246,12 +248,12 @@ function mathBBox(state: PythagoreanState): { min: Vec; max: Vec } {
   if (state.kind === "squares") {
     pts.push(...squareCornerPoints(state));
   }
-  if (state.showGrid && state.kind !== "coordinate") {
-    const pad = 2;
-    let minX = Infinity;
-    let minY = Infinity;
-    let maxX = -Infinity;
-    let maxY = -Infinity;
+  if (state.showGrid && (state.kind === "squares" || state.kind === "triangle")) {
+    const grid = gridDrawBounds(state);
+    let minX = grid.min.x;
+    let minY = grid.min.y;
+    let maxX = grid.max.x;
+    let maxY = grid.max.y;
     for (const p of pts) {
       minX = Math.min(minX, p.x);
       minY = Math.min(minY, p.y);
@@ -259,14 +261,8 @@ function mathBBox(state: PythagoreanState): { min: Vec; max: Vec } {
       maxY = Math.max(maxY, p.y);
     }
     return {
-      min: { x: Math.floor(minX - pad), y: Math.floor(minY - pad) },
-      max: { x: Math.ceil(maxX + pad), y: Math.ceil(maxY + pad) },
-    };
-  }
-  if (state.kind === "coordinate") {
-    return {
-      min: { x: state.coordMin - 0.5, y: state.coordMin - 0.5 },
-      max: { x: state.coordMax + 0.5, y: state.coordMax + 0.5 },
+      min: { x: Math.floor(minX), y: Math.floor(minY) },
+      max: { x: Math.ceil(maxX), y: Math.ceil(maxY) },
     };
   }
   let minX = Infinity;
@@ -325,19 +321,22 @@ export function canvasToMath(p: Vec, layout: SceneLayout): Vec {
   };
 }
 
-function gridPitch(span: number): number {
-  if (span <= 12) return 1;
-  if (span <= 24) return 2;
-  return Math.max(5, Math.ceil(span / 12));
-}
-
-function appendGrid(cmds: SceneCmd[], layout: SceneLayout, min: number, max: number): void {
-  const step = gridPitch(max - min);
-  const x0 = Math.floor(min / step) * step;
-  const x1 = Math.ceil(max / step) * step;
+function appendGrid(
+  cmds: SceneCmd[],
+  layout: SceneLayout,
+  xMin: number,
+  xMax: number,
+  yMin: number,
+  yMax: number,
+  step = 1,
+): void {
+  const x0 = Math.floor(xMin / step) * step;
+  const x1 = Math.ceil(xMax / step) * step;
+  const y0 = Math.floor(yMin / step) * step;
+  const y1 = Math.ceil(yMax / step) * step;
   for (let x = x0; x <= x1 + 1e-9; x += step) {
-    const a = mathToCanvas({ x, y: min }, layout);
-    const b = mathToCanvas({ x, y: max }, layout);
+    const a = mathToCanvas({ x, y: yMin }, layout);
+    const b = mathToCanvas({ x, y: yMax }, layout);
     cmds.push({
       t: "line",
       x1: a.x,
@@ -349,9 +348,9 @@ function appendGrid(cmds: SceneCmd[], layout: SceneLayout, min: number, max: num
       id: "grid",
     });
   }
-  for (let y = x0; y <= x1 + 1e-9; y += step) {
-    const a = mathToCanvas({ x: min, y }, layout);
-    const b = mathToCanvas({ x: max, y }, layout);
+  for (let y = y0; y <= y1 + 1e-9; y += step) {
+    const a = mathToCanvas({ x: xMin, y }, layout);
+    const b = mathToCanvas({ x: xMax, y }, layout);
     cmds.push({
       t: "line",
       x1: a.x,
@@ -463,6 +462,179 @@ function appendSquaresFigure(
   }
 }
 
+function proofLayout(a: number, b: number) {
+  const s = a + b;
+  return {
+    O: { x: 0, y: 0 },
+    P: { x: a, y: 0 },
+    R: { x: s, y: 0 },
+    /** bottom-right triangle: right angle at R, third vertex */
+    S: { x: s, y: a },
+    /** top-right triangle: right angle at T */
+    V: { x: s, y: b },
+    T: { x: s, y: s },
+    U: { x: b, y: s },
+    L: { x: 0, y: s },
+    Q: { x: 0, y: b },
+    /** tiles layout: a² meets b² */
+    M: { x: a, y: a },
+  };
+}
+
+function drawProofOuter(
+  cmds: SceneCmd[],
+  toC: (p: Vec) => Vec,
+  pts: ReturnType<typeof proofLayout>,
+): void {
+  const { O, R, T, L } = pts;
+  cmds.push({
+    t: "polyline",
+    pts: [toC(O), toC(R), toC(T), toC(L), toC(O)],
+    stroke: INK,
+  });
+}
+
+function appendProofInner(
+  state: PythagoreanState,
+  layout: SceneLayout,
+  cmds: SceneCmd[],
+  texts: SceneText[],
+  offsetX: number,
+): void {
+  const a = state.proofLegA;
+  const b = state.proofLegB;
+  const pts = proofLayout(a, b);
+  const { O, P, R, S, V, T, U, L, Q } = pts;
+  const shift = (p: Vec): Vec => ({ x: p.x + offsetX, y: p.y });
+  const toC = (p: Vec) => mathToCanvas(shift(p), layout);
+  const dim = state.style.dimOffset;
+  const fs = state.style.fontSize;
+
+  drawProofOuter(cmds, toC, pts);
+
+  const tri = (p0: Vec, p1: Vec, p2: Vec) => {
+    cmds.push({ t: "polyline", pts: [toC(p0), toC(p1), toC(p2), toC(p0)], stroke: INK });
+  };
+  tri(O, P, Q);
+  tri(P, R, S);
+  tri(V, T, U);
+  tri(Q, L, U);
+
+  const inner = [toC(P), toC(S), toC(U), toC(Q)];
+  if (state.showFill) {
+    cmds.push({ t: "polygon", points: inner, fill: PROOF_FILL });
+  }
+  cmds.push({ t: "polyline", pts: [...inner, inner[0]!], stroke: INK });
+
+  if (state.showRightAngle) {
+    drawRightAngle(cmds, toC(O), toC(P), toC(Q));
+    drawRightAngle(cmds, toC(R), toC(S), toC(P));
+    drawRightAngle(cmds, toC(T), toC(U), toC(V));
+    drawRightAngle(cmds, toC(L), toC(Q), toC(U));
+  }
+
+  dimArc(cmds, texts, toC(O), toC(P), { x: 0, y: -1 }, dim, "$a$", "s:proofA1", emptyMeas(), fs);
+  dimArc(cmds, texts, toC(P), toC(R), { x: 0, y: -1 }, dim, "$b$", "s:proofB1", emptyMeas(), fs);
+  dimArc(cmds, texts, toC(R), toC(V), { x: 1, y: 0 }, dim, "$b$", "s:proofB2", emptyMeas(), fs);
+  dimArc(cmds, texts, toC(V), toC(T), { x: 1, y: 0 }, dim, "$a$", "s:proofA2", emptyMeas(), fs);
+  dimArc(cmds, texts, toC(T), toC(U), { x: 0, y: 1 }, dim, "$a$", "s:proofA3", emptyMeas(), fs);
+  dimArc(cmds, texts, toC(U), toC(L), { x: 0, y: 1 }, dim, "$b$", "s:proofB3", emptyMeas(), fs);
+  dimArc(cmds, texts, toC(L), toC(Q), { x: -1, y: 0 }, dim, "$b$", "s:proofB4", emptyMeas(), fs);
+  dimArc(cmds, texts, toC(Q), toC(O), { x: -1, y: 0 }, dim, "$a$", "s:proofA4", emptyMeas(), fs);
+
+  dimArc(cmds, texts, inner[0]!, inner[1]!, { x: 0, y: 1 }, dim, "$c$", "s:proofC1", emptyMeas(), fs);
+  dimArc(cmds, texts, inner[1]!, inner[2]!, { x: 1, y: 0 }, dim, "$c$", "s:proofC2", emptyMeas(), fs);
+}
+
+function appendProofTiles(
+  state: PythagoreanState,
+  layout: SceneLayout,
+  cmds: SceneCmd[],
+  texts: SceneText[],
+  offsetX: number,
+): void {
+  const a = state.proofLegA;
+  const b = state.proofLegB;
+  const pts = proofLayout(a, b);
+  const { O, P, R, T, L, M } = pts;
+  const s = a + b;
+  const shift = (p: Vec): Vec => ({ x: p.x + offsetX, y: p.y });
+  const toC = (p: Vec) => mathToCanvas(shift(p), layout);
+  const dim = state.style.dimOffset;
+  const fs = state.style.fontSize;
+
+  drawProofOuter(cmds, toC, pts);
+
+  const sqA = [toC(O), toC(P), toC(M), toC({ x: 0, y: a })];
+  const sqB = [toC(M), toC({ x: s, y: a }), toC(T), toC({ x: a, y: s })];
+  if (state.showFill) {
+    cmds.push({ t: "polygon", points: sqA, fill: PROOF_FILL });
+    cmds.push({ t: "polygon", points: sqB, fill: PROOF_FILL });
+  }
+  cmds.push({ t: "polyline", pts: [...sqA, sqA[0]!], stroke: INK });
+  cmds.push({ t: "polyline", pts: [...sqB, sqB[0]!], stroke: INK });
+
+  const vSplit = [toC(P), toC({ x: a, y: s })];
+  const hSplit = [toC({ x: 0, y: a }), toC({ x: s, y: a })];
+  cmds.push({ t: "line", x1: vSplit[0]!.x, y1: vSplit[0]!.y, x2: vSplit[1]!.x, y2: vSplit[1]!.y, stroke: INK });
+  cmds.push({ t: "line", x1: hSplit[0]!.x, y1: hSplit[0]!.y, x2: hSplit[1]!.x, y2: hSplit[1]!.y, stroke: INK });
+
+  const diagA = [toC({ x: 0, y: s }), toC(M)];
+  const diagB = [toC(P), toC({ x: s, y: a })];
+  cmds.push({
+    t: "line",
+    x1: diagA[0]!.x,
+    y1: diagA[0]!.y,
+    x2: diagA[1]!.x,
+    y2: diagA[1]!.y,
+    stroke: INK,
+  });
+  cmds.push({
+    t: "line",
+    x1: diagB[0]!.x,
+    y1: diagB[0]!.y,
+    x2: diagB[1]!.x,
+    y2: diagB[1]!.y,
+    stroke: INK,
+  });
+
+  if (state.showRightAngle) {
+    drawRightAngle(cmds, toC(O), toC(P), toC({ x: 0, y: a }));
+    drawRightAngle(cmds, toC(R), toC({ x: s, y: a }), toC(P));
+    drawRightAngle(cmds, toC(T), toC({ x: a, y: s }), toC({ x: s, y: a }));
+    drawRightAngle(cmds, toC(L), toC({ x: 0, y: a }), toC({ x: a, y: s }));
+    drawRightAngle(cmds, toC(M), toC(P), toC({ x: 0, y: a }));
+  }
+
+  dimArc(cmds, texts, toC(O), toC(P), { x: 0, y: -1 }, dim, "$a$", "s:proofTa1", emptyMeas(), fs);
+  dimArc(cmds, texts, toC(P), toC(R), { x: 0, y: -1 }, dim, "$b$", "s:proofTb1", emptyMeas(), fs);
+  dimArc(cmds, texts, toC(R), toC({ x: s, y: a }), { x: 1, y: 0 }, dim, "$b$", "s:proofTb2", emptyMeas(), fs);
+  dimArc(cmds, texts, toC({ x: s, y: a }), toC(T), { x: 1, y: 0 }, dim, "$a$", "s:proofTa2", emptyMeas(), fs);
+  dimArc(cmds, texts, toC(T), toC({ x: a, y: s }), { x: 0, y: 1 }, dim, "$a$", "s:proofTa3", emptyMeas(), fs);
+  dimArc(cmds, texts, toC({ x: a, y: s }), toC(L), { x: 0, y: 1 }, dim, "$b$", "s:proofTb3", emptyMeas(), fs);
+  dimArc(cmds, texts, toC(L), toC({ x: 0, y: b }), { x: -1, y: 0 }, dim, "$a$", "s:proofTa4", emptyMeas(), fs);
+  dimArc(cmds, texts, toC({ x: 0, y: b }), toC(O), { x: -1, y: 0 }, dim, "$b$", "s:proofTb4", emptyMeas(), fs);
+
+  const midDiagA = mul(add(diagA[0]!, diagA[1]!), 0.5);
+  const midDiagB = mul(add(diagB[0]!, diagB[1]!), 0.5);
+  pushText(texts, cmds, {
+    id: "s:proofTc1",
+    x: midDiagA.x,
+    y: midDiagA.y,
+    runs: parseMathRuns("$c$"),
+    size: fs,
+    anchor: "middle",
+  });
+  pushText(texts, cmds, {
+    id: "s:proofTc2",
+    x: midDiagB.x,
+    y: midDiagB.y,
+    runs: parseMathRuns("$c$"),
+    size: fs,
+    anchor: "middle",
+  });
+}
+
 function appendProofFigure(
   state: PythagoreanState,
   layout: SceneLayout,
@@ -471,154 +643,15 @@ function appendProofFigure(
   offsetX: number,
   variant: "inner" | "tiles",
 ): void {
-  const a = state.proofLegA;
-  const b = state.proofLegB;
-  const c = Math.hypot(a, b);
-  const shift = (p: Vec): Vec => ({ x: p.x + offsetX, y: p.y });
-  const toC = (p: Vec) => mathToCanvas(shift(p), layout);
-
-  const O = { x: 0, y: 0 };
-  const R = { x: a + b, y: 0 };
-  const T = { x: a + b, y: a + b };
-  const L = { x: 0, y: a + b };
-
   if (variant === "inner") {
-    cmds.push({
-      t: "polyline",
-      pts: [toC(O), toC(R), toC(T), toC(L), toC(O)],
-      stroke: INK,
-    });
-    const tri = (p0: Vec, p1: Vec, p2: Vec) =>
-      cmds.push({ t: "polyline", pts: [toC(p0), toC(p1), toC(p2), toC(p0)], stroke: INK });
-    tri(O, { x: a, y: 0 }, { x: 0, y: b });
-    tri({ x: a, y: 0 }, R, { x: a + b, y: b });
-    tri({ x: a + b, y: b }, T, { x: b, y: a + b });
-    tri({ x: b, y: a + b }, L, { x: 0, y: b });
-    const inner = [
-      toC({ x: a, y: 0 }),
-      toC(R),
-      toC({ x: a + b, y: b }),
-      toC({ x: b, y: a + b }),
-    ];
-    if (state.showFill) cmds.push({ t: "polygon", points: inner, fill: PROOF_FILL });
-    cmds.push({ t: "polyline", pts: [...inner, inner[0]!], stroke: INK });
-    if (state.showRightAngle) {
-      drawRightAngle(cmds, toC(O), toC({ x: a, y: 0 }), toC({ x: 0, y: b }));
-      drawRightAngle(cmds, toC(R), toC({ x: a + b, y: b }), toC({ x: a, y: 0 }));
-    }
-    dimArc(cmds, texts, toC(O), toC({ x: a, y: 0 }), { x: 0, y: -1 }, state.style.dimOffset, "$a$", "s:proofA", emptyMeas(), state.style.fontSize);
-    dimArc(cmds, texts, toC({ x: a, y: 0 }), toC(R), { x: 0, y: -1 }, state.style.dimOffset, "$b$", "s:proofB", emptyMeas(), state.style.fontSize);
-    dimArc(cmds, texts, inner[0]!, inner[1]!, { x: 0, y: 1 }, state.style.dimOffset, "$c$", "s:proofC", emptyMeas(), state.style.fontSize);
+    appendProofInner(state, layout, cmds, texts, offsetX);
   } else {
-    cmds.push({
-      t: "polyline",
-      pts: [toC(O), toC(R), toC(T), toC(L), toC(O)],
-      stroke: INK,
-    });
-    if (state.showFill) {
-      cmds.push({
-        t: "polygon",
-        points: [toC(O), toC({ x: a, y: 0 }), toC({ x: a, y: b }), toC({ x: 0, y: b })],
-        fill: PROOF_FILL,
-      });
-      cmds.push({
-        t: "polygon",
-        points: [toC({ x: a, y: b }), toC({ x: a + b, y: b }), toC({ x: a + b, y: a + b }), toC({ x: b, y: a + b })],
-        fill: PROOF_FILL,
-      });
-    }
-    cmds.push({
-      t: "line",
-      x1: toC({ x: a, y: 0 }).x,
-      y1: toC({ x: a, y: 0 }).y,
-      x2: toC({ x: a, y: a + b }).x,
-      y2: toC({ x: a, y: a + b }).y,
-    });
-    cmds.push({
-      t: "line",
-      x1: toC({ x: 0, y: b }).x,
-      y1: toC({ x: 0, y: b }).y,
-      x2: toC({ x: a + b, y: b }).x,
-      y2: toC({ x: a + b, y: b }).y,
-    });
-    cmds.push({
-      t: "line",
-      x1: toC(O).x,
-      y1: toC(O).y,
-      x2: toC({ x: a, y: b }).x,
-      y2: toC({ x: a, y: b }).y,
-      stroke: INK,
-    });
-    cmds.push({
-      t: "line",
-      x1: toC({ x: a + b, y: b }).x,
-      y1: toC({ x: a + b, y: b }).y,
-      x2: toC({ x: b, y: a + b }).x,
-      y2: toC({ x: b, y: a + b }).y,
-      stroke: INK,
-    });
-    if (state.showRightAngle) {
-      drawRightAngle(cmds, toC(O), toC({ x: a, y: 0 }), toC({ x: 0, y: b }));
-      drawRightAngle(cmds, toC({ x: a, y: 0 }), toC({ x: a, y: b }), toC(O));
-    }
+    appendProofTiles(state, layout, cmds, texts, offsetX);
   }
 }
 
 function emptyMeas(): MeasLabel {
   return emptyLabel("auto");
-}
-
-function appendCoordinateFigure(
-  state: PythagoreanState,
-  layout: SceneLayout,
-  cmds: SceneCmd[],
-  texts: SceneText[],
-): void {
-  const min = state.coordMin;
-  const max = state.coordMax;
-  if (state.showGrid) appendGrid(cmds, layout, min, max);
-
-  const axisColor = INK;
-  const xAxisA = mathToCanvas({ x: min, y: 0 }, layout);
-  const xAxisB = mathToCanvas({ x: max, y: 0 }, layout);
-  const yAxisA = mathToCanvas({ x: 0, y: min }, layout);
-  const yAxisB = mathToCanvas({ x: 0, y: max }, layout);
-  cmds.push({ t: "line", x1: xAxisA.x, y1: xAxisA.y, x2: xAxisB.x, y2: xAxisB.y, stroke: axisColor });
-  cmds.push({ t: "line", x1: yAxisA.x, y1: yAxisA.y, x2: yAxisB.x, y2: yAxisB.y, stroke: axisColor });
-
-  const { A, B, C } = state;
-  const cA = mathToCanvas(A, layout);
-  const cB = mathToCanvas(B, layout);
-  const cC = mathToCanvas(C, layout);
-  cmds.push({ t: "polyline", pts: [cA, cB, cC, cA], stroke: INK });
-
-  if (state.showAxisDrops) {
-    cmds.push({
-      t: "line",
-      x1: cA.x,
-      y1: cA.y,
-      x2: mathToCanvas({ x: A.x, y: 0 }, layout).x,
-      y2: mathToCanvas({ x: A.x, y: 0 }, layout).y,
-      dashed: true,
-      stroke: "#888",
-    });
-    cmds.push({
-      t: "line",
-      x1: cC.x,
-      y1: cC.y,
-      x2: mathToCanvas({ x: 0, y: C.y }, layout).x,
-      y2: mathToCanvas({ x: 0, y: C.y }, layout).y,
-      dashed: true,
-      stroke: "#888",
-    });
-  }
-
-  const rv = state.rightVertex;
-  if (state.showRightAngle) {
-    if (rv === "A") drawRightAngle(cmds, cA, cB, cC);
-    else if (rv === "B") drawRightAngle(cmds, cB, cA, cC);
-    else drawRightAngle(cmds, cC, cB, cA);
-  }
 }
 
 function centroidOf(ids: string[], canvas: Record<string, Vec>): Vec {
@@ -644,8 +677,16 @@ export function buildPythagoreanScene(state: PythagoreanState): PythagoreanScene
   const texts: SceneText[] = [];
 
   if (state.showGrid && (state.kind === "squares" || state.kind === "triangle")) {
-    const box = mathBBox(state);
-    appendGrid(cmds, layout, box.min.x, box.max.y);
+    const grid = gridDrawBounds(state);
+    appendGrid(
+      cmds,
+      layout,
+      grid.min.x,
+      grid.max.x,
+      grid.min.y,
+      grid.max.y,
+      gridStep(state) || 1,
+    );
   }
 
   if (state.kind === "squares") {
@@ -659,8 +700,6 @@ export function buildPythagoreanScene(state: PythagoreanState): PythagoreanScene
     } else {
       appendProofFigure(state, layout, cmds, texts, 0, "tiles");
     }
-  } else if (state.kind === "coordinate") {
-    appendCoordinateFigure(state, layout, cmds, texts);
   } else {
     const strokes = figureStrokes(state);
     for (const [a, b] of strokes) {
@@ -678,13 +717,15 @@ export function buildPythagoreanScene(state: PythagoreanState): PythagoreanScene
         const cC = canvas.C!;
         const cD = canvas.D!;
         drawRightAngle(cmds, cA, cB, cC);
-        drawRightAngle(cmds, cD, cA, cB);
-      } else if (rv === "C" && canvas.C && canvas.B && canvas.A) {
-        drawRightAngle(cmds, canvas.C, canvas.B, canvas.A);
-      } else if (rv === "A" && canvas.A && canvas.B && canvas.C) {
-        drawRightAngle(cmds, canvas.A, canvas.B, canvas.C);
-      } else if (rv === "B" && canvas.B && canvas.A && canvas.C) {
-        drawRightAngle(cmds, canvas.B, canvas.A, canvas.C);
+        drawRightAngle(cmds, cD, cA, cC);
+      } else if (state.kind !== "rectangle") {
+        if (rv === "C" && canvas.C && canvas.B && canvas.A) {
+          drawRightAngle(cmds, canvas.C, canvas.B, canvas.A);
+        } else if (rv === "A" && canvas.A && canvas.B && canvas.C) {
+          drawRightAngle(cmds, canvas.A, canvas.B, canvas.C);
+        } else if (rv === "B" && canvas.B && canvas.A && canvas.C) {
+          drawRightAngle(cmds, canvas.B, canvas.A, canvas.C);
+        }
       }
     }
 

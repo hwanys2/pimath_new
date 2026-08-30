@@ -4,6 +4,8 @@ export type TextRun = {
   /** Stacked fraction: draw `fracNum` over `fracDen`. `text` is unused. */
   fracNum?: TextRun[];
   fracDen?: TextRun[];
+  /** Square root: vinculum over `sqrtBody`. */
+  sqrtBody?: TextRun[];
 };
 
 const UNIT_WORDS = new Set(["cm", "mm", "m", "km", "CM", "MM"]);
@@ -39,6 +41,24 @@ function readFrac(
   return { num: num.inner, den: den.inner, end: den.end };
 }
 
+function readSqrt(
+  source: string,
+  start: number,
+): { body: string; end: number } | null {
+  if (!source.startsWith("\\sqrt{", start)) return null;
+  const body = readBrace(source, start + 5);
+  if (!body) return null;
+  return { body: body.inner, end: body.end };
+}
+
+/** Turn textbook √ notation into `$…\\sqrt{…}$` for rendering. */
+export function normalizeSqrtLabel(text: string): string {
+  let s = text;
+  s = s.replace(/(\d+)√(\d+)/g, (_, a: string, b: string) => `$${a}\\sqrt{${b}}$`);
+  s = s.replace(/(?<!\d)√(\d+)/g, (_, n: string) => `$\\sqrt{${n}}$`);
+  return s;
+}
+
 /**
  * Textbook-style math labels:
  * Latin variables italic, numbers and units upright, Hangul upright.
@@ -48,20 +68,22 @@ function readFrac(
  */
 export function parseMathRuns(text: string): TextRun[] {
   const runs: TextRun[] = [];
+  const source = normalizeSqrtLabel(text);
   const tokenRe =
-    /(\$([^$]*)\$)|(\\frac\{)|(\\pi)|(℃|°C)|([A-Za-z]+)|([^A-Za-z$\\]+)|(\$|\\)/g;
+    /(\$([^$]*)\$)|(\\frac\{)|(\\sqrt\{)|(\\pi)|(℃|°C)|([A-Za-z]+)|([^A-Za-z$\\]+)|(\$|\\)/g;
   let match: RegExpExecArray | null;
-  while ((match = tokenRe.exec(text)) !== null) {
+  while ((match = tokenRe.exec(source)) !== null) {
     const mathInner = match[2];
     const fracOpen = match[3];
-    const piTok = match[4];
-    const degreeC = match[5];
-    const word = match[6];
-    const rest = match[7] ?? match[8];
+    const sqrtOpen = match[4];
+    const piTok = match[5];
+    const degreeC = match[6];
+    const word = match[7];
+    const rest = match[8] ?? match[9];
     if (mathInner != null) {
       runs.push(...parseMathRuns(mathInner));
     } else if (fracOpen) {
-      const frac = readFrac(text, match.index);
+      const frac = readFrac(source, match.index);
       if (frac) {
         runs.push({
           text: "",
@@ -70,6 +92,18 @@ export function parseMathRuns(text: string): TextRun[] {
           fracDen: parseMathRuns(frac.den),
         });
         tokenRe.lastIndex = frac.end;
+      } else {
+        runs.push({ text: match[0], italic: false });
+      }
+    } else if (sqrtOpen) {
+      const sqrt = readSqrt(source, match.index);
+      if (sqrt) {
+        runs.push({
+          text: "",
+          italic: false,
+          sqrtBody: parseMathRuns(sqrt.body),
+        });
+        tokenRe.lastIndex = sqrt.end;
       } else {
         runs.push({ text: match[0], italic: false });
       }
@@ -92,6 +126,7 @@ function uprightRuns(runs: TextRun[]): TextRun[] {
     italic: false,
     fracNum: run.fracNum ? uprightRuns(run.fracNum) : undefined,
     fracDen: run.fracDen ? uprightRuns(run.fracDen) : undefined,
+    sqrtBody: run.sqrtBody ? uprightRuns(run.sqrtBody) : undefined,
   }));
 }
 
@@ -105,6 +140,9 @@ export function runsToPlain(runs: TextRun[]): string {
     .map((run) => {
       if (run.fracNum && run.fracDen) {
         return `${runsToPlain(run.fracNum)}/${runsToPlain(run.fracDen)}`;
+      }
+      if (run.sqrtBody) {
+        return `√(${runsToPlain(run.sqrtBody)})`;
       }
       return run.text;
     })
@@ -174,6 +212,13 @@ function measureRun(
     const nw = measureRuns(ctx, run.fracNum, fracSize, fonts);
     const dw = measureRuns(ctx, run.fracDen, fracSize, fonts);
     return Math.max(nw, dw, size * 0.45) + size * 0.22;
+  }
+  if (run.sqrtBody) {
+    const bodySize = size * 0.88;
+    const hookW = size * 0.5;
+    const gap = size * 0.1;
+    const bodyW = measureRuns(ctx, run.sqrtBody, bodySize, fonts);
+    return hookW + bodyW + gap;
   }
   ctx.font = canvasFont(run.italic, size, fonts);
   return ctx.measureText(run.text).width;
@@ -256,6 +301,34 @@ function fillRun(
     ctx.lineTo(mid + lineW / 2, y);
     ctx.stroke();
     ctx.restore();
+    return w;
+  }
+  if (run.sqrtBody) {
+    const w = measureRun(ctx, run, size, fonts);
+    const bodySize = size * 0.88;
+    const hookW = size * 0.5;
+    const gap = size * 0.1;
+    const bodyW = measureRuns(ctx, run.sqrtBody, bodySize, fonts);
+    const lineY = y - size * 0.48;
+    const radX = x + hookW;
+    const lineEnd = radX + bodyW + gap * 0.5;
+
+    ctx.save();
+    ctx.fillStyle = fill;
+    ctx.strokeStyle = fill;
+    ctx.lineWidth = Math.max(1, size * 0.07);
+    ctx.lineCap = "butt";
+    ctx.lineJoin = "miter";
+    ctx.font = canvasFont(false, size * 1.05, fonts);
+    ctx.fillText("√", x, y + size * 0.06);
+    ctx.beginPath();
+    ctx.moveTo(x + size * 0.1, lineY + size * 0.12);
+    ctx.lineTo(x + hookW * 0.32, lineY);
+    ctx.lineTo(lineEnd, lineY);
+    ctx.stroke();
+    ctx.restore();
+
+    fillRuns(ctx, run.sqrtBody, radX, y + size * 0.04, bodySize, fonts, "start", fill);
     return w;
   }
   ctx.fillStyle = fill;
