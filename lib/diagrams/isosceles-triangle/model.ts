@@ -695,7 +695,8 @@ export function equalSideEdges(apex: 0 | 1 | 2): [number, number] {
 
 export function setEqualApex(state: IsoscelesState, apex: EqualApex): IsoscelesState {
   if (apex === "none") {
-    return normalizeState({ ...state, equalApex: "none", lockEqual: false });
+    const edges = state.edges.map((e) => ({ ...e, ticks: 0 as TickCount }));
+    return normalizeState({ ...state, equalApex: "none", lockEqual: false, edges });
   }
   const idx = APEX_INDEX[apex];
   const [e0, e1] = equalSideEdges(idx);

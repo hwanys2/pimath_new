@@ -23,10 +23,12 @@ import {
   APEX_INDEX,
   CEVIAN_INDEX,
   DEFAULT_FOOT_NAME,
+  equalSideEdges,
   fromPolygonState,
   getCevian,
   mapCevian,
   normalizeState,
+  setEqualApex,
   toPolygonState,
   vertexLetter,
   type CevianFrom,
@@ -137,6 +139,53 @@ export function snapIsosceles(points: Vec[], apex: 0 | 1 | 2): Vec[] {
   const h = Math.max(Math.abs(am.x * n.x + am.y * n.y), 0.5);
   const nextA = add(M, mul(n, h));
   return points.map((p, k) => (k === apex ? nextA : p));
+}
+
+/** Keep the base, move the apex so both legs equal `legLen`. */
+export function setIsoscelesLegLength(
+  points: Vec[],
+  apex: 0 | 1 | 2,
+  legLen: number,
+): Vec[] {
+  const [i, j] = oppositeSide(apex);
+  const B = points[i]!;
+  const C = points[j]!;
+  const A = points[apex]!;
+  const M = midpoint(B, C);
+  const half = len(sub(C, B)) / 2;
+  const L = Math.max(legLen, MIN_EDGE);
+  let n = unitPerp(sub(C, B));
+  const am = sub(A, M);
+  if (am.x * n.x + am.y * n.y < 0) n = mul(n, -1);
+  if (L > half + 0.05) {
+    const h = Math.sqrt(L * L - half * half);
+    return points.map((p, k) => (k === apex ? add(M, mul(n, Math.max(h, 0.5))) : p));
+  }
+  const currentLeg = len(sub(A, B)) || 1;
+  return scaleAbout(points, M, L / currentLeg);
+}
+
+/** Keep the vertex angle; scale the base (and height) to `baseLen`. */
+export function setIsoscelesBaseLength(
+  points: Vec[],
+  apex: 0 | 1 | 2,
+  baseLen: number,
+): Vec[] {
+  const [i, j] = oppositeSide(apex);
+  const B = points[i]!;
+  const C = points[j]!;
+  const M = midpoint(B, C);
+  const current = len(sub(C, B)) || 1;
+  const s = Math.max(baseLen, MIN_EDGE) / current;
+  const nextB = add(M, mul(sub(B, M), s));
+  const nextC = add(M, mul(sub(C, M), s));
+  const nextA = add(M, mul(sub(points[apex]!, M), s));
+  return points.map((p, k) => (k === apex ? nextA : k === i ? nextB : k === j ? nextC : p));
+}
+
+/** Switch equal-side pair: ticks follow, and the triangle is redrawn so those sides match. */
+export function applyEqualApex(state: IsoscelesState, apex: EqualApex): IsoscelesState {
+  return syncDerived(setEqualApex(state, apex));
 }
 
 export function setIsoscelesVertexAngle(
@@ -337,14 +386,12 @@ export function applyIsoLength(
 ): IsoscelesState {
   const target = clamp(newLength, MIN_EDGE, 40);
   if (state.equalApex !== "none" && state.lockEqual) {
-    const current = edgeLength(state.points, edgeIndex);
-    if (current < 1e-6) return state;
-    const s = target / current;
-    const c = {
-      x: (state.points[0]!.x + state.points[1]!.x + state.points[2]!.x) / 3,
-      y: (state.points[0]!.y + state.points[1]!.y + state.points[2]!.y) / 3,
-    };
-    const points = state.points.map((p) => add(c, mul(sub(p, c), s)));
+    const apex = APEX_INDEX[state.equalApex];
+    const [e0, e1] = equalSideEdges(apex);
+    const isLeg = edgeIndex === e0 || edgeIndex === e1;
+    const points = isLeg
+      ? setIsoscelesLegLength(state.points, apex, target)
+      : setIsoscelesBaseLength(state.points, apex, target);
     if (!validTriangle(points)) return state;
     return syncDerived({ ...state, points });
   }
@@ -523,11 +570,25 @@ export function applyEditedLabel(state: IsoscelesState, id: string, text: string
     const parsed = parseMeasureInput(text);
     if (parsed.kind === "number" && parsed.value != null) {
       const next = applyIsoLength(state, i, parsed.value);
+      const label = labelFromParse(parsed, text, state.edges[i]!.length, false);
+      let pair: number | null = null;
+      if (next.equalApex !== "none" && next.lockEqual) {
+        const [e0, e1] = equalSideEdges(APEX_INDEX[next.equalApex]);
+        if (i === e0) pair = e1;
+        else if (i === e1) pair = e0;
+      }
       return {
         ...next,
-        edges: next.edges.map((e, idx) =>
-          idx === i ? { ...e, length: labelFromParse(parsed, text, e.length, false) } : e,
-        ),
+        edges: next.edges.map((e, idx) => {
+          if (idx === i) return { ...e, length: label };
+          if (idx === pair && e.length.mode === "custom") {
+            const parsedOther = parseMeasureInput(e.length.custom);
+            if (parsedOther.kind === "number") {
+              return { ...e, length: { ...e.length, custom: label.custom } };
+            }
+          }
+          return e;
+        }),
       };
     }
     return {

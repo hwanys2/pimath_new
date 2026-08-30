@@ -20,6 +20,7 @@ import {
   downloadBlob,
 } from "@/lib/diagrams/export-image";
 import {
+  applyEqualApex,
   applyIsoAngle,
   applyIsoLength,
   applyPartLength,
@@ -48,7 +49,6 @@ import {
   mapCevian,
   normalizeState,
   setCevianRole,
-  setEqualApex,
   toggleCevian,
   type CevianFrom,
   type CevianRole,
@@ -340,7 +340,9 @@ export default function IsoscelesStudio() {
                 on={state.lockEqual && state.equalApex !== "none"}
                 onClick={() => {
                   if (state.equalApex === "none") return;
-                  set({ lockEqual: !state.lockEqual });
+                  setState((prev) =>
+                    syncDerived({ ...prev, lockEqual: !prev.lockEqual }),
+                  );
                 }}
               >
                 이등변 고정
@@ -353,7 +355,7 @@ export default function IsoscelesStudio() {
             <Segmented
               value={state.equalApex}
               onChange={(v) =>
-                setState((prev) => setEqualApex(prev, v as EqualApex))
+                setState((prev) => applyEqualApex(prev, v as EqualApex))
               }
               options={equalOptions}
             />

@@ -4,8 +4,11 @@ import {
   altitudeFoot,
   angleBisectorFoot,
   applyEditedLabel,
+  applyEqualApex,
   applyIsoAngle,
+  applyIsoLength,
   cevianFromIndex,
+  edgeLength,
   footPoint,
   moveVertexIso,
   oppositeSide,
@@ -102,6 +105,34 @@ describe("isosceles geometry", () => {
     almost(next.points[1]!.y, next.points[2]!.y, 1e-6);
     assert.ok(next.points[0]!.y > next.points[1]!.y);
     almost(next.interiorAnglesDeg[0]!, 30, 0.3);
+  });
+
+  it("clears equal-side ticks when isosceles is turned off", () => {
+    const state = normalizeState(ISO_PRESETS[0]!.state);
+    assert.ok(state.edges.some((e) => e.ticks > 0));
+    const next = applyEqualApex(state, "none");
+    assert.equal(next.equalApex, "none");
+    assert.equal(next.lockEqual, false);
+    assert.ok(next.edges.every((e) => e.ticks === 0));
+  });
+
+  it("redraws so the newly chosen equal sides match", () => {
+    const state = normalizeState(ISO_PRESETS[0]!.state);
+    const next = applyEqualApex(state, "B");
+    assert.equal(next.equalApex, "B");
+    almost(edgeLength(next.points, 0), edgeLength(next.points, 1), 1e-4);
+    assert.equal(next.edges[0]!.ticks > 0, true);
+    assert.equal(next.edges[1]!.ticks > 0, true);
+    assert.equal(next.edges[2]!.ticks, 0);
+  });
+
+  it("keeps the other equal side in lockstep when one leg length changes", () => {
+    const state = normalizeState(ISO_PRESETS[0]!.state);
+    const next = applyIsoLength(state, 0, 8);
+    almost(edgeLength(next.points, 0), 8, 1e-3);
+    almost(edgeLength(next.points, 0), edgeLength(next.points, 2), 1e-4);
+    const base = edgeLength(state.points, 1);
+    almost(edgeLength(next.points, 1), base, 1e-3);
   });
 
   it("updates numeric angle labels when a vertex is dragged", () => {
