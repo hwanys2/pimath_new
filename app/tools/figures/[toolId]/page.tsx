@@ -12,7 +12,6 @@ import PolygonStudio from "@/components/tools/figures/polygon/PolygonStudio";
 import LinearFunctionStudio from "@/components/tools/figures/linear-function/LinearFunctionStudio";
 import RepeatingDecimalStudio from "@/components/tools/figures/repeating-decimal/RepeatingDecimalStudio";
 import SolidSketchStudio from "@/components/tools/figures/solid-sketch/SolidSketchStudio";
-import TriangleCentersStudio from "@/components/tools/figures/triangle-centers/TriangleCentersStudio";
 import DiagramToolShell from "@/components/tools/figures/DiagramToolShell";
 import { DIAGRAM_TOOLS, getDiagramTool } from "@/lib/diagrams/catalog";
 
@@ -59,8 +58,6 @@ function renderDiagramStudio(toolId: string): ReactNode {
       return <InequalityStudio />;
     case "g2-isosceles-triangle":
       return <IsoscelesStudio />;
-    case "g2-triangle-centers":
-      return <TriangleCentersStudio />;
     case "g3-circle-chords":
       return <CircleChordsStudio />;
     default:
