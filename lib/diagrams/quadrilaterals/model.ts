@@ -13,6 +13,7 @@ export type { DiagramStyle, MeasLabel, Vec };
 export { emptyLabel, resolveAngleText, resolveLengthText, DEFAULT_STYLE };
 
 export type QuadFamily =
+  | "general"
   | "parallelogram"
   | "rectangle"
   | "rhombus"
@@ -28,6 +29,7 @@ export type DiagSegId = "AO" | "OC" | "BO" | "OD" | "AC" | "BD";
 export type FaceKey = "DBC" | "ODC" | "ABC" | "AOB" | "BOC" | "OAD";
 
 export const QUAD_FAMILIES: { id: QuadFamily; label: string }[] = [
+  { id: "general", label: "일반 사각형" },
   { id: "parallelogram", label: "평행사변형" },
   { id: "rectangle", label: "직사각형" },
   { id: "rhombus", label: "마름모" },
@@ -295,12 +297,33 @@ export function rectanglePoints(w = 6.6, h = 4.1): Vec[] {
   ];
 }
 
+/** Rhombus ABCD sitting on horizontal BC. Angle at B in degrees. y-up. */
+export function rhombusOnBase(side = 4.4, angleAtBDeg = 70): Vec[] {
+  const rad = (angleAtBDeg * Math.PI) / 180;
+  const B = { x: -side / 2, y: -2.05 };
+  const C = { x: side / 2, y: -2.05 };
+  const A = {
+    x: B.x + side * Math.cos(rad),
+    y: B.y + side * Math.sin(rad),
+  };
+  return [A, B, C, { x: A.x + (C.x - B.x), y: A.y }];
+}
+
+/** Same side length and ∠B as the old vertex-up diamond, but sitting on BC. */
 export function rhombusDiamond(halfH = 3.05, halfW = 3.55): Vec[] {
+  const s = Math.hypot(halfH, halfW);
+  const den = halfW * halfW + halfH * halfH;
+  const cosB = den < 1e-12 ? 0 : (halfW * halfW - halfH * halfH) / den;
+  const angle = (Math.acos(Math.min(1, Math.max(-1, cosB))) * 180) / Math.PI;
+  return rhombusOnBase(s, angle);
+}
+
+export function generalPoints(): Vec[] {
   return [
-    { x: 0, y: halfH },
-    { x: -halfW, y: 0 },
-    { x: 0, y: -halfH },
-    { x: halfW, y: 0 },
+    { x: -1.45, y: 2.25 },
+    { x: -3.5, y: -2.05 },
+    { x: 3.4, y: -2.05 },
+    { x: 2.35, y: 1.55 },
   ];
 }
 
@@ -412,6 +435,7 @@ export function normalizeState(
   });
   const edges = [0, 1, 2, 3].map((i) => makeEdge(state.edges?.[i]));
   const family: QuadFamily =
+    state.family === "general" ||
     state.family === "rectangle" ||
     state.family === "rhombus" ||
     state.family === "square" ||

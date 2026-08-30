@@ -20,9 +20,15 @@ import {
 } from "@/lib/diagrams/polygon/geometry";
 import { emptyLabel, type MeasLabel, type Vec } from "@/lib/diagrams/polygon/model";
 import {
+  defaultParallelogram,
   fromPolygonState,
+  generalPoints,
   normalizeState,
+  rectanglePoints,
+  rhombusDiamond,
+  squarePoints,
   toPolygonState,
+  trapezoidPoints,
   vertexLetter,
   type AngleFill,
   type AngleMark,
@@ -65,10 +71,6 @@ export function lerp(a: Vec, b: Vec, t: number): Vec {
 
 export function midpoint(a: Vec, b: Vec): Vec {
   return mul(add(a, b), 0.5);
-}
-
-export function unitPerp(v: Vec): Vec {
-  return norm({ x: -v.y, y: v.x });
 }
 
 function cross(a: Vec, b: Vec): number {
@@ -150,20 +152,59 @@ export function toggleExtension(
   };
 }
 
-function keepSide(n: Vec, toward: Vec): Vec {
-  if (n.x * toward.x + n.y * toward.y < 0) return mul(n, -1);
-  return n;
+/** Rotate so BC is horizontal and A, D sit above it. */
+export function levelOnBase(points: Vec[]): Vec[] {
+  if (points.length !== 4) return points;
+  const B = points[1]!;
+  const C = points[2]!;
+  const along = sub(C, B);
+  if (len(along) < 1e-9) return points;
+  const ang = Math.atan2(along.y, along.x);
+  if (Math.abs(ang) < 1e-6) return points;
+  const M = midpoint(B, C);
+  const c = Math.cos(-ang);
+  const s = Math.sin(-ang);
+  const rotated = points.map((p) => {
+    const q = sub(p, M);
+    return { x: M.x + q.x * c - q.y * s, y: M.y + q.x * s + q.y * c };
+  });
+  const baseY = rotated[1]!.y;
+  const topY = (rotated[0]!.y + rotated[3]!.y) / 2;
+  if (topY + 1e-9 >= baseY) return rotated;
+  return rotated.map((p) => ({ x: p.x, y: 2 * baseY - p.y }));
+}
+
+export function isBaseHorizontal(points: Vec[], eps = 1e-3): boolean {
+  return Math.abs(points[1]!.y - points[2]!.y) < eps;
+}
+
+function finishSnap(built: Vec[], fallback: Vec[]): Vec[] {
+  const leveled = levelOnBase(built);
+  if (validQuad(leveled)) return leveled;
+  if (validQuad(built)) return built;
+  return fallback;
 }
 
 function snapParallelogram(pts: Vec[], dragged: number): Vec[] {
-  const A = pts[0]!;
-  const B = pts[1]!;
-  const C = pts[2]!;
+  let A = pts[0]!;
+  let B = pts[1]!;
+  let C = pts[2]!;
   const D = pts[3]!;
-  if (dragged === 3) {
-    return [A, B, add(B, sub(D, A)), D];
+  if (dragged === 0) {
+    C = { x: C.x, y: B.y };
+    return finishSnap([A, B, C, add(A, sub(C, B))], pts);
   }
-  return [A, B, C, add(A, sub(C, B))];
+  if (dragged === 3) {
+    C = { x: C.x, y: B.y };
+    A = add(D, sub(B, C));
+    return finishSnap([A, B, C, D], pts);
+  }
+  if (dragged === 1) {
+    B = { x: B.x, y: C.y };
+    return finishSnap([A, B, C, add(A, sub(C, B))], pts);
+  }
+  C = { x: C.x, y: B.y };
+  return finishSnap([A, B, C, add(A, sub(C, B))], pts);
 }
 
 function snapRectangle(pts: Vec[], dragged: number): Vec[] {
@@ -171,134 +212,156 @@ function snapRectangle(pts: Vec[], dragged: number): Vec[] {
   const B0 = pts[1]!;
   const C0 = pts[2]!;
   const D0 = pts[3]!;
+  let A = A0;
+  let B = B0;
+  let C = C0;
+  let D = D0;
   if (dragged === 0) {
-    const delta = sub(A0, add(B0, sub(D0, C0)));
-    const A = A0;
-    const B = add(B0, delta);
-    const C = add(C0, delta);
-    const D = add(D0, delta);
-    return snapRectangle([A, B, C, D], 1);
+    B = { x: A0.x, y: B0.y };
+    C = { x: C0.x, y: B.y };
+    A = { x: A0.x, y: A0.y };
+    D = { x: C.x, y: A.y };
+  } else if (dragged === 1) {
+    B = { x: B0.x, y: C0.y };
+    A = { x: B.x, y: A0.y };
+    C = { x: C0.x, y: B.y };
+    D = { x: C.x, y: A.y };
+  } else if (dragged === 2) {
+    C = { x: C0.x, y: B0.y };
+    A = { x: B0.x, y: A0.y };
+    B = { x: B0.x, y: B0.y };
+    D = { x: C.x, y: A.y };
+  } else {
+    C = { x: D0.x, y: B0.y };
+    A = { x: B0.x, y: D0.y };
+    B = { x: B0.x, y: B0.y };
+    D = { x: D0.x, y: D0.y };
   }
-  if (dragged === 2) {
-    const A = A0;
-    const u = sub(C0, A);
-    const w = Math.max(Math.abs(u.x) < Math.abs(u.y) ? 0 : u.x, MIN_EDGE);
-    const h = Math.max(Math.abs(u.y), MIN_EDGE);
-    const signW = u.x >= 0 ? 1 : -1;
-    const signH = D0.y >= A.y ? 1 : -1;
-    const dir = norm(sub(B0, A));
-    const useAxis = Math.abs(dir.x) < 0.2 || Math.abs(dir.y) < 0.2;
-    if (useAxis || Math.abs(dir.x) > 0.95 || Math.abs(dir.y) > 0.95) {
-      const B = { x: A.x, y: A.y - signH * h };
-      const D = { x: A.x + signW * w, y: A.y };
-      const C = { x: D.x, y: B.y };
-      if (validQuad([A, B, C, D])) return [A, B, C, D];
-    }
-    const along = norm(sub(B0, A0));
-    const n = keepSide(unitPerp(along), sub(D0, A0));
-    const width = Math.max(Math.abs(dot2(sub(C0, A), along)), MIN_EDGE);
-    const height = Math.max(Math.abs(dot2(sub(C0, A), n)), MIN_EDGE);
-    const B = add(A, mul(along, width));
-    const D = add(A, mul(n, height));
-    const C = add(B, sub(D, A));
-    return validQuad([A, B, C, D]) ? [A, B, C, D] : pts;
-  }
-  const A = A0;
-  const B = B0;
-  const along = norm(sub(B, A));
-  if (len(along) < 1e-9) return pts;
-  const n = keepSide(unitPerp(along), sub(D0, A));
-  const heightSrc = dragged === 3 ? D0 : C0;
-  const height = Math.max(Math.abs(dot2(sub(heightSrc, A), n)), MIN_EDGE);
-  const D = add(A, mul(n, height));
-  const C = add(B, sub(D, A));
-  return validQuad([A, B, C, D]) ? [A, B, C, D] : pts;
+  return finishSnap([A, B, C, D], pts);
 }
 
-function dot2(a: Vec, b: Vec): number {
-  return a.x * b.x + a.y * b.y;
+function rhombusFromBase(B: Vec, C: Vec, dirFromB: Vec): Vec[] {
+  const side = Math.max(len(sub(C, B)), MIN_EDGE);
+  const dir = len(dirFromB) < 1e-9 ? { x: 0.35, y: 0.94 } : norm(dirFromB);
+  const A = add(B, mul(dir, side));
+  return [A, B, C, add(A, sub(C, B))];
 }
 
 function snapRhombus(pts: Vec[], dragged: number): Vec[] {
-  const A = pts[0]!;
-  const B = pts[1]!;
-  const C = pts[2]!;
-  const D = pts[3]!;
-  const sideSrc = dragged === 3 || dragged === 2 ? sub(D, A) : sub(B, A);
-  const s = Math.max(len(dragged === 2 ? sub(B, A) : sideSrc), MIN_EDGE);
-  if (dragged === 2) {
-    const ad = sub(C, B);
-    if (len(ad) < 1e-9) return pts;
-    const D2 = add(A, mul(norm(ad), s));
-    const C2 = add(B, sub(D2, A));
-    return validQuad([A, B, C2, D2]) ? [A, B, C2, D2] : pts;
-  }
-  const ab = sub(B, A);
-  if (len(ab) < 1e-9) return pts;
-  const u = norm(ab);
-  const ad = dragged === 3 ? sub(D, A) : sub(D, A);
-  const toward = len(ad) > 1e-9 ? ad : { x: -u.y, y: u.x };
-  const ang = Math.acos(clamp(dot2(u, norm(toward)), -1, 1));
-  const sign = Math.sign(cross(u, toward)) || 1;
-  const w = rotate(u, sign * clamp((ang * 180) / Math.PI, 8, 172));
-  const sAB = Math.max(len(ab), MIN_EDGE);
-  const D2 = add(A, mul(w, sAB));
-  const C2 = add(B, sub(D2, A));
-  return validQuad([A, B, C2, D2]) ? [A, B, C2, D2] : pts;
-}
-
-function snapSquare(pts: Vec[], dragged: number): Vec[] {
-  const A = pts[0]!;
+  const A0 = pts[0]!;
   const B0 = pts[1]!;
   const C0 = pts[2]!;
   const D0 = pts[3]!;
-  if (dragged === 2) {
-    const M = midpoint(A, C0);
-    const v = mul(sub(C0, A), 0.5);
-    let n = { x: -v.y, y: v.x };
-    const Btry = add(M, n);
-    if (dot2(sub(Btry, M), sub(B0, M)) < 0) n = mul(n, -1);
-    const B = add(M, n);
-    const D = sub(M, n);
-    return validQuad([A, B, C0, D]) ? [A, B, C0, D] : pts;
+  if (dragged === 0) {
+    const C = { x: C0.x, y: B0.y };
+    return finishSnap(rhombusFromBase(B0, C, sub(A0, B0)), pts);
   }
-  const along = norm(sub(B0, A));
-  if (len(along) < 1e-9) return pts;
-  const s = Math.max(len(sub(B0, A)), MIN_EDGE);
-  const n = keepSide(unitPerp(along), sub(D0, A));
-  const B = add(A, mul(along, s));
-  const D = add(A, mul(n, s));
-  const C = add(B, sub(D, A));
-  return validQuad([A, B, C, D]) ? [A, B, C, D] : pts;
+  if (dragged === 3) {
+    const C = { x: C0.x, y: B0.y };
+    const side = Math.max(len(sub(C, B0)), MIN_EDGE);
+    const dir = len(sub(D0, C)) < 1e-9 ? { x: -0.35, y: 0.94 } : norm(sub(D0, C));
+    const D = add(C, mul(dir, side));
+    const A = add(D, sub(B0, C));
+    return finishSnap([A, B0, C, D], pts);
+  }
+  if (dragged === 1) {
+    const origB = add(A0, sub(C0, D0));
+    const dir = sub(A0, origB);
+    const B = { x: B0.x, y: C0.y };
+    return finishSnap(rhombusFromBase(B, C0, dir), pts);
+  }
+  const origC = add(B0, sub(D0, A0));
+  const dir = sub(D0, origC);
+  const C = { x: C0.x, y: B0.y };
+  const side = Math.max(len(sub(C, B0)), MIN_EDGE);
+  const n = len(dir) < 1e-9 ? { x: -0.35, y: 0.94 } : norm(dir);
+  const D = add(C, mul(n, side));
+  const A = add(D, sub(B0, C));
+  return finishSnap([A, B0, C, D], pts);
+}
+
+function snapSquare(pts: Vec[], dragged: number): Vec[] {
+  const A0 = pts[0]!;
+  const B0 = pts[1]!;
+  const C0 = pts[2]!;
+  const D0 = pts[3]!;
+  const signW = C0.x >= B0.x ? 1 : -1;
+  const signH = (A0.y + D0.y) / 2 >= B0.y ? 1 : -1;
+  if (dragged === 0) {
+    const s = Math.max(Math.abs(A0.y - B0.y), MIN_EDGE);
+    const A = { x: B0.x, y: B0.y + signH * s };
+    const C = { x: B0.x + signW * s, y: B0.y };
+    return finishSnap([A, B0, C, { x: C.x, y: A.y }], pts);
+  }
+  if (dragged === 1) {
+    const s = Math.max(Math.abs(C0.x - B0.x), MIN_EDGE);
+    const B = { x: C0.x - signW * s, y: C0.y };
+    const A = { x: B.x, y: B.y + signH * s };
+    const C = { x: C0.x, y: B.y };
+    return finishSnap([A, B, C, { x: C.x, y: A.y }], pts);
+  }
+  if (dragged === 2) {
+    const s = Math.max(Math.abs(C0.x - B0.x), MIN_EDGE);
+    const C = { x: B0.x + signW * s, y: B0.y };
+    const A = { x: B0.x, y: B0.y + signH * s };
+    return finishSnap([A, B0, C, { x: C.x, y: A.y }], pts);
+  }
+  const s = Math.max(Math.abs(D0.x - B0.x), Math.abs(D0.y - B0.y), MIN_EDGE);
+  const D = { x: B0.x + signW * s, y: B0.y + signH * s };
+  return finishSnap(
+    [{ x: B0.x, y: D.y }, B0, { x: D.x, y: B0.y }, D],
+    pts,
+  );
 }
 
 function snapTrapezoid(pts: Vec[], dragged: number): Vec[] {
-  const A = pts[0]!;
-  const B = pts[1]!;
-  const C = pts[2]!;
-  const D = pts[3]!;
-  if (dragged === 0 || dragged === 3) {
-    const along = norm(sub(C, B));
-    if (len(along) < 1e-9) return pts;
-    if (dragged === 0) {
-      const D2 = add(A, mul(along, dot2(sub(D, A), along)));
-      return validQuad([A, B, C, D2]) ? [A, B, C, D2] : pts;
-    }
-    const A2 = add(D, mul(along, dot2(sub(A, D), along)));
-    return validQuad([A2, B, C, D]) ? [A2, B, C, D] : pts;
+  const A0 = pts[0]!;
+  const B0 = pts[1]!;
+  const C0 = pts[2]!;
+  const D0 = pts[3]!;
+  if (dragged === 0) {
+    const B = B0;
+    const C = { x: C0.x, y: B.y };
+    const A = A0;
+    const D = { x: D0.x, y: A.y };
+    return finishSnap([A, B, C, D], pts);
   }
-  const along = norm(sub(D, A));
-  if (len(along) < 1e-9) return pts;
+  if (dragged === 3) {
+    const B = B0;
+    const C = { x: C0.x, y: B.y };
+    const D = D0;
+    const A = { x: A0.x, y: D.y };
+    return finishSnap([A, B, C, D], pts);
+  }
   if (dragged === 1) {
-    const C2 = add(B, mul(along, dot2(sub(C, B), along)));
-    return validQuad([A, B, C2, D]) ? [A, B, C2, D] : pts;
+    const B = { x: B0.x, y: C0.y };
+    const C = C0;
+    const A = { x: A0.x, y: D0.y };
+    const D = { x: D0.x, y: A.y };
+    return finishSnap([A, B, C, D], pts);
   }
-  const B2 = add(C, mul(along, dot2(sub(B, C), along)));
-  return validQuad([A, B2, C, D]) ? [A, B2, C, D] : pts;
+  const B = B0;
+  const C = { x: C0.x, y: B.y };
+  const A = { x: A0.x, y: D0.y };
+  const D = { x: D0.x, y: A.y };
+  return finishSnap([A, B, C, D], pts);
+}
+
+function snapGeneral(pts: Vec[], dragged: number): Vec[] {
+  const A = pts[0]!;
+  let B = pts[1]!;
+  let C = pts[2]!;
+  const D = pts[3]!;
+  if (dragged === 1) B = { x: B.x, y: C.y };
+  else if (dragged === 2) C = { x: C.x, y: B.y };
+  else C = { x: C.x, y: B.y };
+  return finishSnap([A, B, C, D], pts);
 }
 
 export function snapFamily(points: Vec[], family: QuadFamily, dragged = 1): Vec[] {
   switch (family) {
+    case "general":
+      return snapGeneral(points, dragged);
     case "rectangle":
       return snapRectangle(points, dragged);
     case "rhombus":
@@ -310,6 +373,30 @@ export function snapFamily(points: Vec[], family: QuadFamily, dragged = 1): Vec[
     default:
       return snapParallelogram(points, dragged);
   }
+}
+
+function defaultPointsFor(family: QuadFamily): Vec[] {
+  switch (family) {
+    case "general":
+      return generalPoints();
+    case "rectangle":
+      return rectanglePoints();
+    case "rhombus":
+      return rhombusDiamond();
+    case "square":
+      return squarePoints();
+    case "trapezoid":
+      return trapezoidPoints();
+    default:
+      return defaultParallelogram();
+  }
+}
+
+export function applyFamily(state: QuadState, family: QuadFamily): QuadState {
+  let points = snapFamily(state.points, family, 1);
+  if (!validQuad(points)) points = defaultPointsFor(family);
+  if (!validQuad(points)) return { ...state, family };
+  return syncDerived({ ...state, points, family });
 }
 
 export function syncDerived(state: QuadState): QuadState {
@@ -348,8 +435,10 @@ export function applyQuadAngle(state: QuadState, index: number, deg: number): Qu
   }
   if (state.family === "parallelogram" || state.family === "rhombus") {
     const atA = index === 0 || index === 2 ? target : 180 - target;
-    const points = setAngleAtA(state.points, clamp(atA, 8, 172), state.family === "rhombus");
-    if (!points) return state;
+    const built = setAngleAtA(state.points, clamp(atA, 8, 172), state.family === "rhombus");
+    if (!built) return state;
+    const points = levelOnBase(built);
+    if (!validQuad(points)) return state;
     const got = vertexAngles(points, index).interior;
     if (Math.abs(got - target) > 4) return state;
     return syncDerived({ ...state, points });
@@ -371,6 +460,11 @@ export function applyWedgeAngle(state: QuadState, index: number, deg: number): Q
   return applyQuadAngle(state, index, clamp(asInterior, 8, 172));
 }
 
+function takeSnapped(state: QuadState, points: Vec[]): QuadState {
+  if (!validQuad(points)) return state;
+  return syncDerived({ ...state, points });
+}
+
 export function applyQuadLength(
   state: QuadState,
   edgeIndex: number,
@@ -384,25 +478,40 @@ export function applyQuadLength(
       x: (state.points[0]!.x + state.points[2]!.x) / 2,
       y: (state.points[0]!.y + state.points[2]!.y) / 2,
     };
-    const points = state.points.map((p) => add(c, mul(sub(p, c), target / current)));
-    if (!validQuad(points)) return state;
-    return syncDerived({ ...state, points });
+    const scaled = state.points.map((p) => add(c, mul(sub(p, c), target / current)));
+    return takeSnapped(state, snapFamily(scaled, state.family, 1));
   }
+  const A = state.points[0]!;
+  const B = state.points[1]!;
+  const C = state.points[2]!;
+  const D = state.points[3]!;
   if (state.family === "parallelogram") {
-    const a = state.points[edgeIndex]!;
-    const b = state.points[nextIndex(edgeIndex, 4)]!;
-    const dir = norm(sub(b, a));
-    const moved = add(a, mul(dir, target));
-    const trial = state.points.map((p, i) => (i === nextIndex(edgeIndex, 4) ? moved : p));
-    const points = snapFamily(trial, "parallelogram", nextIndex(edgeIndex, 4));
-    if (!validQuad(points)) return state;
-    return syncDerived({ ...state, points });
+    if (edgeIndex === 0) {
+      const A2 = add(B, mul(norm(sub(A, B)), target));
+      return takeSnapped(state, snapFamily([A2, B, C, D], "parallelogram", 0));
+    }
+    if (edgeIndex === 2) {
+      const D2 = add(C, mul(norm(sub(D, C)), target));
+      return takeSnapped(state, snapFamily([A, B, C, D2], "parallelogram", 3));
+    }
+    const sign = C.x >= B.x ? 1 : -1;
+    const C2 = { x: B.x + sign * target, y: B.y };
+    return takeSnapped(state, snapFamily([A, B, C2, D], "parallelogram", 2));
+  }
+  if (state.family === "rectangle") {
+    if (edgeIndex === 0 || edgeIndex === 2) {
+      const signH = A.y >= B.y ? 1 : -1;
+      const A2 = { x: B.x, y: B.y + signH * target };
+      return takeSnapped(state, snapFamily([A2, B, C, D], "rectangle", 0));
+    }
+    const signW = C.x >= B.x ? 1 : -1;
+    const C2 = { x: B.x + signW * target, y: B.y };
+    return takeSnapped(state, snapFamily([A, B, C2, D], "rectangle", 2));
   }
   const poly = applyEdgeLengthChange(toPolygonState(state), edgeIndex, target);
   const next = fromPolygonState(poly, state);
   const snapped = snapFamily(next.points, state.family, nextIndex(edgeIndex, 4));
-  if (!validQuad(snapped)) return state;
-  return syncDerived({ ...next, points: snapped });
+  return takeSnapped(next, snapped);
 }
 
 export function diagSegPoints(state: QuadState, id: DiagSegId): [Vec, Vec] {
@@ -433,9 +542,8 @@ export function applyDiagLength(state: QuadState, id: DiagSegId, newLength: numb
   if (current < 1e-6) return state;
   const target = clamp(newLength, MIN_EDGE, 40);
   const c = diagonalMeet(state.points);
-  const points = state.points.map((p) => add(c, mul(sub(p, c), target / current)));
-  if (!validQuad(points)) return state;
-  return syncDerived({ ...state, points });
+  const scaled = state.points.map((p) => add(c, mul(sub(p, c), target / current)));
+  return takeSnapped(state, snapFamily(scaled, state.family, 1));
 }
 
 function labelFromParse(

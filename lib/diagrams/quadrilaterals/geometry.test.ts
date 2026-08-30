@@ -3,10 +3,12 @@ import { describe, it } from "node:test";
 import {
   applyDiagLength,
   applyEditedLabel,
+  applyFamily,
   applyQuadAngle,
   applyQuadLength,
   diagonalMeet,
   edgeLength,
+  isBaseHorizontal,
   isRectangleAngles,
   moveVertexQuad,
   oppositeEdgesParallel,
@@ -16,6 +18,7 @@ import {
 } from "./geometry";
 import {
   DEFAULT_QUAD_STATE,
+  generalPoints,
   normalizeState,
   rectanglePoints,
   rhombusDiamond,
@@ -25,6 +28,13 @@ import {
 
 function almost(a: number, b: number, eps = 1e-3): void {
   assert.ok(Math.abs(a - b) < eps, `${a} ≉ ${b}`);
+}
+
+function withFamily(
+  family: "general" | "parallelogram" | "rectangle" | "rhombus" | "square" | "trapezoid",
+  points: { x: number; y: number }[],
+) {
+  return applyFamily(normalizeState({ ...DEFAULT_QUAD_STATE, points }), family);
 }
 
 describe("snapFamily", () => {
@@ -43,6 +53,7 @@ describe("snapFamily", () => {
     almost(edgeLength(pts, 1), edgeLength(pts, 3), 1e-6);
     assert.ok(oppositeEdgesParallel(pts, 0));
     assert.ok(oppositeEdgesParallel(pts, 1));
+    assert.ok(isBaseHorizontal(pts));
     const O = diagonalMeet(pts);
     const midAC = {
       x: (pts[0]!.x + pts[2]!.x) / 2,
@@ -52,16 +63,18 @@ describe("snapFamily", () => {
     almost(O.y, midAC.y, 1e-6);
   });
 
-  it("rectangle has right angles", () => {
+  it("rectangle has right angles and a flat base", () => {
     const pts = snapFamily(rectanglePoints(), "rectangle", 1);
     assert.ok(isRectangleAngles(pts, 0.5));
+    assert.ok(isBaseHorizontal(pts));
     almost(edgeLength(pts, 0), edgeLength(pts, 2), 1e-6);
     almost(edgeLength(pts, 1), edgeLength(pts, 3), 1e-6);
   });
 
-  it("rhombus has equal sides and perpendicular diagonals", () => {
+  it("rhombus has equal sides, perpendicular diagonals, and a flat base", () => {
     const pts = snapFamily(rhombusDiamond(), "rhombus", 1);
     assert.ok(sidesEqual(pts, 1e-6));
+    assert.ok(isBaseHorizontal(pts));
     const AC = {
       x: pts[2]!.x - pts[0]!.x,
       y: pts[2]!.y - pts[0]!.y,
@@ -77,11 +90,84 @@ describe("snapFamily", () => {
     const pts = snapFamily(squarePoints(), "square", 1);
     assert.ok(sidesEqual(pts, 1e-6));
     assert.ok(isRectangleAngles(pts, 0.5));
+    assert.ok(isBaseHorizontal(pts));
   });
 
   it("trapezoid keeps AD parallel to BC", () => {
     const pts = snapFamily(trapezoidPoints(), "trapezoid", 0);
     assert.ok(oppositeEdgesParallel(pts, 1));
+    assert.ok(isBaseHorizontal(pts));
+  });
+
+  it("general quad keeps a flat base without forcing parallels", () => {
+    const pts = snapFamily(generalPoints(), "general", 0);
+    assert.ok(isBaseHorizontal(pts));
+    assert.equal(oppositeEdgesParallel(pts, 0), false);
+  });
+});
+
+describe("constrained dragging", () => {
+  it("dragging any parallelogram vertex keeps it a parallelogram on a flat base", () => {
+    const state = withFamily("parallelogram", DEFAULT_QUAD_STATE.points);
+    for (const i of [0, 1, 2, 3]) {
+      const p = state.points[i]!;
+      const next = moveVertexQuad(state, i, { x: p.x + 0.7, y: p.y + 0.5 });
+      assert.ok(oppositeEdgesParallel(next.points, 0), `vertex ${i} AB∥DC`);
+      assert.ok(oppositeEdgesParallel(next.points, 1), `vertex ${i} AD∥BC`);
+      assert.ok(isBaseHorizontal(next.points), `vertex ${i} base`);
+    }
+  });
+
+  it("dragging any rectangle vertex keeps four right angles", () => {
+    const state = withFamily("rectangle", rectanglePoints());
+    for (const i of [0, 1, 2, 3]) {
+      const p = state.points[i]!;
+      const next = moveVertexQuad(state, i, { x: p.x + 0.9, y: p.y + 0.6 });
+      assert.ok(isRectangleAngles(next.points, 0.5), `vertex ${i}`);
+      assert.ok(isBaseHorizontal(next.points), `vertex ${i} base`);
+    }
+  });
+
+  it("dragging any rhombus vertex keeps equal sides", () => {
+    const state = withFamily("rhombus", rhombusDiamond());
+    for (const i of [0, 1, 2, 3]) {
+      const p = state.points[i]!;
+      const next = moveVertexQuad(state, i, { x: p.x + 0.6, y: p.y + 0.4 });
+      assert.ok(sidesEqual(next.points, 1e-4), `vertex ${i}`);
+      assert.ok(oppositeEdgesParallel(next.points, 0), `vertex ${i} para`);
+      assert.ok(isBaseHorizontal(next.points), `vertex ${i} base`);
+    }
+  });
+
+  it("dragging a square vertex keeps a square", () => {
+    const state = withFamily("square", squarePoints());
+    const next = moveVertexQuad(state, 2, {
+      x: state.points[2]!.x + 1.2,
+      y: state.points[2]!.y + 0.4,
+    });
+    assert.ok(sidesEqual(next.points, 1e-4));
+    assert.ok(isRectangleAngles(next.points, 0.5));
+    assert.ok(isBaseHorizontal(next.points));
+  });
+
+  it("dragging a trapezoid vertex keeps AD ∥ BC", () => {
+    const state = withFamily("trapezoid", trapezoidPoints());
+    const next = moveVertexQuad(state, 0, {
+      x: state.points[0]!.x + 0.8,
+      y: state.points[0]!.y + 0.5,
+    });
+    assert.ok(oppositeEdgesParallel(next.points, 1));
+    assert.ok(isBaseHorizontal(next.points));
+  });
+
+  it("dragging a general quad vertex does not force a parallelogram", () => {
+    const state = withFamily("general", generalPoints());
+    const next = moveVertexQuad(state, 0, {
+      x: state.points[0]!.x + 1.1,
+      y: state.points[0]!.y + 0.4,
+    });
+    assert.ok(isBaseHorizontal(next.points));
+    assert.equal(oppositeEdgesParallel(next.points, 0), false);
   });
 });
 
@@ -90,6 +176,7 @@ describe("move and measure", () => {
     const next = moveVertexQuad(DEFAULT_QUAD_STATE, 0, { x: -1.4, y: 2.8 });
     almost(edgeLength(next.points, 0), edgeLength(next.points, 2), 1e-5);
     almost(edgeLength(next.points, 1), edgeLength(next.points, 3), 1e-5);
+    assert.ok(isBaseHorizontal(next.points));
   });
 
   it("setting a parallelogram angle keeps opposite angles equal", () => {
@@ -97,6 +184,7 @@ describe("move and measure", () => {
     almost(next.interiorAnglesDeg[3]!, 100, 0.8);
     almost(next.interiorAnglesDeg[1]!, 100, 0.8);
     almost(next.interiorAnglesDeg[0]! + next.interiorAnglesDeg[1]!, 180, 0.8);
+    assert.ok(isBaseHorizontal(next.points));
   });
 
   it("scaling a diagonal half on a parallelogram keeps O the midpoint", () => {

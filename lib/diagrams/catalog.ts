@@ -147,7 +147,7 @@ export const DIAGRAM_TOOLS: DiagramToolMeta[] = [
     grade: 2,
     title: "사각형의 성질",
     description:
-      "평행사변형·직사각형·마름모·사다리꼴을 끌어 맞추고, 대변·대각선·맞꼭지각·설명선을 붙여 PNG로 저장해요.",
+      "일반 사각형부터 평행사변형·직사각형·마름모·사다리꼴까지, 밑변을 가로로 두고 점을 끌면 성질이 유지됩니다. 대변·대각선·맞꼭지각·설명선을 붙여 PNG로 저장해요.",
     unitHint: "3.1 삼각형과 사각형의 성질",
     emoji: "▱",
     href: "/tools/figures/g2-quadrilaterals",

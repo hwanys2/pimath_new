@@ -21,6 +21,7 @@ import {
 } from "@/lib/diagrams/export-image";
 import {
   applyDiagLength,
+  applyFamily,
   applyQuadAngle,
   applyQuadLength,
   applyWedgeAngle,
@@ -36,7 +37,6 @@ import {
   nextIndex,
   segName,
   setDiagonals,
-  snapFamily,
   toggleExtension,
   vertexAngles,
   vertexName,
@@ -66,7 +66,7 @@ import { renderSceneToCanvas, sceneToSvg } from "@/lib/diagrams/render";
 import type { FontFaces } from "@/lib/diagrams/math-label";
 import { len } from "@/lib/diagrams/polygon/geometry";
 
-const STORAGE_KEY = "pm-diagram-g2-quadrilaterals-v2";
+const STORAGE_KEY = "pm-diagram-g2-quadrilaterals-v3";
 
 const storeListeners = new Set<() => void>();
 
@@ -79,7 +79,8 @@ function parseStoredState(raw: string | null): QuadState {
   try {
     const parsed = JSON.parse(raw) as QuadState;
     if (parsed && Array.isArray(parsed.points) && parsed.style) {
-      return normalizeState(parsed);
+      const next = normalizeState(parsed);
+      return applyFamily(next, next.family);
     }
   } catch {
     /* keep default */
@@ -265,7 +266,7 @@ export default function QuadrilateralStudio() {
             사각형의 성질
           </h1>
           <p className="mt-1 max-w-2xl text-sm text-foreground/65">
-            평행사변형·직사각형·마름모·사다리꼴을 고르면 성질이 유지됩니다.
+            밑변을 가로로 두고, 고른 도형의 성질이 유지된 채 점을 옮깁니다.
             대변·대각선·맞꼭지각 표시를 붙여 PNG로 저장해요.
           </p>
         </div>
@@ -305,19 +306,19 @@ export default function QuadrilateralStudio() {
       ) : null}
 
       <div className="grid items-start gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(14rem,16rem)_minmax(15rem,18rem)]">
-        <div className="mx-auto w-full max-w-[24rem] overflow-hidden rounded-3xl border-2 border-wood/10 bg-white shadow-[0_12px_40px_rgba(61,44,30,0.08)] lg:mx-0 lg:max-w-none">
-          <QuadrilateralCanvas
-            state={state}
-            fonts={fonts}
-            selected={selected}
-            setState={setState}
-            persist={persistCachedState}
-            onSelect={setSelected}
-            onDeleteSelected={deleteSelected}
-          />
-        </div>
+        <div className="mx-auto w-full max-w-[24rem] space-y-4 lg:mx-0 lg:max-w-none">
+          <div className="overflow-hidden rounded-3xl border-2 border-wood/10 bg-white shadow-[0_12px_40px_rgba(61,44,30,0.08)]">
+            <QuadrilateralCanvas
+              state={state}
+              fonts={fonts}
+              selected={selected}
+              setState={setState}
+              persist={persistCachedState}
+              onSelect={setSelected}
+              onDeleteSelected={deleteSelected}
+            />
+          </div>
 
-        <div className="space-y-4">
           <section className="rounded-2xl border-2 border-wood/10 bg-white/80 p-3.5">
             <h2 className="font-display text-sm text-wood-dark">도형</h2>
             <p className="mb-1 mt-2 text-xs font-semibold text-foreground/60">
@@ -328,16 +329,7 @@ export default function QuadrilateralStudio() {
                 <ChipToggle
                   key={f.id}
                   on={state.family === f.id}
-                  onClick={() => {
-                    const family = f.id;
-                    setState((prev) =>
-                      normalizeState({
-                        ...prev,
-                        family,
-                        points: snapFamily(prev.points, family, 1),
-                      }),
-                    );
-                  }}
+                  onClick={() => setState((prev) => applyFamily(prev, f.id))}
                 >
                   {f.label}
                 </ChipToggle>
@@ -357,7 +349,9 @@ export default function QuadrilateralStudio() {
               />
             </div>
           </section>
+        </div>
 
+        <div className="space-y-4">
           <section className="rounded-2xl border-2 border-wood/10 bg-white/80 p-3.5">
             <h2 className="font-display text-sm text-wood-dark">표시</h2>
             <div className="mt-2 flex flex-wrap gap-1.5">
@@ -531,9 +525,9 @@ export default function QuadrilateralStudio() {
             ) : null}
 
             <p className="mt-2 text-[11px] leading-snug text-foreground/45">
-              점을 끌면 고른 도형의 성질이 유지됩니다. 변을 누르면 길이가
-              켜지고, 글자와 설명선은 각각 끌어 옮깁니다. 글자를 눌러 각·길이를
-              숫자로 넣으면 모양이 따라갑니다.
+              밑변은 가로로 두고, 점을 끌면 고른 도형의 성질이 유지됩니다. 변을
+              누르면 길이가 켜지고, 글자와 설명선은 각각 끌어 옮깁니다. 글자를
+              눌러 각·길이를 숫자로 넣으면 모양이 따라갑니다.
             </p>
 
             {activeMarks.length > 0 ? (
