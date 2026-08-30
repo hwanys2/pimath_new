@@ -286,16 +286,95 @@ export default function SimilarFiguresStudio() {
       ) : null}
 
       <div className="grid items-start gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(16rem,20rem)_minmax(15rem,18rem)]">
-        <div className="mx-auto w-full max-w-[24rem] overflow-hidden rounded-3xl border-2 border-wood/10 bg-white shadow-[0_12px_40px_rgba(61,44,30,0.08)] lg:mx-0 lg:max-w-none">
-          <SimilarFiguresCanvas
-            state={state}
-            fonts={fonts}
-            selected={selected}
-            setState={setState}
-            persist={persistCachedState}
-            onSelect={setSelected}
-            onDeleteSelected={deleteSelected}
-          />
+        <div className="mx-auto w-full max-w-[24rem] space-y-4 lg:mx-0 lg:max-w-none">
+          <div className="overflow-hidden rounded-3xl border-2 border-wood/10 bg-white shadow-[0_12px_40px_rgba(61,44,30,0.08)]">
+            <SimilarFiguresCanvas
+              state={state}
+              fonts={fonts}
+              selected={selected}
+              setState={setState}
+              persist={persistCachedState}
+              onSelect={setSelected}
+              onDeleteSelected={deleteSelected}
+            />
+          </div>
+
+          <section className="rounded-2xl border-2 border-wood/10 bg-white/80 p-3.5">
+            <h2 className="font-display text-sm text-wood-dark">도형</h2>
+            <p className="mb-1 mt-2 text-xs font-semibold text-foreground/60">
+              변의 수
+            </p>
+            <Segmented
+              value={String(n)}
+              onChange={(v) => {
+                const next = Number(v);
+                setState((prev) => withSideCount(prev, next));
+                setSelected({ figure: "a", t: "vertex", i: 0 });
+              }}
+              options={[3, 4, 5, 6].map((count) => ({
+                id: String(count),
+                label: String(count),
+              }))}
+            />
+            <p className="mb-1 mt-3 text-xs font-semibold text-foreground/60">
+              닮음비 {formatRatio(state)}
+            </p>
+            <div className="flex items-center gap-1.5">
+              <NumberField
+                label="A"
+                value={state.ratioA}
+                onChange={(ratioA) => set({ ratioA })}
+                min={0.1}
+                max={40}
+                step={0.1}
+              />
+              <span className="mt-5 text-sm font-semibold text-foreground/45">:</span>
+              <NumberField
+                label="B"
+                value={state.ratioB}
+                onChange={(ratioB) => set({ ratioB })}
+                min={0.1}
+                max={40}
+                step={0.1}
+              />
+            </div>
+            <div className="mt-2 flex flex-wrap gap-1">
+              {RATIO_CHIPS.map((chip) => (
+                <button
+                  key={chip.label}
+                  type="button"
+                  onClick={() => setState((prev) => setRatio(prev, chip.a, chip.b))}
+                  className={`rounded-lg px-2 py-1 text-[11px] font-semibold ${
+                    state.ratioA === chip.a && state.ratioB === chip.b
+                      ? "bg-wood/15 text-wood-dark"
+                      : "bg-black/5 text-foreground/55 hover:bg-black/10"
+                  }`}
+                >
+                  {chip.label}
+                </button>
+              ))}
+            </div>
+            <button
+              type="button"
+              onClick={() => setState((prev) => resetVertexNames(prev))}
+              className="mt-3 w-full rounded-xl bg-black/5 px-3 py-2 text-xs font-semibold text-foreground/70 hover:bg-black/10"
+            >
+              이름 A, B, C… 다시
+            </button>
+            <div className="mt-3 grid grid-cols-2 gap-2">
+              <TextField
+                label="단위"
+                value={state.unit}
+                onChange={(unit) => set({ unit })}
+                placeholder="cm"
+              />
+              <TextField
+                label="미지수"
+                value={state.unknownLetter}
+                onChange={(unknownLetter) => set({ unknownLetter })}
+              />
+            </div>
+          </section>
         </div>
 
         <div className="space-y-4">
@@ -642,83 +721,6 @@ export default function SimilarFiguresStudio() {
                   </span>
                 </button>
               ))}
-            </div>
-          </section>
-
-          <section className="rounded-2xl border-2 border-wood/10 bg-white/80 p-3.5">
-            <h2 className="font-display text-sm text-wood-dark">도형</h2>
-            <p className="mb-1 mt-2 text-xs font-semibold text-foreground/60">
-              변의 수
-            </p>
-            <Segmented
-              value={String(n)}
-              onChange={(v) => {
-                const next = Number(v);
-                setState((prev) => withSideCount(prev, next));
-                setSelected({ figure: "a", t: "vertex", i: 0 });
-              }}
-              options={[3, 4, 5, 6].map((count) => ({
-                id: String(count),
-                label: String(count),
-              }))}
-            />
-            <p className="mb-1 mt-3 text-xs font-semibold text-foreground/60">
-              닮음비 {formatRatio(state)}
-            </p>
-            <div className="flex items-center gap-1.5">
-              <NumberField
-                label="A"
-                value={state.ratioA}
-                onChange={(ratioA) => set({ ratioA })}
-                min={0.1}
-                max={40}
-                step={0.1}
-              />
-              <span className="mt-5 text-sm font-semibold text-foreground/45">:</span>
-              <NumberField
-                label="B"
-                value={state.ratioB}
-                onChange={(ratioB) => set({ ratioB })}
-                min={0.1}
-                max={40}
-                step={0.1}
-              />
-            </div>
-            <div className="mt-2 flex flex-wrap gap-1">
-              {RATIO_CHIPS.map((chip) => (
-                <button
-                  key={chip.label}
-                  type="button"
-                  onClick={() => setState((prev) => setRatio(prev, chip.a, chip.b))}
-                  className={`rounded-lg px-2 py-1 text-[11px] font-semibold ${
-                    state.ratioA === chip.a && state.ratioB === chip.b
-                      ? "bg-wood/15 text-wood-dark"
-                      : "bg-black/5 text-foreground/55 hover:bg-black/10"
-                  }`}
-                >
-                  {chip.label}
-                </button>
-              ))}
-            </div>
-            <button
-              type="button"
-              onClick={() => setState((prev) => resetVertexNames(prev))}
-              className="mt-3 w-full rounded-xl bg-black/5 px-3 py-2 text-xs font-semibold text-foreground/70 hover:bg-black/10"
-            >
-              이름 A, B, C… 다시
-            </button>
-            <div className="mt-3 grid grid-cols-2 gap-2">
-              <TextField
-                label="단위"
-                value={state.unit}
-                onChange={(unit) => set({ unit })}
-                placeholder="cm"
-              />
-              <TextField
-                label="미지수"
-                value={state.unknownLetter}
-                onChange={(unknownLetter) => set({ unknownLetter })}
-              />
             </div>
           </section>
 
