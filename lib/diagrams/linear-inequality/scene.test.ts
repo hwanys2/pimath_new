@@ -120,4 +120,21 @@ describe("linear inequality scenes", () => {
     const mid = snapInequalityValue(2.5, DEFAULT_INEQUALITY_STATE);
     assert.equal(mid, 2.5);
   });
+
+  it("places the bound value slightly below tick numbers", () => {
+    const shown = normalizeState({
+      ...DEFAULT_INEQUALITY_STATE,
+      start: makeBound({
+        value: 2,
+        inputRaw: "2",
+        showValue: true,
+      }),
+    });
+    const scene = buildInequalityScene(shown);
+    const tick = scene.texts.find((t) => t.id === "tick:2");
+    const bound = scene.texts.find((t) => t.id === "bound:start:value");
+    assert.ok(tick);
+    assert.ok(bound);
+    assert.ok(bound!.y > tick!.y + 8, `bound ${bound!.y} tick ${tick!.y}`);
+  });
 });

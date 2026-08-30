@@ -116,6 +116,7 @@ function drawAxis(
 
   const ticks = tickValues(state.min, state.max, state.tickStep);
   const majorH = 12;
+  const tickLabelY = axisY + majorH + style.fontSize * 0.85;
   ticks.forEach((v, i) => {
     const x = canvasXFromValue(v, layout);
     cmds.push({
@@ -134,7 +135,7 @@ function drawAxis(
     pushText(texts, cmds, {
       id: `tick:${v}`,
       x,
-      y: axisY + majorH + style.fontSize * 0.85,
+      y: tickLabelY,
       runs: parseMathRuns(formatTickLabel(v, state.plusOnPositive)),
       size: style.fontSize,
       anchor: "middle",
@@ -367,7 +368,7 @@ export function buildInequalityScene(state: InequalityState): InequalityScene {
       bound,
       which,
       x,
-      layout.shelfY - state.style.pointLabelSize * 0.7,
+      layout.axisY + 12 + state.style.fontSize * 0.85 + state.style.pointLabelSize * 0.9,
       state.style.pointLabelSize,
     );
   }

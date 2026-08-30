@@ -296,33 +296,9 @@ export default function InequalityStudio() {
           <p className="px-1 text-center text-sm text-foreground/70">
             <span className="font-display text-wood-dark">{caption}</span>
           </p>
-        </div>
 
-        <div className="space-y-4">
-          <section className="rounded-2xl border-2 border-wood/10 bg-white/80 p-3.5">
-            <h2 className="font-display text-sm text-wood-dark">빠른 그림</h2>
-            <div className="mt-2 grid grid-cols-2 gap-1.5">
-              {INEQUALITY_PRESETS.map((preset) => (
-                <button
-                  key={preset.id}
-                  type="button"
-                  onClick={() => {
-                    const next = cloneState(preset.state);
-                    setState(next);
-                    setSelected(boundKeys(next.kind)[0] ?? null);
-                  }}
-                  className="rounded-xl bg-black/5 px-2.5 py-2 text-left text-xs font-semibold text-foreground/70 hover:bg-black/10"
-                >
-                  {preset.title}
-                  <span className="mt-0.5 block font-normal text-foreground/45">
-                    {preset.hint}
-                  </span>
-                </button>
-              ))}
-            </div>
-          </section>
-
-          <section className="rounded-2xl border-2 border-wood/10 bg-white/80 p-3.5">
+          <div className="grid items-start gap-4 sm:grid-cols-2">
+            <section className="rounded-2xl border-2 border-wood/10 bg-white/80 p-3.5">
             <h2 className="font-display text-sm text-wood-dark">부등식</h2>
             <div className="mt-2 grid grid-cols-2 gap-1.5">
               {KIND_OPTIONS.map((opt) => {
@@ -527,6 +503,32 @@ export default function InequalityStudio() {
               >
                 양수에 +
               </ChipToggle>
+            </div>
+          </section>
+          </div>
+        </div>
+
+        <div className="space-y-4">
+          <section className="rounded-2xl border-2 border-wood/10 bg-white/80 p-3.5">
+            <h2 className="font-display text-sm text-wood-dark">빠른 그림</h2>
+            <div className="mt-2 grid grid-cols-2 gap-1.5">
+              {INEQUALITY_PRESETS.map((preset) => (
+                <button
+                  key={preset.id}
+                  type="button"
+                  onClick={() => {
+                    const next = cloneState(preset.state);
+                    setState(next);
+                    setSelected(boundKeys(next.kind)[0] ?? null);
+                  }}
+                  className="rounded-xl bg-black/5 px-2.5 py-2 text-left text-xs font-semibold text-foreground/70 hover:bg-black/10"
+                >
+                  {preset.title}
+                  <span className="mt-0.5 block font-normal text-foreground/45">
+                    {preset.hint}
+                  </span>
+                </button>
+              ))}
             </div>
           </section>
 
