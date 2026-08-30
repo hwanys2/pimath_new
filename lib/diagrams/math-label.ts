@@ -205,8 +205,8 @@ export function measureRuns(
 
 function sqrtMetrics(size: number) {
   return {
-    bodySize: size * 0.88,
-    hookW: size * 0.54,
+    bodySize: size * 0.92,
+    hookW: size * 0.52,
     tail: size * 0.1,
     bodyNudgeY: size * 0.05,
   };
@@ -244,33 +244,32 @@ function strokeRadical(
   size: number,
   bodyW: number,
   fill: string,
+  ascent: number,
+  descent: number,
 ): void {
   const m = sqrtMetrics(size);
-  const lw = Math.max(1.15, size * 0.065);
-  const topY = y - size * 0.5;
-  const startX = x + size * 0.02;
-  const startY = y + size * 0.06;
-  const dipX = x + size * 0.15;
-  const dipY = y + size * 0.4;
-  const joinX = x + m.hookW;
-  const endX = joinX + bodyW + m.tail * 0.7;
+  const lw = Math.max(1.2, size * 0.062);
+  const bodyY = y + m.bodyNudgeY;
+  const inkAscent = Math.min(ascent, m.bodySize * 0.4);
+  const inkDescent = Math.min(descent, m.bodySize * 0.32);
+  const topY = bodyY - inkAscent - Math.max(1.15, size * 0.035);
+  const startX = x + size * 0.04;
+  const startY = bodyY - inkAscent * 0.22;
+  const dipX = x + m.hookW * 0.3;
+  const dipY = bodyY + inkDescent + size * 0.03;
+  const joinX = x + m.hookW - size * 0.03;
+  const endX = x + m.hookW + bodyW + m.tail * 0.65;
 
   ctx.save();
   ctx.strokeStyle = fill;
   ctx.lineWidth = lw;
-  ctx.lineJoin = "miter";
-  ctx.miterLimit = 2.2;
-
   ctx.lineCap = "round";
+  ctx.lineJoin = "miter";
+  ctx.miterLimit = 2.4;
   ctx.beginPath();
   ctx.moveTo(startX, startY);
   ctx.lineTo(dipX, dipY);
   ctx.lineTo(joinX, topY);
-  ctx.stroke();
-
-  ctx.lineCap = "butt";
-  ctx.beginPath();
-  ctx.moveTo(joinX - lw * 0.35, topY);
   ctx.lineTo(endX, topY);
   ctx.stroke();
   ctx.restore();
@@ -359,7 +358,12 @@ function fillRun(
     const w = measureRun(ctx, run, size, fonts);
     const m = sqrtMetrics(size);
     const bodyW = measureRuns(ctx, run.sqrtBody, m.bodySize, fonts);
-    strokeRadical(ctx, x, y, size, bodyW, fill);
+    ctx.font = canvasFont(false, m.bodySize, fonts);
+    ctx.textBaseline = "middle";
+    const tm = ctx.measureText(runsToPlain(run.sqrtBody) || "0");
+    const ascent = tm.actualBoundingBoxAscent || m.bodySize * 0.42;
+    const descent = tm.actualBoundingBoxDescent || m.bodySize * 0.3;
+    strokeRadical(ctx, x, y, size, bodyW, fill, ascent, descent);
     fillRuns(
       ctx,
       run.sqrtBody,
