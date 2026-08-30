@@ -21,9 +21,12 @@ import {
   type Vec,
 } from "@/lib/diagrams/polygon/model";
 import {
+  altitudeFootId,
   findSeg,
   patchSegState,
+  roundThetaDeg,
   wrapRotateDeg,
+  type AltitudeVertex,
   type TrigRatiosState,
   type SegMark,
 } from "./model";
@@ -44,6 +47,21 @@ export type TrigHit =
   | { kind: "seg"; id: string }
   | { kind: "label"; id: string }
   | { kind: "dimLine"; id: string };
+
+type HitCmd = {
+  t: string;
+  id?: string;
+  x1?: number;
+  y1?: number;
+  x2?: number;
+  y2?: number;
+  cx?: number;
+  cy?: number;
+  r?: number;
+  a0?: number;
+  a1?: number;
+  ccw?: boolean;
+};
 
 export type TrigSelection = PythSelection | { t: "ang"; id: string };
 
@@ -121,21 +139,23 @@ export function unitCirclePoints(state: TrigRatiosState): Record<string, Vec> {
 
 export function trianglePoints(state: TrigRatiosState): Record<string, Vec> {
   const { triA: A, triB: B, triC: C } = state;
-  const from = state.altitudeFrom;
-  let baseA = A;
-  let baseB = B;
-  let apex = C;
-  if (from === "A") {
-    baseA = B;
-    baseB = C;
-    apex = A;
-  } else if (from === "B") {
-    baseA = A;
-    baseB = C;
-    apex = B;
-  }
-  const H = footToLine(apex, baseA, baseB, false);
-  return { A, B, C, H };
+  const out: Record<string, Vec> = { A, B, C };
+  const alts = state.altitudes ?? [];
+  if (alts.includes("A")) out.Ha = footToLine(A, B, C, false);
+  if (alts.includes("B")) out.Hb = footToLine(B, A, C, false);
+  if (alts.includes("C")) out.H = footToLine(C, A, B, false);
+  return out;
+}
+
+export function altitudeBase(
+  from: AltitudeVertex,
+  A: Vec,
+  B: Vec,
+  C: Vec,
+): { a: Vec; b: Vec; aId: "A" | "B" | "C"; bId: "A" | "B" | "C"; apex: Vec } {
+  if (from === "A") return { a: B, b: C, aId: "B", bId: "C", apex: A };
+  if (from === "B") return { a: A, b: C, aId: "A", bId: "C", apex: B };
+  return { a: A, b: B, aId: "A", bId: "B", apex: C };
 }
 
 export function isObtuseAtA(state: TrigRatiosState): boolean {
@@ -189,11 +209,8 @@ export function figureStrokes(state: TrigRatiosState): [string, string][] {
         ["B", "C"],
         ["A", "C"],
       ];
-      if (state.showAltitudeHighlight || state.showAltitudeRight) {
-        const from = state.altitudeFrom;
-        if (from === "A") segs.push(["A", "H"]);
-        else if (from === "B") segs.push(["B", "H"]);
-        else segs.push(["C", "H"]);
+      for (const from of state.altitudes) {
+        segs.push([from, altitudeFootId(from)]);
       }
       return segs;
     }
@@ -214,7 +231,7 @@ export function draggableIds(state: TrigRatiosState): string[] {
     case "right":
       return ["A", "B", "C"];
     case "unit-circle":
-      return ["B"];
+      return ["B", "D"];
     case "triangle-area":
       return ["A", "B", "C"];
     case "quad-area":
@@ -315,9 +332,12 @@ export function movePoint(state: TrigRatiosState, id: string, pos: Vec): TrigRat
       return syncLegFields(next as unknown as PythagoreanState) as unknown as TrigRatiosState;
     }
     case "unit-circle": {
-      if (id !== "B") return state;
-      const ang = (Math.atan2(pos.y, pos.x) * 180) / Math.PI;
-      return { ...state, thetaDeg: clamp(ang, 15, 80) };
+      if (id !== "B" && id !== "D") return state;
+      const ang =
+        id === "D"
+          ? (Math.atan2(pos.y, 1) * 180) / Math.PI
+          : (Math.atan2(pos.y, pos.x) * 180) / Math.PI;
+      return setThetaDeg(state, ang);
     }
     case "triangle-area": {
       const key = id as "A" | "B" | "C";
@@ -371,7 +391,7 @@ export function setRotateDeg(state: TrigRatiosState, deg: number): TrigRatiosSta
 }
 
 export function setThetaDeg(state: TrigRatiosState, deg: number): TrigRatiosState {
-  return { ...state, thetaDeg: clamp(deg, 15, 80) };
+  return { ...state, thetaDeg: roundThetaDeg(deg) };
 }
 
 export function toggleSeg(state: TrigRatiosState, id: string): TrigRatiosState {
@@ -454,6 +474,14 @@ export function applyEditedLabel(
   }
   if (labelId.startsWith("a:")) {
     const angId = labelId.slice(2);
+    if (state.kind === "unit-circle" && (angId === "theta" || angId === "y" || angId === "z")) {
+      const parsed = parseAngleInput(trimmed);
+      if (parsed.kind === "number" && parsed.value != null) {
+        if (angId === "theta") return setThetaDeg(state, parsed.value);
+        return setThetaDeg(state, 90 - parsed.value);
+      }
+      return state;
+    }
     const pool = state.kind === "triangle-area" ? state.triAngles : state.angles;
     const mark = pool.find((a) => a.id === angId);
     if (!mark) return state;
@@ -522,56 +550,118 @@ export function applyEditedLabel(
 }
 
 function applySegNumeric(state: TrigRatiosState, segId: string, value: number): TrigRatiosState {
+  const target = clamp(value, 0.4, 40);
   if (state.kind === "right") {
-    const seg = state.segs.find((s) => s.id === segId);
-    if (!seg) return state;
-    const { left, right, hyp } = legSides(state);
-    const refAng = acuteAngleAtRef(state);
-    const hasRefAngle =
-      state.angles.find((a) => a.vertex === state.refAngleVertex)?.label.mode === "auto" ||
-      state.angles.find((a) => a.vertex === state.refAngleVertex)?.show;
-    if (hasRefAngle && refAng > 0 && refAng < 89) {
-      const rad = (refAng * Math.PI) / 180;
-      if (segId === "AB" || segId === "AC" || segId === "BC") {
-        return rebuildFromKnownSide(state, segId, value, rad);
-      }
-    }
-    if (segId === "AB") return rebuildTriangleFromLegs(state, value, right);
-    if (segId === "BC") return rebuildTriangleFromLegs(state, left, value);
-    if (segId === "AC") {
-      const rv = state.rightVertex;
-      if (rv === "C") {
-        const bc = value;
-        const ab = Math.sqrt(Math.max(0, bc * bc - right * right));
-        return rebuildTriangleFromLegs(state, right, ab);
-      }
-    }
-    return rebuildTriangleFromLegs(state, left, right);
+    return applyRightSegNumeric(state, segId, target);
   }
   if (state.kind === "triangle-area") {
-    const pts = [state.triA, state.triB, state.triC];
-    const edgeMap: Record<string, [number, number]> = {
-      AB: [0, 1],
-      BC: [1, 2],
-      AC: [0, 2],
-      CH: [2, 3],
-      AH: [0, 3],
-      BH: [1, 3],
-    };
-    const pair = edgeMap[segId];
-    if (!pair) return state;
-    const poly = polygonFromTri(state);
-    const nextPoly = applyEdgeLengthChange(poly, pair[0], value);
-    return fromPolygonTri(state, nextPoly);
+    return applyTriangleSegNumeric(state, segId, target);
   }
   if (state.kind === "quad-area") {
     const edgeIndex = ["AB", "BC", "CD", "DA"].indexOf(segId);
     if (edgeIndex < 0) return state;
     const poly = quadPolygonState(state);
-    const nextPoly = applyEdgeLengthChange(poly, edgeIndex, value);
+    const nextPoly = applyEdgeLengthChange(poly, edgeIndex, target);
     return fromQuadPolygon(state, nextPoly);
   }
   return state;
+}
+
+function rightSegRole(
+  state: TrigRatiosState,
+  segId: string,
+): "left" | "right" | "hyp" | null {
+  const rv = state.rightVertex;
+  const hyp = ({ C: "AB", A: "BC", B: "AC" } as const)[rv];
+  const left = ({ C: "BC", A: "AB", B: "AB" } as const)[rv];
+  const right = ({ C: "AC", A: "AC", B: "BC" } as const)[rv];
+  if (segId === hyp) return "hyp";
+  if (segId === left) return "left";
+  if (segId === right) return "right";
+  return null;
+}
+
+function hasDisplayedAcuteAngle(state: TrigRatiosState): boolean {
+  return state.angles.some((a) => {
+    if (!a.show) return false;
+    if (a.vertex === state.rightVertex) return false;
+    if (a.label.mode === "hide" || a.label.mode === "x") return false;
+    return true;
+  });
+}
+
+function applyRightSegNumeric(
+  state: TrigRatiosState,
+  segId: string,
+  value: number,
+): TrigRatiosState {
+  const role = rightSegRole(state, segId);
+  if (!role) return state;
+  const { left, right, hyp } = legSides(state);
+  if (hasDisplayedAcuteAngle(state) || role === "hyp") {
+    const current = role === "left" ? left : role === "right" ? right : hyp;
+    const k = value / Math.max(current, 1e-6);
+    return rebuildTriangleFromLegs(state, left * k, right * k);
+  }
+  if (role === "left") return rebuildTriangleFromLegs(state, value, right);
+  return rebuildTriangleFromLegs(state, left, value);
+}
+
+const TRI_SIDE_IDS = ["AB", "BC", "AC"] as const;
+const ALTITUDE_SEGS: Record<string, AltitudeVertex> = {
+  CH: "C",
+  AHa: "A",
+  BHb: "B",
+};
+
+function applyTriangleSegNumeric(
+  state: TrigRatiosState,
+  segId: string,
+  value: number,
+): TrigRatiosState {
+  const from = ALTITUDE_SEGS[segId];
+  if (from) return applyAltitudeLength(state, from, value);
+  const edgeIndex = TRI_SIDE_IDS.indexOf(segId as (typeof TRI_SIDE_IDS)[number]);
+  if (edgeIndex < 0) return state;
+  const poly = polygonFromTri(state);
+  const edges = poly.edges.map((e, i) => {
+    if (i === edgeIndex) return e;
+    return {
+      showLength: true,
+      length: { ...emptyLabel("custom"), custom: String(edgeLength(poly.points, i)) },
+    };
+  });
+  const nextPoly = applyEdgeLengthChange({ ...poly, edges }, edgeIndex, value);
+  return fromPolygonTri(state, nextPoly);
+}
+
+function applyAltitudeLength(
+  state: TrigRatiosState,
+  from: AltitudeVertex,
+  value: number,
+): TrigRatiosState {
+  const math = trianglePoints(state);
+  const apex = math[from];
+  if (!apex || !math.A || !math.B || !math.C) return state;
+  const footId = altitudeFootId(from);
+  const foot =
+    math[footId] ??
+    (() => {
+      const base = altitudeBase(from, math.A, math.B, math.C);
+      return footToLine(apex, base.a, base.b, false);
+    })();
+  const dir = sub(apex, foot);
+  if (len(dir) < 1e-6) return state;
+  const moved = add(foot, mul(norm(dir), value));
+  const next =
+    from === "A"
+      ? { ...state, triA: moved }
+      : from === "B"
+        ? { ...state, triB: moved }
+        : { ...state, triC: moved };
+  const pts = [next.triA, next.triB, next.triC];
+  if (!isConvex(pts) || edgeLength(pts, 0) < 0.4) return state;
+  return next;
 }
 
 function legSides(state: TrigRatiosState): { left: number; right: number; hyp: number } {
@@ -597,54 +687,6 @@ function legSides(state: TrigRatiosState): { left: number; right: number; hyp: n
     right: len(sub(C!, B!)),
     hyp: len(sub(A!, C!)),
   };
-}
-
-function acuteAngleAtRef(state: TrigRatiosState): number {
-  const pts = derivedPoints(state);
-  const v = state.refAngleVertex;
-  if (v === "A") return angleDeg(pts.B!, pts.A!, pts.C!);
-  if (v === "B") return angleDeg(pts.A!, pts.B!, pts.C!);
-  return angleDeg(pts.A!, pts.C!, pts.B!);
-}
-
-function rebuildFromKnownSide(
-  state: TrigRatiosState,
-  segId: string,
-  value: number,
-  rad: number,
-): TrigRatiosState {
-  const rv = state.rightVertex;
-  const sin = Math.sin(rad);
-  const cos = Math.cos(rad);
-  const tan = Math.tan(rad);
-  let ll = state.legLeft;
-  let lr = state.legRight;
-  if (rv === "C") {
-    if (segId === "BC") {
-      ll = value;
-      lr = value * tan;
-    } else if (segId === "AC") {
-      lr = value;
-      ll = value / tan;
-    } else {
-      const hyp = value;
-      ll = hyp * cos;
-      lr = hyp * sin;
-    }
-  } else if (rv === "B") {
-    if (segId === "AB") {
-      ll = value;
-      lr = value / tan;
-    } else if (segId === "BC") {
-      lr = value;
-      ll = value * tan;
-    } else {
-      const hyp = value;
-      ll = hyp * sin;
-      lr = hyp * cos;
-    }
-  }
-  return rebuildTriangleFromLegs(state, ll, lr);
 }
 
 function applyAngleNumeric(state: TrigRatiosState, angId: string, value: number): TrigRatiosState {
@@ -690,10 +732,17 @@ function polygonFromTri(state: TrigRatiosState) {
       interior: v.interior,
       exterior: emptyLabel("auto"),
     })),
-    edges: state.triEdges.map((e) => ({
-      showLength: e.showLength,
-      length: e.length,
-    })),
+    edges: TRI_SIDE_IDS.map((id, i) => {
+      const seg = findSeg(state, id);
+      if (seg?.show && seg.label.mode === "custom") {
+        return { showLength: true, length: seg.label };
+      }
+      const e = state.triEdges[i];
+      return {
+        showLength: e?.showLength ?? false,
+        length: e?.length ?? emptyLabel("auto"),
+      };
+    }),
     diagonals: [] as [number, number][],
     interiorAnglesDeg: [0, 0, 0],
     referenceEdgeLength: edgeLength([state.triA, state.triB, state.triC], 0),
@@ -759,7 +808,7 @@ export function setPointName(
   nameValue: string,
 ): TrigRatiosState {
   if (state.kind === "triangle-area") {
-    const prev = state.triNames[id] ?? { name: id, dx: 0, dy: 0 };
+    const prev = state.triNames[id] ?? { name: id, dx: 0, dy: 0, showName: true, showDot: true };
     return {
       ...state,
       triNames: {
@@ -779,58 +828,205 @@ export function setPointName(
       };
     }
   }
-  const prev = state.names[id] ?? { name: id, dx: 0, dy: 0 };
+  const prev = state.names[id] ?? { name: id, dx: 0, dy: 0, showName: true, showDot: true };
   return {
     ...state,
     names: { ...state.names, [id]: { ...prev, name: nameValue.trim() || prev.name } },
   };
 }
 
-export function nudgeLabel(state: TrigRatiosState, labelId: string, dx: number, dy: number): TrigRatiosState {
-  if (labelId.startsWith("s:")) {
-    const segId = labelId.slice(2);
-    const seg = findSeg(state, segId);
-    if (!seg) return state;
-    return patchSegState(state, segId, {
-      label: { ...seg.label, dx: seg.label.dx + dx, dy: seg.label.dy + dy },
-    });
-  }
+export function nudgeLabel(
+  state: TrigRatiosState,
+  labelId: string,
+  dx: number,
+  dy: number,
+  lineOnly = false,
+  canvasPts?: Record<string, Vec>,
+): TrigRatiosState {
   if (labelId.startsWith("n:")) {
     const id = labelId.slice(2);
     if (state.kind === "triangle-area") {
-      const prev = state.triNames[id] ?? { name: id, dx: 0, dy: 0 };
+      const prev = state.triNames[id] ?? { name: id, dx: 0, dy: 0, showName: true, showDot: true };
       return {
         ...state,
-        triNames: { ...state.triNames, [id]: { ...prev, dx: prev.dx + dx, dy: prev.dy + dy } },
+        triNames: {
+          ...state.triNames,
+          [id]: { ...prev, dx: prev.dx + dx, dy: prev.dy + dy },
+        },
       };
     }
-    const prev = state.names[id] ?? { name: id, dx: 0, dy: 0 };
+    if (state.kind === "quad-area") {
+      const i = "ABCD".indexOf(id);
+      if (i >= 0) {
+        return {
+          ...state,
+          quadVertices: state.quadVertices.map((v, idx) =>
+            idx === i ? { ...v, nameDx: v.nameDx + dx, nameDy: v.nameDy + dy } : v,
+          ),
+        };
+      }
+    }
+    const prev = state.names[id] ?? { name: id, dx: 0, dy: 0, showName: true, showDot: true };
     return {
       ...state,
       names: { ...state.names, [id]: { ...prev, dx: prev.dx + dx, dy: prev.dy + dy } },
     };
   }
+  if (labelId.startsWith("s:")) {
+    const segId = labelId.slice(2);
+    const axes = lengthDimAxes(state, canvasPts, segId);
+    const alongAmt = axes ? dx * axes.along.x + dy * axes.along.y : dx;
+    const perpAmt = axes ? dx * axes.outward.x + dy * axes.outward.y : dy;
+    return patchLengthLabel(state, segId, (label) => {
+      if (lineOnly) {
+        return { ...label, lineDy: clamp((label.lineDy ?? 0) + perpAmt, -160, 160) };
+      }
+      return {
+        ...label,
+        dx: clamp(label.dx + alongAmt, -80, 80),
+        dy: clamp(label.dy + perpAmt, -160, 160),
+      };
+    });
+  }
   return state;
 }
 
-export function nudgeDimLine(state: TrigRatiosState, labelId: string, dx: number, dy: number): TrigRatiosState {
-  if (!labelId.startsWith("s:")) return state;
-  const segId = labelId.slice(2);
+export function nudgeDimLine(
+  state: TrigRatiosState,
+  labelId: string,
+  dx: number,
+  dy: number,
+  canvasPts?: Record<string, Vec>,
+): TrigRatiosState {
+  return nudgeLabel(state, labelId, dx, dy, true, canvasPts);
+}
+
+function patchLengthLabel(
+  state: TrigRatiosState,
+  segId: string,
+  updater: (label: MeasLabel) => MeasLabel,
+): TrigRatiosState {
+  if (segId === "radius") {
+    return { ...state, radiusLabel: updater(state.radiusLabel) };
+  }
+  if (state.kind === "quad-area") {
+    const i = ["AB", "BC", "CD", "DA"].indexOf(segId);
+    if (i >= 0) {
+      return {
+        ...state,
+        quadEdges: state.quadEdges.map((e, idx) =>
+          idx === i ? { ...e, length: updater(e.length) } : e,
+        ),
+      };
+    }
+  }
   const seg = findSeg(state, segId);
   if (!seg) return state;
-  return patchSegState(state, segId, {
-    label: {
-      ...seg.label,
-      lineDx: (seg.label.lineDx ?? 0) + dx,
-      lineDy: (seg.label.lineDy ?? 0) + dy,
-    },
-  });
+  return patchSegState(state, segId, { label: updater(seg.label) });
+}
+
+export function canvasCentroid(canvas: Record<string, Vec>, ids: string[]): Vec {
+  let x = 0;
+  let y = 0;
+  let n = 0;
+  for (const id of ids) {
+    const p = canvas[id];
+    if (!p) continue;
+    x += p.x;
+    y += p.y;
+    n += 1;
+  }
+  if (n === 0) return { x: 0, y: 0 };
+  return { x: x / n, y: y / n };
+}
+
+function perpToward(along: Vec, toward: Vec): Vec {
+  const dir = norm(along);
+  let p: Vec = { x: -dir.y, y: dir.x };
+  if (p.x * toward.x + p.y * toward.y < 0) p = { x: -p.x, y: -p.y };
+  return p;
+}
+
+export function lengthDimAxes(
+  state: TrigRatiosState,
+  canvasPts: Record<string, Vec> | undefined,
+  segId: string,
+): { along: Vec; outward: Vec } | null {
+  if (!canvasPts) return null;
+  if (segId === "radius") {
+    if (!canvasPts.O) return null;
+    return { along: { x: 0, y: -1 }, outward: { x: -1, y: 0 } };
+  }
+  const ends = lengthEndpoints(state, segId);
+  if (!ends) return null;
+  const a = canvasPts[ends.a];
+  const b = canvasPts[ends.b];
+  if (!a || !b) return null;
+  const along = norm(sub(b, a));
+  if (len(along) < 1e-6) return null;
+  const mid = mul(add(a, b), 0.5);
+  const ids =
+    state.kind === "unit-circle"
+      ? ["O", "A", "B", "C", "D"]
+      : state.kind === "quad-area"
+        ? ["A", "B", "C", "D"]
+        : ["A", "B", "C"];
+  const face = canvasCentroid(canvasPts, ids);
+  return { along, outward: perpToward(along, sub(mid, face)) };
+}
+
+function lengthEndpoints(state: TrigRatiosState, segId: string): { a: string; b: string } | null {
+  if (segId === "radius") return { a: "O", b: "O" };
+  const seg = findSeg(state, segId);
+  if (seg) return { a: seg.a, b: seg.b };
+  if (["AB", "BC", "CD", "DA"].includes(segId)) {
+    return { a: segId[0]!, b: segId[1]! };
+  }
+  return null;
+}
+
+export function dimResizeCursor(along: Vec): string {
+  const perpX = -along.y;
+  const perpY = along.x;
+  return Math.abs(perpX) >= Math.abs(perpY) ? "ew-resize" : "ns-resize";
+}
+
+function distToArc(
+  x: number,
+  y: number,
+  cx: number,
+  cy: number,
+  r: number,
+  a0: number,
+  a1: number,
+  ccw: boolean,
+): number {
+  let sweep = a1 - a0;
+  if (ccw) {
+    while (sweep > 0) sweep -= Math.PI * 2;
+    while (sweep > -1e-9) sweep -= Math.PI * 2;
+    sweep = -sweep;
+    if (sweep < 1e-9) sweep += Math.PI * 2;
+  } else {
+    while (sweep < 0) sweep += Math.PI * 2;
+    if (sweep < 1e-9) sweep += Math.PI * 2;
+  }
+  const n = Math.max(12, Math.ceil(sweep / (Math.PI / 18)));
+  let best = Infinity;
+  for (let i = 0; i <= n; i += 1) {
+    const t = i / n;
+    const ang = a0 + (ccw ? -sweep : sweep) * t;
+    const px = cx + r * Math.cos(ang);
+    const py = cy + r * Math.sin(ang);
+    best = Math.min(best, Math.hypot(x - px, y - py));
+  }
+  return best;
 }
 
 export function hitTestTrig(
   canvasPts: Record<string, Vec>,
   texts: { id: string; x: number; y: number }[],
-  cmds: { t: string; id?: string; x1?: number; y1?: number; x2?: number; y2?: number }[],
+  cmds: HitCmd[],
   strokes: [string, string][],
   segs: SegMark[],
   x: number,
@@ -838,29 +1034,57 @@ export function hitTestTrig(
   scale: number,
   dragIds: string[],
 ): TrigHit | null {
-  const rLabel = 18 * scale;
+  const labelR = 18 * scale;
   const rPoint = 16 * scale;
+  const dimR = 12 * scale;
   const rSeg = 12 * scale;
 
+  let bestText: { id: string; d: number } | null = null;
   for (const text of texts) {
-    if (Math.hypot(text.x - x, text.y - y) < rLabel) {
-      return { kind: "label", id: text.id };
-    }
+    if (text.id.endsWith(":line")) continue;
+    const d = Math.hypot(text.x - x, text.y - y);
+    if (d < labelR && (!bestText || d < bestText.d)) bestText = { id: text.id, d };
   }
 
+  let bestDim: { id: string; d: number } | null = null;
+  for (const cmd of cmds) {
+    if (!cmd.id || !cmd.id.endsWith(":line")) continue;
+    const id = cmd.id.slice(0, -5);
+    let d = Infinity;
+    if (cmd.t === "line" && cmd.x1 != null && cmd.y1 != null && cmd.x2 != null && cmd.y2 != null) {
+      d = distToSeg({ x, y }, { x: cmd.x1, y: cmd.y1 }, { x: cmd.x2, y: cmd.y2 });
+    } else if (
+      cmd.t === "arc" &&
+      cmd.cx != null &&
+      cmd.cy != null &&
+      cmd.r != null &&
+      cmd.a0 != null &&
+      cmd.a1 != null
+    ) {
+      d = distToArc(x, y, cmd.cx, cmd.cy, cmd.r, cmd.a0, cmd.a1, cmd.ccw === true);
+    }
+    if (d < dimR && (!bestDim || d < bestDim.d)) bestDim = { id, d };
+  }
+
+  let bestP: { id: string; d: number } | null = null;
   for (const id of dragIds) {
     const p = canvasPts[id];
     if (p && Math.hypot(p.x - x, p.y - y) < rPoint) {
-      return { kind: "point", id };
+      const d = Math.hypot(p.x - x, p.y - y);
+      if (!bestP || d < bestP.d) bestP = { id, d };
     }
   }
 
-  for (const cmd of cmds) {
-    if (cmd.t === "line" && cmd.id?.endsWith(":dim")) {
-      const d = distToSeg({ x, y }, { x: cmd.x1!, y: cmd.y1! }, { x: cmd.x2!, y: cmd.y2! });
-      if (d < rSeg) return { kind: "dimLine", id: cmd.id.replace(/:dim$/, "") };
-    }
+  if (bestP && (!bestText || bestP.d <= bestText.d) && (!bestDim || bestP.d <= bestDim.d + 6)) {
+    return { kind: "point", id: bestP.id };
   }
+  if (bestText && bestDim) {
+    if (bestDim.d <= bestText.d) return { kind: "dimLine", id: bestDim.id };
+    return { kind: "label", id: bestText.id };
+  }
+  if (bestDim) return { kind: "dimLine", id: bestDim.id };
+  if (bestText) return { kind: "label", id: bestText.id };
+  if (bestP) return { kind: "point", id: bestP.id };
 
   for (const [a, b] of strokes) {
     const pa = canvasPts[a];

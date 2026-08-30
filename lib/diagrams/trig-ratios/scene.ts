@@ -3,21 +3,21 @@ import type { DiagramScene, SceneCmd, SceneText, Vec } from "@/lib/diagrams/scen
 import { add, clamp, len, mul, norm, sub } from "@/lib/diagrams/polygon/geometry";
 import { emptyLabel, type MeasLabel } from "@/lib/diagrams/polygon/model";
 import {
+  altitudeBase,
   derivedPoints,
-  displayName,
   extensionPoint,
   figureStrokes,
   interiorAngleDeg,
   isObtuseAtA,
+  projectT,
   resolveAngleLabel,
   resolveSegText,
-  segLength,
   trianglePoints,
   unitCirclePoints,
   worldQuadPoints,
   worldRightTriangle,
 } from "./geometry";
-import type { AngleFill, TrigRatiosState } from "./model";
+import { altitudeFootId, formatThetaLabel, type AngleFill, type TrigRatiosState } from "./model";
 
 export type SceneLayout = {
   canvas: Record<string, Vec>;
@@ -73,32 +73,43 @@ function signedHeight(h: number, minAbs = 10, maxAbs = 140): number {
   return sign * clamp(Math.abs(h), minAbs, maxAbs);
 }
 
-function smallerArc(a0: number, a1: number): { a0: number; a1: number; ccw: boolean } {
-  let d = a1 - a0;
-  while (d <= -Math.PI) d += Math.PI * 2;
-  while (d > Math.PI) d -= Math.PI * 2;
-  if (d >= 0) return { a0, a1, ccw: false };
-  return { a0: a1, a1: a0, ccw: true };
+function normalizeAngle(a: number): number {
+  let t = a % (Math.PI * 2);
+  if (t < 0) t += Math.PI * 2;
+  return t;
 }
 
-function arcSweep(a0: number, a1: number, ccw: boolean): number {
-  let d = a1 - a0;
-  if (ccw) {
-    while (d >= 0) d -= Math.PI * 2;
-    return -d;
-  }
-  while (d < 0) d += Math.PI * 2;
+function ccwSpan(from: number, to: number): number {
+  let d = normalizeAngle(to) - normalizeAngle(from);
+  if (d < 0) d += Math.PI * 2;
   return d;
 }
 
-function arcPoints(cx: number, cy: number, r: number, a0: number, a1: number, ccw: boolean): Vec[] {
+function smallerArc(a0: number, a1: number): { a0: number; a1: number; ccw: boolean } {
+  if (ccwSpan(a0, a1) <= Math.PI) return { a0, a1, ccw: false };
+  return { a0, a1, ccw: true };
+}
+
+function arcSweep(a0: number, a1: number, ccw: boolean): number {
+  if (ccw) return ccwSpan(a1, a0);
+  return ccwSpan(a0, a1);
+}
+
+function arcPoints(
+  cx: number,
+  cy: number,
+  r: number,
+  a0: number,
+  a1: number,
+  ccw: boolean,
+  n = 14,
+): Vec[] {
   const sweep = arcSweep(a0, a1, ccw);
-  const steps = Math.max(4, Math.ceil((Math.abs(sweep) / Math.PI) * 16));
   const pts: Vec[] = [];
-  for (let i = 0; i <= steps; i += 1) {
-    const t = i / steps;
-    const ang = ccw ? a0 - sweep * t : a0 + sweep * t;
-    pts.push({ x: cx + Math.cos(ang) * r, y: cy + Math.sin(ang) * r });
+  for (let i = 0; i <= n; i += 1) {
+    const t = i / n;
+    const ang = a0 + (ccw ? -sweep : sweep) * t;
+    pts.push({ x: cx + r * Math.cos(ang), y: cy + r * Math.sin(ang) });
   }
   return pts;
 }
@@ -134,12 +145,13 @@ function drawAngle(
   meas: MeasLabel,
   fontSize: number,
   fill: string | null,
+  toward?: Vec | null,
 ): void {
   const u = norm(sub(from, vertex));
   const w = norm(sub(to, vertex));
   const a0 = Math.atan2(u.y, u.x);
   const a1 = Math.atan2(w.y, w.x);
-  const arc = smallerArc(a0, a1);
+  const arc = interiorArc(a0, a1, vertex, toward ?? null);
   const r = clamp(Math.min(len(sub(from, vertex)), len(sub(to, vertex))) * 0.22, 16, 34);
   if (fill) {
     cmds.push({
@@ -172,6 +184,22 @@ function drawAngle(
   });
 }
 
+function interiorArc(
+  a0: number,
+  a1: number,
+  vertex: Vec,
+  toward: Vec | null,
+): { a0: number; a1: number; ccw: boolean } {
+  const minor = smallerArc(a0, a1);
+  if (!toward) return minor;
+  const sweep = arcSweep(minor.a0, minor.a1, minor.ccw);
+  const midAng = minor.a0 + (minor.ccw ? -sweep : sweep) / 2;
+  const inside =
+    Math.cos(midAng) * (toward.x - vertex.x) + Math.sin(midAng) * (toward.y - vertex.y);
+  if (inside >= 0) return minor;
+  return { a0, a1, ccw: !minor.ccw };
+}
+
 function sagittaArc(
   a: Vec,
   b: Vec,
@@ -190,14 +218,8 @@ function sagittaArc(
   const a0 = Math.atan2(a.y - C.y, a.x - C.x);
   const a1 = Math.atan2(b.y - C.y, b.x - C.x);
   const peak = add(mid, mul(n, s));
-  const ccwSpan = (from: number, to: number) => {
-    let d = to - from;
-    while (d < 0) d += Math.PI * 2;
-    while (d >= Math.PI * 2) d -= Math.PI * 2;
-    return d;
-  };
-  const sOnIncreasing =
-    ccwSpan(a0, Math.atan2(peak.y - C.y, peak.x - C.x)) <= ccwSpan(a0, a1) + 1e-6;
+  const aS = Math.atan2(peak.y - C.y, peak.x - C.x);
+  const sOnIncreasing = ccwSpan(a0, aS) <= ccwSpan(a0, a1) + 1e-6;
   return { C, r, a0, a1, ccw: !sOnIncreasing };
 }
 
@@ -220,18 +242,20 @@ function dimArc(
   const mid = mul(add(a, b), 0.5);
   const margin = Math.min(span * 0.14, 26);
   const maxAlong = Math.max(span / 2 - margin, 0);
+  const lineId = `${labelId}:line`;
   const textH = signedHeight(offset + meas.dy);
   const lineH = signedHeight(offset + (meas.lineDy ?? 0));
   const textAlong = clamp(meas.dx, -maxAlong, maxAlong);
-  const lineAlong = clamp(meas.lineDx ?? 0, -maxAlong, maxAlong);
-  const textPt = add(add(mid, mul(along, textAlong)), mul(u, textH));
-  const arcMid = add(add(mid, mul(along, lineAlong)), mul(u, lineH));
-  const arc = sagittaArc(
-    add(a, mul(along, margin)),
-    add(b, mul(along, -margin)),
-    u,
-    lineH * 0.55,
-  );
+  const lineSign = lineH < 0 ? -1 : 1;
+  const tick = clamp(Math.abs(lineH) * 0.22, 4.5, 8);
+  const aFoot = add(a, mul(u, lineSign * tick));
+  const bFoot = add(b, mul(u, lineSign * tick));
+  const sag = lineH - lineSign * tick;
+
+  cmds.push({ t: "line", x1: a.x, y1: a.y, x2: aFoot.x, y2: aFoot.y, id: lineId });
+  cmds.push({ t: "line", x1: b.x, y1: b.y, x2: bFoot.x, y2: bFoot.y, id: lineId });
+
+  const arc = sagittaArc(aFoot, bFoot, u, sag);
   if (arc) {
     cmds.push({
       t: "arc",
@@ -244,13 +268,27 @@ function dimArc(
       stroke: INK,
       dashed: true,
       width: 1.1,
-      id: `${labelId}:dim`,
+      id: lineId,
+    });
+  } else {
+    cmds.push({
+      t: "line",
+      x1: aFoot.x,
+      y1: aFoot.y,
+      x2: bFoot.x,
+      y2: bFoot.y,
+      dashed: true,
+      id: lineId,
     });
   }
+
+  const textSign = textH < 0 ? -1 : 1;
+  const onSeg = add(mid, mul(along, textAlong));
+  const tp = add(onSeg, mul(u, textH + textSign * fontSize * 0.52));
   pushText(texts, cmds, {
     id: labelId,
-    x: textPt.x,
-    y: textPt.y,
+    x: tp.x,
+    y: tp.y,
     runs: parseMathRuns(label),
     size: fontSize,
     anchor: "middle",
@@ -268,7 +306,10 @@ function mathBBox(state: TrigRatiosState): { min: Vec; max: Vec } {
     return { min: { x: -0.35, y: -0.35 }, max: { x: 1.35, y: Math.max(1.35, u.D!.y + 0.2) } };
   } else if (state.kind === "triangle-area") {
     const t = trianglePoints(state);
-    pts = [t.A!, t.B!, t.C!, t.H!];
+    pts = [t.A!, t.B!, t.C!];
+    for (const id of ["H", "Ha", "Hb"] as const) {
+      if (t[id]) pts.push(t[id]!);
+    }
   } else {
     pts = worldQuadPoints(state);
   }
@@ -322,55 +363,87 @@ export function canvasToMath(p: Vec, layout: SceneLayout): Vec {
   };
 }
 
+function pointAppearance(
+  state: TrigRatiosState,
+  id: string,
+): { name: string; dx: number; dy: number; showName: boolean; showDot: boolean } {
+  if (state.kind === "triangle-area") {
+    const mark = state.triNames[id];
+    return {
+      name: mark?.name?.trim() || id,
+      dx: mark?.dx ?? 0,
+      dy: mark?.dy ?? 0,
+      showName: mark?.showName !== false,
+      showDot: mark?.showDot !== false,
+    };
+  }
+  if (state.kind === "quad-area") {
+    const i = "ABCD".indexOf(id);
+    const v = state.quadVertices[i];
+    return {
+      name: v?.name?.trim() || id,
+      dx: v?.nameDx ?? 0,
+      dy: v?.nameDy ?? 0,
+      showName: v?.showName !== false,
+      showDot: v?.showDot !== false,
+    };
+  }
+  const mark = state.names[id];
+  return {
+    name: mark?.name?.trim() || id,
+    dx: mark?.dx ?? 0,
+    dy: mark?.dy ?? 0,
+    showName: mark?.showName !== false,
+    showDot: mark?.showDot !== false,
+  };
+}
+
 function paintNames(
   state: TrigRatiosState,
   canvas: Record<string, Vec>,
   cmds: SceneCmd[],
   texts: SceneText[],
 ): void {
-  if (!state.showVertexNames) return;
   const fs = state.style.pointLabelSize;
   const ids = Object.keys(canvas);
+  const center = nameAnchor(canvas, ids);
+  const pad = Math.max(14, fs * 0.85);
   for (const id of ids) {
     const p = canvas[id]!;
-    let name = displayName(state, id);
-    let dx = 0;
-    let dy = 0;
-    if (state.kind === "right" || state.kind === "unit-circle") {
-      const mark = state.names[id];
-      if (mark) {
-        name = mark.name;
-        dx = mark.dx;
-        dy = mark.dy;
-      }
-    } else if (state.kind === "triangle-area") {
-      const mark = state.triNames[id];
-      if (mark) {
-        name = mark.name;
-        dx = mark.dx;
-        dy = mark.dy;
-      }
-    } else if (state.kind === "quad-area") {
-      const i = "ABCD".indexOf(id);
-      const v = state.quadVertices[i];
-      if (v) {
-        name = v.name;
-        dx = v.nameDx;
-        dy = v.nameDy;
-      }
+    const mark = pointAppearance(state, id);
+    if (mark.showDot) {
+      cmds.push({ t: "dot", x: p.x, y: p.y, r: state.style.pointRadius, stroke: INK });
     }
+    if (!mark.showName) continue;
+    const away = sub(p, center);
+    const dir = len(away) < 1e-6 ? { x: -0.65, y: 0.75 } : norm(away);
+    const lp = add(add(p, mul(dir, pad)), { x: mark.dx, y: mark.dy });
     pushText(texts, cmds, {
       id: `n:${id}`,
-      x: p.x + dx,
-      y: p.y + dy,
-      runs: parseNameRuns(name),
+      x: lp.x,
+      y: lp.y,
+      runs: parseNameRuns(mark.name),
       size: fs,
       anchor: "middle",
     });
-    if (state.showDots) {
-      cmds.push({ t: "dot", x: p.x, y: p.y, r: state.style.pointRadius, stroke: INK });
-    }
   }
+}
+
+function nameAnchor(canvas: Record<string, Vec>, ids: string[]): Vec {
+  const o = canvas.O;
+  if (o && ids.includes("O")) return o;
+  let x = 0;
+  let y = 0;
+  let n = 0;
+  for (const id of ids) {
+    const p = canvas[id];
+    if (!p) continue;
+    x += p.x;
+    y += p.y;
+    n += 1;
+  }
+  if (n < 1) return { x: 0, y: 0 };
+  return { x: x / n, y: y / n };
 }
 
 function paintRightFigure(
@@ -408,6 +481,7 @@ function paintRightFigure(
           : interiorAngleDeg([mathPts.A, mathPts.B, mathPts.C], 2);
     if (Math.abs(deg - 90) < 0.75) continue;
     const label = resolveAngleLabel(state, mark, deg);
+    const inward = mul(add(add(canvas.A!, canvas.B!), canvas.C!), 1 / 3);
     drawAngle(
       cmds,
       texts,
@@ -419,6 +493,7 @@ function paintRightFigure(
       mark.label,
       style.fontSize,
       fillColor(mark.fill),
+      inward,
     );
   }
   const c = mul(add(add(canvas.A!, canvas.B!), canvas.C!), 1 / 3);
@@ -427,7 +502,8 @@ function paintRightFigure(
     const pa = canvas[seg.a];
     const pb = canvas[seg.b];
     if (!pa || !pb) continue;
-    const outward = norm(sub(c, mul(add(pa, pb), 0.5)));
+    const mid = mul(add(pa, pb), 0.5);
+    const outward = norm(sub(mid, c));
     dimArc(
       cmds,
       texts,
@@ -502,14 +578,20 @@ function paintUnitCircle(
     }
   }
 
+  const north = toC({ x: 0, y: 1 });
+  const east = toC({ x: 1, y: 0 });
+  const quarter = smallerArc(
+    Math.atan2(east.y - O.y, east.x - O.x),
+    Math.atan2(north.y - O.y, north.x - O.x),
+  );
   cmds.push({
     t: "arc",
     cx: O.x,
     cy: O.y,
-    r: len(sub(A, O)),
-    a0: Math.PI / 2,
-    a1: 0,
-    ccw: true,
+    r: len(sub(east, O)),
+    a0: quarter.a0,
+    a1: quarter.a1,
+    ccw: quarter.ccw,
     stroke: INK,
     width: style.lineWidth,
   });
@@ -548,8 +630,24 @@ function paintUnitCircle(
   }
 
   if (state.showRadiusLabel) {
-    const midR = mul(add(O, toC({ x: 0, y: 1 })), 0.5);
-    dimArc(cmds, texts, O, toC({ x: 0, y: 1 }), { x: -1, y: 0 }, style.dimOffset, "1", "s:radius", emptyLabel("custom"), style.fontSize);
+    const radiusText =
+      state.radiusLabel.mode === "hide"
+        ? null
+        : state.radiusLabel.mode === "custom" && state.radiusLabel.custom.trim()
+          ? state.radiusLabel.custom.trim()
+          : "1";
+    dimArc(
+      cmds,
+      texts,
+      O,
+      north,
+      { x: -1, y: 0 },
+      style.dimOffset,
+      radiusText,
+      "s:radius",
+      state.radiusLabel,
+      style.fontSize,
+    );
   }
 
   if (state.showAngleX) {
@@ -559,7 +657,7 @@ function paintUnitCircle(
       O,
       toC({ x: 1, y: 0 }),
       B,
-      `${state.thetaDeg}°`,
+      formatThetaLabel(state.thetaDeg),
       "a:theta",
       emptyLabel("custom"),
       style.fontSize,
@@ -567,14 +665,16 @@ function paintUnitCircle(
     );
   }
 
-  if (state.showAnglesYZ) {
-    const yDeg = 90 - state.thetaDeg;
-    drawAngle(cmds, texts, B, O, A, `${yDeg}°`, "a:y", emptyLabel("custom"), style.fontSize * 0.92, null);
-    drawAngle(cmds, texts, D, C, O, `${yDeg}°`, "a:z", emptyLabel("custom"), style.fontSize * 0.92, null);
+  const yDeg = 90 - state.thetaDeg;
+  if (state.showAngleY) {
+    drawAngle(cmds, texts, B, O, A, formatThetaLabel(yDeg), "a:y", emptyLabel("custom"), style.fontSize * 0.92, null);
+  }
+  if (state.showAngleZ) {
+    drawAngle(cmds, texts, D, C, O, formatThetaLabel(yDeg), "a:z", emptyLabel("custom"), style.fontSize * 0.92, null);
   }
 
   const p = state.axisPrecision;
-  if (state.showAxisValues) {
+  if (state.showCosValue) {
     pushText(texts, cmds, {
       id: "axis:Ax",
       x: A.x,
@@ -583,6 +683,8 @@ function paintUnitCircle(
       size: style.fontSize * 0.88,
       anchor: "middle",
     });
+  }
+  if (state.showAxisValues) {
     pushText(texts, cmds, {
       id: "axis:Cx",
       x: C.x,
@@ -590,22 +692,6 @@ function paintUnitCircle(
       runs: parseMathRuns("1"),
       size: style.fontSize * 0.88,
       anchor: "middle",
-    });
-    pushText(texts, cmds, {
-      id: "axis:By",
-      x: toC({ x: 0, y: u.B!.y }).x - 12,
-      y: B.y,
-      runs: parseMathRuns(u.B!.y.toFixed(p)),
-      size: style.fontSize * 0.88,
-      anchor: "end",
-    });
-    pushText(texts, cmds, {
-      id: "axis:Dy",
-      x: toC({ x: 0, y: u.D!.y }).x - 12,
-      y: D.y,
-      runs: parseMathRuns(u.D!.y.toFixed(p)),
-      size: style.fontSize * 0.88,
-      anchor: "end",
     });
     pushText(texts, cmds, {
       id: "axis:Oy",
@@ -616,15 +702,27 @@ function paintUnitCircle(
       anchor: "end",
     });
   }
+  if (state.showSinValue) {
+    pushText(texts, cmds, {
+      id: "axis:By",
+      x: toC({ x: 0, y: u.B!.y }).x - 12,
+      y: B.y,
+      runs: parseMathRuns(u.B!.y.toFixed(p)),
+      size: style.fontSize * 0.88,
+      anchor: "end",
+    });
+  }
+  if (state.showTanValue) {
+    pushText(texts, cmds, {
+      id: "axis:Dy",
+      x: toC({ x: 0, y: u.D!.y }).x - 12,
+      y: D.y,
+      runs: parseMathRuns(u.D!.y.toFixed(p)),
+      size: style.fontSize * 0.88,
+      anchor: "end",
+    });
+  }
 
-  pushText(texts, cmds, {
-    id: "theta",
-    x: O.x + 28,
-    y: O.y - 12,
-    runs: parseMathRuns(`${state.thetaDeg}°`),
-    size: style.fontSize,
-    anchor: "start",
-  });
 }
 
 function paintTriangleArea(
@@ -641,24 +739,30 @@ function paintTriangleArea(
     cmds.push({ t: "polygon", points: pts, fill: triFillColor(state) });
   }
 
-  const from = state.altitudeFrom;
-  const H = canvas.H!;
-  const baseA = from === "A" ? canvas.B! : from === "B" ? canvas.A! : canvas.A!;
-  const baseB = from === "A" ? canvas.C! : from === "B" ? canvas.C! : canvas.B!;
-  const apex = canvas[from]!;
-
-  if (state.showBaseExtension && isObtuseAtA(state) && state.altitudeFrom === "C") {
-    const ext = mathToCanvas(extensionPoint(math.B!, math.A!, 1.2), layout);
-    cmds.push({
-      t: "line",
-      x1: baseA.x,
-      y1: baseA.y,
-      x2: ext.x,
-      y2: ext.y,
-      stroke: INK,
-      dashed: true,
-      width: 1.1,
-    });
+  if (state.showBaseExtension) {
+    for (const from of state.altitudes) {
+      const base = altitudeBase(from, math.A!, math.B!, math.C!);
+      const t = projectT(base.apex, base.a, base.b);
+      if (t >= -1e-4 && t <= 1 + 1e-4) continue;
+      const beyondA = t < 0;
+      const end = beyondA ? base.a : base.b;
+      const other = beyondA ? base.b : base.a;
+      const foot = math[altitudeFootId(from)];
+      if (!foot) continue;
+      const extra = len(sub(foot, end)) + 0.35;
+      const ext = mathToCanvas(extensionPoint(other, end, extra), layout);
+      const fromPt = beyondA ? canvas[base.aId]! : canvas[base.bId]!;
+      cmds.push({
+        t: "line",
+        x1: fromPt.x,
+        y1: fromPt.y,
+        x2: ext.x,
+        y2: ext.y,
+        stroke: INK,
+        dashed: true,
+        width: 1.1,
+      });
+    }
   }
 
   for (const [a, b] of figureStrokes(state)) {
@@ -667,7 +771,10 @@ function paintTriangleArea(
     if (!pa || !pb) continue;
     const highlight =
       state.showAltitudeHighlight &&
-      ((a === from && b === "H") || (b === from && a === "H"));
+      state.altitudes.some((from) => {
+        const foot = altitudeFootId(from);
+        return (a === from && b === foot) || (b === from && a === foot);
+      });
     cmds.push({
       t: "line",
       x1: pa.x,
@@ -680,7 +787,13 @@ function paintTriangleArea(
   }
 
   if (state.showAltitudeRight) {
-    drawRightAngle(cmds, H, baseA, apex);
+    for (const from of state.altitudes) {
+      const foot = canvas[altitudeFootId(from)];
+      const apex = canvas[from];
+      if (!foot || !apex || !canvas.A || !canvas.B || !canvas.C) continue;
+      const base = altitudeBase(from, canvas.A, canvas.B, canvas.C);
+      drawRightAngle(cmds, foot, base.a, apex);
+    }
   }
 
   const triPts = [math.A!, math.B!, math.C!];
@@ -697,6 +810,7 @@ function paintTriangleArea(
     const idx = { A: 0, B: 1, C: 2 }[mark.vertex as "A" | "B" | "C"];
     const deg = idx != null ? interiorAngleDeg(triPts, idx) : 0;
     const label = resolveAngleLabel(state, mark, deg);
+    const inward = mul(add(add(canvas.A!, canvas.B!), canvas.C!), 1 / 3);
     drawAngle(
       cmds,
       texts,
@@ -708,6 +822,7 @@ function paintTriangleArea(
       mark.label,
       style.fontSize,
       fillColor(mark.fill),
+      mark.id === "extA" ? null : inward,
     );
   }
 
@@ -717,7 +832,8 @@ function paintTriangleArea(
     const pa = canvas[seg.a];
     const pb = canvas[seg.b];
     if (!pa || !pb) continue;
-    const outward = norm(sub(c, mul(add(pa, pb), 0.5)));
+    const mid = mul(add(pa, pb), 0.5);
+    const outward = norm(sub(mid, c));
     dimArc(
       cmds,
       texts,
@@ -788,6 +904,7 @@ function paintQuadArea(
       v.interior,
       style.fontSize,
       fillColor(v.fillInterior),
+      mul(add(add(pts[0]!, pts[2]!), add(pts[1]!, pts[3]!)), 0.25),
     );
   }
   const c = mul(add(add(pts[0]!, pts[2]!), add(pts[1]!, pts[3]!)), 0.25);
@@ -797,7 +914,8 @@ function paintQuadArea(
     if (!e?.showLength) continue;
     const a = canvas[String.fromCharCode(65 + i)]!;
     const b = canvas[String.fromCharCode(65 + ((i + 1) % 4))]!;
-    const outward = norm(sub(c, mul(add(a, b), 0.5)));
+    const mid = mul(add(a, b), 0.5);
+    const outward = norm(sub(mid, c));
     const label =
       e.length.mode === "custom"
         ? e.length.custom

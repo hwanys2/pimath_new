@@ -3,11 +3,12 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   applyEditedLabel,
+  dimResizeCursor,
   draggableIds,
   figureStrokes,
   hitTestTrig,
+  lengthDimAxes,
   movePoint,
-  nudgeDimLine,
   nudgeLabel,
   toggleSeg,
   type TrigHit,
@@ -47,10 +48,22 @@ type Props = {
 
 const MOVE_PX = 3;
 
-function cursorForHit(hit: TrigHit | null): string {
+function cursorForHit(
+  hit: TrigHit | null,
+  state?: TrigRatiosState,
+  canvasPts?: Record<string, { x: number; y: number }>,
+): string {
   if (!hit) return "default";
   if (hit.kind === "point") return "grab";
-  if (hit.kind === "label" || hit.kind === "dimLine") return "grab";
+  if (hit.kind === "label") return "grab";
+  if (hit.kind === "dimLine") {
+    if (state && canvasPts) {
+      const sid = hit.id.startsWith("s:") ? hit.id.slice(2) : hit.id;
+      const axes = lengthDimAxes(state, canvasPts, sid);
+      if (axes) return dimResizeCursor(axes.along);
+    }
+    return "grab";
+  }
   if (hit.kind === "seg") return "pointer";
   return "default";
 }
@@ -222,13 +235,15 @@ export default function TrigRatiosCanvas({
               setState((prev) => movePoint(prev, drag.id, math), false);
             } else if (drag.t === "label" && drag.moved) {
               setState(
-                (prev) => nudgeLabel(prev, drag.id, dx, dy),
+                (prev) =>
+                  nudgeLabel(prev, drag.id, dx, dy, false, sceneRef.current?.layout.canvas),
                 false,
               );
               dragRef.current = { ...drag, x: p.x, y: p.y };
             } else if (drag.t === "dimLine" && drag.moved) {
               setState(
-                (prev) => nudgeDimLine(prev, drag.id.replace(/:dim$/, ""), dx, dy),
+                (prev) =>
+                  nudgeLabel(prev, drag.id, dx, dy, true, sceneRef.current?.layout.canvas),
                 false,
               );
               dragRef.current = { ...drag, x: p.x, y: p.y };
@@ -237,7 +252,7 @@ export default function TrigRatiosCanvas({
           }
           const hit = hitAt(e);
           hoverRef.current = hit;
-          setCursor(cursorForHit(hit));
+          setCursor(cursorForHit(hit, stateRef.current, sceneRef.current?.layout.canvas));
         }}
         onPointerUp={(e) => {
           const drag = dragRef.current;
@@ -256,7 +271,7 @@ export default function TrigRatiosCanvas({
               });
             }
           }
-          setCursor(cursorForHit(hoverRef.current));
+          setCursor(cursorForHit(hoverRef.current, stateRef.current, sceneRef.current?.layout.canvas));
           e.currentTarget.releasePointerCapture(e.pointerId);
         }}
         onPointerLeave={() => {

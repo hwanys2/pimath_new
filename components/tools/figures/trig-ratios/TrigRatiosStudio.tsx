@@ -20,11 +20,13 @@ import {
   downloadBlob,
 } from "@/lib/diagrams/export-image";
 import {
+  applyEditedLabel,
   rebuildRightForRightVertex,
   rebuildTriangleFromLegs,
   segDisplayName,
   segLength,
   setRotateDeg,
+  setThetaDeg,
   type TrigSelection,
 } from "@/lib/diagrams/trig-ratios/geometry";
 import {
@@ -32,10 +34,18 @@ import {
   TRIG_KINDS,
   TRIG_PRESETS,
   cloneState,
+  cycleFigurePoint,
+  figurePointIds,
   findSeg,
   normalizeState,
   patchSegState,
+  pointDisplayOf,
+  pointDisplayTitle,
+  readPointMark,
+  setAllPointDisplay,
+  toggleAltitude,
   withKind,
+  type AltitudeVertex,
   type TrigRatiosState,
 } from "@/lib/diagrams/trig-ratios/model";
 import { buildTrigScene } from "@/lib/diagrams/trig-ratios/scene";
@@ -349,10 +359,10 @@ export default function TrigRatiosStudio() {
                 <NumberField
                   label="각 θ"
                   value={state.thetaDeg}
-                  onChange={(thetaDeg) => set({ thetaDeg })}
+                  onChange={(thetaDeg) => setState((prev) => setThetaDeg(prev, thetaDeg))}
                   min={15}
                   max={80}
-                  step={1}
+                  step={0.1}
                   suffix="°"
                 />
               </div>
@@ -360,16 +370,23 @@ export default function TrigRatiosStudio() {
 
             {state.kind === "triangle-area" ? (
               <div className="mt-3 space-y-2">
-                <p className="text-xs font-semibold text-foreground/60">수선 꼭짓점</p>
-                <Segmented
-                  value={state.altitudeFrom}
-                  onChange={(v) => set({ altitudeFrom: v as "A" | "B" | "C" })}
-                  options={[
-                    { id: "A", label: "A" },
-                    { id: "B", label: "B" },
-                    { id: "C", label: "C" },
-                  ]}
-                />
+                <p className="text-xs font-semibold text-foreground/60">수선</p>
+                <div className="flex flex-wrap gap-1.5">
+                  {(["A", "B", "C"] as const).map((v) => (
+                    <ChipToggle
+                      key={v}
+                      on={state.altitudes.includes(v)}
+                      onClick={() =>
+                        setState((prev) => toggleAltitude(prev, v as AltitudeVertex))
+                      }
+                    >
+                      {v}
+                    </ChipToggle>
+                  ))}
+                </div>
+                <p className="text-[11px] leading-snug text-foreground/45">
+                  여러 꼭짓점에서 동시에 켤 수 있어요.
+                </p>
               </div>
             ) : null}
 
@@ -397,14 +414,22 @@ export default function TrigRatiosStudio() {
             <h2 className="font-display text-sm text-wood-dark">표시</h2>
             <div className="mt-2 flex flex-wrap gap-1.5">
               <ChipToggle
-                on={state.showVertexNames}
-                onClick={() => set({ showVertexNames: !state.showVertexNames })}
+                on={figurePointIds(state).every((id) => readPointMark(state, id).showName)}
+                onClick={() => {
+                  const ids = figurePointIds(state);
+                  const next = !ids.every((id) => readPointMark(state, id).showName);
+                  setState((prev) => setAllPointDisplay(prev, { showName: next }));
+                }}
               >
                 꼭짓점 이름
               </ChipToggle>
               <ChipToggle
-                on={state.showDots}
-                onClick={() => set({ showDots: !state.showDots })}
+                on={figurePointIds(state).every((id) => readPointMark(state, id).showDot)}
+                onClick={() => {
+                  const ids = figurePointIds(state);
+                  const next = !ids.every((id) => readPointMark(state, id).showDot);
+                  setState((prev) => setAllPointDisplay(prev, { showDot: next }));
+                }}
               >
                 점
               </ChipToggle>
@@ -442,7 +467,25 @@ export default function TrigRatiosStudio() {
                     on={state.showAxisValues}
                     onClick={() => set({ showAxisValues: !state.showAxisValues })}
                   >
-                    축 숫자
+                    축 1
+                  </ChipToggle>
+                  <ChipToggle
+                    on={state.showCosValue}
+                    onClick={() => set({ showCosValue: !state.showCosValue })}
+                  >
+                    cos
+                  </ChipToggle>
+                  <ChipToggle
+                    on={state.showSinValue}
+                    onClick={() => set({ showSinValue: !state.showSinValue })}
+                  >
+                    sin
+                  </ChipToggle>
+                  <ChipToggle
+                    on={state.showTanValue}
+                    onClick={() => set({ showTanValue: !state.showTanValue })}
+                  >
+                    tan
                   </ChipToggle>
                   <ChipToggle
                     on={state.showRadiusLabel}
@@ -469,10 +512,16 @@ export default function TrigRatiosStudio() {
                     각 x°
                   </ChipToggle>
                   <ChipToggle
-                    on={state.showAnglesYZ}
-                    onClick={() => set({ showAnglesYZ: !state.showAnglesYZ })}
+                    on={state.showAngleY}
+                    onClick={() => set({ showAngleY: !state.showAngleY })}
                   >
-                    여각 y°·z°
+                    여각 y°
+                  </ChipToggle>
+                  <ChipToggle
+                    on={state.showAngleZ}
+                    onClick={() => set({ showAngleZ: !state.showAngleZ })}
+                  >
+                    여각 z°
                   </ChipToggle>
                 </>
               ) : null}
@@ -520,6 +569,37 @@ export default function TrigRatiosStudio() {
                   </ChipToggle>
                 </>
               ) : null}
+            </div>
+
+            <div className="mt-2">
+              <p className="mb-1 text-[11px] leading-snug text-foreground/45">
+                점 버튼을 누르면 이름 → 점 → 안보임. 길이 숫자는 끌어 옮기고, 점선만 잡으면
+                설명선만 옮겨요.
+              </p>
+              <div className="flex flex-wrap gap-1">
+                {figurePointIds(state).map((id) => {
+                  const mark = readPointMark(state, id);
+                  const mode = pointDisplayOf(mark.showName, mark.showDot);
+                  return (
+                    <button
+                      key={id}
+                      type="button"
+                      onClick={() => setState((prev) => cycleFigurePoint(prev, id))}
+                      className={`min-w-[1.5rem] rounded-full px-1.5 py-0.5 text-[11px] font-semibold transition ${
+                        mode === "names"
+                          ? "bg-wood text-cream"
+                          : mode === "dots"
+                            ? "bg-gold text-[#6b4a00]"
+                            : "bg-black/8 text-foreground/35 line-through"
+                      }`}
+                      aria-pressed={mode !== "hidden"}
+                      title={pointDisplayTitle(mode)}
+                    >
+                      {mark.name || id}
+                    </button>
+                  );
+                })}
+              </div>
             </div>
 
             {state.kind === "right" || state.kind === "triangle-area" ? (
@@ -570,11 +650,7 @@ export default function TrigRatiosStudio() {
                     setState((prev) => patchSegState(prev, selected.id, { label: { ...selSeg.label, mode } }))
                   }
                   onCustom={(custom) =>
-                    setState((prev) =>
-                      patchSegState(prev, selected.id, {
-                        label: { ...selSeg.label, mode: "custom", custom },
-                      }),
-                    )
+                    setState((prev) => applyEditedLabel(prev, `s:${selected.id}`, custom))
                   }
                 />
               </div>

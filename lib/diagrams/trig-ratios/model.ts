@@ -26,6 +26,8 @@ export type QuadFill = "pink" | "yellow";
 
 export type QuadFamily = "general" | "parallelogram";
 
+export type AltitudeVertex = "A" | "B" | "C";
+
 export const TRIG_KINDS: { id: TrigKind; label: string }[] = [
   { id: "right", label: "직각삼각형" },
   { id: "unit-circle", label: "단위원" },
@@ -33,7 +35,15 @@ export const TRIG_KINDS: { id: TrigKind; label: string }[] = [
   { id: "quad-area", label: "사각형의 넓이" },
 ];
 
-export type NameMark = { name: string; dx: number; dy: number };
+export type NameMark = {
+  name: string;
+  dx: number;
+  dy: number;
+  showName: boolean;
+  showDot: boolean;
+};
+
+export type PointDisplay = "names" | "dots" | "hidden";
 
 export type SegMark = {
   id: string;
@@ -57,6 +67,8 @@ export type TriVertexMark = {
   name: string;
   nameDx: number;
   nameDy: number;
+  showName: boolean;
+  showDot: boolean;
   showInterior: boolean;
   fillInterior: AngleFill;
   interior: MeasLabel;
@@ -99,8 +111,13 @@ export type TrigRatiosState = {
   showUnitRightAngles: boolean;
   showYProjections: boolean;
   showAngleX: boolean;
-  showAnglesYZ: boolean;
+  showAngleY: boolean;
+  showAngleZ: boolean;
+  showCosValue: boolean;
+  showSinValue: boolean;
+  showTanValue: boolean;
   axisPrecision: number;
+  radiusLabel: MeasLabel;
 
   /** triangle area */
   triA: Vec;
@@ -111,7 +128,8 @@ export type TrigRatiosState = {
   triAngles: AngleMark[];
   triVertices: TriVertexMark[];
   triEdges: TriEdgeMark[];
-  altitudeFrom: "A" | "B" | "C";
+  altitudeFrom: AltitudeVertex;
+  altitudes: AltitudeVertex[];
   showTriFill: boolean;
   triFill: TriFill;
   showAltitudeHighlight: boolean;
@@ -139,6 +157,15 @@ function clamp(n: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, n));
 }
 
+export function roundThetaDeg(deg: number): number {
+  return clamp(Math.round(deg * 10) / 10, 15, 80);
+}
+
+export function formatThetaLabel(deg: number): string {
+  const r = Math.round(deg * 10) / 10;
+  return Number.isInteger(r) ? `${r}°` : `${r.toFixed(1)}°`;
+}
+
 export function wrapRotateDeg(deg: number): number {
   if (!Number.isFinite(deg)) return 0;
   return ((deg % 360) + 360) % 360;
@@ -149,7 +176,7 @@ export function cloneState(state: TrigRatiosState): TrigRatiosState {
 }
 
 function name(id: string, label?: string, dx = 0, dy = 0): NameMark {
-  return { name: label ?? id, dx, dy };
+  return { name: label ?? id, dx, dy, showName: true, showDot: true };
 }
 
 function seg(a: string, b: string, show = false, label?: MeasLabel): SegMark {
@@ -195,7 +222,13 @@ function degLen(deg: number, patch: Partial<MeasLabel> = {}): MeasLabel {
 }
 
 function defaultRightNames(): Record<string, NameMark> {
-  return { A: name("A"), B: name("B"), C: name("C") };
+  return {
+    A: name("A"),
+    B: name("B"),
+    C: name("C"),
+    D: name("D"),
+    O: name("O"),
+  };
 }
 
 function defaultRightSegs(): SegMark[] {
@@ -211,7 +244,14 @@ function defaultRightAngles(): AngleMark[] {
 }
 
 function defaultTriNames(): Record<string, NameMark> {
-  return { A: name("A"), B: name("B"), C: name("C"), H: name("H") };
+  return {
+    A: name("A"),
+    B: name("B"),
+    C: name("C"),
+    H: name("H"),
+    Ha: name("Ha"),
+    Hb: name("Hb"),
+  };
 }
 
 function defaultTriSegs(): SegMark[] {
@@ -221,6 +261,8 @@ function defaultTriSegs(): SegMark[] {
     seg("A", "C"),
     seg("C", "H"),
     seg("A", "H"),
+    seg("A", "Ha"),
+    seg("B", "Hb"),
   ];
 }
 
@@ -232,6 +274,8 @@ function defaultTriAngles(): AngleMark[] {
     ang("CAH", "C", "A", "H"),
     ang("HAB", "A", "H", "B"),
     ang("extA", "A", "C", "H"),
+    ang("CAHa", "C", "A", "Ha"),
+    ang("HABa", "A", "Ha", "B"),
   ];
 }
 
@@ -241,6 +285,8 @@ function makeTriVertex(i: number, patch: Partial<TriVertexMark> = {}): TriVertex
     name: letters[i] ?? `P${i}`,
     nameDx: 0,
     nameDy: 0,
+    showName: true,
+    showDot: true,
     showInterior: false,
     fillInterior: "none",
     interior: emptyLabel("auto"),
@@ -284,7 +330,12 @@ function mergeNames(
   const out = { ...base };
   if (!prev) return out;
   for (const [id, mark] of Object.entries(prev)) {
-    out[id] = { ...(base[id] ?? name(id)), ...mark };
+    out[id] = {
+      ...(base[id] ?? name(id)),
+      ...mark,
+      showName: mark.showName !== false,
+      showDot: mark.showDot !== false,
+    };
   }
   return out;
 }
@@ -336,6 +387,8 @@ function mergeTriVertices(
       name: p.name?.trim() ? p.name : b.name,
       nameDx: p.nameDx ?? 0,
       nameDy: p.nameDy ?? 0,
+      showName: p.showName !== false,
+      showDot: p.showDot !== false,
       showInterior: p.showInterior === true,
       fillInterior: fill,
       interior: { ...emptyLabel("auto"), ...p.interior },
@@ -385,8 +438,13 @@ function baseDefaults(kind: TrigKind): TrigRatiosState {
     showUnitRightAngles: true,
     showYProjections: true,
     showAngleX: true,
-    showAnglesYZ: true,
-    axisPrecision: 4,
+    showAngleY: true,
+    showAngleZ: true,
+    showCosValue: true,
+    showSinValue: true,
+    showTanValue: true,
+    axisPrecision: 2,
+    radiusLabel: customLen("1"),
     triA: { x: -2.8, y: 0 },
     triB: { x: 3.2, y: 0 },
     triC: { x: 0.4, y: 3.6 },
@@ -396,6 +454,7 @@ function baseDefaults(kind: TrigKind): TrigRatiosState {
     triVertices: [0, 1, 2].map((i) => makeTriVertex(i)),
     triEdges: [0, 1, 2].map(() => makeTriEdge()),
     altitudeFrom: "C",
+    altitudes: ["C"],
     showTriFill: true,
     triFill: "green",
     showAltitudeHighlight: true,
@@ -436,7 +495,12 @@ export function normalizeState(
     legLeft: ll,
     legRight: lr,
     isoscelesRight: state.isoscelesRight === true,
-    names: mergeNames(defaultRightNames(), state.names),
+    names: applyLegacyPointDisplay(
+      mergeNames(defaultRightNames(), state.names),
+      state.names,
+      state.showVertexNames,
+      state.showDots,
+    ),
     segs: mergeSegs(defaultRightSegs(), state.segs),
     showRightAngle: state.showRightAngle !== false,
     refAngleVertex:
@@ -448,7 +512,7 @@ export function normalizeState(
             ? "A"
             : "A",
     angles: mergeAngles(defaultRightAngles(), state.angles),
-    thetaDeg: clamp(state.thetaDeg ?? 48, 15, 80),
+    thetaDeg: roundThetaDeg(state.thetaDeg ?? 48),
     showAxes: state.showAxes !== false,
     showAxisLabels: state.showAxisLabels !== false,
     showAxisValues: state.showAxisValues !== false,
@@ -456,12 +520,22 @@ export function normalizeState(
     showUnitRightAngles: state.showUnitRightAngles !== false,
     showYProjections: state.showYProjections !== false,
     showAngleX: state.showAngleX !== false,
-    showAnglesYZ: state.showAnglesYZ !== false,
-    axisPrecision: clamp(Math.round(state.axisPrecision ?? 4), 2, 6),
+    showAngleY: state.showAngleY ?? (state as { showAnglesYZ?: boolean }).showAnglesYZ !== false,
+    showAngleZ: state.showAngleZ ?? (state as { showAnglesYZ?: boolean }).showAnglesYZ !== false,
+    showCosValue: state.showCosValue ?? state.showAxisValues !== false,
+    showSinValue: state.showSinValue ?? state.showAxisValues !== false,
+    showTanValue: state.showTanValue ?? state.showAxisValues !== false,
+    axisPrecision: clamp(Math.round(state.axisPrecision ?? 2), 1, 4),
+    radiusLabel: { ...emptyLabel("custom"), custom: "1", ...state.radiusLabel },
     triA: state.triA ?? { x: -2.8, y: 0 },
     triB: state.triB ?? { x: 3.2, y: 0 },
     triC: state.triC ?? { x: 0.4, y: 3.6 },
-    triNames: mergeNames(defaultTriNames(), state.triNames),
+    triNames: applyLegacyPointDisplay(
+      mergeNames(defaultTriNames(), state.triNames),
+      state.triNames,
+      state.showVertexNames,
+      state.showDots,
+    ),
     triSegs: mergeSegs(defaultTriSegs(), state.triSegs),
     triAngles: mergeAngles(defaultTriAngles(), state.triAngles),
     triVertices: mergeTriVertices(
@@ -472,8 +546,8 @@ export function normalizeState(
       [0, 1, 2].map(() => makeTriEdge()),
       state.triEdges,
     ),
-    altitudeFrom:
-      state.altitudeFrom === "A" || state.altitudeFrom === "B" ? state.altitudeFrom : "C",
+    altitudeFrom: parseAltitudes(state)[0] ?? "C",
+    altitudes: parseAltitudes(state),
     showTriFill: state.showTriFill !== false,
     triFill: state.triFill === "pink" ? "pink" : "green",
     showAltitudeHighlight: state.showAltitudeHighlight !== false,
@@ -481,7 +555,12 @@ export function normalizeState(
     showBaseExtension: state.showBaseExtension !== false,
     quadFamily,
     quadPoints: (state.quadPoints ?? defaultQuadPoints(quadFamily)).slice(0, 4),
-    quadVertices: mergeTriVertices(defaultQuadVertices(), state.quadVertices),
+    quadVertices: applyLegacyQuadDisplay(
+      mergeTriVertices(defaultQuadVertices(), state.quadVertices),
+      state.quadVertices,
+      state.showVertexNames,
+      state.showDots,
+    ),
     quadEdges: mergeTriEdges(defaultQuadEdges(), state.quadEdges),
     showQuadFill: state.showQuadFill !== false,
     quadFill: state.quadFill === "yellow" ? "yellow" : "pink",
@@ -772,15 +851,16 @@ const triAlt3045 = withTriAngle(
         triB: { x: 3.6, y: 0 },
         triC: { x: 0.2, y: 4.2 },
         altitudeFrom: "A",
+        altitudes: ["A"],
       }),
       { AC: customLen("10 m") },
     ),
-    "CAH",
+    "CAHa",
     true,
     "none",
     degLen(30),
   ),
-  "HAB",
+  "HABa",
   true,
   "none",
   degLen(45),
@@ -909,14 +989,196 @@ export const DEFAULT_TRIG_STATE: TrigRatiosState = TRIG_PRESETS[0]!.state;
 
 export function withKind(prev: TrigRatiosState, kind: TrigKind): TrigRatiosState {
   const template = TRIG_PRESETS.find((p) => p.state.kind === kind)?.state ?? build(kind);
-  return normalizeState({
-    ...template,
-    style: prev.style,
-    unit: prev.unit,
-    unknownLetter: prev.unknownLetter,
-    showVertexNames: prev.showVertexNames,
-    showDots: prev.showDots,
-  });
+  return setAllPointDisplay(
+    normalizeState({
+      ...template,
+      style: prev.style,
+      unit: prev.unit,
+      unknownLetter: prev.unknownLetter,
+    }),
+    { showName: prev.showVertexNames, showDot: prev.showDots },
+  );
+}
+
+function parseAltitudes(
+  state: Partial<TrigRatiosState> | (Partial<TrigRatiosState> & Pick<TrigRatiosState, "kind">),
+): AltitudeVertex[] {
+  if (Array.isArray(state.altitudes)) {
+    const uniq: AltitudeVertex[] = [];
+    for (const v of state.altitudes) {
+      if ((v === "A" || v === "B" || v === "C") && !uniq.includes(v)) uniq.push(v);
+    }
+    if (uniq.length > 0 || state.altitudes.length === 0) return uniq;
+  }
+  const from =
+    state.altitudeFrom === "A" || state.altitudeFrom === "B" ? state.altitudeFrom : "C";
+  return [from];
+}
+
+export function altitudeFootId(from: AltitudeVertex): string {
+  if (from === "A") return "Ha";
+  if (from === "B") return "Hb";
+  return "H";
+}
+
+export function toggleAltitude(state: TrigRatiosState, from: AltitudeVertex): TrigRatiosState {
+  const has = state.altitudes.includes(from);
+  const altitudes = has
+    ? state.altitudes.filter((v) => v !== from)
+    : [...state.altitudes, from];
+  return {
+    ...state,
+    altitudes,
+    altitudeFrom: altitudes[0] ?? state.altitudeFrom,
+  };
+}
+
+export function figurePointIds(state: TrigRatiosState | TrigKind): string[] {
+  const kind = typeof state === "string" ? state : state.kind;
+  switch (kind) {
+    case "unit-circle":
+      return ["O", "A", "B", "C", "D"];
+    case "triangle-area": {
+      const ids = ["A", "B", "C"];
+      const alts = typeof state === "string" ? (["C"] as AltitudeVertex[]) : state.altitudes;
+      if (alts.includes("A")) ids.push("Ha");
+      if (alts.includes("B")) ids.push("Hb");
+      if (alts.includes("C")) ids.push("H");
+      return ids;
+    }
+    case "quad-area":
+      return ["A", "B", "C", "D"];
+    default:
+      return ["A", "B", "C"];
+  }
+}
+
+export function pointDisplayOf(showName: boolean, showDot: boolean): PointDisplay {
+  if (showName) return "names";
+  if (showDot) return "dots";
+  return "hidden";
+}
+
+export function pointDisplayTitle(mode: PointDisplay): string {
+  if (mode === "names") return "점 이름";
+  if (mode === "dots") return "점";
+  return "안보임";
+}
+
+function nextPointDisplay(showName: boolean, showDot: boolean): {
+  showName: boolean;
+  showDot: boolean;
+} {
+  const mode = pointDisplayOf(showName, showDot);
+  if (mode === "names") return { showName: false, showDot: true };
+  if (mode === "dots") return { showName: false, showDot: false };
+  return { showName: true, showDot: true };
+}
+
+export function readPointMark(
+  state: TrigRatiosState,
+  id: string,
+): { name: string; showName: boolean; showDot: boolean } {
+  if (state.kind === "triangle-area") {
+    const mark = state.triNames[id] ?? name(id);
+    return { name: mark.name, showName: mark.showName, showDot: mark.showDot };
+  }
+  if (state.kind === "quad-area") {
+    const i = "ABCD".indexOf(id);
+    const v = state.quadVertices[i];
+    return {
+      name: v?.name ?? id,
+      showName: v?.showName !== false,
+      showDot: v?.showDot !== false,
+    };
+  }
+  const mark = state.names[id] ?? name(id);
+  return { name: mark.name, showName: mark.showName, showDot: mark.showDot };
+}
+
+export function cycleFigurePoint(state: TrigRatiosState, id: string): TrigRatiosState {
+  const prev = readPointMark(state, id);
+  const next = nextPointDisplay(prev.showName, prev.showDot);
+  return patchPointDisplay(state, id, next);
+}
+
+export function setAllPointDisplay(
+  state: TrigRatiosState,
+  patch: { showName?: boolean; showDot?: boolean },
+): TrigRatiosState {
+  let next = state;
+  for (const id of figurePointIds(state)) {
+    next = patchPointDisplay(next, id, patch);
+  }
+  const sample = figurePointIds(next).map((id) => readPointMark(next, id));
+  return {
+    ...next,
+    showVertexNames: sample.every((p) => p.showName),
+    showDots: sample.every((p) => p.showDot),
+  };
+}
+
+function patchPointDisplay(
+  state: TrigRatiosState,
+  id: string,
+  patch: { showName?: boolean; showDot?: boolean },
+): TrigRatiosState {
+  if (state.kind === "triangle-area") {
+    const prev = state.triNames[id] ?? name(id);
+    return {
+      ...state,
+      triNames: { ...state.triNames, [id]: { ...prev, ...patch } },
+    };
+  }
+  if (state.kind === "quad-area") {
+    const i = "ABCD".indexOf(id);
+    if (i < 0) return state;
+    return {
+      ...state,
+      quadVertices: state.quadVertices.map((v, idx) =>
+        idx === i ? { ...v, ...patch } : v,
+      ),
+    };
+  }
+  const prev = state.names[id] ?? name(id);
+  return {
+    ...state,
+    names: { ...state.names, [id]: { ...prev, ...patch } },
+  };
+}
+
+function applyLegacyPointDisplay(
+  merged: Record<string, NameMark>,
+  prev: Record<string, NameMark> | undefined,
+  showVertexNames: boolean | undefined,
+  showDots: boolean | undefined,
+): Record<string, NameMark> {
+  const hadPerPoint = Object.values(prev ?? {}).some(
+    (m) => typeof m.showName === "boolean" || typeof m.showDot === "boolean",
+  );
+  if (hadPerPoint) return merged;
+  const showName = showVertexNames !== false;
+  const showDot = showDots !== false;
+  const out = { ...merged };
+  for (const id of Object.keys(out)) {
+    out[id] = { ...out[id]!, showName, showDot };
+  }
+  return out;
+}
+
+function applyLegacyQuadDisplay(
+  merged: TriVertexMark[],
+  prev: TriVertexMark[] | undefined,
+  showVertexNames: boolean | undefined,
+  showDots: boolean | undefined,
+): TriVertexMark[] {
+  const hadPerPoint = (prev ?? []).some(
+    (v) => typeof v.showName === "boolean" || typeof v.showDot === "boolean",
+  );
+  if (hadPerPoint) return merged;
+  const showName = showVertexNames !== false;
+  const showDot = showDots !== false;
+  return merged.map((v) => ({ ...v, showName, showDot }));
 }
 
 export function findSeg(state: TrigRatiosState, id: string): SegMark | undefined {
