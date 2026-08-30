@@ -16,11 +16,17 @@ export type { CoordStyle, GraphLabelMode } from "@/lib/diagrams/coordinate-plane
 
 export const SLOPE_ORANGE = "#e8a045";
 export const TRANSLATION_RED = "#e24a4a";
+export const GRAPH_PURPLE = "#7b4fb2";
+
+export type LinearKind = "linear" | "vertical";
 
 export type LinearGraph = {
   id: string;
+  kind: LinearKind;
   a: number;
   b: number;
+  /** x = c when kind is vertical. */
+  c: number;
   color: string;
   width: number;
   labelMode: GraphLabelMode;
@@ -42,6 +48,7 @@ export type LinearPoint = {
   graphId: string;
   name: string;
   x: number;
+  y: number;
   showDot: boolean;
   showName: boolean;
   labelDx: number;
@@ -129,16 +136,34 @@ export function nextPointName(existing: { name: string }[]): string {
   return `P${existing.length + 1}`;
 }
 
+export function isVertical(graph: Pick<LinearGraph, "kind">): boolean {
+  return graph.kind === "vertical";
+}
+
+export function isHorizontal(graph: Pick<LinearGraph, "kind" | "a">): boolean {
+  return graph.kind !== "vertical" && Math.abs(graph.a) < 1e-9;
+}
+
 export function yOnLine(graph: Pick<LinearGraph, "a" | "b">, x: number): number {
   return graph.a * x + graph.b;
 }
 
-export function xIntercept(graph: Pick<LinearGraph, "a" | "b">): number | null {
+export function pointCoords(
+  graph: LinearGraph,
+  point: Pick<LinearPoint, "x" | "y">,
+): { x: number; y: number } {
+  if (isVertical(graph)) return { x: graph.c, y: point.y };
+  return { x: point.x, y: yOnLine(graph, point.x) };
+}
+
+export function xIntercept(graph: LinearGraph): number | null {
+  if (isVertical(graph)) return graph.c;
   if (Math.abs(graph.a) < 1e-9) return null;
   return -graph.b / graph.a;
 }
 
-export function yIntercept(graph: Pick<LinearGraph, "b">): number {
+export function yIntercept(graph: LinearGraph): number | null {
+  if (isVertical(graph)) return null;
   return graph.b;
 }
 
@@ -152,8 +177,10 @@ export function makeLinear(
 ): LinearGraph {
   return {
     id: partial.id ?? newId("g"),
+    kind: partial.kind ?? "linear",
     a: partial.a,
     b: partial.b ?? 0,
+    c: partial.c ?? 2,
     color: partial.color ?? GRAPH_PINK,
     width: partial.width ?? 0,
     labelMode: partial.labelMode ?? "auto",
@@ -179,6 +206,7 @@ export function makePoint(
     graphId: partial.graphId,
     name: partial.name ?? "P",
     x: partial.x,
+    y: partial.y ?? 0,
     showDot: partial.showDot ?? true,
     showName: partial.showName ?? false,
     labelDx: partial.labelDx ?? 10,
@@ -248,12 +276,22 @@ export function formatLinearEquation(a: number, b: number): string {
 
 export function linearEquationText(graph: LinearGraph): string | null {
   if (graph.labelMode === "hide") return null;
+  if (isVertical(graph)) {
+    if (graph.labelMode === "custom") {
+      return graph.custom.trim() || `x=${formatNiceCoeff(graph.c)}`;
+    }
+    if (graph.labelMode === "letter") {
+      return `x=${graph.letterA.trim() || "a"}`;
+    }
+    return `x=${formatNiceCoeff(graph.c)}`;
+  }
   if (graph.labelMode === "custom") {
     return graph.custom.trim() || formatLinearEquation(graph.a, graph.b);
   }
   if (graph.labelMode === "letter") {
     const A = graph.letterA.trim() || "a";
     const B = graph.letterB.trim() || "b";
+    if (isHorizontal(graph)) return `y=${B}`;
     return `y=${A}x+${B}`;
   }
   return formatLinearEquation(graph.a, graph.b);
@@ -263,7 +301,7 @@ export function graphStrokeWidth(graph: LinearGraph, fallback: number): number {
   return graph.width > 0 ? graph.width : fallback;
 }
 
-const GRAPH_COLORS = [GRAPH_PINK, GRAPH_CYAN, GRAPH_INK];
+const GRAPH_COLORS = [GRAPH_PINK, GRAPH_CYAN, GRAPH_INK, GRAPH_PURPLE];
 
 export function nextGraphColor(existing: LinearGraph[]): string {
   return GRAPH_COLORS[existing.length % GRAPH_COLORS.length]!;
@@ -323,18 +361,34 @@ export function normalizeState(state: LinearFunctionState): LinearFunctionState 
     yAxisLabelDy: clampOffset(state.yAxisLabelDy),
     graphs: state.graphs.map((g) => ({
       ...g,
+      kind: g.kind === "vertical" ? "vertical" : "linear",
       a: Number.isFinite(g.a) ? g.a : 1,
       b: Number.isFinite(g.b) ? g.b : 0,
+      c: Number.isFinite(g.c) ? g.c : 2,
       width: g.width > 0 ? g.width : 0,
       letterA: g.letterA || "a",
       letterB: g.letterB || "b",
     })),
     points: state.points
       .filter((p) => graphIds.has(p.graphId))
-      .map((p) => ({
-        ...p,
-        x: Math.min(xs.max, Math.max(xs.min, p.x)),
-      })),
+      .map((p) => {
+        const graph = state.graphs.find((g) => g.id === p.graphId);
+        const coords = graph
+          ? pointCoords(
+              {
+                ...graph,
+                kind: graph.kind === "vertical" ? "vertical" : "linear",
+                c: Number.isFinite(graph.c) ? graph.c : 2,
+              },
+              { x: p.x, y: Number.isFinite(p.y) ? p.y : 0 },
+            )
+          : { x: p.x, y: 0 };
+        return {
+          ...p,
+          x: Math.min(xs.max, Math.max(xs.min, coords.x)),
+          y: Math.min(ys.max, Math.max(ys.min, coords.y)),
+        };
+      }),
     slopeSteps: state.slopeSteps
       .filter((s) => graphIds.has(s.graphId))
       .map((s) => ({
@@ -412,15 +466,44 @@ export function addLinearGraph(state: LinearFunctionState): LinearFunctionState 
   return { ...state, graphs: [...state.graphs, graph] };
 }
 
+export function addVerticalGraph(state: LinearFunctionState): LinearFunctionState {
+  const graph = makeLinear({
+    a: 0,
+    b: 0,
+    kind: "vertical",
+    c: 2,
+    color: nextGraphColor(state.graphs),
+    labelMode: "auto",
+  });
+  return { ...state, graphs: [...state.graphs, graph] };
+}
+
+export function addHorizontalGraph(state: LinearFunctionState): LinearFunctionState {
+  const graph = makeLinear({
+    a: 0,
+    b: -2,
+    color: nextGraphColor(state.graphs),
+    labelMode: "auto",
+  });
+  return { ...state, graphs: [...state.graphs, graph] };
+}
+
 export function addPointOnGraph(
   state: LinearFunctionState,
   graphId: string,
   x: number,
+  y?: number,
 ): LinearFunctionState {
-  if (!state.graphs.some((g) => g.id === graphId)) return state;
+  const graph = state.graphs.find((g) => g.id === graphId);
+  if (!graph) return state;
+  const alongX = isVertical(graph) ? graph.c : x;
+  const alongY = isVertical(graph)
+    ? (y ?? 2)
+    : yOnLine(graph, alongX);
   const point = makePoint({
     graphId,
-    x,
+    x: alongX,
+    y: alongY,
     name: nextPointName(state.points),
     showName: true,
     dropX: true,
@@ -436,7 +519,7 @@ export function addSlopeStep(
   graphId: string,
 ): LinearFunctionState {
   const graph = state.graphs.find((g) => g.id === graphId);
-  if (!graph) return state;
+  if (!graph || isVertical(graph)) return state;
   const x1 =
     0 >= state.xMin && 0 <= state.xMax
       ? 0
@@ -491,6 +574,8 @@ export function addTranslation(
 }
 
 export function graphsAreParallel(a: LinearGraph, b: LinearGraph): boolean {
+  if (isVertical(a) && isVertical(b)) return true;
+  if (isVertical(a) || isVertical(b)) return false;
   return Math.abs(a.a - b.a) < 1e-6;
 }
 
@@ -655,6 +740,41 @@ export const LINEAR_FUNCTION_PRESETS: {
           fromGraphId: "g-from",
           toGraphId: "g-to",
           xs: [-1, 1, 3, 5],
+        }),
+      ],
+    }),
+  },
+  {
+    id: "axes-const",
+    title: "x=a, y=b",
+    hint: "수직선·수평선",
+    state: baseState({
+      xMin: -5,
+      xMax: 5,
+      yMin: -5,
+      yMax: 5,
+      xLabelEvery: 2,
+      yLabelEvery: 2,
+      showGrid: true,
+      graphs: [
+        makeLinear({
+          id: "g-xeq",
+          a: 0,
+          kind: "vertical",
+          c: 2,
+          color: GRAPH_PINK,
+          labelMode: "auto",
+          labelDx: 16,
+          labelDy: 4,
+        }),
+        makeLinear({
+          id: "g-yeq",
+          a: 0,
+          b: -3,
+          color: GRAPH_PURPLE,
+          labelMode: "auto",
+          labelDx: 22,
+          labelDy: -12,
         }),
       ],
     }),

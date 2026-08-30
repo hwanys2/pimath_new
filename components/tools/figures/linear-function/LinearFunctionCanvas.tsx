@@ -20,11 +20,15 @@ import {
   parseGraphLabelId,
   parseSlopeLabelId,
   parseTransLabelId,
+  shiftAxisLine,
   type LinearHit,
   valueFromCanvasX,
   valueFromCanvasY,
 } from "@/lib/diagrams/linear-function/geometry";
 import {
+  isHorizontal,
+  isVertical,
+  pointCoords,
   yOnLine,
   type LinearFunctionState,
 } from "@/lib/diagrams/linear-function/model";
@@ -50,7 +54,8 @@ type Drag =
   | { t: "point"; pointId: string }
   | { t: "slopeEnd"; stepId: string; which: 1 | 2 }
   | { t: "intercept"; graphId: string; which: "x" | "y" }
-  | { t: "transArrow"; transId: string; index: number };
+  | { t: "transArrow"; transId: string; index: number }
+  | { t: "graphShift"; graphId: string };
 
 type Props = {
   state: LinearFunctionState;
@@ -274,6 +279,7 @@ export default function LinearFunctionCanvas({
                 hit.graphId,
                 scene.layout,
                 p.x,
+                p.y,
               );
               const added = next.points[next.points.length - 1];
               setState(next, true);
@@ -281,6 +287,12 @@ export default function LinearFunctionCanvas({
               return;
             }
             onSelect(hit.graphId);
+            const graph = stateRef.current.graphs.find((g) => g.id === hit.graphId);
+            if (graph && (isVertical(graph) || isHorizontal(graph))) {
+              dragRef.current = { t: "graphShift", graphId: hit.graphId };
+              setCursor("grabbing");
+              e.currentTarget.setPointerCapture(e.pointerId);
+            }
             return;
           }
 
@@ -297,6 +309,7 @@ export default function LinearFunctionCanvas({
                 graphId,
                 scene.layout,
                 p.x,
+                p.y,
               );
               const added = next.points[next.points.length - 1];
               setState(next, true);
@@ -354,6 +367,21 @@ export default function LinearFunctionCanvas({
                   prev,
                   drag.pointId,
                   valueFromCanvasX(p.x, scene.layout),
+                  valueFromCanvasY(p.y, scene.layout),
+                ),
+              false,
+            );
+            return;
+          }
+
+          if (drag.t === "graphShift") {
+            setState(
+              (prev) =>
+                shiftAxisLine(
+                  prev,
+                  drag.graphId,
+                  valueFromCanvasX(p.x, scene.layout),
+                  valueFromCanvasY(p.y, scene.layout),
                 ),
               false,
             );
@@ -509,8 +537,9 @@ function paintOverlays(
   for (const point of state.points) {
     const graph = state.graphs.find((g) => g.id === point.graphId);
     if (!graph) continue;
-    const x = canvasXFromValue(point.x, layout);
-    const y = canvasYFromValue(yOnLine(graph, point.x), layout);
+    const coords = pointCoords(graph, point);
+    const x = canvasXFromValue(coords.x, layout);
+    const y = canvasYFromValue(coords.y, layout);
     const selected = point.id === selectedId;
     const hovered = hover?.kind === "point" && hover.pointId === point.id;
     if (!selected && !hovered) continue;

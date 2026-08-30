@@ -2,10 +2,13 @@ import { parseMathRuns, parseNameRuns } from "@/lib/diagrams/math-label";
 import {
   graphStrokeWidth,
   interceptLabel,
+  isVertical,
   linearEquationText,
+  pointCoords,
   toPlaneBackdrop,
   yOnLine,
   xIntercept,
+  yIntercept,
   type LinearFunctionState,
   type LinearGraph,
   type SlopeStep,
@@ -81,12 +84,45 @@ export function clipLinear(
   ];
 }
 
+export function clipGraph(
+  graph: LinearGraph,
+  layout: PlaneLayout,
+): Vec[] | null {
+  if (isVertical(graph)) {
+    if (!inRange(graph.c, layout.xMin, layout.xMax)) return null;
+    const yLo = dataYMin(layout);
+    return [
+      {
+        x: canvasXFromValue(graph.c, layout),
+        y: canvasYFromValue(yLo, layout),
+      },
+      {
+        x: canvasXFromValue(graph.c, layout),
+        y: canvasYFromValue(layout.yMax, layout),
+      },
+    ];
+  }
+  return clipLinear(graph.a, graph.b, layout);
+}
+
 function defaultGraphLabelPos(graph: LinearGraph, layout: PlaneLayout): Vec {
-  const seg = clipLinear(graph.a, graph.b, layout);
+  const seg = clipGraph(graph, layout);
   if (!seg) {
     return {
       x: (layout.plotLeft + layout.plotRight) / 2,
       y: layout.plotTop + 20,
+    };
+  }
+  if (isVertical(graph)) {
+    return {
+      x: seg[0]!.x + 16,
+      y: seg[1]!.y + (seg[0]!.y - seg[1]!.y) * 0.18,
+    };
+  }
+  if (Math.abs(graph.a) < 1e-9) {
+    return {
+      x: seg[0]!.x + (seg[1]!.x - seg[0]!.x) * 0.62,
+      y: seg[0]!.y - 14,
     };
   }
   const t = 0.72;
@@ -170,9 +206,9 @@ export function buildLinearFunctionScene(
   for (const point of state.points) {
     const graph = state.graphs.find((g) => g.id === point.graphId);
     if (!graph) continue;
-    const y = yOnLine(graph, point.x);
-    const px = canvasXFromValue(point.x, layout);
-    const py = canvasYFromValue(y, layout);
+    const coords = pointCoords(graph, point);
+    const px = canvasXFromValue(coords.x, layout);
+    const py = canvasYFromValue(coords.y, layout);
     if (point.dropX) {
       cmds.push({
         t: "line",
@@ -201,7 +237,7 @@ export function buildLinearFunctionScene(
 
   for (const graph of state.graphs) {
     const width = graphStrokeWidth(graph, state.style.graphWidth);
-    const seg = clipLinear(graph.a, graph.b, layout);
+    const seg = clipGraph(graph, layout);
     if (seg) {
       cmds.push({ t: "polyline", pts: seg, stroke: graph.color, width });
     }
@@ -210,7 +246,7 @@ export function buildLinearFunctionScene(
   for (const trans of state.translations) {
     const from = state.graphs.find((g) => g.id === trans.fromGraphId);
     const to = state.graphs.find((g) => g.id === trans.toGraphId);
-    if (!from || !to) continue;
+    if (!from || !to || isVertical(from) || isVertical(to)) continue;
     const yLo = dataYMin(layout);
     for (const x of trans.xs) {
       const y1 = yOnLine(from, x);
@@ -251,7 +287,7 @@ export function buildLinearFunctionScene(
 
   for (const step of state.slopeSteps) {
     const graph = state.graphs.find((g) => g.id === step.graphId);
-    if (!graph) continue;
+    if (!graph || isVertical(graph)) continue;
     const { dx, dy, y1, y2 } = slopeDelta(step, graph);
     const p1x = canvasXFromValue(step.x1, layout);
     const p1y = canvasYFromValue(y1, layout);
@@ -294,9 +330,9 @@ export function buildLinearFunctionScene(
   for (const point of state.points) {
     const graph = state.graphs.find((g) => g.id === point.graphId);
     if (!graph) continue;
-    const y = yOnLine(graph, point.x);
-    const px = canvasXFromValue(point.x, layout);
-    const py = canvasYFromValue(y, layout);
+    const coords = pointCoords(graph, point);
+    const px = canvasXFromValue(coords.x, layout);
+    const py = canvasYFromValue(coords.y, layout);
     if (point.showDot) {
       cmds.push({ t: "dot", x: px, y: py, r: state.style.pointRadius });
     }
@@ -311,24 +347,24 @@ export function buildLinearFunctionScene(
       });
     }
     if (point.axisMarkX) {
-      if (!tickCovers(point.x, state.xTick, state.xLabelEvery, state.showTickLabels)) {
+      if (!tickCovers(coords.x, state.xTick, state.xLabelEvery, state.showTickLabels)) {
         pushText(texts, cmds, {
           id: `point:${point.id}:axisX`,
           x: px,
           y: oy + 14,
-          runs: parseMathRuns(interceptLabel(point.x)),
+          runs: parseMathRuns(interceptLabel(coords.x)),
           size: state.style.fontSize,
           anchor: "middle",
         });
       }
     }
     if (point.axisMarkY) {
-      if (!tickCovers(y, state.yTick, state.yLabelEvery, state.showTickLabels)) {
+      if (!tickCovers(coords.y, state.yTick, state.yLabelEvery, state.showTickLabels)) {
         pushText(texts, cmds, {
           id: `point:${point.id}:axisY`,
           x: ox - 10,
           y: py,
-          runs: parseMathRuns(interceptLabel(y)),
+          runs: parseMathRuns(interceptLabel(coords.y)),
           size: state.style.fontSize,
           anchor: "end",
         });
@@ -355,16 +391,18 @@ export function buildLinearFunctionScene(
         });
       }
     }
+    const yi = yIntercept(graph);
     if (
       graph.showYIntercept &&
-      Math.abs(graph.b) > 1e-6 &&
+      yi != null &&
+      Math.abs(yi) > 1e-6 &&
       inRange(0, layout.xMin, layout.xMax) &&
-      inRange(graph.b, dataYMin(layout), layout.yMax)
+      inRange(yi, dataYMin(layout), layout.yMax)
     ) {
       pushText(texts, cmds, {
         id: `graph:${graph.id}:yi`,
         x: ox + 10 + graph.yiLabelDx,
-        y: canvasYFromValue(graph.b, layout) + graph.yiLabelDy,
+        y: canvasYFromValue(yi, layout) + graph.yiLabelDy,
         runs: parseMathRuns(interceptLabel(graph.b)),
         size: state.style.fontSize,
         anchor: "start",

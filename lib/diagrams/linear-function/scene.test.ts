@@ -11,7 +11,7 @@ import {
   yOnLine,
 } from "./model";
 import { moveIntercept } from "./geometry";
-import { buildLinearFunctionScene, clipLinear } from "./scene";
+import { buildLinearFunctionScene, clipGraph, clipLinear } from "./scene";
 import { getPlaneLayout } from "../coordinate-plane/scene";
 
 describe("linear equation text", () => {
@@ -34,6 +34,26 @@ describe("linear equation text", () => {
     assert.equal(linearEquationText(graph), "y=ax+b");
     const numeric = makeLinear({ a: 3 / 4, b: -2, labelMode: "auto" });
     assert.equal(linearEquationText(numeric), "y=\\frac{3}{4}x-2");
+  });
+
+  it("formats x = a and y = b", () => {
+    const vertical = makeLinear({
+      a: 0,
+      kind: "vertical",
+      c: 2,
+      labelMode: "auto",
+    });
+    assert.equal(linearEquationText(vertical), "x=2");
+    const horizontal = makeLinear({ a: 0, b: -3, labelMode: "auto" });
+    assert.equal(linearEquationText(horizontal), "y=-3");
+    const letterX = makeLinear({
+      a: 0,
+      kind: "vertical",
+      c: 2,
+      labelMode: "letter",
+      letterA: "a",
+    });
+    assert.equal(linearEquationText(letterX), "x=a");
   });
 });
 
@@ -139,5 +159,20 @@ describe("scene", () => {
   it("parses stacked fractions in equation labels", () => {
     const runs = parseMathRuns("y=\\frac{3}{4}x-2");
     assert.equal(runsToPlain(runs), "y=3/4x-2");
+  });
+
+  it("draws x = a and y = b as axis-parallel lines", () => {
+    const state = LINEAR_FUNCTION_PRESETS.find((p) => p.id === "axes-const")!
+      .state;
+    const scene = buildLinearFunctionScene(state);
+    const eqs = scene.texts.filter((t) => t.id.endsWith(":eq"));
+    assert.ok(eqs.some((t) => runsToPlain(t.runs) === "x=2"));
+    assert.ok(eqs.some((t) => runsToPlain(t.runs) === "y=-3"));
+    const layout = getPlaneLayout(toPlaneBackdrop(state));
+    const vertical = makeLinear({ a: 0, kind: "vertical", c: 2 });
+    const clip = clipGraph(vertical, layout);
+    assert.ok(clip);
+    assert.equal(clip.length, 2);
+    assert.ok(Math.abs(clip[0]!.x - clip[1]!.x) < 1e-6);
   });
 });

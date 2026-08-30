@@ -21,26 +21,31 @@ import {
   downloadBlob,
 } from "@/lib/diagrams/export-image";
 import {
+  addHorizontalGraph,
   addLinearGraph,
   addPointOnGraph,
   addSlopeStep,
   addTranslation,
+  addVerticalGraph,
   cloneState,
   DEFAULT_LINEAR_FUNCTION_STATE,
   GRAPH_CYAN,
   GRAPH_INK,
   GRAPH_PINK,
+  GRAPH_PURPLE,
   GRID_COLOR,
   GRID_GRAY,
   graphsAreParallel,
+  isHorizontal,
+  isVertical,
   LINEAR_FUNCTION_PRESETS,
   linearEquationText,
   makeLinear,
   nextGraphColor,
   normalizeState,
+  pointCoords,
   removeById,
   xIntercept,
-  yOnLine,
   type GraphLabelMode,
   type LinearFunctionState,
   type LinearGraph,
@@ -172,6 +177,7 @@ function fontsFromNext(): FontFaces {
 const COLORS = [
   { id: GRAPH_PINK, label: "분홍" },
   { id: GRAPH_CYAN, label: "청록" },
+  { id: GRAPH_PURPLE, label: "보라" },
   { id: GRAPH_INK, label: "검정" },
 ];
 
@@ -391,8 +397,8 @@ export default function LinearFunctionStudio() {
         </p>
       ) : null}
 
-      <div className="grid items-start gap-5 lg:grid-cols-[minmax(0,22rem)_minmax(16rem,20rem)_minmax(15rem,18rem)]">
-        <div className="mx-auto w-full max-w-[24rem] overflow-hidden rounded-3xl border-2 border-wood/10 bg-white shadow-[0_12px_40px_rgba(61,44,30,0.08)] lg:mx-0">
+      <div className="grid items-start gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(14rem,16rem)_minmax(15rem,18rem)]">
+        <div className="mx-auto w-full max-w-[24rem] overflow-hidden rounded-3xl border-2 border-wood/10 bg-white shadow-[0_12px_40px_rgba(61,44,30,0.08)] lg:mx-0 lg:max-w-none">
           <LinearFunctionCanvas
             state={state}
             fonts={fonts}
@@ -434,57 +440,122 @@ export default function LinearFunctionStudio() {
                 <p className="text-xs font-semibold text-wood-dark">
                   {eqPreview ?? "식 숨김"}
                 </p>
-                <div className="grid grid-cols-2 gap-2">
+                <Segmented
+                  value={
+                    isVertical(selectedGraph)
+                      ? "xeq"
+                      : isHorizontal(selectedGraph)
+                        ? "yeq"
+                        : "axb"
+                  }
+                  onChange={(form) => {
+                    if (form === "xeq") {
+                      const xi = xIntercept(selectedGraph);
+                      patchSelectedGraph({
+                        kind: "vertical",
+                        c: xi ?? selectedGraph.c ?? 2,
+                      });
+                      return;
+                    }
+                    if (form === "yeq") {
+                      patchSelectedGraph({
+                        kind: "linear",
+                        a: 0,
+                        b: isVertical(selectedGraph) ? 0 : selectedGraph.b,
+                      });
+                      return;
+                    }
+                    patchSelectedGraph({
+                      kind: "linear",
+                      a: isHorizontal(selectedGraph) ? 1 : selectedGraph.a,
+                    });
+                  }}
+                  options={[
+                    { id: "axb", label: "y=ax+b" },
+                    { id: "xeq", label: "x=a" },
+                    { id: "yeq", label: "y=b" },
+                  ]}
+                />
+                {isVertical(selectedGraph) ? (
                   <NumberField
-                    label="기울기 a"
-                    value={selectedGraph.a}
-                    onChange={(a) => patchSelectedGraph({ a })}
-                    step={0.25}
+                    label="x ="
+                    value={selectedGraph.c}
+                    onChange={(c) => patchSelectedGraph({ c })}
+                    step={0.5}
                   />
+                ) : isHorizontal(selectedGraph) ? (
                   <NumberField
-                    label="y절편 b"
+                    label="y ="
                     value={selectedGraph.b}
                     onChange={(b) => patchSelectedGraph({ b })}
                     step={0.5}
                   />
-                </div>
-                {xi != null ? (
-                  <NumberField
-                    label="x절편"
-                    value={Math.round(xi * 1000) / 1000}
-                    onChange={(value) =>
-                      setState((prev) =>
-                        moveIntercept(prev, selectedGraph.id, "x", value),
-                      )
-                    }
-                    step={0.5}
-                  />
                 ) : (
-                  <p className="text-[11px] text-foreground/45">
-                    수평선이라 x절편이 없어요.
-                  </p>
+                  <>
+                    <div className="grid grid-cols-2 gap-2">
+                      <NumberField
+                        label="기울기 a"
+                        value={selectedGraph.a}
+                        onChange={(a) => patchSelectedGraph({ a })}
+                        step={0.25}
+                      />
+                      <NumberField
+                        label="y절편 b"
+                        value={selectedGraph.b}
+                        onChange={(b) => patchSelectedGraph({ b })}
+                        step={0.5}
+                      />
+                    </div>
+                    {xi != null ? (
+                      <NumberField
+                        label="x절편"
+                        value={Math.round(xi * 1000) / 1000}
+                        onChange={(value) =>
+                          setState((prev) =>
+                            moveIntercept(prev, selectedGraph.id, "x", value),
+                          )
+                        }
+                        step={0.5}
+                      />
+                    ) : null}
+                  </>
                 )}
                 <div className="flex flex-wrap gap-1.5">
-                  <ChipToggle
-                    on={selectedGraph.showXIntercept}
-                    onClick={() =>
-                      patchSelectedGraph({
-                        showXIntercept: !selectedGraph.showXIntercept,
-                      })
-                    }
-                  >
-                    x절편
-                  </ChipToggle>
-                  <ChipToggle
-                    on={selectedGraph.showYIntercept}
-                    onClick={() =>
-                      patchSelectedGraph({
-                        showYIntercept: !selectedGraph.showYIntercept,
-                      })
-                    }
-                  >
-                    y절편
-                  </ChipToggle>
+                  {isVertical(selectedGraph) ? (
+                    <ChipToggle
+                      on={selectedGraph.showXIntercept}
+                      onClick={() =>
+                        patchSelectedGraph({
+                          showXIntercept: !selectedGraph.showXIntercept,
+                        })
+                      }
+                    >
+                      x값
+                    </ChipToggle>
+                  ) : (
+                    <>
+                      <ChipToggle
+                        on={selectedGraph.showXIntercept}
+                        onClick={() =>
+                          patchSelectedGraph({
+                            showXIntercept: !selectedGraph.showXIntercept,
+                          })
+                        }
+                      >
+                        x절편
+                      </ChipToggle>
+                      <ChipToggle
+                        on={selectedGraph.showYIntercept}
+                        onClick={() =>
+                          patchSelectedGraph({
+                            showYIntercept: !selectedGraph.showYIntercept,
+                          })
+                        }
+                      >
+                        y절편
+                      </ChipToggle>
+                    </>
+                  )}
                 </div>
                 <div className="flex flex-wrap gap-1.5">
                   <button
@@ -507,31 +578,35 @@ export default function LinearFunctionStudio() {
                   >
                     점 추가
                   </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      const next = addSlopeStep(state, selectedGraph.id);
-                      setState(next);
-                      const added = next.slopeSteps[next.slopeSteps.length - 1];
-                      if (added) setSelectedId(added.id);
-                    }}
-                    className="rounded-xl bg-black/5 px-2.5 py-1.5 text-xs font-semibold text-foreground/70 hover:bg-black/10"
-                  >
-                    기울기 설명
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      const next = addParallelTranslate(state, selectedGraph.id);
-                      setState(next);
-                      const added =
-                        next.translations[next.translations.length - 1];
-                      if (added) setSelectedId(added.id);
-                    }}
-                    className="rounded-xl bg-black/5 px-2.5 py-1.5 text-xs font-semibold text-foreground/70 hover:bg-black/10"
-                  >
-                    평행이동
-                  </button>
+                  {!isVertical(selectedGraph) ? (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const next = addSlopeStep(state, selectedGraph.id);
+                        setState(next);
+                        const added = next.slopeSteps[next.slopeSteps.length - 1];
+                        if (added) setSelectedId(added.id);
+                      }}
+                      className="rounded-xl bg-black/5 px-2.5 py-1.5 text-xs font-semibold text-foreground/70 hover:bg-black/10"
+                    >
+                      기울기 설명
+                    </button>
+                  ) : null}
+                  {!isVertical(selectedGraph) ? (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const next = addParallelTranslate(state, selectedGraph.id);
+                        setState(next);
+                        const added =
+                          next.translations[next.translations.length - 1];
+                        if (added) setSelectedId(added.id);
+                      }}
+                      className="rounded-xl bg-black/5 px-2.5 py-1.5 text-xs font-semibold text-foreground/70 hover:bg-black/10"
+                    >
+                      평행이동
+                    </button>
+                  ) : null}
                 </div>
                 <div>
                   <p className="text-[11px] font-semibold text-foreground/50">
@@ -552,18 +627,41 @@ export default function LinearFunctionStudio() {
                     />
                   </div>
                   {selectedGraph.labelMode === "letter" ? (
-                    <div className="mt-2 grid grid-cols-2 gap-2">
+                    isVertical(selectedGraph) || isHorizontal(selectedGraph) ? (
                       <TextField
-                        label="기울기 문자"
-                        value={selectedGraph.letterA}
-                        onChange={(letterA) => patchSelectedGraph({ letterA })}
+                        label="문자"
+                        value={
+                          isVertical(selectedGraph)
+                            ? selectedGraph.letterA
+                            : selectedGraph.letterB
+                        }
+                        onChange={(letter) =>
+                          patchSelectedGraph(
+                            isVertical(selectedGraph)
+                              ? { letterA: letter }
+                              : { letterB: letter },
+                          )
+                        }
+                        className="mt-2"
                       />
-                      <TextField
-                        label="절편 문자"
-                        value={selectedGraph.letterB}
-                        onChange={(letterB) => patchSelectedGraph({ letterB })}
-                      />
-                    </div>
+                    ) : (
+                      <div className="mt-2 grid grid-cols-2 gap-2">
+                        <TextField
+                          label="기울기 문자"
+                          value={selectedGraph.letterA}
+                          onChange={(letterA) =>
+                            patchSelectedGraph({ letterA })
+                          }
+                        />
+                        <TextField
+                          label="절편 문자"
+                          value={selectedGraph.letterB}
+                          onChange={(letterB) =>
+                            patchSelectedGraph({ letterB })
+                          }
+                        />
+                      </div>
+                    )
                   ) : null}
                   {selectedGraph.labelMode === "custom" ? (
                     <TextField
@@ -611,24 +709,39 @@ export default function LinearFunctionStudio() {
                     value={selectedPoint.name}
                     onChange={(name) => patchSelectedPoint({ name })}
                   />
-                  <NumberField
-                    label="x"
-                    value={selectedPoint.x}
-                    onChange={(x) => patchSelectedPoint({ x })}
-                    step={state.xTick}
-                  />
-                </div>
-                <p className="text-[11px] text-foreground/45">
-                  y ={" "}
                   {(() => {
                     const g = state.graphs.find(
                       (gr) => gr.id === selectedPoint.graphId,
                     );
-                    return g
-                      ? Math.round(yOnLine(g, selectedPoint.x) * 1000) / 1000
-                      : "—";
+                    if (g && isVertical(g)) {
+                      return (
+                        <NumberField
+                          label="y"
+                          value={selectedPoint.y}
+                          onChange={(y) => patchSelectedPoint({ y })}
+                          step={state.yTick}
+                        />
+                      );
+                    }
+                    return (
+                      <NumberField
+                        label="x"
+                        value={selectedPoint.x}
+                        onChange={(x) => patchSelectedPoint({ x })}
+                        step={state.xTick}
+                      />
+                    );
                   })()}
-                  . 직선 위를 따라 움직여요.
+                </div>
+                <p className="text-[11px] text-foreground/45">
+                  {(() => {
+                    const g = state.graphs.find(
+                      (gr) => gr.id === selectedPoint.graphId,
+                    );
+                    if (!g) return "직선 위를 따라 움직여요.";
+                    const c = pointCoords(g, selectedPoint);
+                    return `(${c.x}, ${Math.round(c.y * 1000) / 1000}). 직선 위를 따라 움직여요.`;
+                  })()}
                 </p>
                 <div className="flex flex-wrap gap-1.5">
                   <ChipToggle
@@ -776,6 +889,8 @@ export default function LinearFunctionStudio() {
           <section className="rounded-2xl border-2 border-wood/10 bg-white/80 p-3.5">
             <div className="flex items-center justify-between gap-2">
               <h2 className="font-display text-sm text-wood-dark">그래프</h2>
+            </div>
+            <div className="mt-2 flex flex-wrap gap-1.5">
               <button
                 type="button"
                 onClick={() => {
@@ -786,7 +901,31 @@ export default function LinearFunctionStudio() {
                 }}
                 className="rounded-xl bg-wood px-2.5 py-1 text-xs font-semibold text-cream"
               >
-                추가
+                y=ax+b
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  const next = addVerticalGraph(state);
+                  setState(next);
+                  const added = next.graphs[next.graphs.length - 1];
+                  if (added) setSelectedId(added.id);
+                }}
+                className="rounded-xl bg-black/5 px-2.5 py-1 text-xs font-semibold text-foreground/70 hover:bg-black/10"
+              >
+                x=a
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  const next = addHorizontalGraph(state);
+                  setState(next);
+                  const added = next.graphs[next.graphs.length - 1];
+                  if (added) setSelectedId(added.id);
+                }}
+                className="rounded-xl bg-black/5 px-2.5 py-1 text-xs font-semibold text-foreground/70 hover:bg-black/10"
+              >
+                y=b
               </button>
             </div>
             {state.graphs.length > 0 ? (
@@ -835,9 +974,9 @@ export default function LinearFunctionStudio() {
               <ul className="mt-3 space-y-1 border-t border-wood/10 pt-2">
                 {state.points.map((point) => {
                   const g = state.graphs.find((gr) => gr.id === point.graphId);
-                  const y = g
-                    ? Math.round(yOnLine(g, point.x) * 100) / 100
-                    : "?";
+                  const c = g ? pointCoords(g, point) : { x: point.x, y: "?" };
+                  const y =
+                    typeof c.y === "number" ? Math.round(c.y * 100) / 100 : c.y;
                   return (
                     <li key={point.id} className="flex items-center gap-2">
                       <button
@@ -851,7 +990,7 @@ export default function LinearFunctionStudio() {
                       >
                         {point.name || "점"}
                         <span className="ml-1 font-normal text-foreground/45">
-                          ({point.x}, {y})
+                          ({c.x}, {y})
                         </span>
                       </button>
                       <button
@@ -871,32 +1010,6 @@ export default function LinearFunctionStudio() {
                 })}
               </ul>
             ) : null}
-          </section>
-        </div>
-
-        <div className="space-y-4">
-          <section className="rounded-2xl border-2 border-wood/10 bg-white/80 p-3.5">
-            <h2 className="font-display text-sm text-wood-dark">빠른 그림</h2>
-            <div className="mt-2 grid grid-cols-2 gap-1.5">
-              {LINEAR_FUNCTION_PRESETS.map((preset) => (
-                <button
-                  key={preset.id}
-                  type="button"
-                  onClick={() => {
-                    const next = cloneState(preset.state);
-                    setState(next);
-                    setSelectedId(next.graphs[0]?.id ?? null);
-                    setPlacingPoint(false);
-                  }}
-                  className="rounded-xl bg-black/5 px-2.5 py-2 text-left text-xs font-semibold text-foreground/70 hover:bg-black/10"
-                >
-                  {preset.title}
-                  <span className="mt-0.5 block font-normal text-foreground/45">
-                    {preset.hint}
-                  </span>
-                </button>
-              ))}
-            </div>
           </section>
 
           <section className="rounded-2xl border-2 border-wood/10 bg-white/80 p-3.5">
@@ -1097,6 +1210,32 @@ export default function LinearFunctionStudio() {
                 step={2}
                 display={`${state.style.padding}px`}
               />
+            </div>
+          </section>
+        </div>
+
+        <div className="space-y-4">
+          <section className="rounded-2xl border-2 border-wood/10 bg-white/80 p-3.5">
+            <h2 className="font-display text-sm text-wood-dark">빠른 그림</h2>
+            <div className="mt-2 grid grid-cols-2 gap-1.5">
+              {LINEAR_FUNCTION_PRESETS.map((preset) => (
+                <button
+                  key={preset.id}
+                  type="button"
+                  onClick={() => {
+                    const next = cloneState(preset.state);
+                    setState(next);
+                    setSelectedId(next.graphs[0]?.id ?? null);
+                    setPlacingPoint(false);
+                  }}
+                  className="rounded-xl bg-black/5 px-2.5 py-2 text-left text-xs font-semibold text-foreground/70 hover:bg-black/10"
+                >
+                  {preset.title}
+                  <span className="mt-0.5 block font-normal text-foreground/45">
+                    {preset.hint}
+                  </span>
+                </button>
+              ))}
             </div>
           </section>
 

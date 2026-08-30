@@ -1,5 +1,8 @@
 import {
   addPointOnGraph,
+  isHorizontal,
+  isVertical,
+  pointCoords,
   xIntercept,
   yOnLine,
   type LinearFunctionState,
@@ -8,7 +11,10 @@ import {
   type SlopeStep,
   type Translation,
 } from "@/lib/diagrams/linear-function/model";
-import { clipLinear, type LinearFunctionScene } from "@/lib/diagrams/linear-function/scene";
+import {
+  clipGraph,
+  type LinearFunctionScene,
+} from "@/lib/diagrams/linear-function/scene";
 import {
   canvasXFromValue,
   canvasYFromValue,
@@ -154,8 +160,9 @@ export function hitTestLinearFunction(
   for (const point of state.points) {
     const graph = state.graphs.find((g) => g.id === point.graphId);
     if (!graph) continue;
-    const px = canvasXFromValue(point.x, layout);
-    const py = canvasYFromValue(yOnLine(graph, point.x), layout);
+    const coords = pointCoords(graph, point);
+    const px = canvasXFromValue(coords.x, layout);
+    const py = canvasYFromValue(coords.y, layout);
     best = consider(
       best,
       { kind: "point", pointId: point.id },
@@ -205,7 +212,7 @@ export function hitTestLinearFunction(
         1.2,
       );
     }
-    if (graph.showYIntercept && Math.abs(graph.b) > 1e-6) {
+    if (graph.showYIntercept && !isVertical(graph) && Math.abs(graph.b) > 1e-6) {
       const px = canvasXFromValue(0, layout);
       const py = canvasYFromValue(graph.b, layout);
       best = consider(
@@ -237,7 +244,7 @@ export function hitTestLinearFunction(
   }
 
   for (const graph of state.graphs) {
-    const seg = clipLinear(graph.a, graph.b, layout);
+    const seg = clipGraph(graph, layout);
     if (!seg) continue;
     best = consider(
       best,
@@ -363,7 +370,23 @@ export function movePointOnLine(
   state: LinearFunctionState,
   pointId: string,
   x: number,
+  y: number,
 ): LinearFunctionState {
+  const point = state.points.find((p) => p.id === pointId);
+  if (!point) return state;
+  const graph = state.graphs.find((g) => g.id === point.graphId);
+  if (graph && isVertical(graph)) {
+    const ny = snapCoord(
+      Math.min(state.yMax, Math.max(state.yMin, y)),
+      state.yTick,
+    );
+    return {
+      ...state,
+      points: state.points.map((p) =>
+        p.id === pointId ? { ...p, x: graph.c, y: ny } : p,
+      ),
+    };
+  }
   const nx = snapCoord(
     Math.min(state.xMax, Math.max(state.xMin, x)),
     state.xTick,
@@ -403,6 +426,14 @@ export function moveIntercept(
     ...state,
     graphs: state.graphs.map((g) => {
       if (g.id !== graphId) return g;
+      if (isVertical(g)) {
+        if (which === "y") return g;
+        const c = snapCoord(
+          Math.min(state.xMax, Math.max(state.xMin, value)),
+          state.xTick,
+        );
+        return { ...g, c };
+      }
       if (which === "y") {
         const b = snapCoord(
           Math.min(state.yMax, Math.max(state.yMin, value)),
@@ -454,9 +485,42 @@ export function addSnappedPointOnGraph(
   graphId: string,
   layout: PlaneLayout,
   canvasX: number,
+  canvasY: number,
 ): LinearFunctionState {
+  const graph = state.graphs.find((g) => g.id === graphId);
+  if (graph && isVertical(graph)) {
+    const y = snapCoord(valueFromCanvasY(canvasY, layout), state.yTick);
+    return addPointOnGraph(state, graphId, graph.c, y);
+  }
   const x = snapCoord(valueFromCanvasX(canvasX, layout), state.xTick);
   return addPointOnGraph(state, graphId, x);
+}
+
+export function shiftAxisLine(
+  state: LinearFunctionState,
+  graphId: string,
+  x: number,
+  y: number,
+): LinearFunctionState {
+  return {
+    ...state,
+    graphs: state.graphs.map((g) => {
+      if (g.id !== graphId) return g;
+      if (isVertical(g)) {
+        return {
+          ...g,
+          c: snapCoord(Math.min(state.xMax, Math.max(state.xMin, x)), state.xTick),
+        };
+      }
+      if (isHorizontal(g)) {
+        return {
+          ...g,
+          b: snapCoord(Math.min(state.yMax, Math.max(state.yMin, y)), state.yTick),
+        };
+      }
+      return g;
+    }),
+  };
 }
 
 export function nearestGraphId(
@@ -468,7 +532,7 @@ export function nearestGraphId(
   let bestId: string | null = null;
   let bestD = 14;
   for (const graph of state.graphs) {
-    const seg = clipLinear(graph.a, graph.b, layout);
+    const seg = clipGraph(graph, layout);
     if (!seg) continue;
     const d = distPointToSeg(
       seg[0]!.x,
