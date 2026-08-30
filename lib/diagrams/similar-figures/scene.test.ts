@@ -5,6 +5,7 @@ import {
   applySourceLength,
   bbox,
   figureBPoints,
+  hitTestSimilar,
   moveSourceVertex,
   sourceEdgeLength,
 } from "./geometry";
@@ -17,7 +18,13 @@ import {
   similarScale,
   triangleFromAngles,
 } from "./model";
-import { buildSimilarFiguresScene } from "./scene";
+import {
+  buildSimilarFiguresScene,
+  canvasToMath,
+  getSceneView,
+  SCENE_HEIGHT,
+  SCENE_WIDTH,
+} from "./scene";
 
 function almost(a: number, b: number, eps = 1e-6): void {
   assert.ok(Math.abs(a - b) < eps, `${a} ≉ ${b}`);
@@ -108,6 +115,17 @@ describe("presets", () => {
     assert.ok(grid.length > 8);
   });
 
+  it("still draws a grid when the view covers many units", () => {
+    const preset = SIMILAR_PRESETS.find((p) => p.id === "grid-kite")!;
+    const scene = buildSimilarFiguresScene(preset.state, {
+      origin: { x: SCENE_WIDTH / 2, y: SCENE_HEIGHT / 2 },
+      mid: { x: 0, y: 0 },
+      scale: 2,
+    });
+    const grid = scene.cmds.filter((c) => c.t === "line" && c.id === "grid");
+    assert.ok(grid.length > 8, `grid lines: ${grid.length}`);
+  });
+
   it("triangleFromAngles matches the 9 cm / 6 cm / 39° example", () => {
     const pts = triangleFromAngles(39, 31, 110, 6);
     const ab = Math.hypot(pts[0]!.x - pts[1]!.x, pts[0]!.y - pts[1]!.y);
@@ -151,6 +169,58 @@ describe("editing the source", () => {
     const b = sideLengths(figureBPoints(next));
     for (let i = 0; i < a.length; i += 1) {
       almost(b[i]!, a[i]! * k, 1e-5);
+    }
+  });
+
+  it("frozen view keeps canvas-to-math stable while a vertex moves", () => {
+    const base = normalizeState(
+      cloneState(SIMILAR_PRESETS.find((p) => p.id === "grid-kite")!.state),
+    );
+    const view = getSceneView(base);
+    const moved = moveSourceVertex(base, 0, {
+      x: base.points[0]!.x + 3,
+      y: base.points[0]!.y + 2,
+    });
+    const before = buildSimilarFiguresScene(base, view);
+    const after = buildSimilarFiguresScene(moved, view);
+    almost(before.layout.scale, after.layout.scale);
+    almost(before.layout.mid.x, after.layout.mid.x);
+    almost(before.layout.mid.y, after.layout.mid.y);
+    const probe = { x: 220, y: 160 };
+    const ma = canvasToMath(probe, before.layout);
+    const mb = canvasToMath(probe, after.layout);
+    almost(ma.x, mb.x);
+    almost(ma.y, mb.y);
+  });
+
+  it("allows a grid move that lines up three vertices", () => {
+    const base = normalizeState(
+      cloneState(SIMILAR_PRESETS.find((p) => p.id === "grid-kite")!.state),
+    );
+    const moved = moveSourceVertex(base, 0, { x: 2.1, y: 2.05 });
+    almost(moved.points[0]!.x, 2);
+    almost(moved.points[0]!.y, 2);
+  });
+
+  it("prefers grabbing a vertex over its name label", () => {
+    const state = normalizeState(
+      cloneState(SIMILAR_PRESETS.find((p) => p.id === "grid-kite")!.state),
+    );
+    const scene = buildSimilarFiguresScene(state);
+    const a = scene.layout.canvasA[0]!;
+    const hit = hitTestSimilar(
+      scene.layout.canvasA,
+      scene.layout.canvasB,
+      scene.texts,
+      scene.cmds,
+      a.x,
+      a.y,
+      1.4,
+    );
+    assert.equal(hit?.kind, "vertex");
+    if (hit?.kind === "vertex") {
+      assert.equal(hit.figure, "a");
+      assert.equal(hit.index, 0);
     }
   });
 });

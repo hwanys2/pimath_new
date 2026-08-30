@@ -6,8 +6,8 @@ import {
   edgeLength,
   hitTestPolygon,
   isConvex,
-  moveVertex,
   nudgeLabel as nudgePolygonLabel,
+  syncShapeFromPoints,
 } from "@/lib/diagrams/polygon/geometry";
 import { emptyLabel, type PolygonState } from "@/lib/diagrams/polygon/model";
 import {
@@ -103,15 +103,91 @@ export function snapPoint(p: Vec, on: boolean): Vec {
   return { x: Math.round(p.x), y: Math.round(p.y) };
 }
 
+const MIN_EDGE = 0.35;
+const MIN_AREA = 0.12;
+
+function polygonArea(pts: Vec[]): number {
+  let area = 0;
+  for (let i = 0; i < pts.length; i += 1) {
+    const a = pts[i]!;
+    const b = pts[(i + 1) % pts.length]!;
+    area += a.x * b.y - b.x * a.y;
+  }
+  return Math.abs(area) / 2;
+}
+
+/** Collinear consecutive vertices are allowed (common on grid paper). */
+function isWeaklyConvex(pts: Vec[]): boolean {
+  const n = pts.length;
+  if (n < 3) return false;
+  let sign = 0;
+  for (let i = 0; i < n; i += 1) {
+    const a = pts[i]!;
+    const b = pts[(i + 1) % n]!;
+    const c = pts[(i + 2) % n]!;
+    const cr = (b.x - a.x) * (c.y - b.y) - (b.y - a.y) * (c.x - b.x);
+    if (Math.abs(cr) < 1e-8) continue;
+    const s = Math.sign(cr);
+    if (sign === 0) sign = s;
+    else if (s !== sign) return false;
+  }
+  return true;
+}
+
+function shapeOk(pts: Vec[]): boolean {
+  if (pts.length < 3 || polygonArea(pts) < MIN_AREA) return false;
+  for (let i = 0; i < pts.length; i += 1) {
+    if (edgeLength(pts, i) < MIN_EDGE) return false;
+  }
+  return isWeaklyConvex(pts);
+}
+
+function dist2(a: Vec, b: Vec): number {
+  const dx = a.x - b.x;
+  const dy = a.y - b.y;
+  return dx * dx + dy * dy;
+}
+
+function snapCandidates(raw: Vec, snap: boolean): Vec[] {
+  if (!snap) return [raw];
+  const snapped = snapPoint(raw, true);
+  const extras: Vec[] = [];
+  for (let dx = -1; dx <= 1; dx += 1) {
+    for (let dy = -1; dy <= 1; dy += 1) {
+      if (dx === 0 && dy === 0) continue;
+      extras.push({ x: snapped.x + dx, y: snapped.y + dy });
+    }
+  }
+  extras.sort((a, b) => dist2(a, raw) - dist2(b, raw));
+  return [snapped, ...extras];
+}
+
 export function moveSourceVertex(
   state: SimilarFiguresState,
   index: number,
   next: Vec,
 ): SimilarFiguresState {
-  const snapped = snapPoint(next, state.snapToGrid);
   const poly = toPolygonA(state);
-  const moved = moveVertex(poly, index, snapped);
-  return fromPolygonA(state, moved);
+  for (const candidate of snapCandidates(next, state.snapToGrid)) {
+    const points = state.points.map((p, i) => (i === index ? candidate : p));
+    if (!shapeOk(points)) continue;
+    return fromPolygonA(state, syncShapeFromPoints({ ...poly, points }));
+  }
+  return state;
+}
+
+export function setShiftB(
+  state: SimilarFiguresState,
+  x: number,
+  y: number,
+): SimilarFiguresState {
+  return {
+    ...state,
+    shiftB: {
+      x: Math.min(40, Math.max(-40, x)),
+      y: Math.min(40, Math.max(-40, y)),
+    },
+  };
 }
 
 export function shiftFigureB(
@@ -119,13 +195,7 @@ export function shiftFigureB(
   dx: number,
   dy: number,
 ): SimilarFiguresState {
-  return {
-    ...state,
-    shiftB: {
-      x: Math.min(40, Math.max(-40, state.shiftB.x + dx)),
-      y: Math.min(40, Math.max(-40, state.shiftB.y + dy)),
-    },
-  };
+  return setShiftB(state, state.shiftB.x + dx, state.shiftB.y + dy);
 }
 
 export function snapShiftB(state: SimilarFiguresState): SimilarFiguresState {
@@ -159,6 +229,26 @@ function pointInPolygon(pts: Vec[], x: number, y: number): boolean {
   return inside;
 }
 
+function nearestVertex(
+  pts: Vec[],
+  figure: FigureId,
+  x: number,
+  y: number,
+  radius: number,
+): (SimilarHit & { kind: "vertex"; d: number }) | null {
+  let best = -1;
+  let bestD = radius;
+  pts.forEach((p, i) => {
+    const d = Math.hypot(p.x - x, p.y - y);
+    if (d < bestD) {
+      bestD = d;
+      best = i;
+    }
+  });
+  if (best < 0) return null;
+  return { figure, kind: "vertex", index: best, d: bestD };
+}
+
 export function hitTestSimilar(
   canvasA: Vec[],
   canvasB: Vec[],
@@ -175,21 +265,18 @@ export function hitTestSimilar(
   y: number,
   scale = 1,
 ): SimilarHit | null {
+  const pointR = 18 * Math.max(scale, 0.85);
+  const aV = nearestVertex(canvasA, "a", x, y, pointR);
+  const bV = nearestVertex(canvasB, "b", x, y, pointR);
+  if (aV && bV) return aV.d <= bV.d ? aV : bV;
+  if (aV) return aV;
+  if (bV) return bV;
+
   const labels = hitTestPolygon([], texts, cmds, x, y, scale);
   if (labels?.kind === "label" || labels?.kind === "dimLine") return labels;
 
   const aHit = hitTestPolygon(canvasA, [], [], x, y, scale);
   const bHit = hitTestPolygon(canvasB, [], [], x, y, scale);
-
-  if (aHit?.kind === "vertex" && bHit?.kind === "vertex") {
-    const da = Math.hypot(canvasA[aHit.index]!.x - x, canvasA[aHit.index]!.y - y);
-    const db = Math.hypot(canvasB[bHit.index]!.x - x, canvasB[bHit.index]!.y - y);
-    return da <= db
-      ? { figure: "a", kind: "vertex", index: aHit.index }
-      : { figure: "b", kind: "vertex", index: bHit.index };
-  }
-  if (aHit?.kind === "vertex") return { figure: "a", kind: "vertex", index: aHit.index };
-  if (bHit?.kind === "vertex") return { figure: "b", kind: "vertex", index: bHit.index };
 
   const dim = hitTestPolygon([], [], cmds, x, y, scale);
   if (dim?.kind === "dimLine") return dim;

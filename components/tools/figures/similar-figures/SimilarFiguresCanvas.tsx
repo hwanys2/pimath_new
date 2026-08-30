@@ -6,7 +6,7 @@ import {
   hitTestSimilar,
   moveSourceVertex,
   nudgeSimilarLabel,
-  shiftFigureB,
+  setShiftB,
   snapShiftB,
   toggleEdgeLength,
   type SimilarHit,
@@ -19,6 +19,7 @@ import {
   canvasToMath,
   SCENE_HEIGHT,
   SCENE_WIDTH,
+  type SceneView,
   type SimilarScene,
 } from "@/lib/diagrams/similar-figures/scene";
 import { sceneTextPlain } from "@/lib/diagrams/scene";
@@ -30,8 +31,25 @@ export type SimilarSetter = (
 ) => void;
 
 type Drag =
-  | { t: "vertex"; index: number; x: number; y: number; moved: boolean }
-  | { t: "b"; x: number; y: number; moved: boolean }
+  | {
+      t: "vertex";
+      index: number;
+      grabX: number;
+      grabY: number;
+      startX: number;
+      startY: number;
+      moved: boolean;
+    }
+  | {
+      t: "b";
+      grabX: number;
+      grabY: number;
+      shiftX: number;
+      shiftY: number;
+      startX: number;
+      startY: number;
+      moved: boolean;
+    }
   | { t: "label"; id: string; x: number; y: number; moved: boolean }
   | { t: "dimLine"; id: string; x: number; y: number; moved: boolean };
 
@@ -58,6 +76,7 @@ export default function SimilarFiguresCanvas({
 }: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const sceneRef = useRef<SimilarScene | null>(null);
+  const viewRef = useRef<SceneView | null>(null);
   const dragRef = useRef<Drag | null>(null);
   const hoverRef = useRef<SimilarHit | null>(null);
   const stateRef = useRef(state);
@@ -77,7 +96,7 @@ export default function SimilarFiguresCanvas({
     const canvas = canvasRef.current;
     if (!canvas) return;
     const current = stateRef.current;
-    const scene = buildSimilarFiguresScene(current);
+    const scene = buildSimilarFiguresScene(current, viewRef.current ?? undefined);
     sceneRef.current = scene;
     const dpr = Math.min(window.devicePixelRatio || 1, 2);
     canvas.width = Math.round(SCENE_WIDTH * dpr);
@@ -149,6 +168,38 @@ export default function SimilarFiguresCanvas({
     if (canvas) canvas.style.cursor = value;
   }
 
+  function freezeView() {
+    const layout = sceneRef.current?.layout;
+    if (!layout) return;
+    viewRef.current = {
+      origin: layout.origin,
+      mid: layout.mid,
+      scale: layout.scale,
+    };
+  }
+
+  function unfreezeView() {
+    viewRef.current = null;
+  }
+
+  function beginFigureBDrag(p: { x: number; y: number }) {
+    const scene = sceneRef.current;
+    if (!scene) return;
+    freezeView();
+    const math = canvasToMath(p, scene.layout);
+    const shift = stateRef.current.shiftB;
+    dragRef.current = {
+      t: "b",
+      grabX: math.x,
+      grabY: math.y,
+      shiftX: shift.x,
+      shiftY: shift.y,
+      startX: p.x,
+      startY: p.y,
+      moved: false,
+    };
+  }
+
   function commitEdit(next: string | null) {
     const current = editRef.current;
     editRef.current = null;
@@ -182,20 +233,28 @@ export default function SimilarFiguresCanvas({
             return;
           }
           if (hit?.kind === "vertex" && hit.figure === "a") {
-            dragRef.current = {
-              t: "vertex",
-              index: hit.index,
-              x: p.x,
-              y: p.y,
-              moved: false,
-            };
+            const scene = sceneRef.current;
+            const vertex = stateRef.current.points[hit.index];
+            if (scene && vertex) {
+              freezeView();
+              const math = canvasToMath(p, scene.layout);
+              dragRef.current = {
+                t: "vertex",
+                index: hit.index,
+                grabX: math.x - vertex.x,
+                grabY: math.y - vertex.y,
+                startX: p.x,
+                startY: p.y,
+                moved: false,
+              };
+            }
             onSelect({ figure: "a", t: "vertex", i: hit.index });
             setCursor("grabbing");
             e.currentTarget.setPointerCapture(e.pointerId);
             return;
           }
           if (hit?.kind === "vertex" && hit.figure === "b") {
-            dragRef.current = { t: "b", x: p.x, y: p.y, moved: false };
+            beginFigureBDrag(p);
             onSelect({ figure: "b", t: "vertex", i: hit.index });
             setCursor("grabbing");
             e.currentTarget.setPointerCapture(e.pointerId);
@@ -207,7 +266,7 @@ export default function SimilarFiguresCanvas({
             return;
           }
           if (hit?.kind === "body") {
-            dragRef.current = { t: "b", x: p.x, y: p.y, moved: false };
+            beginFigureBDrag(p);
             setCursor("grabbing");
             e.currentTarget.setPointerCapture(e.pointerId);
             return;
@@ -225,24 +284,40 @@ export default function SimilarFiguresCanvas({
             if (changed) paint();
             return;
           }
+          if (drag.t === "vertex" || drag.t === "b") {
+            const moved =
+              drag.moved || Math.hypot(p.x - drag.startX, p.y - drag.startY) > MOVE_PX;
+            if (!moved) return;
+            dragRef.current = { ...drag, moved: true };
+            const scene = sceneRef.current;
+            if (!scene) return;
+            const math = canvasToMath(p, scene.layout);
+            if (drag.t === "vertex") {
+              setState(
+                (prev) =>
+                  moveSourceVertex(prev, drag.index, {
+                    x: math.x - drag.grabX,
+                    y: math.y - drag.grabY,
+                  }),
+                false,
+              );
+              return;
+            }
+            setState((prev) => {
+              const next = setShiftB(
+                prev,
+                drag.shiftX + (math.x - drag.grabX),
+                drag.shiftY + (math.y - drag.grabY),
+              );
+              return next.snapToGrid ? snapShiftB(next) : next;
+            }, false);
+            return;
+          }
           const dx = p.x - drag.x;
           const dy = p.y - drag.y;
           const moved = drag.moved || Math.hypot(dx, dy) > MOVE_PX;
           dragRef.current = { ...drag, x: p.x, y: p.y, moved };
           if (!moved) return;
-          const scene = sceneRef.current;
-          if (!scene) return;
-          if (drag.t === "vertex") {
-            const math = canvasToMath(p, scene.layout);
-            setState((prev) => moveSourceVertex(prev, drag.index, math), false);
-            return;
-          }
-          if (drag.t === "b") {
-            const { scale } = scene.layout;
-            if (scale < 1e-6) return;
-            setState((prev) => shiftFigureB(prev, dx / scale, -dy / scale), false);
-            return;
-          }
           setState(
             (prev) => nudgeSimilarLabel(prev, drag.id, dx, dy, drag.t === "dimLine"),
             false,
@@ -251,12 +326,14 @@ export default function SimilarFiguresCanvas({
         onPointerUp={(e) => {
           const drag = dragRef.current;
           dragRef.current = null;
+          unfreezeView();
           setCursor("default");
           if (drag?.t === "b") {
             setState((prev) => snapShiftB(prev), true);
           } else {
             persist();
           }
+          paint();
           if (drag?.t === "label" && !drag.moved) {
             const scene = sceneRef.current;
             const text = scene?.texts.find((item) => item.id === drag.id);
@@ -286,6 +363,7 @@ export default function SimilarFiguresCanvas({
         }}
         onPointerCancel={() => {
           dragRef.current = null;
+          unfreezeView();
           hoverRef.current = null;
           setCursor("default");
           persist();

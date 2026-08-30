@@ -19,12 +19,15 @@ export const SCENE_HEIGHT = 440;
 
 const GRID = "#c5dff0";
 
-export type SceneLayout = {
-  canvasA: Vec[];
-  canvasB: Vec[];
+export type SceneView = {
   origin: Vec;
   mid: Vec;
   scale: number;
+};
+
+export type SceneLayout = SceneView & {
+  canvasA: Vec[];
+  canvasB: Vec[];
 };
 
 export type SimilarScene = SharedDiagramScene & {
@@ -47,6 +50,13 @@ export function canvasToMath(p: Vec, layout: SceneLayout): Vec {
 
 function mathBBox(state: SimilarFiguresState, ptsB: Vec[]): { min: Vec; max: Vec } {
   const box = bbox([...state.points, ...ptsB]);
+  if (state.showGrid) {
+    const pad = 2;
+    return {
+      min: { x: Math.floor(box.minX - pad), y: Math.floor(box.minY - pad) },
+      max: { x: Math.ceil(box.maxX + pad), y: Math.ceil(box.maxY + pad) },
+    };
+  }
   const span = Math.max(box.maxX - box.minX, box.maxY - box.minY, 1);
   const pad = 0.22 * span;
   return {
@@ -55,7 +65,7 @@ function mathBBox(state: SimilarFiguresState, ptsB: Vec[]): { min: Vec; max: Vec
   };
 }
 
-export function getSceneLayout(state: SimilarFiguresState): SceneLayout {
+export function getSceneView(state: SimilarFiguresState): SceneView {
   const ptsB = figureBPoints(state);
   const box = mathBBox(state, ptsB);
   const mid = {
@@ -69,18 +79,32 @@ export function getSceneLayout(state: SimilarFiguresState): SceneLayout {
     (SCENE_WIDTH - pad * 2) / spanX,
     (SCENE_HEIGHT - pad * 2) / spanY,
   );
-  const origin = { x: SCENE_WIDTH / 2, y: SCENE_HEIGHT / 2 };
+  return { origin: { x: SCENE_WIDTH / 2, y: SCENE_HEIGHT / 2 }, mid, scale };
+}
+
+export function getSceneLayout(
+  state: SimilarFiguresState,
+  view: SceneView = getSceneView(state),
+): SceneLayout {
+  const ptsB = figureBPoints(state);
   const toCanvas = (p: Vec): Vec => ({
-    x: origin.x + (p.x - mid.x) * scale,
-    y: origin.y - (p.y - mid.y) * scale,
+    x: view.origin.x + (p.x - view.mid.x) * view.scale,
+    y: view.origin.y - (p.y - view.mid.y) * view.scale,
   });
   return {
     canvasA: state.points.map(toCanvas),
     canvasB: ptsB.map(toCanvas),
-    origin,
-    mid,
-    scale,
+    origin: view.origin,
+    mid: view.mid,
+    scale: view.scale,
   };
+}
+
+function gridPitch(span: number): number {
+  if (span <= 48) return 1;
+  if (span <= 96) return 2;
+  if (span <= 240) return 5;
+  return Math.max(10, Math.ceil(span / 48));
 }
 
 function appendGrid(cmds: SceneCmd[], layout: SceneLayout): void {
@@ -90,14 +114,13 @@ function appendGrid(cmds: SceneCmd[], layout: SceneLayout): void {
   const mathRight = mid.x + (SCENE_WIDTH - origin.x) / scale;
   const mathTop = mid.y + origin.y / scale;
   const mathBottom = mid.y - (SCENE_HEIGHT - origin.y) / scale;
-  const x0 = Math.floor(mathLeft);
-  const x1 = Math.ceil(mathRight);
-  const y0 = Math.floor(mathBottom);
-  const y1 = Math.ceil(mathTop);
-  const maxLines = 80;
-  if (x1 - x0 > maxLines || y1 - y0 > maxLines) return;
+  const step = gridPitch(Math.max(mathRight - mathLeft, mathTop - mathBottom));
+  const x0 = Math.floor(mathLeft / step) * step;
+  const x1 = Math.ceil(mathRight / step) * step;
+  const y0 = Math.floor(mathBottom / step) * step;
+  const y1 = Math.ceil(mathTop / step) * step;
 
-  for (let x = x0; x <= x1; x += 1) {
+  for (let x = x0; x <= x1 + 1e-9; x += step) {
     const a = mathToCanvas({ x, y: mathBottom }, layout);
     const b = mathToCanvas({ x, y: mathTop }, layout);
     cmds.push({
@@ -111,7 +134,7 @@ function appendGrid(cmds: SceneCmd[], layout: SceneLayout): void {
       id: "grid",
     });
   }
-  for (let y = y0; y <= y1; y += 1) {
+  for (let y = y0; y <= y1 + 1e-9; y += step) {
     const a = mathToCanvas({ x: mathLeft, y }, layout);
     const b = mathToCanvas({ x: mathRight, y }, layout);
     cmds.push({
@@ -127,8 +150,11 @@ function appendGrid(cmds: SceneCmd[], layout: SceneLayout): void {
   }
 }
 
-export function buildSimilarFiguresScene(state: SimilarFiguresState): SimilarScene {
-  const layout = getSceneLayout(state);
+export function buildSimilarFiguresScene(
+  state: SimilarFiguresState,
+  view?: SceneView,
+): SimilarScene {
+  const layout = getSceneLayout(state, view);
   const cmds: SceneCmd[] = [];
   const texts: SceneText[] = [];
   if (state.showGrid) appendGrid(cmds, layout);
