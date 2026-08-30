@@ -348,8 +348,11 @@ export function normalizeState(
     B: state.B ?? DEFAULT_ABC.B,
     C: state.C ?? DEFAULT_ABC.C,
     D: state.D ?? DEFAULT_ABC.D,
-    t: clamp(state.t ?? 0.38, 0.08, 0.92),
-    t2: clamp(state.t2 ?? 0.55, 0.12, 1.8),
+    t:
+      kind === "bowtie"
+        ? clamp(state.t ?? 0.5, 0.15, 3)
+        : clamp(state.t ?? 0.38, 0.08, 0.92),
+    t2: clamp(state.t2 ?? 0.55, 0.12, 3),
     midpoint: state.midpoint === true,
     bowtieParallel: state.bowtieParallel !== false,
     medianAD: state.medianAD !== false,

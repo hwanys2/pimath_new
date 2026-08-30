@@ -1,3 +1,4 @@
+import { formatMeasure, formatNiceNumber } from "@/lib/diagrams/math-label";
 import {
   add,
   applyEdgeLengthChange,
@@ -28,7 +29,8 @@ export type SimHit =
   | { kind: "point"; id: string }
   | { kind: "seg"; id: string }
   | { kind: "label"; id: string }
-  | { kind: "dimLine"; id: string };
+  | { kind: "dimLine"; id: string }
+  | { kind: "slide"; id: string };
 
 export type SimSelection =
   | { t: "point"; id: string }
@@ -140,6 +142,12 @@ export function derivedPoints(state: SimilarTrianglesState): Record<string, Vec>
         out[`T${i}M`] = t.M;
         out[`T${i}N`] = t.N;
       });
+      out._L0 = { x: p.xMin, y: p.yL };
+      out._L1 = { x: p.xMax, y: p.yL };
+      out._M0 = { x: p.xMin, y: p.yM };
+      out._M1 = { x: p.xMax, y: p.yM };
+      out._N0 = { x: p.xMin, y: p.yN };
+      out._N1 = { x: p.xMax, y: p.yN };
       return out;
     }
   }
@@ -208,7 +216,7 @@ export function figureStrokes(state: SimilarTrianglesState): [string, string][] 
 export function draggableIds(state: SimilarTrianglesState): string[] {
   switch (state.kind) {
     case "nested":
-      return state.midpoint ? ["A", "B", "C"] : ["A", "B", "C", "D"];
+      return state.midpoint ? ["A", "B", "C"] : ["A", "B", "C", "D", "E"];
     case "adjacent":
       return ["A", "B", "C", "D"];
     case "cevian":
@@ -285,7 +293,156 @@ export function snapKind(state: SimilarTrianglesState): SimilarTrianglesState {
   return { ...state, C };
 }
 
-export function movePoint(
+function signedDist(p: Vec, a: Vec, b: Vec): number {
+  const n = norm({ x: -(b.y - a.y), y: b.x - a.x });
+  return (p.x - a.x) * n.x + (p.y - a.y) * n.y;
+}
+
+function scaleFrom(p: Vec, origin: Vec, s: number): Vec {
+  return add(origin, mul(sub(p, origin), s));
+}
+
+function setLenFrom(origin: Vec, p: Vec, value: number): Vec {
+  const d = len(sub(p, origin));
+  if (d < 1e-9) return p;
+  return add(origin, mul(sub(p, origin), value / d));
+}
+
+function scaleState(
+  state: SimilarTrianglesState,
+  origin: Vec,
+  s: number,
+): SimilarTrianglesState {
+  if (!Number.isFinite(s) || s < 0.04 || s > 50) return state;
+  if (state.kind === "parallels") {
+    const p = state.parallels;
+    return {
+      ...state,
+      parallels: {
+        ...p,
+        yL: origin.y + (p.yL - origin.y) * s,
+        yM: origin.y + (p.yM - origin.y) * s,
+        yN: origin.y + (p.yN - origin.y) * s,
+        xMin: origin.x + (p.xMin - origin.x) * s,
+        xMax: origin.x + (p.xMax - origin.x) * s,
+        trans: p.trans.map((tr) => ({
+          xl: origin.x + (tr.xl - origin.x) * s,
+          xn: origin.x + (tr.xn - origin.x) * s,
+        })),
+      },
+    };
+  }
+  const A = scaleFrom(state.A, origin, s);
+  const B = scaleFrom(state.B, origin, s);
+  const C = scaleFrom(state.C, origin, s);
+  if (!triangleOk(A, B, C)) return state;
+  return snapKind({ ...state, A, B, C, D: scaleFrom(state.D, origin, s) });
+}
+
+function numericCustom(mark: SegMark | AngleMark | undefined, asAngle: boolean): number | null {
+  if (!mark || mark.label.mode !== "custom") return null;
+  const parsed = asAngle ? parseAngleInput(mark.label.custom) : parseMeasureInput(mark.label.custom);
+  if (parsed.kind === "number" && parsed.value != null && parsed.value > 0) return parsed.value;
+  return null;
+}
+
+function rewriteNumericCustom(
+  prev: MeasLabel,
+  value: number,
+  asAngle: boolean,
+  unit: string,
+): MeasLabel {
+  if (prev.mode !== "custom") return prev;
+  const parsed = asAngle ? parseAngleInput(prev.custom) : parseMeasureInput(prev.custom);
+  if (parsed.kind !== "number" || parsed.value == null) return prev;
+  if (asAngle) {
+    const hasDeg = /[°˚]/.test(prev.custom);
+    return { ...prev, custom: hasDeg ? `${formatNiceNumber(value)}°` : formatNiceNumber(value) };
+  }
+  const hasUnit = /cm|mm/i.test(prev.custom);
+  return {
+    ...prev,
+    custom: hasUnit ? formatMeasure(value, unit) : formatNiceNumber(value),
+  };
+}
+
+export function syncNumericLabels(state: SimilarTrianglesState): SimilarTrianglesState {
+  return {
+    ...state,
+    segs: state.segs.map((s) => {
+      if (!s.show) return s;
+      const L = segLength(state, s);
+      if (!Number.isFinite(L)) return s;
+      return { ...s, label: rewriteNumericCustom(s.label, L, false, state.unit) };
+    }),
+    angles: state.angles.map((a) => {
+      if (!a.show) return a;
+      const deg = angleValue(state, a);
+      if (!Number.isFinite(deg)) return a;
+      return { ...a, label: rewriteNumericCustom(a.label, deg, true, state.unit) };
+    }),
+  };
+}
+
+function finishMove(prev: SimilarTrianglesState, next: SimilarTrianglesState): SimilarTrianglesState {
+  if (next === prev) return prev;
+  return syncNumericLabels(next);
+}
+
+export function slideSegments(
+  state: SimilarTrianglesState,
+  canvasPts: Record<string, Vec>,
+): { id: string; a: Vec; b: Vec }[] {
+  const out: { id: string; a: Vec; b: Vec }[] = [];
+  if (state.kind === "nested" && !state.midpoint && canvasPts.D && canvasPts.E) {
+    out.push({ id: "DE", a: canvasPts.D, b: canvasPts.E });
+  }
+  if (state.kind === "bowtie" && state.bowtieParallel && canvasPts.D && canvasPts.E) {
+    out.push({ id: "DE", a: canvasPts.D, b: canvasPts.E });
+  }
+  if (state.kind === "parallels") {
+    if (canvasPts._L0 && canvasPts._L1) out.push({ id: "L", a: canvasPts._L0, b: canvasPts._L1 });
+    if (canvasPts._M0 && canvasPts._M1) out.push({ id: "M", a: canvasPts._M0, b: canvasPts._M1 });
+    if (canvasPts._N0 && canvasPts._N1) out.push({ id: "N", a: canvasPts._N0, b: canvasPts._N1 });
+  }
+  return out;
+}
+
+function nestedTFromPoint(state: SimilarTrianglesState, p: Vec): number {
+  const hA = signedDist(state.A, state.B, state.C);
+  if (Math.abs(hA) < 1e-9) return state.t;
+  const hP = signedDist(p, state.B, state.C);
+  return clamp(1 - hP / hA, 0.08, 0.92);
+}
+
+export function moveSlide(
+  state: SimilarTrianglesState,
+  id: string,
+  math: Vec,
+): SimilarTrianglesState {
+  if (id === "DE" && state.kind === "nested" && !state.midpoint) {
+    return finishMove(state, { ...state, t: nestedTFromPoint(state, math) });
+  }
+  if (id === "DE" && state.kind === "bowtie" && state.bowtieParallel) {
+    const u = sub(state.A, state.B);
+    const l2 = u.x * u.x + u.y * u.y;
+    if (l2 < 1e-12) return state;
+    const k = (math.x - state.A.x) * u.x + (math.y - state.A.y) * u.y;
+    return finishMove(state, { ...state, t: clamp(k / l2, 0.15, 3) });
+  }
+  if (state.kind === "parallels" && (id === "L" || id === "M" || id === "N")) {
+    const p = state.parallels;
+    const gap = 0.22;
+    let { yL, yM, yN } = p;
+    if (id === "L") yL = Math.max(math.y, yM + gap);
+    else if (id === "M") yM = clamp(math.y, yN + gap, yL - gap);
+    else yN = Math.min(math.y, yM - gap);
+    return finishMove(state, { ...state, parallels: { ...p, yL, yM, yN } });
+  }
+  return state;
+}
+
+function movePointInner(
   state: SimilarTrianglesState,
   id: string,
   next: Vec,
@@ -303,12 +460,13 @@ export function movePoint(
   }
 
   if (id === "D" && state.kind === "nested" && !state.midpoint) {
-    const t = clamp(projectT(next, state.A, state.B), 0.08, 0.92);
-    return { ...state, t };
+    return { ...state, t: clamp(projectT(next, state.A, state.B), 0.08, 0.92) };
+  }
+  if (id === "E" && state.kind === "nested" && !state.midpoint) {
+    return { ...state, t: clamp(projectT(next, state.A, state.C), 0.08, 0.92) };
   }
   if (id === "D" && state.kind === "cevian") {
-    const t = clamp(projectT(next, state.A, state.C), 0.08, 0.92);
-    return { ...state, t };
+    return { ...state, t: clamp(projectT(next, state.A, state.C), 0.08, 0.92) };
   }
   if (id === "D" && state.kind === "adjacent") {
     if (!triangleOk(state.A, state.C, next)) return state;
@@ -351,6 +509,14 @@ export function movePoint(
   return state;
 }
 
+export function movePoint(
+  state: SimilarTrianglesState,
+  id: string,
+  next: Vec,
+): SimilarTrianglesState {
+  return finishMove(state, movePointInner(state, id, next));
+}
+
 export function hitTestSimilar(
   canvasPts: Record<string, Vec>,
   texts: { id: string; x: number; y: number }[],
@@ -361,6 +527,7 @@ export function hitTestSimilar(
   y: number,
   scale = 1,
   dragIds: string[],
+  slides: { id: string; a: Vec; b: Vec }[] = [],
 ): SimHit | null {
   const labelR = 22 * Math.max(scale, 0.85);
   let bestText: { id: string; d: number } | null = null;
@@ -384,6 +551,14 @@ export function hitTestSimilar(
     if (d < pointR && (!bestP || d < bestP.d)) bestP = { id, d };
   }
   if (bestP) return { kind: "point", id: bestP.id };
+
+  const slideR = 11 * Math.max(scale, 0.85);
+  let bestSlide: { id: string; d: number } | null = null;
+  for (const s of slides) {
+    const d = distToSeg({ x, y }, s.a, s.b);
+    if (d < slideR && (!bestSlide || d < bestSlide.d)) bestSlide = { id: s.id, d };
+  }
+  if (bestSlide) return { kind: "slide", id: bestSlide.id };
 
   const dimR = 10 * Math.max(scale, 0.85);
   let bestDim: SimHit | null = null;
@@ -449,31 +624,303 @@ function applyAbcAngle(state: SimilarTrianglesState, index: 0 | 1 | 2, deg: numb
   return fromAbc(state, poly);
 }
 
-function updateTFromParts(
+function applyTriAngle(
+  state: SimilarTrianglesState,
+  P: Vec,
+  Q: Vec,
+  R: Vec,
+  deg: number,
+  write: (P: Vec, Q: Vec, R: Vec) => SimilarTrianglesState,
+): SimilarTrianglesState {
+  const poly = applyInteriorAngleChange(abcPolygon({ ...state, A: P, B: Q, C: R }), 0, deg);
+  const p = poly.points[0]!;
+  const q = poly.points[1]!;
+  const r = poly.points[2]!;
+  if (!triangleOk(p, q, r)) return state;
+  return write(p, q, r);
+}
+
+function currentSegLen(state: SimilarTrianglesState, sid: string): number {
+  const mark = findSeg(state, sid);
+  if (!mark) return NaN;
+  return segLength(state, mark);
+}
+
+function scaleToSeg(
+  state: SimilarTrianglesState,
+  sid: string,
+  value: number,
+  origin: Vec,
+): SimilarTrianglesState {
+  const cur = currentSegLen(state, sid);
+  if (!(cur > 1e-9)) return state;
+  return scaleState(state, origin, value / cur);
+}
+
+function applySplitT(
   state: SimilarTrianglesState,
   leftId: string,
   rightId: string,
   editedId: string,
   value: number,
+  tMin: number,
+  tMax: number,
+  originFor: Record<string, Vec>,
 ): SimilarTrianglesState {
-  const pts = derivedPoints(state);
+  const origin = originFor[editedId];
+  if (!origin) return state;
   const left = findSeg(state, leftId);
   const right = findSeg(state, rightId);
-  const leftAuto = left ? len(sub(pts[left.a]!, pts[left.b]!)) : value;
-  const rightAuto = right ? len(sub(pts[right.a]!, pts[right.b]!)) : value;
-  const parseCustom = (seg: SegMark | undefined, auto: number) => {
-    if (!seg) return auto;
-    if (seg.label.mode === "custom") {
-      const n = Number(seg.label.custom.replace(/[^\d.+-]/g, ""));
-      if (Number.isFinite(n) && n > 0) return n;
+  const sibling = editedId === leftId ? right : left;
+  const sibVal = numericCustom(sibling, false);
+  if (sibVal != null) {
+    const L = editedId === leftId ? value : sibVal;
+    const R = editedId === rightId ? value : sibVal;
+    const sum = L + R;
+    if (sum > 0.2) {
+      const next = { ...state, t: clamp(L / sum, tMin, tMax) };
+      return scaleToSeg(next, editedId, value, origin);
     }
-    return auto;
-  };
-  const L = editedId === leftId ? value : parseCustom(left, leftAuto);
-  const R = editedId === rightId ? value : parseCustom(right, rightAuto);
-  const sum = L + R;
-  if (!(sum > 0.2)) return state;
-  return { ...state, t: clamp(L / sum, 0.08, 0.92) };
+  }
+  return scaleToSeg(state, editedId, value, origin);
+}
+
+function applyParallelsSeg(
+  state: SimilarTrianglesState,
+  sid: string,
+  value: number,
+): SimilarTrianglesState {
+  const m = /^t(\d)([ud])$/.exec(sid);
+  if (!m) return state;
+  const i = Number(m[1]);
+  const upper = m[2] === "u";
+  const sibling = findSeg(state, `t${i}${upper ? "d" : "u"}`);
+  const sibVal = numericCustom(sibling, false);
+  const p = state.parallels;
+  let { yL, yM, yN } = p;
+  if (sibVal != null) {
+    const up = upper ? value : sibVal;
+    const down = upper ? sibVal : value;
+    const total = up + down;
+    if (total > 0.2) {
+      yM = yL - (yL - yN) * (up / total);
+    }
+  }
+  const spanY = yL - yN;
+  const frac = upper ? Math.abs(yL - yM) / Math.max(Math.abs(spanY), 1e-9)
+    : Math.abs(yM - yN) / Math.max(Math.abs(spanY), 1e-9);
+  const targetLN = frac > 1e-6 ? value / frac : value * 2;
+  const dy = yN - yL;
+  let dxAbs = Math.sqrt(Math.max(targetLN * targetLN - dy * dy, 0));
+  if (targetLN <= Math.abs(dy) + 1e-9) {
+    const shrink = (value * 0.55) / Math.max(Math.abs(upper ? yL - yM : yM - yN), 1e-9);
+    yL = yM + (yL - yM) * shrink;
+    yN = yM + (yN - yM) * shrink;
+    const dy2 = yN - yL;
+    const span2 = yL - yN;
+    const frac2 = upper
+      ? Math.abs(yL - yM) / Math.max(Math.abs(span2), 1e-9)
+      : Math.abs(yM - yN) / Math.max(Math.abs(span2), 1e-9);
+    const ln2 = frac2 > 1e-6 ? value / frac2 : value * 2;
+    dxAbs = Math.sqrt(Math.max(ln2 * ln2 - dy2 * dy2, 0));
+  }
+  const pts = derivedPoints({ ...state, parallels: { ...p, yL, yM, yN } });
+  const M = pts[`T${i}M`];
+  const L = pts[`T${i}L`];
+  if (!M || !L) return state;
+  const sign = Math.sign(L.x - M.x) || (i === 0 ? -1 : 1);
+  const tM = (yM - yL) / (yN - yL || 1);
+  const dx = sign * dxAbs * Math.sign(yN - yL || 1);
+  const xl = M.x - dx * tM;
+  const xn = xl + dx;
+  const trans = p.trans.map((tr, idx) => (idx === i ? { xl, xn } : tr));
+  return { ...state, parallels: { ...p, yL, yM, yN, trans } };
+}
+
+export function applySegLength(
+  state: SimilarTrianglesState,
+  sid: string,
+  value: number,
+): SimilarTrianglesState {
+  if (!(value > 0.05) || value > 80) return state;
+  if (sid === "AB") return applyAbcLength(state, 0, value);
+  if (sid === "BC") return applyAbcLength(state, 1, value);
+  if (sid === "AC") return applyAbcLength(state, 2, value);
+
+  if (state.kind === "nested") {
+    if (sid === "AD" || sid === "DB") {
+      return applySplitT(state, "AD", "DB", sid, value, 0.08, 0.92, {
+        AD: state.A,
+        DB: state.B,
+      });
+    }
+    if (sid === "AE" || sid === "EC") {
+      return applySplitT(state, "AE", "EC", sid, value, 0.08, 0.92, {
+        AE: state.A,
+        EC: state.C,
+      });
+    }
+    if (sid === "DE") {
+      const bcCustom = numericCustom(findSeg(state, "BC"), false);
+      const bc = len(sub(state.B, state.C));
+      if (bcCustom != null && bcCustom > 0.2) {
+        const next = { ...state, t: clamp(value / bcCustom, 0.08, 0.92) };
+        return scaleToSeg(next, "DE", value, next.A);
+      }
+      if (value < bc * 0.92 && value > bc * 0.08) {
+        return { ...state, t: value / bc };
+      }
+      return scaleToSeg(state, "DE", value, state.A);
+    }
+  }
+
+  if (state.kind === "adjacent") {
+    if (sid === "AD") {
+      const D = setLenFrom(state.A, state.D, value);
+      if (!triangleOk(state.A, state.C, D)) return state;
+      return { ...state, D };
+    }
+    if (sid === "CD") {
+      const D = setLenFrom(state.C, state.D, value);
+      if (!triangleOk(state.A, state.C, D)) return state;
+      return { ...state, D };
+    }
+  }
+
+  if (state.kind === "cevian") {
+    if (sid === "AD" || sid === "DC") {
+      return applySplitT(state, "AD", "DC", sid, value, 0.08, 0.92, {
+        AD: state.A,
+        DC: state.C,
+      });
+    }
+    if (sid === "BD") {
+      const pts = derivedPoints(state);
+      const D = pts.D!;
+      const B = setLenFrom(D, state.B, value);
+      if (!triangleOk(state.A, B, state.C)) return state;
+      return { ...state, B };
+    }
+  }
+
+  if (state.kind === "altitude") {
+    const pts = derivedPoints(state);
+    if (sid === "AD") return scaleToSeg(state, "AD", value, pts.D!);
+    if (sid === "BD") {
+      const D = pts.D!;
+      const B = setLenFrom(D, state.B, value);
+      if (!triangleOk(state.A, B, state.C)) return state;
+      return snapKind({ ...state, B });
+    }
+    if (sid === "DC") {
+      const D = pts.D!;
+      const C = setLenFrom(D, state.C, value);
+      if (!triangleOk(state.A, state.B, C)) return state;
+      return snapKind({ ...state, C });
+    }
+  }
+
+  if (state.kind === "bowtie") {
+    const ab = len(sub(state.A, state.B));
+    const ac = len(sub(state.A, state.C));
+    if (sid === "AD") {
+      const abCustom = numericCustom(findSeg(state, "AB"), false);
+      if (abCustom != null) {
+        const next = { ...state, t: clamp(value / abCustom, 0.15, 3) };
+        return scaleToSeg(next, "AD", value, next.A);
+      }
+      if (ab > 1e-9 && value / ab >= 0.15) return { ...state, t: clamp(value / ab, 0.15, 3) };
+      return scaleToSeg(state, "AD", value, state.A);
+    }
+    if (sid === "AE") {
+      const acCustom = numericCustom(findSeg(state, "AC"), false);
+      const key = state.bowtieParallel ? "t" : "t2";
+      if (acCustom != null) {
+        const next = { ...state, [key]: clamp(value / acCustom, 0.15, 3) };
+        return scaleToSeg(next, "AE", value, next.A);
+      }
+      const den = state.bowtieParallel ? ab : ac;
+      if (den > 1e-9 && value / (state.bowtieParallel ? ab : ac) >= 0.15) {
+        return { ...state, [key]: clamp(value / (state.bowtieParallel ? ab : ac), 0.15, 3) };
+      }
+      return scaleToSeg(state, "AE", value, state.A);
+    }
+    if (sid === "DE") {
+      const bcCustom = numericCustom(findSeg(state, "BC"), false);
+      const bc = len(sub(state.B, state.C));
+      if (state.bowtieParallel && bcCustom != null && bcCustom > 0.2) {
+        const next = { ...state, t: clamp(value / bcCustom, 0.15, 3) };
+        return scaleToSeg(next, "DE", value, next.A);
+      }
+      if (state.bowtieParallel && bc > 1e-9) {
+        return { ...state, t: clamp(value / bc, 0.15, 3) };
+      }
+      return scaleToSeg(state, "DE", value, state.A);
+    }
+  }
+
+  if (state.kind === "centroid") {
+    if (sid === "BD" || sid === "DC") return applyAbcLength(state, 1, value * 2);
+    if (sid === "AF" || sid === "FB") return applyAbcLength(state, 0, value * 2);
+    const pts = derivedPoints(state);
+    if (sid === "AG") return scaleToSeg(state, "AG", value, pts.D!);
+    if (sid === "GD") return scaleToSeg(state, "GD", value, state.A);
+    if (sid === "BE") return scaleToSeg(state, "BE", value, pts.E!);
+    if (sid === "EG") return scaleToSeg(state, "EG", value, state.B);
+    if (sid === "CF") return scaleToSeg(state, "CF", value, pts.F!);
+    if (sid === "GC") return scaleToSeg(state, "GC", value, pts.F!);
+  }
+
+  if (state.kind === "parallels") return applyParallelsSeg(state, sid, value);
+  return state;
+}
+
+export function applyAngDeg(
+  state: SimilarTrianglesState,
+  aid: string,
+  deg: number,
+): SimilarTrianglesState {
+  if (!(deg > 1) || deg >= 179) return state;
+  if (aid === "A" || aid === "B" || aid === "C") {
+    const idx = aid === "A" ? 0 : aid === "B" ? 1 : 2;
+    return applyAbcAngle(state, idx, deg);
+  }
+  if (state.kind === "nested") {
+    if (aid === "ADE" || aid === "ABC") return applyAbcAngle(state, 1, deg);
+    if (aid === "AED" || aid === "ACB") return applyAbcAngle(state, 2, deg);
+  }
+  if (state.kind === "adjacent") {
+    if (aid === "BAC") return applyAbcAngle(state, 0, deg);
+    if (aid === "B") return applyAbcAngle(state, 1, deg);
+    if (aid === "D") {
+      return applyTriAngle(state, state.D, state.A, state.C, deg, (D, A, C) =>
+        triangleOk(A, state.B, C) ? { ...state, A, C, D } : state,
+      );
+    }
+    if (aid === "DAC") {
+      return applyTriAngle(state, state.A, state.D, state.C, deg, (A, D, C) =>
+        triangleOk(A, state.B, C) ? { ...state, A, C, D } : state,
+      );
+    }
+  }
+  if (state.kind === "cevian") {
+    if (aid === "A") return applyAbcAngle(state, 0, deg);
+    if (aid === "C") return applyAbcAngle(state, 2, deg);
+    if (aid === "ABD" || aid === "DBC") return applyAbcAngle(state, 1, deg);
+  }
+  if (state.kind === "altitude") {
+    if (aid === "B") return applyAbcAngle(state, 1, deg);
+    if (aid === "C") return applyAbcAngle(state, 2, deg);
+  }
+  if (state.kind === "bowtie") {
+    if (aid === "BAC" || aid === "DAE") return applyAbcAngle(state, 0, deg);
+    if (aid === "B" || (aid === "D" && state.bowtieParallel)) return applyAbcAngle(state, 1, deg);
+  }
+  if (state.kind === "centroid" && (aid === "A" || aid === "B" || aid === "C")) {
+    const idx = aid === "A" ? 0 : aid === "B" ? 1 : 2;
+    return applyAbcAngle(state, idx, deg);
+  }
+  return state;
 }
 
 export function applyEditedLabel(
@@ -499,10 +946,7 @@ export function applyEditedLabel(
     const parsed = parseAngleInput(text);
     let next = state;
     if (parsed.kind === "number" && parsed.value != null) {
-      if (aid === "A" || aid === "B" || aid === "C") {
-        const idx = aid === "A" ? 0 : aid === "B" ? 1 : 2;
-        next = applyAbcAngle(state, idx, parsed.value);
-      }
+      next = applyAngDeg(state, aid, parsed.value);
     }
     return {
       ...next,
@@ -519,16 +963,7 @@ export function applyEditedLabel(
     const parsed = parseMeasureInput(text);
     let next = state;
     if (parsed.kind === "number" && parsed.value != null) {
-      if (sid === "AB") next = applyAbcLength(state, 0, parsed.value);
-      else if (sid === "BC") next = applyAbcLength(state, 1, parsed.value);
-      else if (sid === "AC") next = applyAbcLength(state, 2, parsed.value);
-      else if (state.kind === "nested" && (sid === "AD" || sid === "DB")) {
-        next = updateTFromParts(state, "AD", "DB", sid, parsed.value);
-      } else if (state.kind === "nested" && (sid === "AE" || sid === "EC")) {
-        next = updateTFromParts(state, "AE", "EC", sid, parsed.value);
-      } else if (state.kind === "cevian" && (sid === "AD" || sid === "DC")) {
-        next = updateTFromParts(state, "AD", "DC", sid, parsed.value);
-      }
+      next = applySegLength(state, sid, parsed.value);
     }
     return {
       ...next,

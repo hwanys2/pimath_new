@@ -497,6 +497,7 @@ export function buildSimilarTrianglesScene(state: SimilarTrianglesState): Simila
   }
 
   for (const id of Object.keys(canvas)) {
+    if (id.startsWith("_")) continue;
     if (state.kind === "parallels") continue;
     if (state.kind === "centroid" && id === "D" && !state.medianAD) continue;
     if (state.kind === "centroid" && id === "E" && !state.medianBE) continue;

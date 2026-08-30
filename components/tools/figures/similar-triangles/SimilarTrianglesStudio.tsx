@@ -6,6 +6,7 @@ import { useCallback, useMemo, useState, useSyncExternalStore } from "react";
 import {
   ChipToggle,
   LabelModeRow,
+  NumberField,
   Segmented,
   SliderField,
   TextField,
@@ -19,11 +20,14 @@ import {
   downloadBlob,
 } from "@/lib/diagrams/export-image";
 import {
+  angleValue,
+  applyEditedLabel,
   cycleTicks,
   displayName,
   draggableIds,
   pointIdsFor,
   segDisplayName,
+  segLength,
   type SimSelection,
 } from "@/lib/diagrams/similar-triangles/geometry";
 import {
@@ -236,7 +240,8 @@ export default function SimilarTrianglesStudio() {
           </h1>
           <p className="mt-1 max-w-2xl text-sm text-foreground/65">
             빠른 그림에서 유형을 고른 뒤, 점을 끌어 모양을 잡고 변·각을 눌러
-            길이와 각을 붙입니다.
+            길이와 각을 붙입니다. 점을 끌면 숫자도 따라가고, 숫자를 넣으면
+            그림이 맞춰집니다. 평행선은 선을 잡아 위아래로 옮길 수 있습니다.
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -482,26 +487,35 @@ export default function SimilarTrianglesStudio() {
                   </ChipToggle>
                 </div>
                 {selSeg.show ? (
-                  <LabelModeRow
-                    title="길이"
-                    mode={selSeg.label.mode}
-                    custom={selSeg.label.custom}
-                    unknownLetter={state.unknownLetter}
-                    onMode={(mode) =>
-                      setState((prev) =>
-                        patchSegState(prev, selected.id, {
-                          label: { ...selSeg.label, mode },
-                        }),
-                      )
-                    }
-                    onCustom={(custom) =>
-                      setState((prev) =>
-                        patchSegState(prev, selected.id, {
-                          label: { ...selSeg.label, custom },
-                        }),
-                      )
-                    }
-                  />
+                  <>
+                    <NumberField
+                      label="길이 값"
+                      value={Number((segLength(state, selSeg) || 0).toFixed(2))}
+                      onChange={(n) =>
+                        setState((prev) => applyEditedLabel(prev, `s:${selected.id}`, String(n)))
+                      }
+                      min={0.2}
+                      max={80}
+                      step={0.1}
+                      suffix={state.unit.trim() || "cm"}
+                    />
+                    <LabelModeRow
+                      title="길이"
+                      mode={selSeg.label.mode}
+                      custom={selSeg.label.custom}
+                      unknownLetter={state.unknownLetter}
+                      onMode={(mode) =>
+                        setState((prev) =>
+                          patchSegState(prev, selected.id, {
+                            label: { ...selSeg.label, mode },
+                          }),
+                        )
+                      }
+                      onCustom={(custom) =>
+                        setState((prev) => applyEditedLabel(prev, `s:${selected.id}`, custom))
+                      }
+                    />
+                  </>
                 ) : null}
               </div>
             ) : null}
@@ -521,6 +535,17 @@ export default function SimilarTrianglesStudio() {
                 >
                   분홍 채움
                 </ChipToggle>
+                <NumberField
+                  label="각 값"
+                  value={Number((angleValue(state, selAng) || 0).toFixed(1))}
+                  onChange={(n) =>
+                    setState((prev) => applyEditedLabel(prev, `a:${selected.id}`, String(n)))
+                  }
+                  min={1}
+                  max={179}
+                  step={1}
+                  suffix="°"
+                />
                 <LabelModeRow
                   title="각"
                   mode={selAng.label.mode}
@@ -534,18 +559,15 @@ export default function SimilarTrianglesStudio() {
                     )
                   }
                   onCustom={(custom) =>
-                    setState((prev) =>
-                      patchAngState(prev, selected.id, {
-                        label: { ...selAng.label, custom },
-                      }),
-                    )
+                    setState((prev) => applyEditedLabel(prev, `a:${selected.id}`, custom))
                   }
                 />
               </div>
             ) : null}
 
             <p className="mt-2 text-[11px] leading-snug text-foreground/45">
-              변을 누르면 길이가 켜지고 꺼집니다. 글자를 눌러 숫자나 x로 바꿉니다.
+              변을 누르면 길이가 켜지고 꺼집니다. 글자나 길이 값을 바꿔 숫자나
+              x로 두면 그림이 맞춰집니다. 평행선은 잡아 위아래로 옮깁니다.
             </p>
 
             {activeMarks.length > 0 ? (

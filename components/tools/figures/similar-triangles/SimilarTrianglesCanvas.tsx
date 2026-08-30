@@ -8,7 +8,9 @@ import {
   figureStrokes,
   hitTestSimilar,
   movePoint,
+  moveSlide,
   nudgeLabel,
+  slideSegments,
   toggleSeg,
   type SimHit,
   type SimSelection,
@@ -33,7 +35,8 @@ export type SimSetter = (
 type Drag =
   | { t: "point"; id: string; x: number; y: number; moved: boolean }
   | { t: "label"; id: string; x: number; y: number; moved: boolean }
-  | { t: "dimLine"; id: string; x: number; y: number; moved: boolean };
+  | { t: "dimLine"; id: string; x: number; y: number; moved: boolean }
+  | { t: "slide"; id: string; x: number; y: number; moved: boolean };
 
 type Props = {
   state: SimilarTrianglesState;
@@ -144,6 +147,7 @@ export default function SimilarTrianglesCanvas({
       p.y,
       hitScale(),
       draggableIds(current),
+      slideSegments(current, scene.layout.canvas),
     );
   }
 
@@ -191,6 +195,12 @@ export default function SimilarTrianglesCanvas({
             e.currentTarget.setPointerCapture(e.pointerId);
             return;
           }
+          if (hit?.kind === "slide") {
+            dragRef.current = { t: "slide", id: hit.id, x: p.x, y: p.y, moved: false };
+            setCursor("grabbing");
+            e.currentTarget.setPointerCapture(e.pointerId);
+            return;
+          }
           if (hit?.kind === "seg") {
             onSelect({ t: "seg", id: hit.id });
             setState((prev) => toggleSeg(prev, hit.id), true);
@@ -221,6 +231,13 @@ export default function SimilarTrianglesCanvas({
             setState((prev) => movePoint(prev, drag.id, math), false);
             return;
           }
+          if (drag.t === "slide") {
+            const scene = sceneRef.current;
+            if (!scene) return;
+            const math = canvasToMath(p, scene.layout);
+            setState((prev) => moveSlide(prev, drag.id, math), false);
+            return;
+          }
           setState(
             (prev) => nudgeLabel(prev, drag.id, dx, dy, drag.t === "dimLine"),
             false,
@@ -247,6 +264,10 @@ export default function SimilarTrianglesCanvas({
             const sid = drag.id.startsWith("s:") ? drag.id.slice(2) : drag.id;
             onSelect({ t: "seg", id: sid });
             setState((prev) => toggleSeg(prev, sid));
+          }
+          if (drag?.t === "slide" && !drag.moved && drag.id === "DE") {
+            onSelect({ t: "seg", id: "DE" });
+            setState((prev) => toggleSeg(prev, "DE"));
           }
           e.currentTarget.releasePointerCapture(e.pointerId);
         }}
@@ -305,6 +326,7 @@ function cursorForHit(hit: SimHit | null): string {
   if (!hit) return "default";
   if (hit.kind === "label") return "text";
   if (hit.kind === "point") return "grab";
+  if (hit.kind === "slide") return hit.id === "DE" ? "grab" : "ns-resize";
   return "pointer";
 }
 
@@ -351,6 +373,20 @@ function paintOverlays(
   }
   if (hover?.kind === "seg" && !(selected?.t === "seg" && selected.id === hover.id)) {
     edge(hover.id);
+  }
+  if (hover?.kind === "slide") {
+    const slides = slideSegments(state, pts);
+    const line = slides.find((s) => s.id === hover.id);
+    if (line) {
+      ctx.strokeStyle = "rgba(196, 130, 58, 0.85)";
+      ctx.lineWidth = 3;
+      ctx.setLineDash([6, 4]);
+      ctx.beginPath();
+      ctx.moveTo(line.a.x, line.a.y);
+      ctx.lineTo(line.b.x, line.b.y);
+      ctx.stroke();
+      ctx.setLineDash([]);
+    }
   }
   ctx.restore();
 }
