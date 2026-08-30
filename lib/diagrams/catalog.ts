@@ -165,6 +165,17 @@ export const DIAGRAM_TOOLS: DiagramToolMeta[] = [
     status: "ready",
   },
   {
+    id: "g2-similar-triangles",
+    grade: 2,
+    title: "삼각형의 닮음",
+    description:
+      "평행선·나비꼴·직각삼각형 높이·중점연결·무게중심까지, 중2 닮음 문제 그림을 바로 그려 PNG로 저장해요.",
+    unitHint: "3.2 도형의 닮음",
+    emoji: "△",
+    href: "/tools/figures/g2-similar-triangles",
+    status: "ready",
+  },
+  {
     id: "g2-similar-solids",
     grade: 2,
     title: "입체도형의 닮음",
