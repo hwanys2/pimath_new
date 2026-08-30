@@ -517,10 +517,103 @@ export function movePoint(
   return finishMove(state, movePointInner(state, id, next));
 }
 
+type HitCmd = {
+  t: string;
+  id?: string;
+  x1?: number;
+  y1?: number;
+  x2?: number;
+  y2?: number;
+  cx?: number;
+  cy?: number;
+  r?: number;
+  a0?: number;
+  a1?: number;
+  ccw?: boolean;
+};
+
+function distToArc(
+  x: number,
+  y: number,
+  cx: number,
+  cy: number,
+  r: number,
+  a0: number,
+  a1: number,
+  ccw: boolean,
+): number {
+  let sweep = a1 - a0;
+  if (ccw) {
+    while (sweep > 0) sweep -= Math.PI * 2;
+    while (sweep > -1e-9) sweep -= Math.PI * 2;
+    sweep = -sweep;
+    if (sweep < 1e-9) sweep += Math.PI * 2;
+  } else {
+    while (sweep < 0) sweep += Math.PI * 2;
+    if (sweep < 1e-9) sweep += Math.PI * 2;
+  }
+  const n = Math.max(12, Math.ceil(sweep / (Math.PI / 18)));
+  let best = Infinity;
+  for (let i = 0; i <= n; i += 1) {
+    const t = i / n;
+    const ang = a0 + (ccw ? -sweep : sweep) * t;
+    const px = cx + r * Math.cos(ang);
+    const py = cy + r * Math.sin(ang);
+    best = Math.min(best, Math.hypot(x - px, y - py));
+  }
+  return best;
+}
+
+function perpToward(along: Vec, toward: Vec): Vec {
+  const dir = norm(along);
+  let p: Vec = { x: -dir.y, y: dir.x };
+  if (p.x * toward.x + p.y * toward.y < 0) p = { x: -p.x, y: -p.y };
+  return p;
+}
+
+function canvasCentroid(canvas: Record<string, Vec>, ids: string[]): Vec {
+  let x = 0;
+  let y = 0;
+  let n = 0;
+  for (const id of ids) {
+    const p = canvas[id];
+    if (!p) continue;
+    x += p.x;
+    y += p.y;
+    n += 1;
+  }
+  if (n === 0) return { x: 0, y: 0 };
+  return { x: x / n, y: y / n };
+}
+
+/** Canvas-space axes for a length mark: `dx` along the side, `dy` outward. */
+export function segDimAxes(
+  state: SimilarTrianglesState,
+  canvasPts: Record<string, Vec>,
+  aId: string,
+  bId: string,
+): { along: Vec; outward: Vec } | null {
+  const a = canvasPts[aId];
+  const b = canvasPts[bId];
+  if (!a || !b) return null;
+  const along = norm(sub(b, a));
+  if (len(along) < 1e-6) return null;
+  const mid = mul(add(a, b), 0.5);
+  const ids = state.kind === "parallels" ? ["T0L", "T0N", "T1L", "T1N"] : ["A", "B", "C"];
+  const face = canvasCentroid(canvasPts, ids);
+  return { along, outward: perpToward(along, sub(mid, face)) };
+}
+
+export function dimResizeCursor(along: Vec): string {
+  const perpX = -along.y;
+  const perpY = along.x;
+  return Math.abs(perpX) >= Math.abs(perpY) ? "ew-resize" : "ns-resize";
+}
+
 export function hitTestSimilar(
   canvasPts: Record<string, Vec>,
   texts: { id: string; x: number; y: number }[],
-  cmds: { t: string; id?: string; x1?: number; y1?: number; x2?: number; y2?: number }[],
+  cmds: HitCmd[],
   strokes: [string, string][],
   segs: SegMark[],
   x: number,
@@ -532,14 +625,30 @@ export function hitTestSimilar(
   const labelR = 22 * Math.max(scale, 0.85);
   let bestText: { id: string; d: number } | null = null;
   for (const text of texts) {
+    if (text.id.endsWith(":line")) continue;
     const d = Math.hypot(text.x - x, text.y - y);
     if (d < labelR && (!bestText || d < bestText.d)) bestText = { id: text.id, d };
   }
-  if (bestText) {
-    if (bestText.id.endsWith(":line")) {
-      return { kind: "dimLine", id: bestText.id.slice(0, -5) };
+
+  const dimR = 12 * Math.max(scale, 0.85);
+  let bestDim: { id: string; d: number } | null = null;
+  for (const cmd of cmds) {
+    if (!cmd.id || !cmd.id.endsWith(":line")) continue;
+    const id = cmd.id.slice(0, -5);
+    let d = Infinity;
+    if (cmd.t === "line" && cmd.x1 != null && cmd.y1 != null && cmd.x2 != null && cmd.y2 != null) {
+      d = distToSeg({ x, y }, { x: cmd.x1, y: cmd.y1 }, { x: cmd.x2, y: cmd.y2 });
+    } else if (
+      cmd.t === "arc"
+      && cmd.cx != null
+      && cmd.cy != null
+      && cmd.r != null
+      && cmd.a0 != null
+      && cmd.a1 != null
+    ) {
+      d = distToArc(x, y, cmd.cx, cmd.cy, cmd.r, cmd.a0, cmd.a1, cmd.ccw === true);
     }
-    return { kind: "label", id: bestText.id };
+    if (d < dimR && (!bestDim || d < bestDim.d)) bestDim = { id, d };
   }
 
   const pointR = 14 * Math.max(scale, 0.85);
@@ -550,6 +659,20 @@ export function hitTestSimilar(
     const d = Math.hypot(p.x - x, p.y - y);
     if (d < pointR && (!bestP || d < bestP.d)) bestP = { id, d };
   }
+
+  if (
+    bestP
+    && (!bestText || bestP.d <= bestText.d)
+    && (!bestDim || bestP.d <= bestDim.d + 6)
+  ) {
+    return { kind: "point", id: bestP.id };
+  }
+  if (bestText && bestDim) {
+    if (bestDim.d <= bestText.d) return { kind: "dimLine", id: bestDim.id };
+    return { kind: "label", id: bestText.id };
+  }
+  if (bestDim) return { kind: "dimLine", id: bestDim.id };
+  if (bestText) return { kind: "label", id: bestText.id };
   if (bestP) return { kind: "point", id: bestP.id };
 
   const slideR = 11 * Math.max(scale, 0.85);
@@ -559,21 +682,6 @@ export function hitTestSimilar(
     if (d < slideR && (!bestSlide || d < bestSlide.d)) bestSlide = { id: s.id, d };
   }
   if (bestSlide) return { kind: "slide", id: bestSlide.id };
-
-  const dimR = 10 * Math.max(scale, 0.85);
-  let bestDim: SimHit | null = null;
-  let bestDimD = dimR;
-  for (const cmd of cmds) {
-    if (!cmd.id || !cmd.id.endsWith(":line")) continue;
-    if (cmd.t === "line" && cmd.x1 != null && cmd.y1 != null && cmd.x2 != null && cmd.y2 != null) {
-      const d = distToSeg({ x, y }, { x: cmd.x1, y: cmd.y1 }, { x: cmd.x2, y: cmd.y2 });
-      if (d < bestDimD) {
-        bestDimD = d;
-        bestDim = { kind: "dimLine", id: cmd.id.slice(0, -5) };
-      }
-    }
-  }
-  if (bestDim) return bestDim;
 
   const edgeR = 9 * Math.max(scale, 0.85);
   let bestE: { id: string; d: number } | null = null;
@@ -981,6 +1089,7 @@ export function nudgeLabel(
   dx: number,
   dy: number,
   lineOnly: boolean,
+  canvasPts?: Record<string, Vec>,
 ): SimilarTrianglesState {
   const nameMatch = /^n:(.+)$/.exec(id);
   if (nameMatch) {
@@ -999,14 +1108,14 @@ export function nudgeLabel(
       },
     };
   }
-  function nudgeMeas(label: MeasLabel): MeasLabel {
+  function nudgeMeas(label: MeasLabel, alongAmt: number, perpAmt: number): MeasLabel {
     if (lineOnly) {
-      return { ...label, lineDy: clamp((label.lineDy ?? 0) + dy, -160, 160) };
+      return { ...label, lineDy: clamp((label.lineDy ?? 0) + perpAmt, -160, 160) };
     }
     return {
       ...label,
-      dx: clamp(label.dx + dx, -80, 80),
-      dy: clamp(label.dy + dy, -160, 160),
+      dx: clamp(label.dx + alongAmt, -80, 80),
+      dy: clamp(label.dy + perpAmt, -160, 160),
     };
   }
   const angMatch = /^a:(.+)$/.exec(id);
@@ -1015,17 +1124,27 @@ export function nudgeLabel(
     return {
       ...state,
       angles: state.angles.map((a) =>
-        a.id === aid ? { ...a, label: nudgeMeas(a.label) } : a,
+        a.id === aid ? { ...a, label: nudgeMeas(a.label, dx, dy) } : a,
       ),
     };
   }
   const segMatch = /^s:(.+)$/.exec(id);
   if (segMatch) {
     const sid = segMatch[1]!;
+    const mark = findSeg(state, sid);
+    let alongAmt = dx;
+    let perpAmt = dy;
+    if (mark && canvasPts) {
+      const axes = segDimAxes(state, canvasPts, mark.a, mark.b);
+      if (axes) {
+        alongAmt = dx * axes.along.x + dy * axes.along.y;
+        perpAmt = dx * axes.outward.x + dy * axes.outward.y;
+      }
+    }
     return {
       ...state,
       segs: state.segs.map((s) =>
-        s.id === sid ? { ...s, label: nudgeMeas(s.label) } : s,
+        s.id === sid ? { ...s, label: nudgeMeas(s.label, alongAmt, perpAmt) } : s,
       ),
     };
   }

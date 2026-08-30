@@ -154,7 +154,7 @@ function dimArc(
   const lineId = `${labelId}:line`;
 
   const textH = signedHeight(offset + meas.dy);
-  const lineH = signedHeight(offset + meas.dy + (meas.lineDy ?? 0));
+  const lineH = signedHeight(offset + (meas.lineDy ?? 0));
   const textAlong = clamp(meas.dx, -maxAlong, maxAlong);
   const lineSign = lineH < 0 ? -1 : 1;
   const tick = clamp(Math.abs(lineH) * 0.22, 4.5, 8);

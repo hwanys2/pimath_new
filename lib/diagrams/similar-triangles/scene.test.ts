@@ -33,4 +33,36 @@ describe("similar triangles scene", () => {
     const scene = buildSimilarTrianglesScene(normalizeState(cloneState(preset.state)));
     assert.ok(scene.cmds.some((c) => c.t === "polygon"));
   });
+
+  it("length text stays put when only the dim line is offset", () => {
+    const base = normalizeState(cloneState(SIMILAR_PRESETS[0]!.state));
+    const movedLine = normalizeState({
+      ...base,
+      segs: base.segs.map((s) =>
+        s.id === "AD" ? { ...s, label: { ...s.label, lineDy: 36 } } : s,
+      ),
+    });
+    const movedText = normalizeState({
+      ...base,
+      segs: base.segs.map((s) =>
+        s.id === "AD" ? { ...s, label: { ...s.label, dy: 36 } } : s,
+      ),
+    });
+    const t0 = buildSimilarTrianglesScene(base).texts.find((t) => t.id === "s:AD");
+    const tLine = buildSimilarTrianglesScene(movedLine).texts.find((t) => t.id === "s:AD");
+    const tText = buildSimilarTrianglesScene(movedText).texts.find((t) => t.id === "s:AD");
+    assert.ok(t0 && tLine && tText);
+    assert.ok(Math.abs(t0.y - tLine.y) < 1.5);
+    assert.ok(Math.hypot(t0.x - tText.x, t0.y - tText.y) > 8);
+
+    const arcId = "s:AD:line";
+    const arc0 = buildSimilarTrianglesScene(base).cmds.find((c) => c.t === "arc" && c.id === arcId);
+    const arcLine = buildSimilarTrianglesScene(movedLine).cmds.find((c) => c.t === "arc" && c.id === arcId);
+    const arcText = buildSimilarTrianglesScene(movedText).cmds.find((c) => c.t === "arc" && c.id === arcId);
+    assert.ok(arc0 && arc0.t === "arc");
+    assert.ok(arcLine && arcLine.t === "arc");
+    assert.ok(arcText && arcText.t === "arc");
+    assert.ok(Math.abs(arc0.r - arcLine.r) > 4, "dim arc should move with lineDy");
+    assert.ok(Math.abs(arc0.r - arcText.r) < 1.5, "dim arc should stay when only the text moves");
+  });
 });

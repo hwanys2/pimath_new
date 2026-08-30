@@ -6,8 +6,11 @@ import {
   applySegLength,
   derivedPoints,
   figureStrokes,
+  hitTestSimilar,
   movePoint,
   moveSlide,
+  nudgeLabel,
+  segDimAxes,
   snapKind,
   triangleOk,
 } from "./geometry";
@@ -19,6 +22,7 @@ import {
   normalizeState,
   withKind,
 } from "./model";
+import { buildSimilarTrianglesScene } from "./scene";
 
 function almost(a: number, b: number, eps = 1e-6): void {
   assert.ok(Math.abs(a - b) < eps, `${a} ≉ ${b}`);
@@ -192,5 +196,94 @@ describe("slide parallel lines", () => {
     almost(next.parallels.yM, 1.1, 0.02);
     assert.ok(next.parallels.yL > next.parallels.yM);
     assert.ok(next.parallels.yM > next.parallels.yN);
+  });
+});
+
+describe("length label vs dim line", () => {
+  it("projects mouse movement onto the side's outward so the number follows the pointer", () => {
+    const state = normalizeState(cloneState(DEFAULT_SIMILAR_STATE));
+    const scene = buildSimilarTrianglesScene(state);
+    const ad = findSeg(state, "AD")!;
+    const axes = segDimAxes(state, scene.layout.canvas, ad.a, ad.b)!;
+    const step = 18;
+    const next = nudgeLabel(
+      state,
+      "s:AD",
+      axes.outward.x * step,
+      axes.outward.y * step,
+      false,
+      scene.layout.canvas,
+    );
+    const moved = findSeg(next, "AD")!;
+    almost(moved.label.dy - ad.label.dy, step, 0.6);
+    almost(moved.label.dx - ad.label.dx, 0, 0.6);
+    assert.equal(moved.label.lineDy ?? 0, ad.label.lineDy ?? 0);
+  });
+
+  it("moves only the dashed arc when dragging the dim line", () => {
+    const state = normalizeState(cloneState(DEFAULT_SIMILAR_STATE));
+    const scene = buildSimilarTrianglesScene(state);
+    const ad = findSeg(state, "AD")!;
+    const axes = segDimAxes(state, scene.layout.canvas, ad.a, ad.b)!;
+    const step = 18;
+    const next = nudgeLabel(
+      state,
+      "s:AD",
+      axes.outward.x * step,
+      axes.outward.y * step,
+      true,
+      scene.layout.canvas,
+    );
+    const moved = findSeg(next, "AD")!;
+    almost(moved.label.dy, ad.label.dy, 1e-9);
+    almost(moved.label.dx, ad.label.dx, 1e-9);
+    almost((moved.label.lineDy ?? 0) - (ad.label.lineDy ?? 0), step, 0.6);
+  });
+
+  it("hits the dim arc separately from the length text", () => {
+    const state = normalizeState(cloneState(DEFAULT_SIMILAR_STATE));
+    const scene = buildSimilarTrianglesScene(state);
+    const text = scene.texts.find((t) => t.id === "s:AD");
+    assert.ok(text);
+    const labelHit = hitTestSimilar(
+      scene.layout.canvas,
+      scene.texts,
+      scene.cmds,
+      figureStrokes(state),
+      state.segs,
+      text.x,
+      text.y,
+      1,
+      [],
+    );
+    assert.deepEqual(labelHit, { kind: "label", id: "s:AD" });
+
+    const arc = scene.cmds.find((c) => c.t === "arc" && c.id === "s:AD:line");
+    assert.ok(arc && arc.t === "arc");
+    let sweep = arc.a1 - arc.a0;
+    if (arc.ccw) {
+      while (sweep > 0) sweep -= Math.PI * 2;
+      while (sweep > -1e-9) sweep -= Math.PI * 2;
+      sweep = -sweep;
+      if (sweep < 1e-9) sweep += Math.PI * 2;
+    } else {
+      while (sweep < 0) sweep += Math.PI * 2;
+      if (sweep < 1e-9) sweep += Math.PI * 2;
+    }
+    const midAng = arc.a0 + (arc.ccw ? -sweep : sweep) / 2;
+    const px = arc.cx + arc.r * Math.cos(midAng);
+    const py = arc.cy + arc.r * Math.sin(midAng);
+    const dimHit = hitTestSimilar(
+      scene.layout.canvas,
+      scene.texts,
+      scene.cmds,
+      figureStrokes(state),
+      state.segs,
+      px,
+      py,
+      1,
+      [],
+    );
+    assert.deepEqual(dimHit, { kind: "dimLine", id: "s:AD" });
   });
 });
