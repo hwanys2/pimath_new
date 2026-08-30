@@ -115,7 +115,7 @@ function sceneFromLayout(
   const divisorStr = layout.divisor;
   const divisorW = Math.max(divisorStr.length, 1) * digitW;
   const arrowGutter = showSame ? fontSize * 1.35 : fontSize * 0.45;
-  const padL = 18 + arrowGutter + divisorW + fontSize * 0.55;
+  const padL = 18 + arrowGutter + divisorW + fontSize * 0.78;
   const padR = showSame ? fontSize * 4.4 : fontSize * 1.1;
   const padT = fontSize * 1.55;
   const padB = layout.showVerticalDots ? fontSize * 2.2 : fontSize * 0.9;
@@ -193,9 +193,12 @@ function sceneFromLayout(
 
   cmds.push(...fills);
 
-  const verticalX = originX + minPlace * digitW - digitW * 0.62;
+  const verticalX = originX + minPlace * digitW - digitW * 0.92;
   const barLeft = verticalX;
   const barRight = placeX(Math.max(maxPlace, 1)) + digitW * 0.35;
+  const curveBottom = firstRowY + fontSize * 0.42;
+  const curveRy = (curveBottom - barY) / 2;
+  const curveRx = fontSize * 0.26;
   lines.push({
     t: "line",
     x1: barLeft,
@@ -204,12 +207,17 @@ function sceneFromLayout(
     y2: barY,
     width: lineW,
   });
+  // Closing-parenthesis divider: right half of a tall ellipse, tangent to the bar.
   lines.push({
-    t: "line",
-    x1: verticalX,
-    y1: barY,
-    x2: verticalX,
-    y2: firstRowY + fontSize * 0.42,
+    t: "ellipseArc",
+    cx: verticalX,
+    cy: barY + curveRy,
+    ux: curveRx,
+    uy: 0,
+    vx: 0,
+    vy: curveRy,
+    a0: -Math.PI / 2,
+    a1: Math.PI / 2,
     width: lineW,
   });
 

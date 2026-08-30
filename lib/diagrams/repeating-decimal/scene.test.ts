@@ -10,7 +10,17 @@ describe("repeating decimal scene", () => {
     assert.ok(scene.width > 200);
     assert.ok(scene.height > 300);
     assert.ok(scene.cmds.some((c) => c.t === "polygon"));
+    assert.ok(scene.cmds.some((c) => c.t === "ellipseArc"));
     assert.ok(scene.cmds.some((c) => c.t === "arrowhead"));
+    const bracket = scene.cmds.find((c) => c.t === "ellipseArc");
+    assert.ok(bracket && bracket.t === "ellipseArc");
+    assert.ok(bracket.ux > 0);
+    assert.ok(Math.abs(bracket.a0 + Math.PI / 2) < 1e-9);
+    assert.ok(Math.abs(bracket.a1 - Math.PI / 2) < 1e-9);
+    const verticalBar = scene.cmds.find(
+      (c) => c.t === "line" && Math.abs(c.x1 - c.x2) < 1e-6,
+    );
+    assert.equal(verticalBar, undefined);
     assert.ok(scene.texts.some((t) => t.runs[0]?.text === "같다."));
     assert.ok(scene.quotientHit.w > 40);
   });
