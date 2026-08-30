@@ -310,6 +310,243 @@ export default function SimilarSolidsStudio() {
               persist={persistCachedState}
             />
           </div>
+
+          <section className="rounded-2xl border-2 border-wood/10 bg-white/80 p-3.5">
+            <h2 className="font-display text-sm text-wood-dark">도형</h2>
+            <div className="mt-2 flex flex-wrap gap-1">
+              {FAMILY_OPTIONS.map((opt) => (
+                <ChipToggle
+                  key={opt.id}
+                  on={source.family === opt.id}
+                  onClick={() =>
+                    setState((prev) => {
+                      const nextSource = withFamily(prev.source, opt.id);
+                      return normalizeSimilarState({
+                        ...prev,
+                        source: nextSource,
+                        rightMarks: extractMeasureMarks(nextSource),
+                        rightVertexNames: [],
+                      });
+                    })
+                  }
+                >
+                  {opt.label}
+                </ChipToggle>
+              ))}
+            </div>
+            {needsSides ? (
+              <div className="mt-3">
+                <p className="mb-1 text-xs font-semibold text-foreground/60">
+                  밑면 변의 수
+                </p>
+                <Segmented
+                  value={String(source.sides)}
+                  onChange={(v) =>
+                    setSource({ sides: Number(v), vertexNames: [] })
+                  }
+                  options={[3, 4, 5, 6, 7, 8].map((n) => ({
+                    id: String(n),
+                    label: String(n),
+                  }))}
+                />
+              </div>
+            ) : null}
+            {source.family === "platonic" ? (
+              <div className="mt-3 flex flex-wrap gap-1">
+                {PLATONIC_OPTIONS.map((opt) => (
+                  <ChipToggle
+                    key={opt.id}
+                    on={source.platonic === opt.id}
+                    onClick={() =>
+                      setSource({ platonic: opt.id, vertexNames: [] })
+                    }
+                  >
+                    {opt.label}
+                  </ChipToggle>
+                ))}
+              </div>
+            ) : null}
+            {source.family === "cylinder" ? (
+              <div className="mt-3">
+                <Segmented
+                  value={source.cylinderLie}
+                  onChange={(cylinderLie) => setSource({ cylinderLie })}
+                  options={[
+                    { id: "vertical", label: "세움" },
+                    { id: "horizontal", label: "눕힘" },
+                  ]}
+                />
+              </div>
+            ) : null}
+            {hemisphere ? (
+              <div className="mt-3">
+                <p className="mb-1 text-xs font-semibold text-foreground/60">
+                  반구 방향
+                </p>
+                <Segmented
+                  value={source.hemisphereFlip ? "flipped" : "normal"}
+                  onChange={(v) =>
+                    setSource({ hemisphereFlip: v === "flipped" })
+                  }
+                  options={[
+                    { id: "normal", label: "아래 잘림" },
+                    { id: "flipped", label: "위 잘림" },
+                  ]}
+                />
+              </div>
+            ) : null}
+            <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4">
+              {prismRect ? (
+                <>
+                  <NumberField
+                    label="가로"
+                    value={source.width}
+                    onChange={(width) => setSource({ width })}
+                    min={0.5}
+                    max={40}
+                    suffix="cm"
+                  />
+                  <NumberField
+                    label="세로"
+                    value={source.depth}
+                    onChange={(depth) => setSource({ depth })}
+                    min={0.5}
+                    max={40}
+                    suffix="cm"
+                  />
+                </>
+              ) : null}
+              {needsSides && !prismRect ? (
+                <NumberField
+                  label="밑면 한 변"
+                  value={source.baseSize}
+                  onChange={(baseSize) => setSource({ baseSize })}
+                  min={0.5}
+                  max={40}
+                  suffix="cm"
+                />
+              ) : null}
+              {source.family === "frustum" ? (
+                <NumberField
+                  label="윗면 한 변"
+                  value={source.topSize}
+                  onChange={(topSize) => setSource({ topSize })}
+                  min={0.4}
+                  max={40}
+                  suffix="cm"
+                />
+              ) : null}
+              {round ? (
+                <NumberField
+                  label="밑면 반지름"
+                  value={source.radius}
+                  onChange={(radius) => setSource({ radius })}
+                  min={0.4}
+                  max={40}
+                  suffix="cm"
+                />
+              ) : null}
+              {sphere || hemisphere || stacked ? (
+                <NumberField
+                  label="반지름"
+                  value={source.radius}
+                  onChange={(radius) => setSource({ radius })}
+                  min={0.4}
+                  max={40}
+                  suffix="cm"
+                />
+              ) : null}
+              {source.family === "coneFrustum" ? (
+                <NumberField
+                  label="윗면 반지름"
+                  value={source.topRadius}
+                  onChange={(topRadius) => setSource({ topRadius })}
+                  min={0.3}
+                  max={40}
+                  suffix="cm"
+                />
+              ) : null}
+              {source.family === "platonic" ? (
+                <NumberField
+                  label="한 모서리"
+                  value={source.edgeLength}
+                  onChange={(edgeLength) => setSource({ edgeLength })}
+                  min={0.5}
+                  max={40}
+                  suffix="cm"
+                />
+              ) : null}
+              {!sphere && !hemisphere && source.family !== "platonic" ? (
+                <>
+                  <NumberField
+                    label={
+                      source.family === "cylinderCone"
+                        ? "원기둥 높이"
+                        : source.family === "coneHemisphere"
+                          ? "원뿔 높이"
+                          : "높이"
+                    }
+                    value={source.height}
+                    onChange={(height) => setSource({ height })}
+                    min={0.5}
+                    max={40}
+                    suffix="cm"
+                  />
+                  {source.family === "cylinderCone" ? (
+                    <NumberField
+                      label="원뿔 높이"
+                      value={source.capHeight}
+                      onChange={(capHeight) => setSource({ capHeight })}
+                      min={0.5}
+                      max={40}
+                      suffix="cm"
+                    />
+                  ) : null}
+                  {familyHasFaceHeight(source.family) ? (
+                    <NumberField
+                      label="옆면 높이"
+                      value={Number(faceHeightLength(source).toFixed(3))}
+                      onChange={(length) =>
+                        setState((prev) =>
+                          patchSource(prev, (cur) => withFaceHeight(cur, length)),
+                        )
+                      }
+                      min={Number((faceHeightSpan(source) + 0.1).toFixed(2))}
+                      max={50}
+                      step={0.1}
+                      suffix="cm"
+                    />
+                  ) : null}
+                  {familyHasSlant(source.family) ? (
+                    <NumberField
+                      label="모선"
+                      value={Number(slantLength(source).toFixed(3))}
+                      onChange={(slant) =>
+                        setState((prev) =>
+                          patchSource(prev, (cur) => withSlantLength(cur, slant)),
+                        )
+                      }
+                      min={Number((slantSpan(source) + 0.1).toFixed(2))}
+                      max={50}
+                      step={0.1}
+                      suffix="cm"
+                    />
+                  ) : null}
+                </>
+              ) : null}
+              <TextField
+                label="단위"
+                value={source.unit}
+                onChange={(unit) => setSource({ unit })}
+                placeholder="cm"
+              />
+              <TextField
+                label="미지수"
+                value={source.unknownLetter}
+                onChange={(unknownLetter) => setSource({ unknownLetter })}
+              />
+            </div>
+          </section>
         </div>
 
         <div className="space-y-4">
@@ -713,27 +950,6 @@ export default function SimilarSolidsStudio() {
               </button>
             </div>
           </section>
-        </div>
-
-        <div className="space-y-4">
-          <section className="rounded-2xl border-2 border-wood/10 bg-white/80 p-3.5">
-            <h2 className="font-display text-sm text-wood-dark">빠른 그림</h2>
-            <div className="mt-2 grid grid-cols-2 gap-1.5">
-              {SIMILAR_SOLIDS_PRESETS.map((preset) => (
-                <button
-                  key={preset.id}
-                  type="button"
-                  onClick={() => setState(cloneSimilarState(preset.state))}
-                  className="rounded-xl bg-black/5 px-2.5 py-2 text-left text-xs font-semibold text-foreground/70 hover:bg-black/10"
-                >
-                  {preset.title}
-                  <span className="mt-0.5 block font-normal text-foreground/45">
-                    {preset.hint}
-                  </span>
-                </button>
-              ))}
-            </div>
-          </section>
 
           <section className="rounded-2xl border-2 border-wood/10 bg-white/80 p-3.5">
             <h2 className="font-display text-sm text-wood-dark">닮음비</h2>
@@ -760,241 +976,25 @@ export default function SimilarSolidsStudio() {
               />
             </div>
           </section>
+        </div>
 
+        <div className="space-y-4">
           <section className="rounded-2xl border-2 border-wood/10 bg-white/80 p-3.5">
-            <h2 className="font-display text-sm text-wood-dark">도형</h2>
-            <div className="mt-2 flex flex-wrap gap-1">
-              {FAMILY_OPTIONS.map((opt) => (
-                <ChipToggle
-                  key={opt.id}
-                  on={source.family === opt.id}
-                  onClick={() =>
-                    setState((prev) => {
-                      const nextSource = withFamily(prev.source, opt.id);
-                      return normalizeSimilarState({
-                        ...prev,
-                        source: nextSource,
-                        rightMarks: extractMeasureMarks(nextSource),
-                        rightVertexNames: [],
-                      });
-                    })
-                  }
+            <h2 className="font-display text-sm text-wood-dark">빠른 그림</h2>
+            <div className="mt-2 grid grid-cols-2 gap-1.5">
+              {SIMILAR_SOLIDS_PRESETS.map((preset) => (
+                <button
+                  key={preset.id}
+                  type="button"
+                  onClick={() => setState(cloneSimilarState(preset.state))}
+                  className="rounded-xl bg-black/5 px-2.5 py-2 text-left text-xs font-semibold text-foreground/70 hover:bg-black/10"
                 >
-                  {opt.label}
-                </ChipToggle>
+                  {preset.title}
+                  <span className="mt-0.5 block font-normal text-foreground/45">
+                    {preset.hint}
+                  </span>
+                </button>
               ))}
-            </div>
-            {needsSides ? (
-              <div className="mt-3">
-                <p className="mb-1 text-xs font-semibold text-foreground/60">
-                  밑면 변의 수
-                </p>
-                <Segmented
-                  value={String(source.sides)}
-                  onChange={(v) =>
-                    setSource({ sides: Number(v), vertexNames: [] })
-                  }
-                  options={[3, 4, 5, 6, 7, 8].map((n) => ({
-                    id: String(n),
-                    label: String(n),
-                  }))}
-                />
-              </div>
-            ) : null}
-            {source.family === "platonic" ? (
-              <div className="mt-3 flex flex-wrap gap-1">
-                {PLATONIC_OPTIONS.map((opt) => (
-                  <ChipToggle
-                    key={opt.id}
-                    on={source.platonic === opt.id}
-                    onClick={() =>
-                      setSource({ platonic: opt.id, vertexNames: [] })
-                    }
-                  >
-                    {opt.label}
-                  </ChipToggle>
-                ))}
-              </div>
-            ) : null}
-            {source.family === "cylinder" ? (
-              <div className="mt-3">
-                <Segmented
-                  value={source.cylinderLie}
-                  onChange={(cylinderLie) => setSource({ cylinderLie })}
-                  options={[
-                    { id: "vertical", label: "세움" },
-                    { id: "horizontal", label: "눕힘" },
-                  ]}
-                />
-              </div>
-            ) : null}
-            {hemisphere ? (
-              <div className="mt-3">
-                <p className="mb-1 text-xs font-semibold text-foreground/60">
-                  반구 방향
-                </p>
-                <Segmented
-                  value={source.hemisphereFlip ? "flipped" : "normal"}
-                  onChange={(v) =>
-                    setSource({ hemisphereFlip: v === "flipped" })
-                  }
-                  options={[
-                    { id: "normal", label: "아래 잘림" },
-                    { id: "flipped", label: "위 잘림" },
-                  ]}
-                />
-              </div>
-            ) : null}
-            <div className="mt-3 grid grid-cols-2 gap-2">
-              {prismRect ? (
-                <>
-                  <NumberField
-                    label="가로"
-                    value={source.width}
-                    onChange={(width) => setSource({ width })}
-                    min={0.5}
-                    max={40}
-                    suffix="cm"
-                  />
-                  <NumberField
-                    label="세로"
-                    value={source.depth}
-                    onChange={(depth) => setSource({ depth })}
-                    min={0.5}
-                    max={40}
-                    suffix="cm"
-                  />
-                </>
-              ) : null}
-              {needsSides && !prismRect ? (
-                <NumberField
-                  label="밑면 한 변"
-                  value={source.baseSize}
-                  onChange={(baseSize) => setSource({ baseSize })}
-                  min={0.5}
-                  max={40}
-                  suffix="cm"
-                />
-              ) : null}
-              {source.family === "frustum" ? (
-                <NumberField
-                  label="윗면 한 변"
-                  value={source.topSize}
-                  onChange={(topSize) => setSource({ topSize })}
-                  min={0.4}
-                  max={40}
-                  suffix="cm"
-                />
-              ) : null}
-              {round ? (
-                <NumberField
-                  label="밑면 반지름"
-                  value={source.radius}
-                  onChange={(radius) => setSource({ radius })}
-                  min={0.4}
-                  max={40}
-                  suffix="cm"
-                />
-              ) : null}
-              {sphere || hemisphere || stacked ? (
-                <NumberField
-                  label="반지름"
-                  value={source.radius}
-                  onChange={(radius) => setSource({ radius })}
-                  min={0.4}
-                  max={40}
-                  suffix="cm"
-                />
-              ) : null}
-              {source.family === "coneFrustum" ? (
-                <NumberField
-                  label="윗면 반지름"
-                  value={source.topRadius}
-                  onChange={(topRadius) => setSource({ topRadius })}
-                  min={0.3}
-                  max={40}
-                  suffix="cm"
-                />
-              ) : null}
-              {source.family === "platonic" ? (
-                <NumberField
-                  label="한 모서리"
-                  value={source.edgeLength}
-                  onChange={(edgeLength) => setSource({ edgeLength })}
-                  min={0.5}
-                  max={40}
-                  suffix="cm"
-                />
-              ) : null}
-              {!sphere && !hemisphere && source.family !== "platonic" ? (
-                <>
-                  <NumberField
-                    label={
-                      source.family === "cylinderCone"
-                        ? "원기둥 높이"
-                        : source.family === "coneHemisphere"
-                          ? "원뿔 높이"
-                          : "높이"
-                    }
-                    value={source.height}
-                    onChange={(height) => setSource({ height })}
-                    min={0.5}
-                    max={40}
-                    suffix="cm"
-                  />
-                  {source.family === "cylinderCone" ? (
-                    <NumberField
-                      label="원뿔 높이"
-                      value={source.capHeight}
-                      onChange={(capHeight) => setSource({ capHeight })}
-                      min={0.5}
-                      max={40}
-                      suffix="cm"
-                    />
-                  ) : null}
-                  {familyHasFaceHeight(source.family) ? (
-                    <NumberField
-                      label="옆면 높이"
-                      value={Number(faceHeightLength(source).toFixed(3))}
-                      onChange={(length) =>
-                        setState((prev) =>
-                          patchSource(prev, (cur) => withFaceHeight(cur, length)),
-                        )
-                      }
-                      min={Number((faceHeightSpan(source) + 0.1).toFixed(2))}
-                      max={50}
-                      step={0.1}
-                      suffix="cm"
-                    />
-                  ) : null}
-                  {familyHasSlant(source.family) ? (
-                    <NumberField
-                      label="모선"
-                      value={Number(slantLength(source).toFixed(3))}
-                      onChange={(slant) =>
-                        setState((prev) =>
-                          patchSource(prev, (cur) => withSlantLength(cur, slant)),
-                        )
-                      }
-                      min={Number((slantSpan(source) + 0.1).toFixed(2))}
-                      max={50}
-                      step={0.1}
-                      suffix="cm"
-                    />
-                  ) : null}
-                </>
-              ) : null}
-              <TextField
-                label="단위"
-                value={source.unit}
-                onChange={(unit) => setSource({ unit })}
-                placeholder="cm"
-              />
-              <TextField
-                label="미지수"
-                value={source.unknownLetter}
-                onChange={(unknownLetter) => setSource({ unknownLetter })}
-              />
             </div>
           </section>
 
