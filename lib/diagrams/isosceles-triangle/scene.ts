@@ -590,7 +590,7 @@ export function buildIsoscelesScene(state: IsoscelesState): IsoScene {
   const texts: SceneText[] = [];
   const mathC = centroid(state.points);
   const canvasC = mathToCanvas(mathC, layout);
-  const originSet = new Set(state.cevians.map((c) => CEVIAN_INDEX[c.from]));
+  const originSet = new Set<number>(state.cevians.map((c) => CEVIAN_INDEX[c.from]));
   const splitLenSides = new Set(
     state.cevians
       .filter((c) => c.leftLen.show || c.rightLen.show)
@@ -631,7 +631,7 @@ export function buildIsoscelesScene(state: IsoscelesState): IsoScene {
   for (let i = 0; i < 3; i += 1) {
     const v = state.vertices[i];
     if (!v?.showInterior || !v.fillInterior) continue;
-    if (originSet.has(i as 0 | 1 | 2) || originSet.has(i)) continue;
+    if (originSet.has(i)) continue;
     const p = canvas[i]!;
     const prev = canvas[prevIndex(i, 3)]!;
     const next = canvas[nextIndex(i, 3)]!;

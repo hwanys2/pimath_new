@@ -10,6 +10,7 @@ import {
   familyIsSmooth,
   normalizeState,
   type SolidFamily,
+  type VertexDisplayMode,
 } from "./model";
 import { applyEditedLabel } from "./geometry";
 import { buildSolidSketchScene } from "./scene";
@@ -436,7 +437,7 @@ describe("per-vertex display modes", () => {
       ...DEFAULT_SOLID_SKETCH_STATE,
       family: "frustum",
       sides: 3,
-      vertexModes: [, "hidden"],
+      vertexModes: [undefined, "hidden"] as VertexDisplayMode[],
     });
     const scene = buildSolidSketchScene(start);
     const labels = scene.texts.filter((t) => t.id.startsWith("vertex:"));

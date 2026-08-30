@@ -181,7 +181,6 @@ function makeEdge(patch: Partial<IsoEdge> = {}): IsoEdge {
 export function makeCevian(patch: Partial<CevianState> & { from: CevianFrom }): CevianState {
   const from = patch.from;
   return {
-    from,
     role: "free",
     t: 0.5,
     name: DEFAULT_FOOT_NAME[from],

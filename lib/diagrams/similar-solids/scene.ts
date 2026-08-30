@@ -162,7 +162,7 @@ export function sideSolidScene(
   return {
     width: pair.width,
     height: pair.height,
-    cmds: pair.cmds.flatMap((cmd) => {
+    cmds: pair.cmds.flatMap((cmd): SceneCmd[] => {
       if (cmd.t === "text") {
         if (cmd.text.id.startsWith(other) || cmd.text.id.startsWith("figure:")) {
           return [];
