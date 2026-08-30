@@ -272,8 +272,8 @@ export default function SimilarTrianglesStudio() {
         <p className="rounded-xl bg-mint/30 px-3 py-2 text-sm text-wood-dark">{status}</p>
       ) : null}
 
-      <div className="grid items-start gap-5 lg:grid-cols-[minmax(0,22rem)_minmax(16rem,20rem)_minmax(15rem,18rem)]">
-        <div className="mx-auto w-full max-w-[24rem] overflow-hidden rounded-3xl border-2 border-wood/10 bg-white shadow-[0_12px_40px_rgba(61,44,30,0.08)] lg:mx-0">
+      <div className="grid items-start gap-5 lg:grid-cols-[minmax(0,28rem)_minmax(16rem,20rem)_minmax(15rem,18rem)]">
+        <div className="mx-auto w-full max-w-[28rem] overflow-hidden rounded-3xl border-2 border-wood/10 bg-white shadow-[0_12px_40px_rgba(61,44,30,0.08)] lg:mx-0">
           <SimilarTrianglesCanvas
             state={state}
             fonts={fonts}
@@ -594,19 +594,24 @@ export default function SimilarTrianglesStudio() {
 
           <section className="rounded-2xl border-2 border-wood/10 bg-white/80 p-3.5">
             <h2 className="font-display text-sm text-wood-dark">그림 종류</h2>
-            <div className="mt-2 flex flex-wrap gap-1.5">
+            <div className="mt-2 grid grid-cols-2 gap-1.5">
               {SIMILARITY_KINDS.map((k) => (
-                <ChipToggle
+                <button
                   key={k.id}
-                  on={state.kind === k.id}
+                  type="button"
                   onClick={() => {
                     if (state.kind === k.id) return;
                     setState((prev) => withKind(prev, k.id));
                     setSelected(null);
                   }}
+                  className={`rounded-xl px-2.5 py-2 text-left text-xs font-semibold ${
+                    state.kind === k.id
+                      ? "bg-wood text-cream"
+                      : "bg-black/5 text-foreground/70 hover:bg-black/10"
+                  }`}
                 >
                   {k.label}
-                </ChipToggle>
+                </button>
               ))}
             </div>
             <div className="mt-3 grid grid-cols-2 gap-2">
