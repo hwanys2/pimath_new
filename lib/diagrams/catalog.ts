@@ -140,7 +140,7 @@ export const DIAGRAM_TOOLS: DiagramToolMeta[] = [
     unitHint: "3.1 삼각형과 사각형의 성질",
     emoji: "△",
     href: "/tools/figures/g2-triangle-centers",
-    status: "soon",
+    status: "ready",
   },
   {
     id: "g3-circle-chords",

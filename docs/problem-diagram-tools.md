@@ -309,7 +309,7 @@ components/tools/figures/DiagramToolShell.tsx  ← 공통 뼈대. 손대지 않�
 | `g2-linear-inequality` | 중2 | 일차부등식 | ready |
 | `g2-linear-function` | 중2 | 일차함수 그래프 | ready |
 | `g2-isosceles-triangle` | 중2 | 이등변삼각형 | ready |
-| `g2-triangle-centers` | 중2 | 외심과 내심 | soon |
+| `g2-triangle-centers` | 중2 | 외심과 내심 | ready |
 | `g3-circle-chords` | 중3 | 원의 현 | ready |
 
 ---
@@ -384,5 +384,5 @@ components/tools/figures/DiagramToolShell.tsx  ← 공통 뼈대. 손대지 않�
 | 2026-08-30 | 일차함수 격자를 정사각형 단위로. 식 입력으로 y=ax+b·x=a·y=b 추가. |
 | 2026-08-30 | 일차함수 좌표평면 설정을 1열 그림 바로 아래로 이동. |
 | 2026-08-30 | 순환소수 나눗셈 기호를 각진 세로선 대신 괄호 곡선으로. |
-| 2026-08-30 | 중2 외심과 내심 (`g2-triangle-centers`)은 스튜디오가 없어 준비 중으로 둠. |
+| 2026-08-30 | 중2 외심과 내심 (`g2-triangle-centers`). 외접원·내접원, 반지름·이등분선·수선, 각·길이, PNG. |
 | 2026-08-30 | 중2 이등변삼각형 (`g2-isosceles-triangle`). 등변 표시·외각·수선·이등분선, PNG. |
