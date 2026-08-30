@@ -3,12 +3,13 @@ import { describe, it } from "node:test";
 import { runsToPlain } from "../math-label";
 import { applyEditedLabel } from "../solid-sketch/geometry";
 import { buildSolidMesh } from "../solid-sketch/solids";
-import { applyPairEditedLabel } from "./geometry";
+import { applyPairEditedLabel, togglePairEdge } from "./geometry";
 import {
   continuedVertexNames,
   DEFAULT_SIMILAR_SOLIDS_STATE,
   normalizeSimilarState,
   pairSolidStates,
+  patchSideMarks,
   scaleSolidState,
   similarityScale,
   SIMILAR_SOLIDS_PRESETS,
@@ -116,6 +117,29 @@ describe("similar solids scene", () => {
     assert.equal(next.source.height, 6);
     const { right } = pairSolidStates(next);
     assert.ok(Math.abs(right.height - 10) < 1e-6);
+  });
+
+  it("turns off left height without hiding the right height", () => {
+    const next = patchSideMarks(DEFAULT_SIMILAR_SOLIDS_STATE, "left", {
+      showHeight: false,
+    });
+    assert.equal(next.source.showHeight, false);
+    assert.equal(next.rightMarks.showHeight, true);
+    const scene = buildSimilarSolidsScene(next);
+    assert.equal(scene.texts.some((t) => t.id === "L:height"), false);
+    assert.ok(scene.texts.some((t) => t.id === "R:height"));
+  });
+
+  it("toggles an edge on the left without adding it on the right", () => {
+    const next = togglePairEdge(DEFAULT_SIMILAR_SOLIDS_STATE, "0-1", "left");
+    assert.ok(next.source.edgeLabels["0-1"]);
+    assert.equal(next.rightMarks.edgeLabels["0-1"], undefined);
+    const scene = buildSimilarSolidsScene(next);
+    assert.ok(scene.texts.some((t) => t.id === "L:edge:0-1"));
+    assert.equal(
+      scene.texts.some((t) => t.id === "R:edge:0-1"),
+      false,
+    );
   });
 
   it("builds every preset", () => {

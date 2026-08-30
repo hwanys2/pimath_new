@@ -162,7 +162,7 @@ export default function SimilarSolidsCanvas({
             return;
           }
           if (hit?.kind === "edge") {
-            setState((prev) => togglePairEdge(prev, hit.key), true);
+            setState((prev) => togglePairEdge(prev, hit.key, hit.side), true);
             return;
           }
           dragRef.current = { t: "orbit", x: p.x, y: p.y, moved: false };

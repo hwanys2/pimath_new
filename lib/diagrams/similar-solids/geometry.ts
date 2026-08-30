@@ -9,9 +9,13 @@ import {
   toggleEdgeMeasure,
   type SolidHit,
 } from "@/lib/diagrams/solid-sketch/geometry";
-import { normalizeState, type SolidSketchState } from "@/lib/diagrams/solid-sketch/model";
 import {
+  applyMeasureMarks,
+  extractMeasureMarks,
+  keepGeometry,
   normalizeSimilarState,
+  pairSolidStates,
+  patchSource,
   similarityScale,
   type SimilarSolidsState,
 } from "./model";
@@ -70,7 +74,7 @@ export function hitTestPair(
     scale,
   );
   const rightHit = hitTestSolid(
-    pairRightSource(state),
+    pairSolidStates(state).right,
     sideSolidScene(scene, "right"),
     x,
     y,
@@ -112,13 +116,6 @@ export function hitTestPair(
   return ranked[0]?.hit ?? null;
 }
 
-function pairRightSource(state: SimilarSolidsState): SolidSketchState {
-  return normalizeState({
-    ...state.source,
-    vertexNames: state.rightVertexNames,
-  });
-}
-
 export function applyPairEditedLabel(
   state: SimilarSolidsState,
   rawId: string,
@@ -147,17 +144,27 @@ export function applyPairEditedLabel(
     return normalizeSimilarState({ ...state, rightVertexNames });
   }
 
-  let nextText = text;
-  if (side === "right") {
-    const parsed = parseMeasureInput(text);
-    const k = similarityScale(state);
-    if (parsed.kind === "number" && parsed.value != null && k > 1e-9) {
-      nextText = formatNiceNumber(parsed.value / k);
-    }
+  if (side === "left") {
+    return patchSource(state, (s) => applyEditedLabel(s, id, text));
   }
+
+  const parsed = parseMeasureInput(text);
+  const k = similarityScale(state);
+  const { right } = pairSolidStates(state);
+  let source = state.source;
+  if (parsed.kind === "number" && parsed.value != null && k > 1e-9) {
+    const geomNext = applyEditedLabel(
+      state.source,
+      id,
+      formatNiceNumber(parsed.value / k),
+    );
+    source = keepGeometry(geomNext, state.source);
+  }
+  const labeled = applyEditedLabel(right, id, text);
   return normalizeSimilarState({
     ...state,
-    source: applyEditedLabel(state.source, id, nextText),
+    source,
+    rightMarks: extractMeasureMarks(labeled),
   });
 }
 
@@ -184,24 +191,35 @@ export function nudgePairById(
     });
   }
   const { side, id } = stripPairPrefix(rawId);
-  const source = nudgeMeasure(
-    state.source,
+  const { left, right } = pairSolidStates(state);
+  const sideSolid = side === "right" ? right : left;
+  const nudged = nudgeMeasure(
+    sideSolid,
     sideSolidScene(scene, side),
     id,
     dx,
     dy,
     lineOnly,
   );
-  return normalizeSimilarState({ ...state, source });
+  const marks = extractMeasureMarks(nudged);
+  if (side === "left") {
+    return patchSource(state, applyMeasureMarks(state.source, marks));
+  }
+  return normalizeSimilarState({ ...state, rightMarks: marks });
 }
 
 export function togglePairEdge(
   state: SimilarSolidsState,
   key: string,
+  side: "left" | "right" = "left",
 ): SimilarSolidsState {
+  if (side === "left") {
+    return patchSource(state, (s) => toggleEdgeMeasure(s, key));
+  }
+  const { right } = pairSolidStates(state);
   return normalizeSimilarState({
     ...state,
-    source: toggleEdgeMeasure(state.source, key),
+    rightMarks: extractMeasureMarks(toggleEdgeMeasure(right, key)),
   });
 }
 

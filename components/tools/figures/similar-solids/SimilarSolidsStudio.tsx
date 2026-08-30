@@ -22,8 +22,12 @@ import {
 import {
   cloneSimilarState,
   DEFAULT_SIMILAR_SOLIDS_STATE,
+  extractMeasureMarks,
   normalizeSimilarState,
+  pairSolidStates,
+  patchSideMarks,
   patchSource,
+  sideMarks,
   SIMILAR_SOLIDS_PRESETS,
   type SimilarSolidsState,
 } from "@/lib/diagrams/similar-solids/model";
@@ -165,8 +169,10 @@ function fontsFromNext(): FontFaces {
 export default function SimilarSolidsStudio() {
   const [state, setState] = useSimilarSolidsState();
   const [status, setStatus] = useState<string | null>(null);
+  const [markSide, setMarkSide] = useState<"left" | "right">("left");
   const fonts = useMemo(() => fontsFromNext(), []);
   const source = state.source;
+  const marks = sideMarks(state, markSide);
 
   const setSource = useCallback(
     (patch: Partial<SolidSketchState>) => {
@@ -255,8 +261,8 @@ export default function SimilarSolidsStudio() {
           </h1>
           <p className="mt-1 max-w-2xl text-sm text-foreground/65">
             왼쪽 입체 하나를 그리고 닮음비만 넣으면 오른쪽이 같이 그려집니다.
-            빈 곳을 끌어 돌리고, 모서리를 눌러 길이를 붙이세요. 어느 쪽 숫자를
-            고쳐도 비가 유지됩니다.
+            빈 곳을 끌어 돌리고, 모서리를 눌러 그 쪽에만 길이를 붙이세요. 어느
+            쪽 숫자를 고쳐도 비가 유지됩니다.
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -309,6 +315,19 @@ export default function SimilarSolidsStudio() {
         <div className="space-y-4">
           <section className="rounded-2xl border-2 border-wood/10 bg-white/80 p-3.5">
             <h2 className="font-display text-sm text-wood-dark">표시</h2>
+            <div className="mt-2">
+              <p className="mb-1 text-xs font-semibold text-foreground/60">
+                길이 표시 쪽
+              </p>
+              <Segmented
+                value={markSide}
+                onChange={(v) => setMarkSide(v)}
+                options={[
+                  { id: "left", label: "왼쪽" },
+                  { id: "right", label: "오른쪽" },
+                ]}
+              />
+            </div>
             <div className="mt-2 flex flex-wrap gap-1.5">
               <ChipToggle
                 on={source.showFill}
@@ -330,19 +349,28 @@ export default function SimilarSolidsStudio() {
               </ChipToggle>
               {!sphere && !hemisphere ? (
                 <ChipToggle
-                  on={source.showHeight}
-                  onClick={() => setSource({ showHeight: !source.showHeight })}
+                  on={marks.showHeight}
+                  onClick={() =>
+                    setState((prev) =>
+                      patchSideMarks(prev, markSide, {
+                        showHeight: !sideMarks(prev, markSide).showHeight,
+                      }),
+                    )
+                  }
                 >
                   높이
                 </ChipToggle>
               ) : null}
-              {source.showHeight ? (
+              {marks.showHeight ? (
                 <ChipToggle
-                  on={source.showHeightRightAngle}
+                  on={marks.showHeightRightAngle}
                   onClick={() =>
-                    setSource({
-                      showHeightRightAngle: !source.showHeightRightAngle,
-                    })
+                    setState((prev) =>
+                      patchSideMarks(prev, markSide, {
+                        showHeightRightAngle:
+                          !sideMarks(prev, markSide).showHeightRightAngle,
+                      }),
+                    )
                   }
                 >
                   직각
@@ -358,25 +386,41 @@ export default function SimilarSolidsStudio() {
               ) : null}
               {smooth ? (
                 <ChipToggle
-                  on={source.showRadius}
-                  onClick={() => setSource({ showRadius: !source.showRadius })}
+                  on={marks.showRadius}
+                  onClick={() =>
+                    setState((prev) =>
+                      patchSideMarks(prev, markSide, {
+                        showRadius: !sideMarks(prev, markSide).showRadius,
+                      }),
+                    )
+                  }
                 >
                   반지름
                 </ChipToggle>
               ) : null}
               {familyHasSlant(source.family) ? (
                 <ChipToggle
-                  on={source.showSlant}
-                  onClick={() => setSource({ showSlant: !source.showSlant })}
+                  on={marks.showSlant}
+                  onClick={() =>
+                    setState((prev) =>
+                      patchSideMarks(prev, markSide, {
+                        showSlant: !sideMarks(prev, markSide).showSlant,
+                      }),
+                    )
+                  }
                 >
                   모선
                 </ChipToggle>
               ) : null}
               {familyHasFaceHeight(source.family) ? (
                 <ChipToggle
-                  on={source.showFaceHeight}
+                  on={marks.showFaceHeight}
                   onClick={() =>
-                    setSource({ showFaceHeight: !source.showFaceHeight })
+                    setState((prev) =>
+                      patchSideMarks(prev, markSide, {
+                        showFaceHeight: !sideMarks(prev, markSide).showFaceHeight,
+                      }),
+                    )
                   }
                 >
                   옆면 높이
@@ -384,9 +428,13 @@ export default function SimilarSolidsStudio() {
               ) : null}
               {!smooth ? (
                 <ChipToggle
-                  on={source.showBaseEdge}
+                  on={marks.showBaseEdge}
                   onClick={() =>
-                    setSource({ showBaseEdge: !source.showBaseEdge })
+                    setState((prev) =>
+                      patchSideMarks(prev, markSide, {
+                        showBaseEdge: !sideMarks(prev, markSide).showBaseEdge,
+                      }),
+                    )
                   }
                 >
                   밑면 한 변
@@ -429,8 +477,8 @@ export default function SimilarSolidsStudio() {
               </div>
             ) : null}
             <p className="mt-2 text-[11px] leading-snug text-foreground/45">
-              모서리를 누르면 길이 설명선이 양쪽 다 붙어요. 오른쪽 숫자를
-              고치면 왼쪽도 닮음비에 맞게 바뀝니다.
+              모서리를 누르면 그 쪽만 길이 설명선이 붙어요. 칩은 위에서 고른
+              쪽에만 적용됩니다.
             </p>
             {state.showFigureLabels ? (
               <div className="mt-3 grid grid-cols-2 gap-2">
@@ -446,120 +494,181 @@ export default function SimilarSolidsStudio() {
                 />
               </div>
             ) : null}
-            {source.showHeight ? (
+            {marks.showHeight ? (
               <div className="mt-3">
                 <LabelModeRow
                   title="높이"
-                  mode={source.heightLabel.mode}
-                  custom={source.heightLabel.custom}
+                  mode={marks.heightLabel.mode}
+                  custom={marks.heightLabel.custom}
                   unknownLetter={source.unknownLetter}
                   onMode={(mode) =>
-                    setSource({
-                      heightLabel: { ...source.heightLabel, mode },
-                    })
+                    setState((prev) =>
+                      patchSideMarks(prev, markSide, {
+                        heightLabel: {
+                          ...sideMarks(prev, markSide).heightLabel,
+                          mode,
+                        },
+                      }),
+                    )
                   }
                   onCustom={(custom) =>
-                    setSource({
-                      heightLabel: { ...source.heightLabel, custom },
-                    })
+                    setState((prev) =>
+                      patchSideMarks(prev, markSide, {
+                        heightLabel: {
+                          ...sideMarks(prev, markSide).heightLabel,
+                          custom,
+                        },
+                      }),
+                    )
                   }
                 />
               </div>
             ) : null}
-            {source.showRadius ? (
+            {marks.showRadius ? (
               <div className="mt-3">
                 <LabelModeRow
                   title="반지름"
-                  mode={source.radiusLabel.mode}
-                  custom={source.radiusLabel.custom}
+                  mode={marks.radiusLabel.mode}
+                  custom={marks.radiusLabel.custom}
                   unknownLetter={source.unknownLetter}
                   onMode={(mode) =>
-                    setSource({
-                      radiusLabel: { ...source.radiusLabel, mode },
-                    })
+                    setState((prev) =>
+                      patchSideMarks(prev, markSide, {
+                        radiusLabel: {
+                          ...sideMarks(prev, markSide).radiusLabel,
+                          mode,
+                        },
+                      }),
+                    )
                   }
                   onCustom={(custom) =>
-                    setSource({
-                      radiusLabel: { ...source.radiusLabel, custom },
-                    })
+                    setState((prev) =>
+                      patchSideMarks(prev, markSide, {
+                        radiusLabel: {
+                          ...sideMarks(prev, markSide).radiusLabel,
+                          custom,
+                        },
+                      }),
+                    )
                   }
                 />
               </div>
             ) : null}
-            {source.showSlant ? (
+            {marks.showSlant ? (
               <div className="mt-3">
                 <LabelModeRow
                   title="모선"
-                  mode={source.slantLabel.mode}
-                  custom={source.slantLabel.custom}
+                  mode={marks.slantLabel.mode}
+                  custom={marks.slantLabel.custom}
                   unknownLetter={source.unknownLetter}
                   onMode={(mode) =>
-                    setSource({
-                      slantLabel: { ...source.slantLabel, mode },
-                    })
+                    setState((prev) =>
+                      patchSideMarks(prev, markSide, {
+                        slantLabel: {
+                          ...sideMarks(prev, markSide).slantLabel,
+                          mode,
+                        },
+                      }),
+                    )
                   }
                   onCustom={(custom) =>
-                    setSource({
-                      slantLabel: { ...source.slantLabel, custom },
-                    })
+                    setState((prev) =>
+                      patchSideMarks(prev, markSide, {
+                        slantLabel: {
+                          ...sideMarks(prev, markSide).slantLabel,
+                          custom,
+                        },
+                      }),
+                    )
                   }
                 />
               </div>
             ) : null}
-            {source.showFaceHeight ? (
+            {marks.showFaceHeight ? (
               <div className="mt-3">
                 <LabelModeRow
                   title="옆면 높이"
-                  mode={source.faceHeightLabel.mode}
-                  custom={source.faceHeightLabel.custom}
+                  mode={marks.faceHeightLabel.mode}
+                  custom={marks.faceHeightLabel.custom}
                   unknownLetter={source.unknownLetter}
                   onMode={(mode) =>
-                    setSource({
-                      faceHeightLabel: { ...source.faceHeightLabel, mode },
-                    })
+                    setState((prev) =>
+                      patchSideMarks(prev, markSide, {
+                        faceHeightLabel: {
+                          ...sideMarks(prev, markSide).faceHeightLabel,
+                          mode,
+                        },
+                      }),
+                    )
                   }
                   onCustom={(custom) =>
-                    setSource({
-                      faceHeightLabel: { ...source.faceHeightLabel, custom },
-                    })
+                    setState((prev) =>
+                      patchSideMarks(prev, markSide, {
+                        faceHeightLabel: {
+                          ...sideMarks(prev, markSide).faceHeightLabel,
+                          custom,
+                        },
+                      }),
+                    )
                   }
                 />
               </div>
             ) : null}
-            {source.showBaseEdge ? (
+            {marks.showBaseEdge ? (
               <div className="mt-3">
                 <LabelModeRow
                   title="밑면 한 변"
-                  mode={source.baseEdgeLabel.mode}
-                  custom={source.baseEdgeLabel.custom}
+                  mode={marks.baseEdgeLabel.mode}
+                  custom={marks.baseEdgeLabel.custom}
                   unknownLetter={source.unknownLetter}
                   onMode={(mode) =>
-                    setSource({
-                      baseEdgeLabel: { ...source.baseEdgeLabel, mode },
-                    })
+                    setState((prev) =>
+                      patchSideMarks(prev, markSide, {
+                        baseEdgeLabel: {
+                          ...sideMarks(prev, markSide).baseEdgeLabel,
+                          mode,
+                        },
+                      }),
+                    )
                   }
                   onCustom={(custom) =>
-                    setSource({
-                      baseEdgeLabel: { ...source.baseEdgeLabel, custom },
-                    })
+                    setState((prev) =>
+                      patchSideMarks(prev, markSide, {
+                        baseEdgeLabel: {
+                          ...sideMarks(prev, markSide).baseEdgeLabel,
+                          custom,
+                        },
+                      }),
+                    )
                   }
                 />
               </div>
             ) : null}
-            {Object.keys(source.edgeLabels).length > 0 ? (
+            {Object.keys(marks.edgeLabels).length > 0 ? (
               <ul className="mt-3 space-y-1">
-                {Object.keys(source.edgeLabels).map((key) => (
+                {Object.keys(marks.edgeLabels).map((key) => (
                   <li key={key} className="flex items-center gap-2">
                     <span className="flex-1 rounded-lg bg-black/5 px-2 py-1 text-xs font-semibold text-wood-dark">
-                      {edgeName(source, key)}
+                      {edgeName(
+                        markSide === "right"
+                          ? pairSolidStates(state).right
+                          : source,
+                        key,
+                      )}
                     </span>
                     <button
                       type="button"
-                      onClick={() => {
-                        const next = { ...source.edgeLabels };
-                        delete next[key];
-                        setSource({ edgeLabels: next });
-                      }}
+                      onClick={() =>
+                        setState((prev) => {
+                          const next = {
+                            ...sideMarks(prev, markSide).edgeLabels,
+                          };
+                          delete next[key];
+                          return patchSideMarks(prev, markSide, {
+                            edgeLabels: next,
+                          });
+                        })
+                      }
                       className="text-xs font-semibold text-foreground/40 hover:text-foreground"
                     >
                       지우기
@@ -660,13 +769,15 @@ export default function SimilarSolidsStudio() {
                   key={opt.id}
                   on={source.family === opt.id}
                   onClick={() =>
-                    setState((prev) =>
-                      normalizeSimilarState({
+                    setState((prev) => {
+                      const nextSource = withFamily(prev.source, opt.id);
+                      return normalizeSimilarState({
                         ...prev,
-                        source: withFamily(prev.source, opt.id),
+                        source: nextSource,
+                        rightMarks: extractMeasureMarks(nextSource),
                         rightVertexNames: [],
-                      }),
-                    )
+                      });
+                    })
                   }
                 >
                   {opt.label}

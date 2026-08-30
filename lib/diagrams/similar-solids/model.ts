@@ -1,13 +1,32 @@
 import {
   cloneState,
   DEFAULT_SOLID_SKETCH_STATE,
+  emptyLabel,
   normalizeState,
+  type MeasLabel,
   type SolidSketchState,
 } from "@/lib/diagrams/solid-sketch/model";
 import { buildSolidMesh } from "@/lib/diagrams/solid-sketch/solids";
 
+export type SolidMeasureMarks = {
+  showHeight: boolean;
+  showHeightRightAngle: boolean;
+  showFaceHeight: boolean;
+  showRadius: boolean;
+  showSlant: boolean;
+  showBaseEdge: boolean;
+  heightLabel: MeasLabel;
+  faceHeightLabel: MeasLabel;
+  radiusLabel: MeasLabel;
+  slantLabel: MeasLabel;
+  baseEdgeLabel: MeasLabel;
+  edgeLabels: Record<string, MeasLabel>;
+};
+
 export type SimilarSolidsState = {
   source: SolidSketchState;
+  /** Length marks on the right solid only. Left uses `source`. */
+  rightMarks: SolidMeasureMarks;
   ratioLeft: number;
   ratioRight: number;
   showFigureLabels: boolean;
@@ -19,6 +38,65 @@ export type SimilarSolidsState = {
   rightFigureDy: number;
   rightVertexNames: string[];
 };
+
+export function emptyMeasureMarks(): SolidMeasureMarks {
+  return {
+    showHeight: false,
+    showHeightRightAngle: false,
+    showFaceHeight: false,
+    showRadius: false,
+    showSlant: false,
+    showBaseEdge: false,
+    heightLabel: emptyLabel(),
+    faceHeightLabel: emptyLabel(),
+    radiusLabel: emptyLabel(),
+    slantLabel: emptyLabel(),
+    baseEdgeLabel: emptyLabel(),
+    edgeLabels: {},
+  };
+}
+
+export function extractMeasureMarks(state: SolidSketchState): SolidMeasureMarks {
+  return {
+    showHeight: state.showHeight,
+    showHeightRightAngle: state.showHeightRightAngle,
+    showFaceHeight: state.showFaceHeight,
+    showRadius: state.showRadius,
+    showSlant: state.showSlant,
+    showBaseEdge: state.showBaseEdge,
+    heightLabel: { ...state.heightLabel },
+    faceHeightLabel: { ...state.faceHeightLabel },
+    radiusLabel: { ...state.radiusLabel },
+    slantLabel: { ...state.slantLabel },
+    baseEdgeLabel: { ...state.baseEdgeLabel },
+    edgeLabels: { ...state.edgeLabels },
+  };
+}
+
+export function applyMeasureMarks(
+  state: SolidSketchState,
+  marks: SolidMeasureMarks,
+): SolidSketchState {
+  return {
+    ...state,
+    showHeight: marks.showHeight,
+    showHeightRightAngle: marks.showHeightRightAngle,
+    showFaceHeight: marks.showFaceHeight,
+    showRadius: marks.showRadius,
+    showSlant: marks.showSlant,
+    showBaseEdge: marks.showBaseEdge,
+    heightLabel: marks.heightLabel,
+    faceHeightLabel: marks.faceHeightLabel,
+    radiusLabel: marks.radiusLabel,
+    slantLabel: marks.slantLabel,
+    baseEdgeLabel: marks.baseEdgeLabel,
+    edgeLabels: marks.edgeLabels,
+  };
+}
+
+export function keepGeometry(from: SolidSketchState, marksOf: SolidSketchState): SolidSketchState {
+  return applyMeasureMarks(from, extractMeasureMarks(marksOf));
+}
 
 export type SimilarSolidsPreset = {
   id: string;
@@ -64,6 +142,7 @@ function pairState(
 ): SimilarSolidsState {
   return normalizeSimilarState({
     source,
+    rightMarks: extractMeasureMarks(source),
     ratioLeft,
     ratioRight,
     showFigureLabels: false,
@@ -243,15 +322,41 @@ export function pairSolidStates(state: SimilarSolidsState): {
   });
   return {
     left,
-    right: { ...rightScaled, vertexNames: rightNames },
+    right: applyMeasureMarks(
+      { ...rightScaled, vertexNames: rightNames },
+      state.rightMarks,
+    ),
+  };
+}
+
+function normalizeMarks(raw: SolidMeasureMarks | undefined): SolidMeasureMarks {
+  if (!raw || typeof raw !== "object") return emptyMeasureMarks();
+  return {
+    showHeight: Boolean(raw.showHeight),
+    showHeightRightAngle: Boolean(raw.showHeightRightAngle),
+    showFaceHeight: Boolean(raw.showFaceHeight),
+    showRadius: Boolean(raw.showRadius),
+    showSlant: Boolean(raw.showSlant),
+    showBaseEdge: Boolean(raw.showBaseEdge),
+    heightLabel: { ...emptyLabel(), ...raw.heightLabel },
+    faceHeightLabel: { ...emptyLabel(), ...raw.faceHeightLabel },
+    radiusLabel: { ...emptyLabel(), ...raw.radiusLabel },
+    slantLabel: { ...emptyLabel(), ...raw.slantLabel },
+    baseEdgeLabel: { ...emptyLabel(), ...raw.baseEdgeLabel },
+    edgeLabels:
+      raw.edgeLabels && typeof raw.edgeLabels === "object" ? { ...raw.edgeLabels } : {},
   };
 }
 
 export function normalizeSimilarState(state: SimilarSolidsState): SimilarSolidsState {
   const leftLabel = state.leftFigureLabel?.trim() || "A";
   const rightLabel = state.rightFigureLabel?.trim() || "B";
+  const source = normalizeState(state.source);
   return {
-    source: normalizeState(state.source),
+    source,
+    rightMarks: state.rightMarks
+      ? normalizeMarks(state.rightMarks)
+      : extractMeasureMarks(source),
     ratioLeft: clamp(state.ratioLeft, 0.1, 40),
     ratioRight: clamp(state.ratioRight, 0.1, 40),
     showFigureLabels: Boolean(state.showFigureLabels),
@@ -265,6 +370,33 @@ export function normalizeSimilarState(state: SimilarSolidsState): SimilarSolidsS
       ? state.rightVertexNames
       : [],
   };
+}
+
+export function sideMarks(
+  state: SimilarSolidsState,
+  side: "left" | "right",
+): SolidMeasureMarks {
+  return side === "left" ? extractMeasureMarks(state.source) : state.rightMarks;
+}
+
+export function patchSideMarks(
+  state: SimilarSolidsState,
+  side: "left" | "right",
+  patch: Partial<SolidMeasureMarks>,
+): SimilarSolidsState {
+  if (side === "left") {
+    return patchSource(
+      state,
+      applyMeasureMarks(state.source, {
+        ...extractMeasureMarks(state.source),
+        ...patch,
+      }),
+    );
+  }
+  return normalizeSimilarState({
+    ...state,
+    rightMarks: { ...state.rightMarks, ...patch },
+  });
 }
 
 export function patchSource(
