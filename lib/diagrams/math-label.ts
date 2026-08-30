@@ -158,7 +158,7 @@ function attachSuperscripts(runs: TextRun[]): TextRun[] {
       continue;
     }
 
-    const inline = run.text.match(/^(.*?)\^(\{([^}]+)\}|(\d+))(.*)$/s);
+    const inline = run.text.match(/^([\s\S]*?)\^(\{([^}]+)\}|(\d+))([\s\S]*)$/);
     if (inline) {
       const base = inline[1]!;
       const exp = inline[3] ?? inline[4]!;
@@ -178,7 +178,7 @@ function attachSuperscripts(runs: TextRun[]): TextRun[] {
     }
 
     if (/^\^/.test(run.text) && out.length > 0) {
-      const lead = run.text.match(/^\^(\{([^}]+)\}|(\d+))(.*)$/s);
+      const lead = run.text.match(/^\^(\{([^}]+)\}|(\d+))([\s\S]*)$/);
       if (lead) {
         const exp = lead[2] ?? lead[3]!;
         const prev = out[out.length - 1]!;
