@@ -237,15 +237,13 @@ function sceneFromLayout(
 
   let startPt: Vec | null = null;
   let endPt: Vec | null = null;
-  if (showMarks) {
-    for (let i = 0; i < layout.rows.length; i += 1) {
-      const row = layout.rows[i]!;
-      for (const d of row.digits) {
-        if (d.gray || !d.circle) continue;
-        const pt = { x: placeX(d.place), y: rowY(i) };
-        if (d.circle === "cycle-start" && !startPt) startPt = pt;
-        if (d.circle === "cycle-end") endPt = pt;
-      }
+  for (let i = 0; i < layout.rows.length; i += 1) {
+    const row = layout.rows[i]!;
+    for (const d of row.digits) {
+      if (d.gray || !d.circle) continue;
+      const pt = { x: placeX(d.place), y: rowY(i) };
+      if (d.circle === "cycle-start" && !startPt) startPt = pt;
+      if (d.circle === "cycle-end") endPt = pt;
     }
   }
 

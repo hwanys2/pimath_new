@@ -37,4 +37,21 @@ describe("repeating decimal scene", () => {
     const layout = buildLongDivision(1n, 7n);
     assert.equal(layout.period, "142857");
   });
+
+  it("keeps the 같다 arrow when remainder colors are off", () => {
+    const scene = buildRepeatingDecimalScene({
+      ...DEFAULT_REPEATING_DECIMAL_STATE,
+      showRemainderMarks: false,
+      showSameMark: true,
+    });
+    assert.equal(
+      scene.texts.some((t) => t.runs[0]?.text === "같다."),
+      true,
+    );
+    assert.ok(scene.cmds.some((c) => c.t === "arrowhead"));
+    const remainderCircles = scene.cmds.filter(
+      (c) => c.t === "dot" && c.r > 6,
+    );
+    assert.equal(remainderCircles.length, 0);
+  });
 });
