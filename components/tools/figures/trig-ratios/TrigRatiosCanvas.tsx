@@ -14,7 +14,6 @@ import {
   type TrigSelection,
 } from "@/lib/diagrams/trig-ratios/geometry";
 import type { TrigRatiosState } from "@/lib/diagrams/trig-ratios/model";
-import { findSeg } from "@/lib/diagrams/trig-ratios/model";
 import { paintDiagramScene } from "@/lib/diagrams/render";
 import {
   buildTrigScene,

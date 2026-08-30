@@ -21,14 +21,16 @@ import {
   type Vec,
 } from "@/lib/diagrams/polygon/model";
 import {
-  altitudeTriangleFromLegs,
   findSeg,
   patchSegState,
-  triangleForRightVertex,
   wrapRotateDeg,
   type TrigRatiosState,
   type SegMark,
 } from "./model";
+import {
+  altitudeTriangleFromLegs,
+  triangleForRightVertex,
+} from "@/lib/diagrams/pythagorean/model";
 import {
   rebuildTriangleFromLegs as pythRebuild,
   movePoint as pythMovePoint,
@@ -69,8 +71,8 @@ export function angleDeg(from: Vec, vertex: Vec, to: Vec): number {
   return (Math.acos(clamp(u.x * w.x + u.y * w.y, -1, 1)) * 180) / Math.PI;
 }
 
-export function footToLine(p: Vec, a: Vec, b: Vec): Vec {
-  const t = projectT(p, a, b);
+export function footToLine(p: Vec, a: Vec, b: Vec, clampToSegment = true): Vec {
+  const t = clampToSegment ? clamp(projectT(p, a, b), 0, 1) : projectT(p, a, b);
   return lerp(a, b, t);
 }
 
@@ -170,19 +172,16 @@ export function figureStrokes(state: TrigRatiosState): [string, string][] {
         ["A", "C"],
       ];
     case "unit-circle": {
-      const pts = unitCirclePoints(state);
-      return [
+      const strokes: [string, string][] = [
         ["O", "A"],
         ["A", "B"],
         ["O", "B"],
         ["C", "D"],
         ["O", "C"],
         ["O", "D"],
-      ].filter(([a, b]) => {
-        const pa = pts[a];
-        const pb = pts[b];
-        return pa && pb;
-      });
+      ];
+      const pts = unitCirclePoints(state);
+      return strokes.filter(([a, b]) => pts[a] && pts[b]);
     }
     case "triangle-area": {
       const segs: [string, string][] = [
@@ -403,6 +402,36 @@ export function resolveAngleLabel(
   return `${Math.round(deg * 10) / 10}°`;
 }
 
+function labelFromMeasureParse(
+  parsed: ReturnType<typeof parseMeasureInput>,
+  text: string,
+  prev: MeasLabel,
+): MeasLabel {
+  if (parsed.kind === "unknown") {
+    return { ...prev, mode: "x", custom: parsed.unknown ?? "x" };
+  }
+  if (parsed.kind === "number" && parsed.value != null) {
+    return { ...prev, mode: "custom", custom: String(parsed.value) };
+  }
+  if (!text.trim()) return { ...prev, mode: "hide", custom: "" };
+  return { ...prev, mode: "custom", custom: text.trim() };
+}
+
+function labelFromAngleParse(
+  parsed: ReturnType<typeof parseAngleInput>,
+  text: string,
+  prev: MeasLabel,
+): MeasLabel {
+  if (parsed.kind === "unknown") {
+    return { ...prev, mode: "x", custom: parsed.unknown ?? "x" };
+  }
+  if (parsed.kind === "number" && parsed.value != null) {
+    return { ...prev, mode: "custom", custom: `${parsed.value}°` };
+  }
+  if (!text.trim()) return { ...prev, mode: "hide", custom: "" };
+  return { ...prev, mode: "custom", custom: text.trim() };
+}
+
 export function applyEditedLabel(
   state: TrigRatiosState,
   labelId: string,
@@ -413,17 +442,15 @@ export function applyEditedLabel(
     const segId = labelId.slice(2);
     const seg = findSeg(state, segId);
     if (!seg) return state;
-    const parsed = parseMeasureInput(trimmed, state.unit);
-    if (parsed.mode === "number" && parsed.value != null) {
-      return applySegNumeric(state, segId, parsed.value);
-    }
-    return patchSegState(state, segId, {
-      label: {
-        ...seg.label,
-        mode: parsed.mode,
-        custom: parsed.custom ?? trimmed,
-      },
+    const parsed = parseMeasureInput(trimmed);
+    let next = patchSegState(state, segId, {
+      show: true,
+      label: labelFromMeasureParse(parsed, trimmed, seg.label),
     });
+    if (parsed.kind === "number" && parsed.value != null) {
+      next = applySegNumeric(next, segId, parsed.value);
+    }
+    return next;
   }
   if (labelId.startsWith("a:")) {
     const angId = labelId.slice(2);
@@ -432,22 +459,14 @@ export function applyEditedLabel(
     if (!mark) return state;
     const parsed = parseAngleInput(trimmed);
     const key = state.kind === "triangle-area" ? "triAngles" : "angles";
-    if (parsed.mode === "number" && parsed.value != null) {
-      const next = applyAngleNumeric(state, angId, parsed.value);
-      return next;
+    if (parsed.kind === "number" && parsed.value != null) {
+      return applyAngleNumeric(state, angId, parsed.value);
     }
     return {
       ...state,
       [key]: state[key].map((a) =>
         a.id === angId
-          ? {
-              ...a,
-              label: {
-                ...a.label,
-                mode: parsed.mode,
-                custom: parsed.custom ?? trimmed,
-              },
-            }
+          ? { ...a, label: labelFromAngleParse(parsed, trimmed, a.label) }
           : a,
       ),
     };
@@ -457,7 +476,7 @@ export function applyEditedLabel(
     const vi = Number(parts[1]);
     const parsed = parseAngleInput(trimmed);
     if (state.kind === "quad-area" && Number.isFinite(vi)) {
-      if (parsed.mode === "number" && parsed.value != null) {
+      if (parsed.kind === "number" && parsed.value != null) {
         return applyQuadAngleNumeric(state, vi, parsed.value);
       }
       return {
@@ -466,11 +485,7 @@ export function applyEditedLabel(
           i === vi
             ? {
                 ...v,
-                interior: {
-                  ...v.interior,
-                  mode: parsed.mode,
-                  custom: parsed.custom ?? trimmed,
-                },
+                interior: labelFromAngleParse(parsed, trimmed, v.interior),
               }
             : v,
         ),
@@ -546,7 +561,7 @@ function applySegNumeric(state: TrigRatiosState, segId: string, value: number): 
     const pair = edgeMap[segId];
     if (!pair) return state;
     const poly = polygonFromTri(state);
-    const nextPoly = applyEdgeLengthChange(poly, pair[0], value, pair[1] % 3);
+    const nextPoly = applyEdgeLengthChange(poly, pair[0], value);
     return fromPolygonTri(state, nextPoly);
   }
   if (state.kind === "quad-area") {

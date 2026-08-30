@@ -20,15 +20,11 @@ import {
   downloadBlob,
 } from "@/lib/diagrams/export-image";
 import {
-  applyEditedLabel,
-  displayName,
-  draggableIds,
   rebuildRightForRightVertex,
   rebuildTriangleFromLegs,
   segDisplayName,
   segLength,
   setRotateDeg,
-  setThetaDeg,
   type TrigSelection,
 } from "@/lib/diagrams/trig-ratios/geometry";
 import {
@@ -39,7 +35,6 @@ import {
   findSeg,
   normalizeState,
   patchSegState,
-  setPointName,
   withKind,
   type TrigRatiosState,
 } from "@/lib/diagrams/trig-ratios/model";
@@ -199,16 +194,6 @@ export default function TrigRatiosStudio() {
 
   const segPool = state.kind === "triangle-area" ? state.triSegs : state.segs;
   const selSeg = selected?.t === "seg" ? findSeg(state, selected.id) : undefined;
-  const dragIds = draggableIds(state);
-  const visiblePoints =
-    state.kind === "quad-area"
-      ? ["A", "B", "C", "D"]
-      : state.kind === "triangle-area"
-        ? ["A", "B", "C", "H"]
-        : state.kind === "unit-circle"
-          ? ["O", "A", "B", "C", "D"]
-          : ["A", "B", "C"];
-
   const presetsForKind = TRIG_PRESETS.filter((p) => p.state.kind === state.kind);
 
   return (
@@ -606,7 +591,7 @@ export default function TrigRatiosStudio() {
                 min={0}
                 max={359}
                 step={1}
-                suffix="°"
+                display={`${Math.round(state.rotateDeg)}°`}
               />
             </section>
           )}

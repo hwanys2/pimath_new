@@ -204,7 +204,7 @@ describe("pythagorean scene", () => {
   it("shows hypotenuse as radical in auto mode for 9·12·x", () => {
     const state = normalizeState(cloneState(PYTHAGOREAN_PRESETS.find((p) => p.id === "tri-912x")!.state));
     const ab = state.segs.find((s) => s.id === "AB")!;
-    const autoAb = { ...ab, label: { mode: "auto" as const, custom: "" } };
+    const autoAb = { ...ab, label: { ...ab.label, mode: "auto" as const, custom: "" } };
     assert.equal(resolveSegText(state, autoAb), "15 cm");
   });
 });

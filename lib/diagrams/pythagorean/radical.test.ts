@@ -45,7 +45,10 @@ describe("pythagorean radical", () => {
   it("custom sqrt labels normalize for rendering", () => {
     const state = normalizeState(cloneState(PYTHAGOREAN_PRESETS.find((p) => p.id === "tri-iso")!.state));
     const seg = state.segs.find((s) => s.id === "BC")!;
-    const text = resolveSegText(state, { ...seg, label: { mode: "custom", custom: "5√2 cm" } });
+    const text = resolveSegText(state, {
+      ...seg,
+      label: { ...seg.label, mode: "custom", custom: "5√2 cm" },
+    });
     assert.equal(text, "$5\\sqrt{2}$ cm");
     assert.ok(parseMathRuns(text!).some((r) => r.sqrtBody));
   });
