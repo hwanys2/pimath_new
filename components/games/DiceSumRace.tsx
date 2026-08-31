@@ -32,6 +32,7 @@ import {
 } from "@/app/play/g2-u4-dice-sum-race/actions";
 import type { GameSubmitClientResult } from "@/app/adventure/actions";
 import { DICE_RACE_POLL_MS, type DiceRacePollState } from "@/lib/dice-race-types";
+import { notifySessionChanged, useSessionPoll } from "@/lib/session-sync";
 import { startVisibleInterval } from "@/lib/visible-interval";
 
 const FAST_MODE_KEY = "pm_dice_race_fast_mode";
@@ -252,6 +253,15 @@ export default function DiceSumRace({
     return result;
   }, [isTeacher, isGuest, isStudent, guestKey, sessionId]);
 
+  const syncSession = useCallback(
+    async (sid: string | null | undefined) => {
+      if (!sid) return;
+      await notifySessionChanged(sid);
+      await poll();
+    },
+    [poll],
+  );
+
   const playStudentRollAnim = useCallback(
     async (d1: number, d2: number, sum: number) => {
       setIsRolling(true);
@@ -266,12 +276,9 @@ export default function DiceSumRace({
     [flashFilledSum, startShuffle, stopShuffle],
   );
 
-  useEffect(() => {
-    if (!sessionId) return;
-    return startVisibleInterval(() => {
-      void poll();
-    }, DICE_RACE_POLL_MS);
-  }, [poll, sessionId]);
+  useSessionPoll(sessionId, () => {
+    void poll();
+  });
 
   useEffect(() => {
     if (!isPlayer || isRolling) return;
@@ -331,6 +338,7 @@ export default function DiceSumRace({
         if ("sessionId" in joined && joined.sessionId) {
           setSessionId(joined.sessionId);
           setWaitingForTeacher(false);
+          void notifySessionChanged(joined.sessionId);
         }
       } else {
         setWaitingForTeacher(true);
@@ -351,6 +359,7 @@ export default function DiceSumRace({
         if ("sessionId" in joined && joined.sessionId) {
           setSessionId(joined.sessionId);
           setWaitingForTeacher(false);
+          void notifySessionChanged(joined.sessionId);
         }
       });
     }, DICE_RACE_POLL_MS);
@@ -393,6 +402,7 @@ export default function DiceSumRace({
         if ("sessionId" in joined && joined.sessionId) {
           setSessionId(joined.sessionId);
           setGuestJoined(true);
+          void notifySessionChanged(joined.sessionId);
         }
       }
     });
@@ -424,6 +434,7 @@ export default function DiceSumRace({
       if (joined.sessionId) {
         setSessionId(joined.sessionId);
         setGuestJoined(true);
+        void notifySessionChanged(joined.sessionId);
       }
     });
   };
@@ -481,6 +492,7 @@ export default function DiceSumRace({
     startTransition(async () => {
       const res = await diceRaceOpenPickingAction({ sessionId });
       if ("error" in res) setMessage(errMsg(res.error));
+      else await syncSession(sessionId);
     });
   };
 
@@ -489,6 +501,7 @@ export default function DiceSumRace({
     startTransition(async () => {
       const res = await diceRaceStartRollingAction({ sessionId });
       if ("error" in res) setMessage(errMsg(res.error));
+      else await syncSession(sessionId);
     });
   };
 
@@ -525,7 +538,7 @@ export default function DiceSumRace({
 
     setDisplayRoll({ d1: res.d1, d2: res.d2, sum: res.sum });
     flashFilledSum(res.sum);
-    await poll();
+    await syncSession(sessionId);
     setIsRolling(false);
   };
 
@@ -538,15 +551,18 @@ export default function DiceSumRace({
       rollSyncInitializedRef.current = false;
       const res = await diceRaceNextRoundAction({ sessionId });
       if ("error" in res) setMessage(errMsg(res.error));
+      else await syncSession(sessionId);
     });
   };
 
   const handleClose = () => {
     if (!sessionId) return;
+    const closingId = sessionId;
     startTransition(async () => {
-      const res = await diceRaceCloseAction({ sessionId });
+      const res = await diceRaceCloseAction({ sessionId: closingId });
       if ("error" in res) setMessage(errMsg(res.error));
       else {
+        await notifySessionChanged(closingId);
         setSessionId(null);
         setState(IDLE_STATE);
         setDisplayRoll(null);
@@ -563,7 +579,7 @@ export default function DiceSumRace({
           ? await diceRaceGuestPickAction({ guestKey, sessionId, pick })
           : await diceRacePickAction({ sessionId, pick });
       if ("error" in res) setMessage(errMsg(res.error));
-      else void poll();
+      else await syncSession(sessionId);
     });
   };
 

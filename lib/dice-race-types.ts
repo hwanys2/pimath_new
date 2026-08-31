@@ -40,4 +40,5 @@ export type DiceRacePollState = {
   myXpClaimedRound: number;
 };
 
+/** Interval for discovering/joining an active session before sessionId is known. */
 export const DICE_RACE_POLL_MS = 2000;
