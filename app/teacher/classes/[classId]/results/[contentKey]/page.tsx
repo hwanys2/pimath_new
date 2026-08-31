@@ -16,6 +16,7 @@ import { fetchClassSessionResults } from "@/lib/activity-results-sessions";
 import { ContentResultTable } from "@/components/teacher/ContentResultDetail";
 import StudentRunHistory from "@/components/teacher/StudentRunHistory";
 import { formatStudentLabel } from "@/lib/students";
+import { teacherGameDashboardHref } from "@/lib/game-dashboard-types";
 
 type Props = {
   params: Promise<{ classId: string; contentKey: string }>;
@@ -126,6 +127,14 @@ function ResultsPageBody({
           {content.title}
         </h1>
         <p className="mt-1 text-sm text-foreground/60">학습 결과</p>
+        {content.type === "game" ? (
+          <Link
+            href={teacherGameDashboardHref(classId, contentKey)}
+            className="mt-3 inline-flex rounded-xl bg-gold/80 px-3 py-1.5 text-xs font-bold text-wood transition hover:brightness-105"
+          >
+            게임 대시보드
+          </Link>
+        ) : null}
         {recoveryNote ? (
           <p className="mt-2 text-sm font-bold text-wood" role="status">
             {recoveryNote}

@@ -1,7 +1,7 @@
 # 학습 결과 시스템
 
 > 학급에 배정한 콘텐츠의 **학생 활동 기록**과 **교사 조회 UI** 규칙.  
-> 관련: [`content-system.md`](content-system.md) (배정), [`progression-system.md`](progression-system.md) (XP)  
+> 관련: [`content-system.md`](content-system.md) (배정), [`progression-system.md`](progression-system.md) (XP), 게임 실시간 현황은 [`game-dashboard.md`](game-dashboard.md)  
 > 코드: [`lib/activity-results.ts`](../lib/activity-results.ts), [`lib/activity-result-schemas.ts`](../lib/activity-result-schemas.ts)
 
 ---
@@ -94,9 +94,10 @@ await submitActivity({
 
 | 경로 | 내용 |
 |------|------|
-| `/teacher/classes/[classId]` | **학습 결과** 요약 (배정·활성 콘텐츠별 참여율) |
+| `/teacher/classes/[classId]` | **학습 결과** 요약 (배정·활성 콘텐츠별 참여율). 게임은 **게임 대시보드**로 진입 |
+| `/teacher/classes/[classId]/games/[contentKey]` | 게임 실시간 현황 · 랭킹 · 수행 요약 ([`game-dashboard.md`](game-dashboard.md)) |
 | `/teacher/classes/[classId]/results/[contentKey]` | 학생별 상세 (점수·문항·승패 등) |
-| 수업 콘텐츠 관리 | 배정된 항목에 **결과 보기** 링크 |
+| 수업 콘텐츠 관리 | 배정된 게임에 **게임 대시보드**, 그 외 **결과 보기** |
 
 미참여 학생은 **회색 "미참여"**로 표시.
 
@@ -110,6 +111,7 @@ await submitActivity({
 4. [`lib/activity-result-schemas.ts`](../lib/activity-result-schemas.ts)에 `SUMMARY_LABELS` 추가
 5. [`components/teacher/ContentResultDetail.tsx`](../components/teacher/ContentResultDetail.tsx)에 상세 렌더러 등록 (필요 시)
 6. 교사 UI에서 해당 `contentKey` 결과가 보이는지 확인
+7. **게임**이면 학급 **게임 대시보드**에서 현황·랭킹이 보이는지 확인 ([`game-dashboard.md`](game-dashboard.md) — PlayBreadcrumb 로 presence 자동)
 
 ---
 
@@ -123,5 +125,6 @@ await submitActivity({
 | 2026-08-18 | `g3-u3-1-sincos-intro` 세션 종료 집계 · SUMMARY_LABELS |
 | 2026-08-24 | `g3-u3-1-tangent-intro` 5페이지 이름 붙이기 문항 집계 |
 | 2026-08-25 | 세션 재준비 시 미집계 종료 버그 수정 · 결과 복구 RPC · 종료 전 점수 저장 |
+| 2026-08-31 | 교사 게임 대시보드 링크 · [`game-dashboard.md`](game-dashboard.md) |
 | 2026-08-26 | `g3-u3-1-shadow-temple` 솔로 방탈출 게임 기록 · SUMMARY_LABELS · 상세 렌더러 |
 

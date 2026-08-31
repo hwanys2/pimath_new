@@ -1,7 +1,7 @@
 # 콘텐츠 · 단원 · 학급 배정 시스템
 
 > 이후 **모든 시뮬레이션·게임**과 교사 배정 UI는 이 문서를 따른다.  
-> 관련: [`progression-system.md`](progression-system.md) (XP), [`supabase-pm-conventions.md`](supabase-pm-conventions.md) (DB), 수업 도구 중 시험 그림은 [`problem-diagram-tools.md`](problem-diagram-tools.md)  
+> 관련: [`progression-system.md`](progression-system.md) (XP), [`supabase-pm-conventions.md`](supabase-pm-conventions.md) (DB), 수업 도구 중 시험 그림은 [`problem-diagram-tools.md`](problem-diagram-tools.md), 교사 게임 현황은 [`game-dashboard.md`](game-dashboard.md)  
 > 코드 단일 출처: [`lib/curriculum.ts`](../lib/curriculum.ts), [`lib/contents.ts`](../lib/contents.ts)
 
 ---
@@ -178,6 +178,7 @@ type ContentMeta = {
 | `pm_game_runs` | 학급·활성 배정 게임의 한 판 점수 기록 |
 | `pm_submit_game_run` | 배정·활성일 때만 기록 + XP |
 | `pm_list_game_ranking` | 월드·학교·학급 랭킹 (`world`/`school`/`class` × `all`/`best`) |
+| `pm_game_presence` | 교사 게임 대시보드 실시간 현황 ([`game-dashboard.md`](game-dashboard.md)) |
 
 학생은 `auth.users`가 아니므로 테이블 직접 SELECT 대신 **세션 토큰 RPC**를 쓴다.
 
@@ -189,6 +190,8 @@ type ContentMeta = {
 
 - “수업 콘텐츠”에서 카탈로그를 보고 담아두기 / 빼기 / 활성 토글
 - **공개 링크 복사**로 학생·학부모에게 URL 공유
+- **게임**은 **게임 대시보드** (`/teacher/classes/[classId]/games/[contentKey]`) — 실시간 현황·결과·랭킹. 규칙은 [`game-dashboard.md`](game-dashboard.md)
+- **탐구**는 기존 수업 대시보드 (`/play/...?classId=`)
 
 ### 교사 — 콘텐츠·플레이 화면의 「배정」
 
@@ -223,8 +226,8 @@ type ContentMeta = {
 3. `type === "simulation"` 이면 XP 호출 없음 / `game` 이면 [`progression-system.md`](progression-system.md) 준수
 4. 공개 `/play/...` 가 로그인 없이 동작하는지 확인
 5. 교사 담아두기 UI·콘텐츠 「배정」 버튼에 자동 노출되는지 확인 (카탈로그 기반)
-6. (게임만) `submitGameRun({ contentKey: content.key, score, details? })` — 배정·활성일 때만 XP·랭킹. 결과 UI는 `GameRankingBoard` (월드/학교/학급)
-7. (1:1 대전 게임) [`pvp-matchmaking.md`](pvp-matchmaking.md) 체크리스트 전부 — 매칭 RPC, 종료 후 자동 재매칭, `leave_queue`/`poll` stale 정리
+6. (게임만) `submitGameRun({ contentKey: content.key, score, details? })` — 배정·활성일 때만 XP·랭킹. 결과 UI는 `GameRankingBoard` (월드/학교/학급). 교사 학급 화면은 [`game-dashboard.md`](game-dashboard.md) (PlayBreadcrumb 만 있으면 presence 자동)
+7. (1:1 대전 게임) [`pvp-matchmaking.md`](pvp-matchmaking.md) 체크리스트 전부 — 매칭 RPC, 종료 후 자동 재매칭, `leave_queue`/`poll` stale 정리. `PVP_TABLE_BY_CONTENT` 등록 시 대시보드에 라이브 대전이 붙는다
 8. **학습 결과 기록** — [`activity-results.md`](activity-results.md) 체크리스트 (게임 `details`, 시뮬레이션 `submitActivity`, 교사 UI 확인)
 9. **탐구형** (`inquiry`) — [`inquiry-activities.md`](inquiry-activities.md) 체크리스트
 
@@ -245,4 +248,5 @@ type ContentMeta = {
 | 2026-07-30 | §8 학습 결과 기록 체크리스트 · [`activity-results.md`](activity-results.md) |
 | 2026-07-30 | `inquiry` 타입 · [`inquiry-activities.md`](inquiry-activities.md) |
 | 2026-07-30 | 탐구: 학생 솔로 연습 제거, 세션 전용 + 미리보기 |
+| 2026-08-31 | 교사 게임 대시보드 — [`game-dashboard.md`](game-dashboard.md) · presence · 학급 현황/랭킹 |
 | 2026-08-26 | `g3-u3-1-shadow-temple` 삼각비 방탈출 솔로 게임 추가 |

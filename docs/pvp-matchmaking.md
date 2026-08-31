@@ -316,8 +316,10 @@ function startPoll(gameId?: string | null) {
 
 ### 카탈로그·문서
 
-- [ ] [`lib/contents.ts`](../lib/contents.ts) 등록
+- [ ] [`lib/contents.ts`](../lib/contents.ts) 등록 (`type: "game"`)
+- [ ] [`lib/activity-result-schemas.ts`](../lib/activity-result-schemas.ts) `PVP_TABLE_BY_CONTENT` — 교사 게임 대시보드 라이브 대전
 - [ ] [`content-system.md`](content-system.md) §5.4 게임 표에 한 줄 추가
+- [ ] [`game-dashboard.md`](game-dashboard.md) — PlayBreadcrumb 로 presence 자동, 대시보드 확인
 - [ ] 이 문서 §5 참조 표에 한 줄 추가
 
 ---

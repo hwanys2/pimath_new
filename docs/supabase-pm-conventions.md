@@ -147,6 +147,9 @@ PM_STUDENT_SESSION_SECRET=...  # 서버 전용, 긴 랜덤 문자열
 | `pm_list_my_class_contents` | 학생 세션으로 자기 반 배정 목록 조회 |
 | `pm_game_runs` | 배정·활성 게임의 한 판 점수 (랭킹용) |
 | `pm_submit_game_run` | 학생 세션 + 배정·활성일 때만 기록 + XP |
+| `pm_game_presence` | 교사 게임 대시보드용 실시간 ping ([`game-dashboard.md`](game-dashboard.md)) |
+| `pm_ping_game_presence` / `pm_leave_game_presence` | 학생 플레이 중 heartbeat |
+| `pm_teacher_list_game_presence` / `pm_teacher_list_live_pvp` / `pm_teacher_list_pvp_queue` / `pm_teacher_list_live_session_players` | 교사 대시보드 조회 |
 | `pm_list_game_ranking` | 랭킹 — `world`(전체) / `school`(같은 teacher_id) / `class` × `all`/`best` |
 | `pm_list_class_game_ranking` | (레거시) class 스코프 위임 |
 | `pm_list_xp_ranking` | 어드벤처 누적 XP 랭킹 (`world`/`school`/`class`) — 상위 3 + 내 등수 ±1 |

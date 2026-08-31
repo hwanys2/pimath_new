@@ -17,6 +17,7 @@ import {
 import { GRADES } from "@/lib/grades";
 import { getUnit, getUnitLabel } from "@/lib/curriculum";
 import type { ClassContentAssignment } from "@/lib/class-contents";
+import { teacherGameDashboardHref } from "@/lib/game-dashboard-types";
 
 type Props = {
   classId: string;
@@ -138,12 +139,20 @@ function ContentRow({
             수업 대시보드
           </Link>
         ) : null}
+        {assignment && content.type === "game" ? (
+          <Link
+            href={teacherGameDashboardHref(classId, content.key)}
+            className="rounded-xl bg-gold/80 px-3 py-1.5 text-xs font-bold text-wood transition hover:brightness-105"
+          >
+            게임 대시보드
+          </Link>
+        ) : null}
         {assignment ? (
           <Link
             href={`/teacher/classes/${classId}/results/${content.key}`}
             className="rounded-xl bg-gold/50 px-3 py-1.5 text-xs font-bold text-wood transition hover:brightness-105"
           >
-            결과 보기
+            {content.type === "game" ? "상세 기록" : "결과 보기"}
           </Link>
         ) : null}
         {!assignment ? (

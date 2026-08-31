@@ -124,8 +124,8 @@ export default async function ClassDetailPage({ params }: Props) {
             results: (
               <div>
                 <p className="text-sm text-foreground/65">
-                  활성화된 콘텐츠에 대한 학생 참여 현황이에요. 각 항목에서
-                  상세 결과를 볼 수 있어요.
+                  활성화된 콘텐츠에 대한 학생 참여 현황이에요. 게임은 대시보드에서
+                  실시간 현황과 랭킹을 볼 수 있어요.
                 </p>
                 <div className="mt-4">
                   <ClassActivitySummary

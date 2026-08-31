@@ -1,6 +1,7 @@
 import Link from "next/link";
 import type { AssignedContentActivity } from "@/lib/activity-results";
 import { contentTypeBadgeClass, contentTypeLabel } from "@/lib/contents";
+import { teacherGameDashboardHref } from "@/lib/game-dashboard-types";
 
 function formatDate(iso: string | null): string {
   if (!iso) return "—";
@@ -68,10 +69,14 @@ export default function ClassActivitySummary({
               </p>
             </div>
             <Link
-              href={`/teacher/classes/${classId}/results/${activity.contentKey}`}
+              href={
+                activity.type === "game"
+                  ? teacherGameDashboardHref(classId, activity.contentKey)
+                  : `/teacher/classes/${classId}/results/${activity.contentKey}`
+              }
               className="shrink-0 rounded-xl bg-gold/70 px-4 py-2 text-center text-xs font-bold text-wood transition hover:brightness-105"
             >
-              결과 보기
+              {activity.type === "game" ? "게임 대시보드" : "결과 보기"}
             </Link>
           </li>
         );

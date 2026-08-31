@@ -3,6 +3,7 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
 import { useActor } from "@/components/auth/ActorProvider";
+import GamePresenceBeacon from "@/components/games/GamePresenceBeacon";
 
 type Props = {
   contentTitle?: string;
@@ -25,8 +26,8 @@ export default function PlayBreadcrumb({
 }: Props) {
   const { actor } = useActor();
 
-  if (actor?.type === "student") {
-    return (
+  const crumbs =
+    actor?.type === "student" ? (
       <nav className="flex flex-wrap items-center gap-3 text-sm font-semibold text-wood/70">
         <Link
           href="/adventure"
@@ -42,29 +43,33 @@ export default function PlayBreadcrumb({
         ) : null}
         {assignSlot ? <span className="ml-auto">{assignSlot}</span> : null}
       </nav>
+    ) : (
+      <nav className="flex flex-wrap items-center gap-3 text-sm font-semibold text-wood/70">
+        <Link href="/" className="underline-offset-2 hover:underline">
+          홈
+        </Link>
+        <span aria-hidden>/</span>
+        <Link href={gradeHref} className="underline-offset-2 hover:underline">
+          {gradeLabel}
+        </Link>
+        <span aria-hidden>/</span>
+        <Link href={unitHref} className="underline-offset-2 hover:underline">
+          {unitLabel}
+        </Link>
+        {contentTitle ? (
+          <>
+            <span aria-hidden>/</span>
+            <span className="text-foreground/60">{contentTitle}</span>
+          </>
+        ) : null}
+        {assignSlot ? <span className="ml-auto">{assignSlot}</span> : null}
+      </nav>
     );
-  }
 
   return (
-    <nav className="flex flex-wrap items-center gap-3 text-sm font-semibold text-wood/70">
-      <Link href="/" className="underline-offset-2 hover:underline">
-        홈
-      </Link>
-      <span aria-hidden>/</span>
-      <Link href={gradeHref} className="underline-offset-2 hover:underline">
-        {gradeLabel}
-      </Link>
-      <span aria-hidden>/</span>
-      <Link href={unitHref} className="underline-offset-2 hover:underline">
-        {unitLabel}
-      </Link>
-      {contentTitle ? (
-        <>
-          <span aria-hidden>/</span>
-          <span className="text-foreground/60">{contentTitle}</span>
-        </>
-      ) : null}
-      {assignSlot ? <span className="ml-auto">{assignSlot}</span> : null}
-    </nav>
+    <>
+      <GamePresenceBeacon />
+      {crumbs}
+    </>
   );
 }
