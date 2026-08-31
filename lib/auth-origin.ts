@@ -23,6 +23,12 @@ export async function getAuthOrigin(): Promise<string> {
   return `${protocol}://${host}`;
 }
 
+/**
+ * Exact callback URL for Supabase `redirectTo`.
+ * Do not put `next` on OAuth redirects — unmatched query strings fall back to
+ * the shared project's Site URL (foreducator.com). Password-reset emails may
+ * still pass `next` because that exact URL is allow-listed.
+ */
 export function getAuthCallbackUrl(origin: string, next?: string): string {
   const base = `${origin.replace(/\/$/, "")}/auth/callback`;
   if (!next) return base;

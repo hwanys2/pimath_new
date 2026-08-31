@@ -1,9 +1,11 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import type { Provider } from "@supabase/supabase-js";
 import { getAuthCallbackUrl, getAuthOrigin } from "@/lib/auth-origin";
+import { AUTH_NEXT_COOKIE } from "@/lib/auth-routes";
 import { safeNextPath } from "@/lib/safe-next-path";
 import { createClient } from "@/lib/supabase/server";
 import { syncForeducatorAccount } from "@/lib/supabase/account";
@@ -317,15 +319,28 @@ export async function updatePassword(
   redirect("/login/teacher?reset=1");
 }
 
+async function rememberAuthNext(next: string): Promise<void> {
+  const cookieStore = await cookies();
+  cookieStore.set(AUTH_NEXT_COOKIE, next, {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "lax",
+    path: "/",
+    maxAge: 60 * 10,
+  });
+}
+
 export async function signInWithProvider(formData: FormData): Promise<void> {
   const provider = String(formData.get("provider") ?? "") as Provider;
   const next = safeNextPath(formData.get("next"));
   const supabase = await createClient();
   const origin = await getAuthOrigin();
 
+  await rememberAuthNext(next);
+
   const { data, error } = await supabase.auth.signInWithOAuth({
     provider,
-    options: { redirectTo: getAuthCallbackUrl(origin, next) },
+    options: { redirectTo: getAuthCallbackUrl(origin) },
   });
 
   if (error || !data.url) {

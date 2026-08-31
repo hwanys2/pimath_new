@@ -171,15 +171,15 @@ PM_STUDENT_SESSION_SECRET=...  # 서버 전용, 긴 랜덤 문자열
 
 ## 5. Auth Redirect URL
 
-- Google/Kakao OAuth는 PKCE 플로우이며 **`redirectTo` 로 항상 pimath 콜백을 명시**한다: `<origin>/auth/callback`.
-- 비밀번호 재설정도 같은 콜백을 쓴다: `<origin>/auth/callback?next=/reset-password`.
+- Google/Kakao OAuth는 PKCE 플로우이며 **`redirectTo` 로 항상 pimath 콜백을 명시**한다: `<origin>/auth/callback` (**쿼리스트링 없이**). 로그인 후 이동 경로는 `pm_auth_next` 쿠키로 넘긴다.
+- 허용 목록에 없는 `?next=` 를 붙이면 공유 프로젝트 **Site URL(foreducator.com)** 로 떨어지고, PKCE 쿠키는 pimath 에 남아 로그인이 실패한다.
+- 비밀번호 재설정만 예외: 메일 링크가 경로를 들고 있어야 하므로 `<origin>/auth/callback?next=/reset-password` (allow list에 이 변형도 등록).
 - `<origin>` 은 `lib/auth-origin.ts`의 `getAuthOrigin()`이 결정한다. **프로덕션에서는 `PM_SITE_URL`을 우선**하고, 없으면 request headers를 쓴다.
-- Supabase 대시보드의 **Redirect URL allow list**에 pimath 콜백을 추가해야 한다.
+- Supabase 대시보드의 **Redirect URL allow list**에 pimath 콜백을 추가해야 한다. Site URL은 foreducator 기본값으로 둔다 (바꾸면 foreducator 로그인이 깨짐).
   - 로컬: `http://localhost:3000/auth/callback`
   - 프로덕션: `https://pimath.kr/auth/callback`, `https://www.pimath.kr/auth/callback`
   - (선택) Vercel 기본 도메인: `https://pimath-new.vercel.app/auth/callback`
   - 비밀번호 재설정: 위 도메인 + `?next=/reset-password` 변형도 등록
-- Site URL 은 foreducator 기본값일 수 있으므로, pimath는 `redirectTo`를 명시적으로 넘기고 allow list에 pimath 도메인을 등록해 foreducator 로 튕기지 않게 한다.
 
 ---
 

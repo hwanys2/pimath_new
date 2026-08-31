@@ -1,5 +1,8 @@
 export const STUDENT_SESSION_COOKIE = "pm_student_session";
 
+/** Post-login path for OAuth. Kept off `redirectTo` so the allow list can be exact. */
+export const AUTH_NEXT_COOKIE = "pm_auth_next";
+
 /**
  * Paths where logged-in students are kept inside the /adventure shell.
  * Must stay in sync with previous server redirects (redirectStudentToAdventure).
