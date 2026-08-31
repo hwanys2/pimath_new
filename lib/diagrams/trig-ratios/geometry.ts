@@ -33,6 +33,7 @@ import {
   roundThetaDeg,
   wrapRotateDeg,
   type AltitudeVertex,
+  type AngleMark,
   type TrigRatiosState,
   type SegMark,
 } from "./model";
@@ -635,7 +636,7 @@ function unlockShownNumeric(state: TrigRatiosState): TrigRatiosState {
 function reconcileNumericLabels(state: TrigRatiosState, keep: Set<string>): TrigRatiosState {
   const segs = (s: SegMark) =>
     s.show && !keep.has(`s:${s.id}`) ? { ...s, label: autoLengthLabel(s.label) } : s;
-  const angs = (a: { id: string; label: MeasLabel; show: boolean }) =>
+  const angs = (a: AngleMark): AngleMark =>
     a.show && !keep.has(`a:${a.id}`) ? { ...a, label: autoAngleLabel(a.label) } : a;
 
   if (state.kind === "unit-circle") {
