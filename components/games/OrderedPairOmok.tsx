@@ -20,6 +20,13 @@ import {
 } from "@/app/play/g1-u2-3-ordered-pair-omok/actions";
 import { PVP_REMATCH_SECONDS } from "@/lib/pvp-constants";
 import {
+  notifyPvpJoinResult,
+  notifyPvpMutation,
+  pvpGameSyncChannelName,
+  resolvePvpPollChannel,
+  startHybridVisiblePoll,
+} from "@/lib/session-sync";
+import {
   isDocumentHidden,
   startVisibleInterval,
 } from "@/lib/visible-interval";
@@ -39,6 +46,7 @@ import {
 } from "@/lib/ordered-pair-omok-math";
 
 const GUEST_KEY = "pm_omok_guest_id";
+const CONTENT_KEY = "g1-u2-3-ordered-pair-omok";
 
 type Screen = "lobby" | "waiting" | "playing" | "ended";
 type Mode = "ai" | "pvp";
@@ -121,6 +129,8 @@ export default function OrderedPairOmok() {
   const myStoneRef = useRef<Stone>("black");
   const modeRef = useRef<Mode>("ai");
   const queueScopeRef = useRef<"class" | "global">("class");
+  const classIdRef = useRef<string | null>(null);
+  const pollChannelRef = useRef<string | null>(null);
   const requeueIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   useEffect(() => {
@@ -236,6 +246,7 @@ export default function OrderedPairOmok() {
         });
         await finishWithOutcome(res.outcome);
       }
+      notifyPvpMutation(CONTENT_KEY, gid, classIdRef.current);
       return true;
     } finally {
       timeoutInFlightRef.current = false;
@@ -303,7 +314,10 @@ export default function OrderedPairOmok() {
         setBoard(boardFromObject(state.board));
         if (state.turn) setTurn(state.turn);
         if (state.myStone) setMyStone(state.myStone);
-        if (state.gameId) setGameId(state.gameId);
+        if (state.gameId) {
+          setGameId(state.gameId);
+          gameIdRef.current = state.gameId;
+        }
         if (state.opponentName) setOpponentName(state.opponentName);
         if (state.lastX != null && state.lastY != null) {
           setLastMove({ x: state.lastX, y: state.lastY });
@@ -326,6 +340,15 @@ export default function OrderedPairOmok() {
   const startPoll = useCallback(
     (gid?: string | null) => {
       stopPoll();
+      const pollGameId = gid ?? gameIdRef.current;
+      const channel = resolvePvpPollChannel({
+        contentKey: CONTENT_KEY,
+        gameId: pollGameId,
+        queueScope: pollGameId ? null : queueScopeRef.current,
+        classId: classIdRef.current,
+      });
+      pollChannelRef.current = channel;
+
       const tick = async () => {
         if (pollInFlightRef.current || endingRef.current) return;
         if (placingRef.current) return;
@@ -335,7 +358,7 @@ export default function OrderedPairOmok() {
           if (endingRef.current) return;
           const state = await omokPollAction({
             guestId: guestIdRef.current,
-            gameId: gid ?? gameIdRef.current,
+            gameId: gameIdRef.current ?? pollGameId,
           });
           if ("error" in state) {
             setStatusMsg(
@@ -349,6 +372,17 @@ export default function OrderedPairOmok() {
             prev.startsWith("연결 문제:") ? "" : prev,
           );
           applyPollPlaying(state);
+          if (state.phase === "playing" && state.gameId) {
+            const nextChannel = pvpGameSyncChannelName(state.gameId);
+            if (pollChannelRef.current !== nextChannel) {
+              pollChannelRef.current = nextChannel;
+              stopVisiblePollRef.current?.();
+              stopVisiblePollRef.current = startHybridVisiblePoll(
+                nextChannel,
+                tick,
+              );
+            }
+          }
           if (
             state.phase === "playing" &&
             state.turnDeadline &&
@@ -360,12 +394,7 @@ export default function OrderedPairOmok() {
           pollInFlightRef.current = false;
         }
       };
-      stopVisiblePollRef.current = startVisibleInterval(
-        () => {
-          void tick();
-        },
-        1200,
-      );
+      stopVisiblePollRef.current = startHybridVisiblePoll(channel, tick);
     },
     [applyPollPlaying, applyTimeoutIfNeeded, stopPoll],
   );
@@ -455,6 +484,8 @@ export default function OrderedPairOmok() {
       setStatusMsg(joined.error);
       return;
     }
+    classIdRef.current = joined.classId;
+    notifyPvpJoinResult(CONTENT_KEY, joined);
     setQueueScope(joined.scope);
     setMode("pvp");
     if (joined.gameId) {
@@ -493,7 +524,19 @@ export default function OrderedPairOmok() {
         gameId: res.gameId,
       });
       if (!("error" in state)) applyPollPlaying(state);
+      notifyPvpJoinResult(CONTENT_KEY, {
+        gameId: res.gameId,
+        scope: "global",
+        classId: classIdRef.current,
+      });
       startPoll(res.gameId);
+    } else {
+      notifyPvpJoinResult(CONTENT_KEY, {
+        gameId: null,
+        scope: "global",
+        classId: classIdRef.current,
+      });
+      startPoll(null);
     }
   };
 
@@ -615,6 +658,7 @@ export default function OrderedPairOmok() {
       turnDeadlineRef.current = res.turnDeadline;
       setStatusMsg(`${formatPair(padX, padY)}에 두었어요!`);
       resetPad();
+      notifyPvpMutation(CONTENT_KEY, gameIdRef.current, classIdRef.current);
       if (res.outcome) {
         await omokClaimResultAction({
           guestId: guestIdRef.current,
@@ -668,6 +712,8 @@ export default function OrderedPairOmok() {
       setScreen("lobby");
       return;
     }
+    classIdRef.current = joined.classId;
+    notifyPvpJoinResult(CONTENT_KEY, joined);
     setQueueScope(joined.scope);
     setMode("pvp");
     if (joined.gameId) {

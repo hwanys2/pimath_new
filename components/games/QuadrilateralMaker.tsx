@@ -22,6 +22,13 @@ import {
 } from "@/app/play/g2-u3-1-quadrilateral-maker/actions";
 import { PVP_REMATCH_SECONDS } from "@/lib/pvp-constants";
 import {
+  notifyPvpJoinResult,
+  notifyPvpMutation,
+  pvpGameSyncChannelName,
+  resolvePvpPollChannel,
+  startHybridVisiblePoll,
+} from "@/lib/session-sync";
+import {
   isDocumentHidden,
   startVisibleInterval,
 } from "@/lib/visible-interval";
@@ -47,6 +54,7 @@ import {
 } from "@/lib/quadrilateral-maker-math";
 
 const GUEST_KEY = "pm_quad_guest_id";
+const CONTENT_KEY = "g2-u3-1-quadrilateral-maker";
 
 type Screen =
   | "lobby"
@@ -232,6 +240,8 @@ export default function QuadrilateralMaker() {
   const myShapeRef = useRef<QuadShape | null>(null);
   const opponentShapeRef = useRef<QuadShape | null>(null);
   const queueScopeRef = useRef<"class" | "global">("class");
+  const classIdRef = useRef<string | null>(null);
+  const pollChannelRef = useRef<string | null>(null);
   const requeueIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   useEffect(() => {
@@ -317,7 +327,10 @@ export default function QuadrilateralMaker() {
     if (state.phase === "rps") {
       setScreen("rps");
       setMode("pvp");
-      if (state.gameId) setGameId(state.gameId);
+      if (state.gameId) {
+        setGameId(state.gameId);
+        gameIdRef.current = state.gameId;
+      }
       if (state.opponentName) setOpponentName(state.opponentName);
       setMyRpsChoice(state.myRpsChoice);
       setOpponentRpsChoice(state.opponentRpsChoice);
@@ -328,7 +341,10 @@ export default function QuadrilateralMaker() {
     if (state.phase === "shape_pick") {
       setScreen("shape_pick");
       setMode("pvp");
-      if (state.gameId) setGameId(state.gameId);
+      if (state.gameId) {
+        setGameId(state.gameId);
+        gameIdRef.current = state.gameId;
+      }
       if (state.opponentName) setOpponentName(state.opponentName);
       setShapePickerRole(state.shapePickerRole);
       setMyShape(state.myShape);
@@ -343,7 +359,10 @@ export default function QuadrilateralMaker() {
     if (state.phase === "playing" || state.phase === "ended") {
       if (state.myStone) setMyStone(state.myStone);
       if (state.turn) setTurn(state.turn);
-      if (state.gameId) setGameId(state.gameId);
+      if (state.gameId) {
+        setGameId(state.gameId);
+        gameIdRef.current = state.gameId;
+      }
       if (state.opponentName) setOpponentName(state.opponentName);
       setBoard(boardFromObject(state.board));
       setMyShape(state.myShape);
@@ -453,6 +472,7 @@ export default function QuadrilateralMaker() {
         });
         await finishWithOutcome(res.outcome);
       }
+      notifyPvpMutation(CONTENT_KEY, gid, classIdRef.current);
       return true;
     } finally {
       timeoutInFlightRef.current = false;
@@ -462,6 +482,15 @@ export default function QuadrilateralMaker() {
   const startPoll = useCallback(
     (gid?: string | null) => {
       stopPoll();
+      const pollGameId = gid ?? gameIdRef.current;
+      const channel = resolvePvpPollChannel({
+        contentKey: CONTENT_KEY,
+        gameId: pollGameId,
+        queueScope: pollGameId ? null : queueScopeRef.current,
+        classId: classIdRef.current,
+      });
+      pollChannelRef.current = channel;
+
       const tick = async () => {
         if (pollInFlightRef.current || endingRef.current) return;
         if (placingRef.current) return;
@@ -471,7 +500,7 @@ export default function QuadrilateralMaker() {
           if (endingRef.current) return;
           const state = await quadPollAction({
             guestId: guestIdRef.current,
-            gameId: gid ?? gameIdRef.current,
+            gameId: gameIdRef.current ?? pollGameId,
           });
           if ("error" in state) {
             setStatusMsg(`연결 문제: ${state.error}`);
@@ -481,6 +510,17 @@ export default function QuadrilateralMaker() {
             prev.startsWith("연결 문제:") ? "" : prev,
           );
           applyPollPlaying(state);
+          if (state.gameId) {
+            const nextChannel = pvpGameSyncChannelName(state.gameId);
+            if (pollChannelRef.current !== nextChannel) {
+              pollChannelRef.current = nextChannel;
+              stopVisiblePollRef.current?.();
+              stopVisiblePollRef.current = startHybridVisiblePoll(
+                nextChannel,
+                tick,
+              );
+            }
+          }
           if (
             state.phase === "playing" &&
             state.turnDeadline &&
@@ -492,12 +532,7 @@ export default function QuadrilateralMaker() {
           pollInFlightRef.current = false;
         }
       };
-      stopVisiblePollRef.current = startVisibleInterval(
-        () => {
-          void tick();
-        },
-        1200,
-      );
+      stopVisiblePollRef.current = startHybridVisiblePoll(channel, tick);
     },
     [applyPollPlaying, applyTimeoutIfNeeded, stopPoll],
   );
@@ -591,6 +626,12 @@ export default function QuadrilateralMaker() {
       setStatusMsg(joined.error ?? "대기열에 들어가지 못했어요.");
       return;
     }
+    classIdRef.current = joined.classId;
+    notifyPvpJoinResult(CONTENT_KEY, {
+      gameId: joined.gameId,
+      scope: joined.scope === "class" ? "class" : "global",
+      classId: joined.classId,
+    });
     setQueueScope(joined.scope === "class" ? "class" : "global");
     setMode("pvp");
     if (joined.gameId) {
@@ -624,12 +665,25 @@ export default function QuadrilateralMaker() {
     setStatusMsg("전체로 확대해서 기다리는 중이에요…");
     if (res.gameId) {
       setGameId(res.gameId);
+      gameIdRef.current = res.gameId;
       const state = await quadPollAction({
         guestId: guestIdRef.current,
         gameId: res.gameId,
       });
       if (!("error" in state)) applyPollPlaying(state);
+      notifyPvpJoinResult(CONTENT_KEY, {
+        gameId: res.gameId,
+        scope: "global",
+        classId: classIdRef.current,
+      });
       startPoll(res.gameId);
+    } else {
+      notifyPvpJoinResult(CONTENT_KEY, {
+        gameId: null,
+        scope: "global",
+        classId: classIdRef.current,
+      });
+      startPoll(null);
     }
   };
 
@@ -708,6 +762,7 @@ export default function QuadrilateralMaker() {
       setRpsSubmitted(false);
     } else {
       setStatusMsg("상대를 기다리는 중…");
+      notifyPvpMutation(CONTENT_KEY, gameIdRef.current, classIdRef.current);
     }
   };
 
@@ -751,6 +806,7 @@ export default function QuadrilateralMaker() {
       return;
     }
     setStatusMsg("도형을 선택했어요!");
+    notifyPvpMutation(CONTENT_KEY, gameIdRef.current, classIdRef.current);
   };
 
   const placeAt = async (x: number, y: number) => {
@@ -809,6 +865,7 @@ export default function QuadrilateralMaker() {
       setTurnDeadline(res.turnDeadline);
       turnDeadlineRef.current = res.turnDeadline;
       setStatusMsg(`(${x}, ${y})에 두었어요!`);
+      notifyPvpMutation(CONTENT_KEY, gameIdRef.current, classIdRef.current);
       if (res.outcome) {
         await quadClaimResultAction({
           guestId: guestIdRef.current,
@@ -911,6 +968,12 @@ export default function QuadrilateralMaker() {
       setScreen("lobby");
       return;
     }
+    classIdRef.current = joined.classId;
+    notifyPvpJoinResult(CONTENT_KEY, {
+      gameId: joined.gameId,
+      scope: joined.scope === "class" ? "class" : "global",
+      classId: joined.classId,
+    });
     setQueueScope(joined.scope === "class" ? "class" : "global");
     setMode("pvp");
     if (joined.gameId) {

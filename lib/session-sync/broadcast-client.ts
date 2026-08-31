@@ -4,6 +4,8 @@ import { createBrowserSupabaseClient } from "@/lib/supabase/browser";
 import {
   SESSION_SYNC_EVENT,
   dashboardSyncChannelName,
+  pvpGameSyncChannelName,
+  pvpQueueSyncChannelName,
   sessionSyncChannelName,
 } from "./channel";
 
@@ -71,4 +73,26 @@ export async function notifyDashboardChanged(
   const key = contentKey.trim();
   if (!cid || !key) return;
   await sendBroadcast(dashboardSyncChannelName(cid, key));
+}
+
+/**
+ * Notify clients subscribed to a live 1:1 PvP game.
+ */
+export async function notifyPvpGameChanged(gameId: string): Promise<void> {
+  const id = gameId.trim();
+  if (!id) return;
+  await sendBroadcast(pvpGameSyncChannelName(id));
+}
+
+/**
+ * Notify clients waiting in the same PvP matchmaking queue.
+ */
+export async function notifyPvpQueueChanged(
+  contentKey: string,
+  scope: "class" | "global",
+  classId?: string | null,
+): Promise<void> {
+  const channel = pvpQueueSyncChannelName(contentKey, scope, classId);
+  if (!channel) return;
+  await sendBroadcast(channel);
 }
