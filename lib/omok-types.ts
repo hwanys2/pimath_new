@@ -5,7 +5,7 @@ export type OmokQueueScope = "class" | "global";
 export type OmokStone = "black" | "white";
 
 /** Seconds allowed per PvP turn before a random legal move is forced. */
-export const OMOK_TURN_SECONDS = 20;
+export const OMOK_TURN_SECONDS = 40;
 
 export type OmokPollState = {
   phase: "idle" | "waiting" | "playing" | "ended";

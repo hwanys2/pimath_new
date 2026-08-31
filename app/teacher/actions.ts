@@ -350,7 +350,7 @@ export async function assignContentToClass(
   const { error } = await supabase.from("pm_class_contents").insert({
     class_id: classId,
     content_key: contentKey,
-    is_active: false,
+    is_active: true,
   });
 
   if (error) {
@@ -359,7 +359,7 @@ export async function assignContentToClass(
   }
 
   revalidatePath(`/teacher/classes/${classId}`);
-  return { message: "학급에 콘텐츠를 담아 두었어요." };
+  return { message: "학급에 콘텐츠를 담아 두고 활성화했어요." };
 }
 
 export async function unassignContentFromClass(
