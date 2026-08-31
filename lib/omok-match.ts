@@ -132,6 +132,70 @@ export async function omokLeaveQueue(input: {
   return { ok: true };
 }
 
+export async function omokForfeitGame(input: {
+  guestId?: string | null;
+  gameId?: string | null;
+}): Promise<
+  | { ok: true; gameId: string | null; gameStatus: string | null }
+  | { ok: false; error: string }
+> {
+  const supabase = await createClient();
+  const id = await identityArgs(input.guestId);
+  if (!id.p_session_token && !id.p_guest_id) {
+    return { ok: false, error: "신원 정보가 없어요." };
+  }
+
+  const { data, error } = await supabase.rpc("pm_omok_forfeit_game", {
+    ...id,
+    p_game_id: input.gameId ?? null,
+  });
+
+  if (error) {
+    console.error("[pm] pm_omok_forfeit_game:", error.message);
+    return { ok: false, error: "기권 처리를 실패했어요." };
+  }
+
+  const row = firstRow(data) as {
+    ok: boolean;
+    game_id: string | null;
+    game_status: string | null;
+    error_code: string | null;
+  } | null;
+
+  if (!row?.ok) {
+    return { ok: false, error: "기권 처리를 실패했어요." };
+  }
+
+  return {
+    ok: true,
+    gameId: row.game_id,
+    gameStatus: row.game_status,
+  };
+}
+
+export async function omokTouchGame(input: {
+  guestId?: string | null;
+  gameId: string;
+}): Promise<{ ok: boolean }> {
+  const supabase = await createClient();
+  const id = await identityArgs(input.guestId);
+  if (!id.p_session_token && !id.p_guest_id) {
+    return { ok: false };
+  }
+
+  const { data, error } = await supabase.rpc("pm_omok_touch_game", {
+    ...id,
+    p_game_id: input.gameId,
+  });
+
+  if (error) {
+    console.error("[pm] pm_omok_touch_game:", error.message);
+    return { ok: false };
+  }
+
+  return { ok: Boolean(data) };
+}
+
 export async function omokPoll(input: {
   guestId?: string | null;
   gameId?: string | null;

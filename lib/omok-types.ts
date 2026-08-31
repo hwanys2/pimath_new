@@ -7,6 +7,12 @@ export type OmokStone = "black" | "white";
 /** Seconds allowed per PvP turn before a random legal move is forced. */
 export const OMOK_TURN_SECONDS = 40;
 
+/** Heartbeat while in a PvP game (includes hidden tabs). */
+export const OMOK_PRESENCE_HEARTBEAT_MS = 10000;
+
+/** Server forfeits opponent after this many seconds without heartbeat. */
+export const OMOK_OPPONENT_ABSENT_SECONDS = 25;
+
 export type OmokPollState = {
   phase: "idle" | "waiting" | "playing" | "ended";
   queueId: string | null;

@@ -4,11 +4,13 @@ import {
   omokCanUseClassQueue,
   omokClaimResult,
   omokExpandGlobal,
+  omokForfeitGame,
   omokJoinQueue,
   omokLeaveQueue,
   omokPlaceMove,
   omokPoll,
   omokTimeoutMove,
+  omokTouchGame,
 } from "@/lib/omok-match";
 import {
   applyOmokRatingFromSession,
@@ -38,6 +40,20 @@ export async function omokLeaveQueueAction(input: {
   guestId?: string | null;
 }) {
   return omokLeaveQueue(input);
+}
+
+export async function omokForfeitGameAction(input: {
+  guestId?: string | null;
+  gameId?: string | null;
+}) {
+  return omokForfeitGame(input);
+}
+
+export async function omokTouchGameAction(input: {
+  guestId?: string | null;
+  gameId: string;
+}) {
+  return omokTouchGame(input);
 }
 
 export async function omokPollAction(input: {

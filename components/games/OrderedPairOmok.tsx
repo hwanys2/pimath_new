@@ -11,12 +11,14 @@ import {
   omokExpandGlobalAction,
   omokFetchRatingRankingAction,
   omokFinishWithRatingAction,
+  omokForfeitGameAction,
   omokJoinQueueAction,
   omokLeaveQueueAction,
   omokLobbyContextAction,
   omokPlaceMoveAction,
   omokPollAction,
   omokTimeoutMoveAction,
+  omokTouchGameAction,
 } from "@/app/play/g1-u2-3-ordered-pair-omok/actions";
 import { PVP_REMATCH_SECONDS } from "@/lib/pvp-constants";
 import {
@@ -31,7 +33,7 @@ import {
   startVisibleInterval,
 } from "@/lib/visible-interval";
 import type { OmokPollState } from "@/lib/omok-types";
-import { OMOK_TURN_SECONDS } from "@/lib/omok-types";
+import { OMOK_PRESENCE_HEARTBEAT_MS, OMOK_TURN_SECONDS } from "@/lib/omok-types";
 import {
   boardFromObject,
   boardIsFull,
@@ -129,6 +131,7 @@ export default function OrderedPairOmok() {
   const myStoneRef = useRef<Stone>("black");
   const modeRef = useRef<Mode>("ai");
   const queueScopeRef = useRef<"class" | "global">("class");
+  const screenRef = useRef<Screen>("lobby");
   const classIdRef = useRef<string | null>(null);
   const pollChannelRef = useRef<string | null>(null);
   const requeueIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -151,6 +154,69 @@ export default function OrderedPairOmok() {
   useEffect(() => {
     queueScopeRef.current = queueScope;
   }, [queueScope]);
+  useEffect(() => {
+    screenRef.current = screen;
+  }, [screen]);
+
+  const abandonPvpSession = useCallback(() => {
+    if (endingRef.current) return;
+    if (modeRef.current !== "pvp") return;
+    const screenNow = screenRef.current;
+    if (screenNow === "ended" || screenNow === "lobby") return;
+
+    const guest = guestIdRef.current;
+    const gid = gameIdRef.current;
+
+    if (screenNow === "playing" && gid) {
+      void fetch("/api/play/omok/forfeit", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ guestId: guest, gameId: gid }),
+        keepalive: true,
+      });
+      void notifyPvpMutation(CONTENT_KEY, gid, classIdRef.current);
+      return;
+    }
+
+    if (screenNow === "waiting") {
+      void fetch("/api/play/omok/forfeit", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ guestId: guest, gameId: null }),
+        keepalive: true,
+      });
+      void notifyPvpJoinResult(CONTENT_KEY, {
+        gameId: null,
+        scope: queueScopeRef.current,
+        classId: classIdRef.current,
+      });
+    }
+  }, []);
+
+  useEffect(() => {
+    const onPageHide = () => abandonPvpSession();
+    window.addEventListener("pagehide", onPageHide);
+    return () => {
+      window.removeEventListener("pagehide", onPageHide);
+      abandonPvpSession();
+    };
+  }, [abandonPvpSession]);
+
+  useEffect(() => {
+    if (screen !== "playing" || mode !== "pvp" || !gameId) return;
+
+    const tick = () => {
+      if (endingRef.current || !gameIdRef.current) return;
+      void omokTouchGameAction({
+        guestId: guestIdRef.current,
+        gameId: gameIdRef.current,
+      });
+    };
+
+    tick();
+    const id = window.setInterval(tick, OMOK_PRESENCE_HEARTBEAT_MS);
+    return () => window.clearInterval(id);
+  }, [screen, mode, gameId]);
 
   useEffect(() => {
     setGuestId(ensureGuestId());
