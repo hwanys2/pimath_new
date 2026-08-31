@@ -10,6 +10,7 @@ import {
 } from "@/lib/game-dashboard-types";
 import { contentKeyFromPlayPath } from "@/lib/game-dashboard-view";
 import { leaveGamePresence, pingGamePresence } from "@/app/play/presence-actions";
+import { notifyDashboardChanged } from "@/lib/session-sync";
 import { startVisibleInterval } from "@/lib/visible-interval";
 
 /**
@@ -21,26 +22,40 @@ export default function GamePresenceBeacon() {
   const { actor } = useActor();
   const contentKey = contentKeyFromPlayPath(pathname);
   const content = contentKey ? getContent(contentKey) : undefined;
+  const classId = actor?.type === "student" ? actor.classId : null;
   const enabled =
     actor?.type === "student" && content?.type === "game" && Boolean(contentKey);
 
   useEffect(() => {
-    if (!enabled || !contentKey) return;
+    if (!enabled || !contentKey || !classId) return;
 
     let cancelled = false;
-    const ping = () => {
-      if (cancelled) return;
-      void pingGamePresence({ contentKey, phase: "playing" });
+    let sentEnter = false;
+
+    const notify = () => {
+      void notifyDashboardChanged(classId, contentKey);
     };
 
+    const ping = () => {
+      if (cancelled) return;
+      void pingGamePresence({ contentKey, phase: "playing" }).then(() => {
+        if (!sentEnter) {
+          sentEnter = true;
+          notify();
+        }
+      });
+    };
+
+    ping();
     const stop = startVisibleInterval(ping, GAME_PRESENCE_PING_MS);
 
     return () => {
       cancelled = true;
       stop();
       void leaveGamePresence({ contentKey });
+      notify();
     };
-  }, [enabled, contentKey]);
+  }, [enabled, contentKey, classId]);
 
   return null;
 }
@@ -55,6 +70,7 @@ export function useGamePresence(
 ) {
   const { actor } = useActor();
   const enabled = actor?.type === "student";
+  const classId = actor?.type === "student" ? actor.classId : null;
   const phase = input.phase ?? "playing";
   const liveScore = input.liveScore ?? null;
   const latest = useRef({ phase, liveScore });
@@ -77,4 +93,9 @@ export function useGamePresence(
       stop();
     };
   }, [enabled, contentKey, phase, liveScore]);
+
+  useEffect(() => {
+    if (!enabled || !contentKey || !classId) return;
+    void notifyDashboardChanged(classId, contentKey);
+  }, [enabled, contentKey, classId, phase, liveScore]);
 }

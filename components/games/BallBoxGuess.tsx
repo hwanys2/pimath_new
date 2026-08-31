@@ -35,7 +35,7 @@ import {
 import type { GameSubmitClientResult } from "@/app/adventure/actions";
 import { BALL_COLORS, getBallColor, type BallColorKey } from "@/lib/ball-box";
 import { BALL_BOX_POLL_MS, type BallBoxPollState } from "@/lib/ball-box-types";
-import { notifySessionChanged, useSessionPoll } from "@/lib/session-sync";
+import { notifyDashboardChanged, notifySessionChanged, useSessionPoll } from "@/lib/session-sync";
 import { startVisibleInterval } from "@/lib/visible-interval";
 
 const DRAW_ANIM_MS = 420;
@@ -223,7 +223,10 @@ export default function BallBoxGuess({
     async (sid: string | null | undefined) => {
       if (!sid) return;
       await notifySessionChanged(sid);
-      await poll();
+      const result = await poll();
+      if (result?.classId) {
+        void notifyDashboardChanged(result.classId, "g2-u4-ball-box-guess");
+      }
     },
     [poll],
   );

@@ -105,6 +105,7 @@ export type GameDashboardSnapshot = {
 };
 
 export const GAME_PRESENCE_PING_MS = 10000;
+/** Legacy fixed poll interval — dashboard now uses hybrid Realtime sync. */
 export const GAME_DASHBOARD_POLL_MS = 3000;
 export const GAME_PRESENCE_ONLINE_MS = 20000;
 

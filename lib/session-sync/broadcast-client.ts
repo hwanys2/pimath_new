@@ -1,21 +1,18 @@
 "use client";
 
 import { createBrowserSupabaseClient } from "@/lib/supabase/browser";
-import { SESSION_SYNC_EVENT, sessionSyncChannelName } from "./channel";
+import {
+  SESSION_SYNC_EVENT,
+  dashboardSyncChannelName,
+  sessionSyncChannelName,
+} from "./channel";
 
 const BROADCAST_SUBSCRIBE_TIMEOUT_MS = 3000;
 
-/**
- * Notify other clients in the same session to refresh (Hybrid Realtime).
- * Failures are non-fatal — peers fall back to slow polling.
- */
-export async function notifySessionChanged(sessionId: string): Promise<void> {
-  const id = sessionId.trim();
-  if (!id) return;
-
+async function sendBroadcast(channelName: string): Promise<void> {
   try {
     const supabase = createBrowserSupabaseClient();
-    const channel = supabase.channel(sessionSyncChannelName(id), {
+    const channel = supabase.channel(channelName, {
       config: { broadcast: { ack: false, self: false } },
     });
 
@@ -51,4 +48,27 @@ export async function notifySessionChanged(sessionId: string): Promise<void> {
   } catch {
     // fallback poll covers missed notifications
   }
+}
+
+/**
+ * Notify other clients in the same session to refresh (Hybrid Realtime).
+ * Failures are non-fatal — peers fall back to slow polling.
+ */
+export async function notifySessionChanged(sessionId: string): Promise<void> {
+  const id = sessionId.trim();
+  if (!id) return;
+  await sendBroadcast(sessionSyncChannelName(id));
+}
+
+/**
+ * Notify teacher game dashboard subscribers for a class + content activity.
+ */
+export async function notifyDashboardChanged(
+  classId: string,
+  contentKey: string,
+): Promise<void> {
+  const cid = classId.trim();
+  const key = contentKey.trim();
+  if (!cid || !key) return;
+  await sendBroadcast(dashboardSyncChannelName(cid, key));
 }

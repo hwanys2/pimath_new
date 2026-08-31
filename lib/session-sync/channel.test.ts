@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
   SESSION_SYNC_EVENT,
+  dashboardSyncChannelName,
   sessionSyncChannelName,
 } from "./channel";
 
@@ -17,6 +18,15 @@ describe("sessionSyncChannelName", () => {
     assert.equal(
       sessionSyncChannelName("  abc  "),
       "pm:session:abc",
+    );
+  });
+});
+
+describe("dashboardSyncChannelName", () => {
+  it("combines class id and content key", () => {
+    assert.equal(
+      dashboardSyncChannelName("class-1", "g2-u4-dice-sum-race"),
+      "pm:dashboard:class-1:g2-u4-dice-sum-race",
     );
   });
 });

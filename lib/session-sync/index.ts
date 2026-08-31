@@ -1,7 +1,11 @@
 export {
   SESSION_SYNC_EVENT,
   SESSION_SYNC_FALLBACK_POLL_MS,
+  dashboardSyncChannelName,
   sessionSyncChannelName,
 } from "./channel";
-export { notifySessionChanged } from "./broadcast-client";
-export { useSessionPoll } from "./use-session-poll";
+export {
+  notifyDashboardChanged,
+  notifySessionChanged,
+} from "./broadcast-client";
+export { useDashboardPoll, useSessionPoll } from "./use-session-poll";

@@ -6,23 +6,20 @@ import { startVisibleInterval } from "@/lib/visible-interval";
 import {
   SESSION_SYNC_EVENT,
   SESSION_SYNC_FALLBACK_POLL_MS,
+  dashboardSyncChannelName,
   sessionSyncChannelName,
 } from "./channel";
 
-type UseSessionPollOptions = {
+type UseBroadcastPollOptions = {
   /** When false, no subscription or polling runs. Default true. */
   enabled?: boolean;
   fallbackMs?: number;
 };
 
-/**
- * Event-driven session refresh: Realtime Broadcast + slow fallback poll.
- * Replaces fixed-interval Server Action polling for live classroom sessions.
- */
-export function useSessionPoll(
-  sessionId: string | null | undefined,
+function useBroadcastPoll(
+  channelName: string | null | undefined,
   tick: () => void | Promise<void>,
-  options: UseSessionPollOptions = {},
+  options: UseBroadcastPollOptions = {},
 ): void {
   const tickRef = useRef(tick);
   tickRef.current = tick;
@@ -30,8 +27,8 @@ export function useSessionPoll(
   const { enabled = true, fallbackMs = SESSION_SYNC_FALLBACK_POLL_MS } = options;
 
   useEffect(() => {
-    const id = sessionId?.trim();
-    if (!enabled || !id) return;
+    const name = channelName?.trim();
+    if (!enabled || !name) return;
 
     const runTick = () => {
       void tickRef.current();
@@ -43,7 +40,7 @@ export function useSessionPoll(
 
     const supabase = createBrowserSupabaseClient();
     const channel = supabase
-      .channel(sessionSyncChannelName(id))
+      .channel(name)
       .on("broadcast", { event: SESSION_SYNC_EVENT }, () => {
         runTick();
       })
@@ -53,5 +50,41 @@ export function useSessionPoll(
       stopInterval();
       void supabase.removeChannel(channel);
     };
-  }, [enabled, sessionId, fallbackMs]);
+  }, [enabled, channelName, fallbackMs]);
+}
+
+type UseSessionPollOptions = UseBroadcastPollOptions;
+
+/**
+ * Event-driven session refresh: Realtime Broadcast + slow fallback poll.
+ * Replaces fixed-interval Server Action polling for live classroom sessions.
+ */
+export function useSessionPoll(
+  sessionId: string | null | undefined,
+  tick: () => void | Promise<void>,
+  options: UseSessionPollOptions = {},
+): void {
+  useBroadcastPoll(
+    sessionId ? sessionSyncChannelName(sessionId) : null,
+    tick,
+    options,
+  );
+}
+
+type UseDashboardPollOptions = UseBroadcastPollOptions;
+
+/**
+ * Event-driven teacher dashboard refresh for a class + game content pair.
+ */
+export function useDashboardPoll(
+  classId: string | null | undefined,
+  contentKey: string | null | undefined,
+  tick: () => void | Promise<void>,
+  options: UseDashboardPollOptions = {},
+): void {
+  const channelName =
+    classId?.trim() && contentKey?.trim()
+      ? dashboardSyncChannelName(classId, contentKey)
+      : null;
+  useBroadcastPoll(channelName, tick, options);
 }

@@ -32,7 +32,7 @@ import {
 } from "@/app/play/g2-u4-dice-sum-race/actions";
 import type { GameSubmitClientResult } from "@/app/adventure/actions";
 import { DICE_RACE_POLL_MS, type DiceRacePollState } from "@/lib/dice-race-types";
-import { notifySessionChanged, useSessionPoll } from "@/lib/session-sync";
+import { notifyDashboardChanged, notifySessionChanged, useSessionPoll } from "@/lib/session-sync";
 import { startVisibleInterval } from "@/lib/visible-interval";
 
 const FAST_MODE_KEY = "pm_dice_race_fast_mode";
@@ -257,7 +257,10 @@ export default function DiceSumRace({
     async (sid: string | null | undefined) => {
       if (!sid) return;
       await notifySessionChanged(sid);
-      await poll();
+      const result = await poll();
+      if (result?.classId) {
+        void notifyDashboardChanged(result.classId, "g2-u4-dice-sum-race");
+      }
     },
     [poll],
   );

@@ -1,18 +1,15 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState, useTransition } from "react";
+import { useCallback, useEffect, useState, useTransition } from "react";
 import { pollGameDashboard } from "@/app/teacher/game-dashboard-actions";
 import ClassQuickNav from "@/components/teacher/ClassQuickNav";
 import DashboardLiveExtras from "@/components/teacher/game-dashboard/DashboardLiveExtras";
 import DashboardRanking from "@/components/teacher/game-dashboard/DashboardRanking";
 import DashboardResults from "@/components/teacher/game-dashboard/DashboardResults";
 import DashboardRoster from "@/components/teacher/game-dashboard/DashboardRoster";
-import {
-  GAME_DASHBOARD_POLL_MS,
-  type GameDashboardSnapshot,
-} from "@/lib/game-dashboard-types";
-import { startVisibleInterval } from "@/lib/visible-interval";
+import { type GameDashboardSnapshot } from "@/lib/game-dashboard-types";
+import { useDashboardPoll } from "@/lib/session-sync";
 
 function formatClock(iso: string): string {
   try {
@@ -100,30 +97,23 @@ export default function GameDashboard({
     setSnapshot(initial);
   }, [initial]);
 
-  useEffect(() => {
-    let cancelled = false;
-    const tick = () => {
-      startTransition(() => {
-        void pollGameDashboard({
-          classId: snapshot.classId,
-          contentKey: snapshot.contentKey,
-        }).then((next) => {
-          if (cancelled) return;
-          if ("error" in next) {
-            setTickOk(false);
-            return;
-          }
-          setTickOk(true);
-          setSnapshot(next);
-        });
+  const classId = snapshot.classId;
+  const contentKey = snapshot.contentKey;
+
+  const tick = useCallback(() => {
+    startTransition(() => {
+      void pollGameDashboard({ classId, contentKey }).then((next) => {
+        if ("error" in next) {
+          setTickOk(false);
+          return;
+        }
+        setTickOk(true);
+        setSnapshot(next);
       });
-    };
-    const stop = startVisibleInterval(tick, GAME_DASHBOARD_POLL_MS);
-    return () => {
-      cancelled = true;
-      stop();
-    };
-  }, [snapshot.classId, snapshot.contentKey]);
+    });
+  }, [classId, contentKey]);
+
+  useDashboardPoll(classId, contentKey, tick);
 
   const { kpis, kind } = snapshot;
   const live = kpis.playing + kpis.waiting > 0;
