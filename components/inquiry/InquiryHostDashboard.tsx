@@ -27,7 +27,6 @@ import {
   type InquiryContentKey,
 } from "@/lib/inquiry-content-registry";
 import {
-  INQUIRY_POLL_MS,
   type InquiryHostTab,
   type InquiryPollState,
   type InquiryResponseRow,
@@ -38,7 +37,7 @@ import * as raceActions from "@/app/play/g1-u2-2-linear-equation-race/actions";
 import * as tangentActions from "@/app/play/g3-u3-1-tangent-intro/actions";
 import * as sincosActions from "@/app/play/g3-u3-1-sincos-intro/actions";
 import { effectiveInquiryStepCount } from "@/lib/inquiry-step-counts";
-import { startVisibleInterval } from "@/lib/visible-interval";
+import { notifySessionChanged, useSessionPoll } from "@/lib/session-sync";
 
 const IDLE: InquiryPollState = {
   sessionId: null,
@@ -175,6 +174,14 @@ export default function InquiryHostDashboard({
     [validKey],
   );
 
+  const syncSession = useCallback(
+    async (sid: string) => {
+      await notifySessionChanged(sid);
+      await poll(sid);
+    },
+    [poll],
+  );
+
   useEffect(() => {
     if (!selectedClassId || !validKey) return;
     let cancelled = false;
@@ -214,12 +221,9 @@ export default function InquiryHostDashboard({
     };
   }, [selectedClassId, poll, validKey]);
 
-  useEffect(() => {
-    if (!sessionId) return;
-    return startVisibleInterval(() => {
-      void poll(sessionId);
-    }, INQUIRY_POLL_MS);
-  }, [sessionId, poll]);
+  useSessionPoll(sessionId, () => {
+    if (sessionId) void poll(sessionId);
+  });
 
   const startSession = () => {
     if (!sessionId || !validKey) return;
@@ -231,7 +235,7 @@ export default function InquiryHostDashboard({
         setMessage(result.error ?? "오류가 발생했어요.");
         return;
       }
-      await poll(sessionId);
+      await syncSession(sessionId);
     });
   };
 
@@ -247,16 +251,19 @@ export default function InquiryHostDashboard({
         setMessage(result.error ?? "오류가 발생했어요.");
         return;
       }
-      await poll(sessionId);
+      await syncSession(sessionId);
     });
   };
 
   const closeSession = () => {
     if (!sessionId || !validKey) return;
+    const closingId = sessionId;
     setMessage(null);
     const actions = getActions(validKey);
     startTransition(async () => {
-      const result = await actions.inquiryCloseAndScoreAction({ sessionId });
+      const result = await actions.inquiryCloseAndScoreAction({
+        sessionId: closingId,
+      });
       if ("error" in result) {
         setMessage(result.error ?? "오류가 발생했어요.");
         return;
@@ -267,6 +274,7 @@ export default function InquiryHostDashboard({
           ? `수업을 종료했어요. ${recorded}명의 점수가 반영됐어요.`
           : "수업을 종료했어요.",
       );
+      await notifySessionChanged(closingId);
       setSessionId(null);
       setState(IDLE);
       setResponses([]);
@@ -292,6 +300,7 @@ export default function InquiryHostDashboard({
           ? `「${foreignSession.title}」 수업을 종료했어요. ${recorded}명의 점수가 반영됐어요.`
           : `「${foreignSession.title}」 수업을 종료했어요.`,
       );
+      await notifySessionChanged(foreignSession.sessionId);
       setForeignSession(null);
     });
   };
@@ -321,7 +330,7 @@ export default function InquiryHostDashboard({
             started.error ??
               "이전 수업은 저장했지만 이 수업을 시작하지 못했어요.",
           );
-          await poll(result.sessionId);
+          await syncSession(result.sessionId);
           return;
         }
       }
@@ -338,7 +347,7 @@ export default function InquiryHostDashboard({
           `이전 수업 결과 ${recorded}명을 저장한 뒤 새 수업을 준비했어요.`,
         );
       }
-      await poll(result.sessionId);
+      await syncSession(result.sessionId);
     });
   };
 

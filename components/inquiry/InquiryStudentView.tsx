@@ -68,6 +68,7 @@ import {
   type InquiryPollState,
   type InquiryResult,
 } from "@/lib/inquiry-types";
+import { notifySessionChanged, useSessionPoll } from "@/lib/session-sync";
 import { startVisibleInterval } from "@/lib/visible-interval";
 
 const IDLE: InquiryPollState = {
@@ -338,55 +339,9 @@ export default function InquiryStudentView({
     [validKey, sincosSeed],
   );
 
-  useEffect(() => {
-    if (!studentClassId || !canParticipate || !validKey) return;
-
-    const actions = getActions(validKey);
-
-    const tick = async () => {
-      const active = await actions.inquiryFindActiveStudentAction({
-        classId: studentClassId,
-      });
-      if (!active.sessionId) {
-        setSessionId(null);
-        setState(IDLE);
-        setWaitingForSession(true);
-        setOtherActivityTitle(null);
-        setSyncError(null);
-        prevPhaseRef.current = "idle";
-        return;
-      }
-
-      setWaitingForSession(false);
-      const join = await actions.inquiryJoinAction({ classId: studentClassId });
-      if ("error" in join) {
-        if (join.error === "no_session") {
-          setSessionId(null);
-          setState(IDLE);
-          setWaitingForSession(true);
-          setOtherActivityTitle(null);
-          setSyncError(null);
-          prevPhaseRef.current = "idle";
-        } else {
-          setSyncError("수업에 접속하지 못했어요. 잠시 후 다시 시도해 주세요.");
-        }
-        return;
-      }
-
-      setSessionId(join.sessionId);
-      const poll = await actions.inquiryStudentPollAction({
-        sessionId: join.sessionId,
-      });
-      if (!poll) {
-        setSyncError("수업 상태를 불러오지 못했어요. 연결을 확인해 주세요.");
-        return;
-      }
-
-      if (
-        poll.contentKey &&
-        validKey &&
-        poll.contentKey !== validKey
-      ) {
+  const applyPollResult = useCallback(
+    (poll: InquiryPollState, sid: string) => {
+      if (poll.contentKey && validKey && poll.contentKey !== validKey) {
         setOtherActivityTitle(
           getInquiryContent(poll.contentKey)?.title ?? "다른 탐구 활동",
         );
@@ -407,17 +362,14 @@ export default function InquiryStudentView({
       const enteredLive = poll.phase === "live" && prevPhase !== "live";
 
       if (poll.phase === "live" && (enteredLive || stepChanged)) {
-        if (
-          poll.myStepResponse &&
-          hasRestorableResponse(poll.myStepResponse)
-        ) {
+        if (poll.myStepResponse && hasRestorableResponse(poll.myStepResponse)) {
           hydrateStep(
             poll.stepIndex,
             poll.myStepResponse,
             poll.myStepResult,
-            join.sessionId,
+            sid,
           );
-        } else if (applyLocalDraft(poll.stepIndex, join.sessionId)) {
+        } else if (applyLocalDraft(poll.stepIndex, sid)) {
           // Restored from browser cache.
         } else {
           resetStep(poll.stepIndex);
@@ -426,20 +378,92 @@ export default function InquiryStudentView({
         applySubmitMeta(poll.myStepResult, wrongRef.current);
       }
       prevPhaseRef.current = poll.phase;
-    };
+    },
+    [validKey, hydrateStep, applyLocalDraft, resetStep, applySubmitMeta],
+  );
 
-    return startVisibleInterval(() => {
-      void tick();
-    }, INQUIRY_POLL_MS);
+  const sessionPollTick = useCallback(async () => {
+    if (!sessionId || !validKey) return;
+    const actions = getActions(validKey);
+    const poll = await actions.inquiryStudentPollAction({ sessionId });
+    if (!poll) {
+      setSyncError("수업 상태를 불러오지 못했어요. 연결을 확인해 주세요.");
+      return;
+    }
+    if (poll.phase === "closed") {
+      setSessionId(null);
+      setState(IDLE);
+      setWaitingForSession(true);
+      setSyncError(null);
+      prevPhaseRef.current = "idle";
+      return;
+    }
+    applyPollResult(poll, sessionId);
+  }, [sessionId, validKey, applyPollResult]);
+
+  const discoverSession = useCallback(async () => {
+    if (!studentClassId || !canParticipate || !validKey) return;
+
+    const actions = getActions(validKey);
+    const active = await actions.inquiryFindActiveStudentAction({
+      classId: studentClassId,
+    });
+    if (!active.sessionId) {
+      setSessionId(null);
+      setState(IDLE);
+      setWaitingForSession(true);
+      setOtherActivityTitle(null);
+      setSyncError(null);
+      prevPhaseRef.current = "idle";
+      return;
+    }
+
+    setWaitingForSession(false);
+    const join = await actions.inquiryJoinAction({ classId: studentClassId });
+    if ("error" in join) {
+      if (join.error === "no_session") {
+        setSessionId(null);
+        setState(IDLE);
+        setWaitingForSession(true);
+        setOtherActivityTitle(null);
+        setSyncError(null);
+        prevPhaseRef.current = "idle";
+      } else {
+        setSyncError("수업에 접속하지 못했어요. 잠시 후 다시 시도해 주세요.");
+      }
+      return;
+    }
+
+    setSessionId(join.sessionId);
+    void notifySessionChanged(join.sessionId);
+
+    const poll = await actions.inquiryStudentPollAction({
+      sessionId: join.sessionId,
+    });
+    if (!poll) {
+      setSyncError("수업 상태를 불러오지 못했어요. 연결을 확인해 주세요.");
+      return;
+    }
+    applyPollResult(poll, join.sessionId);
   }, [
     studentClassId,
     canParticipate,
     validKey,
-    resetStep,
-    hydrateStep,
-    applyLocalDraft,
-    applySubmitMeta,
+    applyPollResult,
   ]);
+
+  useSessionPoll(sessionId, () => {
+    void sessionPollTick();
+  });
+
+  useEffect(() => {
+    if (!studentClassId || !canParticipate || !validKey || sessionId) return;
+
+    void discoverSession();
+    return startVisibleInterval(() => {
+      void discoverSession();
+    }, INQUIRY_POLL_MS);
+  }, [studentClassId, canParticipate, validKey, sessionId, discoverSession]);
 
   const currentSketchKey =
     sessionId && validKey
@@ -572,6 +596,7 @@ export default function InquiryStudentView({
       submittedRef.current = true;
       setSubmitFeedback("correct");
       setRadicalNotice(null);
+      void notifySessionChanged(sessionId);
     });
   };
 
@@ -603,6 +628,7 @@ export default function InquiryStudentView({
       submittedRef.current = true;
       setSubmitFeedback("correct");
       setBalanceNotice(null);
+      void notifySessionChanged(sessionId);
     });
   };
 
@@ -632,6 +658,7 @@ export default function InquiryStudentView({
       setSubmitted(true);
       submittedRef.current = true;
       setSubmitFeedback("correct");
+      void notifySessionChanged(sessionId);
     });
   };
 
@@ -663,6 +690,7 @@ export default function InquiryStudentView({
       submittedRef.current = true;
       setSubmitFeedback("correct");
       setTangentNotice(null);
+      void notifySessionChanged(sessionId);
     });
   };
 
@@ -694,6 +722,7 @@ export default function InquiryStudentView({
       submittedRef.current = true;
       setSubmitFeedback("correct");
       setSincosNotice(null);
+      void notifySessionChanged(sessionId);
     });
   };
 

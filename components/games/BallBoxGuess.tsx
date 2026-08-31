@@ -35,6 +35,7 @@ import {
 import type { GameSubmitClientResult } from "@/app/adventure/actions";
 import { BALL_COLORS, getBallColor, type BallColorKey } from "@/lib/ball-box";
 import { BALL_BOX_POLL_MS, type BallBoxPollState } from "@/lib/ball-box-types";
+import { notifySessionChanged, useSessionPoll } from "@/lib/session-sync";
 import { startVisibleInterval } from "@/lib/visible-interval";
 
 const DRAW_ANIM_MS = 420;
@@ -218,12 +219,18 @@ export default function BallBoxGuess({
     return result;
   }, [isTeacher, isGuest, guestKey, sessionId]);
 
-  useEffect(() => {
-    if (!sessionId) return;
-    return startVisibleInterval(() => {
-      void poll();
-    }, BALL_BOX_POLL_MS);
-  }, [poll, sessionId]);
+  const syncSession = useCallback(
+    async (sid: string | null | undefined) => {
+      if (!sid) return;
+      await notifySessionChanged(sid);
+      await poll();
+    },
+    [poll],
+  );
+
+  useSessionPoll(sessionId, () => {
+    void poll();
+  });
 
   // Reset per-round player UI when a new round/set starts.
   useEffect(() => {
@@ -275,6 +282,7 @@ export default function BallBoxGuess({
         if ("sessionId" in joined && joined.sessionId) {
           setSessionId(joined.sessionId);
           setWaitingForTeacher(false);
+          void notifySessionChanged(joined.sessionId);
         }
       } else {
         setWaitingForTeacher(true);
@@ -295,6 +303,7 @@ export default function BallBoxGuess({
         if ("sessionId" in joined && joined.sessionId) {
           setSessionId(joined.sessionId);
           setWaitingForTeacher(false);
+          void notifySessionChanged(joined.sessionId);
         }
       });
     }, BALL_BOX_POLL_MS);
@@ -319,6 +328,7 @@ export default function BallBoxGuess({
         if ("sessionId" in joined && joined.sessionId) {
           setSessionId(joined.sessionId);
           setGuestJoined(true);
+          void notifySessionChanged(joined.sessionId);
         }
       }
     });
@@ -350,6 +360,7 @@ export default function BallBoxGuess({
       if (joined.sessionId) {
         setSessionId(joined.sessionId);
         setGuestJoined(true);
+        void notifySessionChanged(joined.sessionId);
       }
     });
   };
@@ -418,6 +429,7 @@ export default function BallBoxGuess({
           ? await ballBoxStartAction({ sessionId, answer })
           : await ballBoxNextRoundAction({ sessionId, answer });
       if ("error" in res) setMessage(errMsg(res.error));
+      else await syncSession(sessionId);
     });
   };
 
@@ -426,15 +438,18 @@ export default function BallBoxGuess({
     startTransition(async () => {
       const res = await ballBoxRevealAction({ sessionId });
       if ("error" in res) setMessage(errMsg(res.error));
+      else await syncSession(sessionId);
     });
   };
 
   const handleClose = () => {
     if (!sessionId) return;
+    const closingId = sessionId;
     startTransition(async () => {
-      const res = await ballBoxCloseAction({ sessionId });
+      const res = await ballBoxCloseAction({ sessionId: closingId });
       if ("error" in res) setMessage(errMsg(res.error));
       else {
+        await notifySessionChanged(closingId);
         setSessionId(null);
         setState(IDLE_STATE);
         setConfigValues({});
@@ -467,7 +482,7 @@ export default function BallBoxGuess({
     setIsDrawing(false);
     setJustDrew(true);
     window.setTimeout(() => setJustDrew(false), 400);
-    void poll();
+    await syncSession(sessionId);
   };
 
   const handleSubmitGuess = () => {
@@ -491,7 +506,7 @@ export default function BallBoxGuess({
           score: res.result.score,
           alreadySolved: res.result.alreadySolved,
         });
-        void poll();
+        await syncSession(sessionId);
         return;
       }
 
@@ -506,7 +521,7 @@ export default function BallBoxGuess({
         alreadySolved: res.result.alreadySolved,
       });
       if (res.xp) setXpResult(res.xp);
-      void poll();
+      await syncSession(sessionId);
     });
   };
 

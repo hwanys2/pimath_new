@@ -40,4 +40,5 @@ export type BallBoxPollState = {
   mySessionScore: number;
 };
 
+/** Interval for discovering/joining an active session before sessionId is known. */
 export const BALL_BOX_POLL_MS = 2000;

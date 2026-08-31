@@ -37,6 +37,7 @@ export type InquiryResponseRow = {
 
 export type InquiryHostTab = "problem" | "status" | "responses" | "ranking";
 
+/** Interval for discovering/joining an active inquiry session before sessionId is known. */
 export const INQUIRY_POLL_MS = 2000;
 
 /** Online if last_seen within this many ms. */
