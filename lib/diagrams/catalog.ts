@@ -242,6 +242,17 @@ export const DIAGRAM_TOOLS: DiagramToolMeta[] = [
     status: "ready",
   },
   {
+    id: "g3-inscribed-angles",
+    grade: 3,
+    title: "원주각",
+    description:
+      "원주각·중심각·같은 호·지름·내접사각형·접선과 현 문제 그림을 바로 그리고 PNG로 저장해요.",
+    unitHint: "3.2 원의 성질",
+    emoji: "◠",
+    href: "/tools/figures/g3-inscribed-angles",
+    status: "ready",
+  },
+  {
     id: "g3-trig-ratios",
     grade: 3,
     title: "삼각비",

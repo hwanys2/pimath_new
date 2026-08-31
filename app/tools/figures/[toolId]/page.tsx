@@ -22,6 +22,7 @@ import TriangleCentersStudio from "@/components/tools/figures/triangle-centers/T
 import SqrtNumberLineStudio from "@/components/tools/figures/sqrt-number-line/SqrtNumberLineStudio";
 import QuadraticFunctionStudio from "@/components/tools/figures/quadratic-function/QuadraticFunctionStudio";
 import TrigRatiosStudio from "@/components/tools/figures/trig-ratios/TrigRatiosStudio";
+import InscribedAnglesStudio from "@/components/tools/figures/inscribed-angles/InscribedAnglesStudio";
 import BoxPlotStudio from "@/components/tools/figures/boxplot/BoxPlotStudio";
 import ScatterStudio from "@/components/tools/figures/scatter/ScatterStudio";
 import DiagramToolShell from "@/components/tools/figures/DiagramToolShell";
@@ -86,6 +87,8 @@ function renderDiagramStudio(toolId: string): ReactNode {
       return <CountingStudio />;
     case "g3-circle-chords":
       return <CircleChordsStudio />;
+    case "g3-inscribed-angles":
+      return <InscribedAnglesStudio />;
     case "g3-sqrt-number-line":
       return <SqrtNumberLineStudio />;
     case "g3-quadratic-function":
