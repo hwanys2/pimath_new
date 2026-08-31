@@ -10,6 +10,7 @@ import {
 } from "@/lib/game-dashboard-types";
 import { contentKeyFromPlayPath } from "@/lib/game-dashboard-view";
 import { leaveGamePresence, pingGamePresence } from "@/app/play/presence-actions";
+import { startVisibleInterval } from "@/lib/visible-interval";
 
 /**
  * Auto-heartbeat while a logged-in student is on a game play page.
@@ -32,12 +33,11 @@ export default function GamePresenceBeacon() {
       void pingGamePresence({ contentKey, phase: "playing" });
     };
 
-    ping();
-    const timer = window.setInterval(ping, GAME_PRESENCE_PING_MS);
+    const stop = startVisibleInterval(ping, GAME_PRESENCE_PING_MS);
 
     return () => {
       cancelled = true;
-      window.clearInterval(timer);
+      stop();
       void leaveGamePresence({ contentKey });
     };
   }, [enabled, contentKey]);
@@ -71,11 +71,10 @@ export function useGamePresence(
         liveScore: latest.current.liveScore,
       });
     };
-    ping();
-    const timer = window.setInterval(ping, GAME_PRESENCE_PING_MS);
+    const stop = startVisibleInterval(ping, GAME_PRESENCE_PING_MS);
     return () => {
       cancelled = true;
-      window.clearInterval(timer);
+      stop();
     };
   }, [enabled, contentKey, phase, liveScore]);
 }

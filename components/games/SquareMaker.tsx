@@ -20,6 +20,10 @@ import {
   sqTimeoutMoveAction,
 } from "@/app/play/g3-u1-square-maker/actions";
 import { PVP_REMATCH_SECONDS } from "@/lib/pvp-constants";
+import {
+  isDocumentHidden,
+  startVisibleInterval,
+} from "@/lib/visible-interval";
 import type { SqPollState } from "@/lib/sq-types";
 import { SQ_TURN_SECONDS } from "@/lib/sq-types";
 import {
@@ -243,7 +247,7 @@ export default function SquareMaker() {
 
   const endingRef = useRef(false);
   const aiThinkingRef = useRef(false);
-  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const stopVisiblePollRef = useRef<(() => void) | null>(null);
   const pollInFlightRef = useRef(false);
   const placingRef = useRef(false);
   const timeoutInFlightRef = useRef(false);
@@ -292,10 +296,8 @@ export default function SquareMaker() {
   }, []);
 
   const stopPoll = useCallback(() => {
-    if (pollRef.current) {
-      clearInterval(pollRef.current);
-      pollRef.current = null;
-    }
+    stopVisiblePollRef.current?.();
+    stopVisiblePollRef.current = null;
     pollInFlightRef.current = false;
   }, []);
 
@@ -450,6 +452,7 @@ export default function SquareMaker() {
   );
 
   const applyTimeoutIfNeeded = useCallback(async (): Promise<boolean> => {
+    if (isDocumentHidden()) return false;
     if (modeRef.current !== "pvp") return false;
     if (endingRef.current || placingRef.current || timeoutInFlightRef.current) {
       return false;
@@ -533,8 +536,12 @@ export default function SquareMaker() {
           pollInFlightRef.current = false;
         }
       };
-      void tick();
-      pollRef.current = setInterval(() => void tick(), 1200);
+      stopVisiblePollRef.current = startVisibleInterval(
+        () => {
+          void tick();
+        },
+        1200,
+      );
     },
     [applyPollPlaying, applyTimeoutIfNeeded, stopPoll],
   );
@@ -552,7 +559,12 @@ export default function SquareMaker() {
         Math.ceil((new Date(turnDeadline).getTime() - Date.now()) / 1000),
       );
       setSecondsLeft(left);
-      if (left <= 0 && !timeoutInFlightRef.current && !endingRef.current) {
+      if (
+        left <= 0 &&
+        !timeoutInFlightRef.current &&
+        !endingRef.current &&
+        !isDocumentHidden()
+      ) {
         void applyTimeoutIfNeeded();
       }
     };

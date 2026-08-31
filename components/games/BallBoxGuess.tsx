@@ -35,6 +35,7 @@ import {
 import type { GameSubmitClientResult } from "@/app/adventure/actions";
 import { BALL_COLORS, getBallColor, type BallColorKey } from "@/lib/ball-box";
 import { BALL_BOX_POLL_MS, type BallBoxPollState } from "@/lib/ball-box-types";
+import { startVisibleInterval } from "@/lib/visible-interval";
 
 const DRAW_ANIM_MS = 420;
 const GUEST_KEY_LS = "pm_ball_box_guest_key";
@@ -219,9 +220,9 @@ export default function BallBoxGuess({
 
   useEffect(() => {
     if (!sessionId) return;
-    void poll();
-    const id = window.setInterval(() => void poll(), BALL_BOX_POLL_MS);
-    return () => window.clearInterval(id);
+    return startVisibleInterval(() => {
+      void poll();
+    }, BALL_BOX_POLL_MS);
   }, [poll, sessionId]);
 
   // Reset per-round player UI when a new round/set starts.
@@ -284,7 +285,7 @@ export default function BallBoxGuess({
   // Student: keep polling for a session until one opens.
   useEffect(() => {
     if (!isStudent || !studentClassId || sessionId) return;
-    const id = window.setInterval(() => {
+    return startVisibleInterval(() => {
       startTransition(async () => {
         const active = await ballBoxFindActiveStudentAction({
           classId: studentClassId,
@@ -297,7 +298,6 @@ export default function BallBoxGuess({
         }
       });
     }, BALL_BOX_POLL_MS);
-    return () => window.clearInterval(id);
   }, [isStudent, studentClassId, sessionId]);
 
   // Guest: resolve the session by code, and auto-rejoin if a name is stored.

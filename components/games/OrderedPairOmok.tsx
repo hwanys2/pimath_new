@@ -19,6 +19,10 @@ import {
   omokTimeoutMoveAction,
 } from "@/app/play/g1-u2-3-ordered-pair-omok/actions";
 import { PVP_REMATCH_SECONDS } from "@/lib/pvp-constants";
+import {
+  isDocumentHidden,
+  startVisibleInterval,
+} from "@/lib/visible-interval";
 import type { OmokPollState } from "@/lib/omok-types";
 import { OMOK_TURN_SECONDS } from "@/lib/omok-types";
 import {
@@ -101,7 +105,7 @@ export default function OrderedPairOmok() {
 
   const endingRef = useRef(false);
   const aiThinkingRef = useRef(false);
-  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const stopVisiblePollRef = useRef<(() => void) | null>(null);
   const pollInFlightRef = useRef(false);
   const placingRef = useRef(false);
   const timeoutInFlightRef = useRef(false);
@@ -149,10 +153,8 @@ export default function OrderedPairOmok() {
   }, []);
 
   const stopPoll = useCallback(() => {
-    if (pollRef.current) {
-      clearInterval(pollRef.current);
-      pollRef.current = null;
-    }
+    stopVisiblePollRef.current?.();
+    stopVisiblePollRef.current = null;
     pollInFlightRef.current = false;
   }, []);
 
@@ -189,6 +191,7 @@ export default function OrderedPairOmok() {
   );
 
   const applyTimeoutIfNeeded = useCallback(async (): Promise<boolean> => {
+    if (isDocumentHidden()) return false;
     if (modeRef.current !== "pvp") return false;
     if (endingRef.current || placingRef.current || timeoutInFlightRef.current) {
       return false;
@@ -357,10 +360,12 @@ export default function OrderedPairOmok() {
           pollInFlightRef.current = false;
         }
       };
-      void tick();
-      pollRef.current = setInterval(() => {
-        void tick();
-      }, 1200);
+      stopVisiblePollRef.current = startVisibleInterval(
+        () => {
+          void tick();
+        },
+        1200,
+      );
     },
     [applyPollPlaying, applyTimeoutIfNeeded, stopPoll],
   );
@@ -378,7 +383,12 @@ export default function OrderedPairOmok() {
         Math.ceil((new Date(turnDeadline).getTime() - Date.now()) / 1000),
       );
       setSecondsLeft(left);
-      if (left <= 0 && !timeoutInFlightRef.current && !endingRef.current) {
+      if (
+        left <= 0 &&
+        !timeoutInFlightRef.current &&
+        !endingRef.current &&
+        !isDocumentHidden()
+      ) {
         void applyTimeoutIfNeeded();
       }
     };

@@ -27,6 +27,7 @@ import {
   colorForParticipant,
   WRONG_POINT_COLOR,
 } from "@/components/tools/graph/participant-colors";
+import { startVisibleInterval } from "@/lib/visible-interval";
 
 const POLL_MS = 1200;
 const GUEST_KEY_STORAGE = "pm_graph_guest_key";
@@ -130,9 +131,9 @@ export default function JoinClient({ initialCode }: { initialCode: string }) {
 
   useEffect(() => {
     if (!sessionId) return;
-    refresh();
-    const id = setInterval(refresh, POLL_MS);
-    return () => clearInterval(id);
+    return startVisibleInterval(() => {
+      void refresh();
+    }, POLL_MS);
   }, [sessionId, refresh]);
 
   const myPoints = useMemo(

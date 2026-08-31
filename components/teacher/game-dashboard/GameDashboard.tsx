@@ -12,6 +12,7 @@ import {
   GAME_DASHBOARD_POLL_MS,
   type GameDashboardSnapshot,
 } from "@/lib/game-dashboard-types";
+import { startVisibleInterval } from "@/lib/visible-interval";
 
 function formatClock(iso: string): string {
   try {
@@ -117,10 +118,10 @@ export default function GameDashboard({
         });
       });
     };
-    const timer = window.setInterval(tick, GAME_DASHBOARD_POLL_MS);
+    const stop = startVisibleInterval(tick, GAME_DASHBOARD_POLL_MS);
     return () => {
       cancelled = true;
-      window.clearInterval(timer);
+      stop();
     };
   }, [snapshot.classId, snapshot.contentKey]);
 

@@ -68,6 +68,7 @@ import {
   type InquiryPollState,
   type InquiryResult,
 } from "@/lib/inquiry-types";
+import { startVisibleInterval } from "@/lib/visible-interval";
 
 const IDLE: InquiryPollState = {
   sessionId: null,
@@ -427,11 +428,9 @@ export default function InquiryStudentView({
       prevPhaseRef.current = poll.phase;
     };
 
-    void tick();
-    const id = window.setInterval(() => {
+    return startVisibleInterval(() => {
       void tick();
     }, INQUIRY_POLL_MS);
-    return () => window.clearInterval(id);
   }, [
     studentClassId,
     canParticipate,

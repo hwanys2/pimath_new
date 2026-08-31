@@ -32,6 +32,7 @@ import {
 } from "@/app/play/g2-u4-dice-sum-race/actions";
 import type { GameSubmitClientResult } from "@/app/adventure/actions";
 import { DICE_RACE_POLL_MS, type DiceRacePollState } from "@/lib/dice-race-types";
+import { startVisibleInterval } from "@/lib/visible-interval";
 
 const FAST_MODE_KEY = "pm_dice_race_fast_mode";
 const GUEST_KEY_LS = "pm_dice_race_guest_key";
@@ -267,9 +268,9 @@ export default function DiceSumRace({
 
   useEffect(() => {
     if (!sessionId) return;
-    void poll();
-    const id = window.setInterval(() => void poll(), DICE_RACE_POLL_MS);
-    return () => window.clearInterval(id);
+    return startVisibleInterval(() => {
+      void poll();
+    }, DICE_RACE_POLL_MS);
   }, [poll, sessionId]);
 
   useEffect(() => {
@@ -340,7 +341,7 @@ export default function DiceSumRace({
   useEffect(() => {
     if (!isStudent || !studentClassId || sessionId) return;
 
-    const id = window.setInterval(() => {
+    return startVisibleInterval(() => {
       startTransition(async () => {
         const active = await diceRaceFindActiveStudentAction({
           classId: studentClassId,
@@ -353,8 +354,6 @@ export default function DiceSumRace({
         }
       });
     }, DICE_RACE_POLL_MS);
-
-    return () => window.clearInterval(id);
   }, [isStudent, studentClassId, sessionId]);
 
   useEffect(() => {

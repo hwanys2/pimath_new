@@ -55,7 +55,7 @@ sequenceDiagram
 ### 핵심 원칙
 
 1. **클라이언트는 테이블을 직접 읽지 않는다.** 모든 매칭·동기화는 `SECURITY DEFINER` RPC만 사용.
-2. **Realtime 구독을 쓰지 않는다.** `pm_*_poll`을 약 **1.2초** 간격으로 호출.
+2. **Realtime 구독을 쓰지 않는다.** `pm_*_poll`을 약 **1.2초** 간격으로 호출. 탭이 숨으면 폴링을 멈추고, 다시 보이면 즉시 한 번 호출한다 (`startVisibleInterval`).
 3. **플레이어당 `waiting` 행은 최대 1개** (partial unique index).
 4. 게임 종료 후 `matched` 큐 행이 **ended game에 붙어 있으면 안 된다** — 반드시 정리·재입장.
 

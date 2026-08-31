@@ -21,6 +21,10 @@ import {
   quadTimeoutMoveAction,
 } from "@/app/play/g2-u3-1-quadrilateral-maker/actions";
 import { PVP_REMATCH_SECONDS } from "@/lib/pvp-constants";
+import {
+  isDocumentHidden,
+  startVisibleInterval,
+} from "@/lib/visible-interval";
 import type { QuadPollState } from "@/lib/quad-types";
 import { QUAD_TURN_SECONDS } from "@/lib/quad-types";
 import {
@@ -209,7 +213,7 @@ export default function QuadrilateralMaker() {
 
   const endingRef = useRef(false);
   const aiThinkingRef = useRef(false);
-  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const stopVisiblePollRef = useRef<(() => void) | null>(null);
   const pollInFlightRef = useRef(false);
   const placingRef = useRef(false);
   const timeoutInFlightRef = useRef(false);
@@ -266,10 +270,8 @@ export default function QuadrilateralMaker() {
   }, []);
 
   const stopPoll = useCallback(() => {
-    if (pollRef.current) {
-      clearInterval(pollRef.current);
-      pollRef.current = null;
-    }
+    stopVisiblePollRef.current?.();
+    stopVisiblePollRef.current = null;
     pollInFlightRef.current = false;
   }, []);
 
@@ -411,6 +413,7 @@ export default function QuadrilateralMaker() {
   );
 
   const applyTimeoutIfNeeded = useCallback(async (): Promise<boolean> => {
+    if (isDocumentHidden()) return false;
     if (modeRef.current !== "pvp") return false;
     if (endingRef.current || placingRef.current || timeoutInFlightRef.current) {
       return false;
@@ -489,8 +492,12 @@ export default function QuadrilateralMaker() {
           pollInFlightRef.current = false;
         }
       };
-      void tick();
-      pollRef.current = setInterval(() => void tick(), 1200);
+      stopVisiblePollRef.current = startVisibleInterval(
+        () => {
+          void tick();
+        },
+        1200,
+      );
     },
     [applyPollPlaying, applyTimeoutIfNeeded, stopPoll],
   );
@@ -508,7 +515,12 @@ export default function QuadrilateralMaker() {
         Math.ceil((new Date(turnDeadline).getTime() - Date.now()) / 1000),
       );
       setSecondsLeft(left);
-      if (left <= 0 && !timeoutInFlightRef.current && !endingRef.current) {
+      if (
+        left <= 0 &&
+        !timeoutInFlightRef.current &&
+        !endingRef.current &&
+        !isDocumentHidden()
+      ) {
         void applyTimeoutIfNeeded();
       }
     };

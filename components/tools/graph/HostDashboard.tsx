@@ -30,6 +30,7 @@ import {
   colorForParticipant,
   WRONG_POINT_COLOR,
 } from "@/components/tools/graph/participant-colors";
+import { startVisibleInterval } from "@/lib/visible-interval";
 
 const POLL_MS = 1200;
 
@@ -223,9 +224,9 @@ export default function HostDashboard({
   }, [sessionId, ownerKey, isLoggedInTeacher, guestTeacherKey]);
 
   useEffect(() => {
-    refresh();
-    const id = setInterval(refresh, POLL_MS);
-    return () => clearInterval(id);
+    return startVisibleInterval(() => {
+      void refresh();
+    }, POLL_MS);
   }, [refresh]);
 
   const planePoints: PlanePoint[] = useMemo(() => {

@@ -38,6 +38,7 @@ import * as raceActions from "@/app/play/g1-u2-2-linear-equation-race/actions";
 import * as tangentActions from "@/app/play/g3-u3-1-tangent-intro/actions";
 import * as sincosActions from "@/app/play/g3-u3-1-sincos-intro/actions";
 import { effectiveInquiryStepCount } from "@/lib/inquiry-step-counts";
+import { startVisibleInterval } from "@/lib/visible-interval";
 
 const IDLE: InquiryPollState = {
   sessionId: null,
@@ -215,10 +216,9 @@ export default function InquiryHostDashboard({
 
   useEffect(() => {
     if (!sessionId) return;
-    const id = window.setInterval(() => {
+    return startVisibleInterval(() => {
       void poll(sessionId);
     }, INQUIRY_POLL_MS);
-    return () => window.clearInterval(id);
   }, [sessionId, poll]);
 
   const startSession = () => {
