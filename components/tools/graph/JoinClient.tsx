@@ -27,9 +27,8 @@ import {
   colorForParticipant,
   WRONG_POINT_COLOR,
 } from "@/components/tools/graph/participant-colors";
-import { startVisibleInterval } from "@/lib/visible-interval";
+import { notifySessionChanged, useSessionPoll } from "@/lib/session-sync";
 
-const POLL_MS = 2000;
 const GUEST_KEY_STORAGE = "pm_graph_guest_key";
 const NAME_STORAGE = "pm_graph_name";
 
@@ -116,6 +115,7 @@ export default function JoinClient({ initialCode }: { initialCode: string }) {
     localStorage.setItem(NAME_STORAGE, trimmedName);
     setGuestKey(key);
     setSessionId(res.sessionId);
+    void notifySessionChanged(res.sessionId);
   };
 
   const refresh = useCallback(async () => {
@@ -129,12 +129,15 @@ export default function JoinClient({ initialCode }: { initialCode: string }) {
     }
   }, [sessionId, guestKey]);
 
-  useEffect(() => {
+  const syncSession = useCallback(async () => {
     if (!sessionId) return;
-    return startVisibleInterval(() => {
-      void refresh();
-    }, POLL_MS);
+    await notifySessionChanged(sessionId);
+    await refresh();
   }, [sessionId, refresh]);
+
+  useSessionPoll(sessionId, () => {
+    void refresh();
+  });
 
   const myPoints = useMemo(
     () => state?.points.filter((p) => p.isMe) ?? [],
@@ -239,7 +242,7 @@ export default function JoinClient({ initialCode }: { initialCode: string }) {
         text: "아직 식을 만족하지 않아요. 기회는 그대로! 다시 도전해 보세요.",
       });
     }
-    refresh();
+    await syncSession();
   };
 
   // ── 입장 전 화면 ──────────────────────────────────────────────
@@ -510,7 +513,7 @@ export default function JoinClient({ initialCode }: { initialCode: string }) {
                             guestKey,
                             pointId: p.id,
                           });
-                          refresh();
+                          void syncSession();
                         }}
                         className="shrink-0 rounded-lg px-2 py-1 text-xs text-foreground/40 transition hover:bg-red-50 hover:text-red-500"
                       >

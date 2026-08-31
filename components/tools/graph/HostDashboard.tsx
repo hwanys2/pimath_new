@@ -30,9 +30,7 @@ import {
   colorForParticipant,
   WRONG_POINT_COLOR,
 } from "@/components/tools/graph/participant-colors";
-import { startVisibleInterval } from "@/lib/visible-interval";
-
-const POLL_MS = 2000;
+import { notifySessionChanged, useSessionPoll } from "@/lib/session-sync";
 
 function QrCard({ joinCode }: { joinCode: string }) {
   const [dataUrl, setDataUrl] = useState<string | null>(null);
@@ -223,11 +221,14 @@ export default function HostDashboard({
     }
   }, [sessionId, ownerKey, isLoggedInTeacher, guestTeacherKey]);
 
-  useEffect(() => {
-    return startVisibleInterval(() => {
-      void refresh();
-    }, POLL_MS);
-  }, [refresh]);
+  const syncSession = useCallback(async () => {
+    await notifySessionChanged(sessionId);
+    await refresh();
+  }, [sessionId, refresh]);
+
+  useSessionPoll(sessionId, () => {
+    void refresh();
+  });
 
   const planePoints: PlanePoint[] = useMemo(() => {
     if (!state) return [];
@@ -303,7 +304,7 @@ export default function HostDashboard({
                   });
                   setBusy(false);
                   setExprEditing(false);
-                  refresh();
+                  void syncSession();
                 }}
                 className="rounded-lg bg-wood px-2 py-1 text-xs text-cream disabled:opacity-40"
               >
@@ -352,7 +353,7 @@ export default function HostDashboard({
                   setBusy(true);
                   await graphSetRevealAction({ sessionId, reveal: !state.reveal, ...withGuest });
                   setBusy(false);
-                  refresh();
+                  void syncSession();
                 }}
                 className={`font-display rounded-xl px-3 py-2 text-xs sm:text-sm ${state.reveal ? "bg-black/15 text-foreground/70" : "bg-gold text-[#6b4a00]"}`}
               >
@@ -366,7 +367,7 @@ export default function HostDashboard({
                   setBusy(true);
                   await graphClearPointsAction({ sessionId, ...withGuest });
                   setBusy(false);
-                  refresh();
+                  void syncSession();
                 }}
                 className="rounded-xl bg-black/10 px-2 py-2 text-xs text-foreground/70"
               >
@@ -380,7 +381,7 @@ export default function HostDashboard({
                   setBusy(true);
                   await graphCloseAction({ sessionId, ...withGuest });
                   setBusy(false);
-                  refresh();
+                  void syncSession();
                 }}
                 className="rounded-xl bg-red-100 px-2 py-2 text-xs text-red-700"
               >
@@ -464,7 +465,7 @@ export default function HostDashboard({
                             pointId: p.id,
                             ...withGuest,
                           });
-                          refresh();
+                          void syncSession();
                         }}
                         className="shrink-0 text-foreground/40 hover:text-red-500"
                       >
@@ -479,7 +480,7 @@ export default function HostDashboard({
 
           {!closed ? (
             <div className="mt-3">
-              <SettingsPanel state={state} guestTeacherKey={ownerKey} onSaved={refresh} />
+              <SettingsPanel state={state} guestTeacherKey={ownerKey} onSaved={() => void syncSession()} />
             </div>
           ) : null}
         </aside>
