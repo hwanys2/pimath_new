@@ -32,7 +32,7 @@ import {
 } from "@/components/tools/graph/participant-colors";
 import { startVisibleInterval } from "@/lib/visible-interval";
 
-const POLL_MS = 1200;
+const POLL_MS = 2000;
 
 function QrCard({ joinCode }: { joinCode: string }) {
   const [dataUrl, setDataUrl] = useState<string | null>(null);

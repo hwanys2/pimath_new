@@ -104,7 +104,7 @@ export type GameDashboardSnapshot = {
   kpis: GameDashboardKpis;
 };
 
-export const GAME_PRESENCE_PING_MS = 5000;
+export const GAME_PRESENCE_PING_MS = 10000;
 export const GAME_DASHBOARD_POLL_MS = 3000;
 export const GAME_PRESENCE_ONLINE_MS = 20000;
 

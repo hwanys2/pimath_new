@@ -40,4 +40,4 @@ export type DiceRacePollState = {
   myXpClaimedRound: number;
 };
 
-export const DICE_RACE_POLL_MS = 1200;
+export const DICE_RACE_POLL_MS = 2000;

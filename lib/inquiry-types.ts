@@ -37,7 +37,7 @@ export type InquiryResponseRow = {
 
 export type InquiryHostTab = "problem" | "status" | "responses" | "ranking";
 
-export const INQUIRY_POLL_MS = 1200;
+export const INQUIRY_POLL_MS = 2000;
 
 /** Online if last_seen within this many ms. */
 export const INQUIRY_ONLINE_MS = 5000;

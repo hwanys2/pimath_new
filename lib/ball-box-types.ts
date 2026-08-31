@@ -40,4 +40,4 @@ export type BallBoxPollState = {
   mySessionScore: number;
 };
 
-export const BALL_BOX_POLL_MS = 1200;
+export const BALL_BOX_POLL_MS = 2000;

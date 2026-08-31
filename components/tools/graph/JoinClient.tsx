@@ -29,7 +29,7 @@ import {
 } from "@/components/tools/graph/participant-colors";
 import { startVisibleInterval } from "@/lib/visible-interval";
 
-const POLL_MS = 1200;
+const POLL_MS = 2000;
 const GUEST_KEY_STORAGE = "pm_graph_guest_key";
 const NAME_STORAGE = "pm_graph_name";
 

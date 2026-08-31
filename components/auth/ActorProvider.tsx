@@ -6,11 +6,9 @@ import {
   useContext,
   useEffect,
   useMemo,
-  useRef,
   useState,
   type ReactNode,
 } from "react";
-import { usePathname } from "next/navigation";
 import type { Actor } from "@/lib/auth-types";
 import { createBrowserSupabaseClient } from "@/lib/supabase/browser";
 
@@ -29,32 +27,9 @@ async function fetchActor(): Promise<Actor | null> {
   return data.actor ?? null;
 }
 
-function TeacherSessionKeepAlive({ actor }: { actor: Actor | null }) {
-  useEffect(() => {
-    if (actor?.type !== "teacher") return;
-    try {
-      const supabase = createBrowserSupabaseClient();
-      const {
-        data: { subscription },
-      } = supabase.auth.onAuthStateChange(() => {
-        /* Browser client refreshes the teacher session on public pages. */
-      });
-      void supabase.auth.getSession();
-      return () => subscription.unsubscribe();
-    } catch {
-      return;
-    }
-  }, [actor?.type]);
-
-  return null;
-}
-
 export function ActorProvider({ children }: { children: ReactNode }) {
-  const pathname = usePathname();
   const [actor, setActor] = useState<Actor | null>(null);
   const [loading, setLoading] = useState(true);
-  const actorRef = useRef<Actor | null>(null);
-  actorRef.current = actor;
 
   const refresh = useCallback(async () => {
     try {
@@ -71,10 +46,21 @@ export function ActorProvider({ children }: { children: ReactNode }) {
     void refresh();
   }, [refresh]);
 
+  // 교사 Supabase 세션 변경(로그인·로그아웃·토큰 갱신) 시에만 /api/me 재호출
   useEffect(() => {
-    if (!actorRef.current) return;
-    void refresh();
-  }, [pathname, refresh]);
+    try {
+      const supabase = createBrowserSupabaseClient();
+      const {
+        data: { subscription },
+      } = supabase.auth.onAuthStateChange(() => {
+        void refresh();
+        void supabase.auth.getSession();
+      });
+      return () => subscription.unsubscribe();
+    } catch {
+      return;
+    }
+  }, [refresh]);
 
   const value = useMemo(
     () => ({ actor, loading, refresh }),
@@ -82,10 +68,7 @@ export function ActorProvider({ children }: { children: ReactNode }) {
   );
 
   return (
-    <ActorContext.Provider value={value}>
-      <TeacherSessionKeepAlive actor={actor} />
-      {children}
-    </ActorContext.Provider>
+    <ActorContext.Provider value={value}>{children}</ActorContext.Provider>
   );
 }
 
