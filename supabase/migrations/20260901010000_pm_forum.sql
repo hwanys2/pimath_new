@@ -188,20 +188,21 @@ SECURITY DEFINER
 SET search_path = public
 AS $$
 BEGIN
-  IF p_recipient IS NULL OR p_sender IS NULL THEN
+  IF p_recipient IS NULL THEN
     RETURN;
   END IF;
-  IF to_regprocedure('public.create_notification(integer, integer, text, text, text, text)') IS NULL THEN
-    RETURN;
-  END IF;
-  PERFORM public.create_notification(
-    p_recipient,
-    p_sender,
-    p_title,
-    p_message,
-    'comment',
-    p_url
-  );
+  BEGIN
+    PERFORM public.create_notification(
+      p_recipient,
+      p_sender,
+      p_title,
+      p_message,
+      'comment',
+      p_url
+    );
+  EXCEPTION WHEN OTHERS THEN
+    RAISE WARNING 'pm_forum_notify failed: %', SQLERRM;
+  END;
 END;
 $$;
 
@@ -441,11 +442,15 @@ BEGIN
 
   v_sender := coalesce(public.django_user_id(), public.pm_forum_django_user_id(v_uid));
   v_nickname := public.pm_forum_author_name(v_uid);
+  -- create_notification drops self-alerts; keep admin pings by omitting sender.
+  IF v_sender IS NOT DISTINCT FROM v_admin THEN
+    v_sender := NULL;
+  END IF;
 
   PERFORM public.pm_forum_notify(
     v_admin,
     v_sender,
-    '의견 게시판',
+    'pimath 새 글',
     v_nickname || '님이 글을 남겼습니다: ' || left(v_title, 40),
     'https://www.pimath.kr/tools/forum/' || v_id::text
   );

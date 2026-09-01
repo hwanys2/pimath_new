@@ -88,7 +88,7 @@
 
 관리자 판별은 기존 `pm_is_diagram_admin()` 을 재사용한다 (같은 소유자 이메일). 그 함수를 ALTER 하지 않는다.
 
-알림: 새 글·새 댓글만 기존 `create_notification` 으로 관리자(및 댓글이면 글 작성자) foreducator 알림. URL `https://www.pimath.kr/tools/forum/{id}`. 함수 정의는 건드리지 않는다.
+알림: 새 글은 기존 `create_notification`으로 관리자(`hwanys2@naver.com`, django id=1) foreducator 알림(벨·텔레그램·웹푸시). 제목 `pimath 새 글`, URL `https://www.pimath.kr/tools/forum/{id}`. 작성자가 관리자이거나 계정 매핑이 없어도 알림은 보냄 (`create_notification`의 자기 알림 차단을 피하려고 그때만 sender를 비움). 새 댓글은 관리자 + 글 작성자에게 보냄. 함수 정의는 건드리지 않는다.
 
 속도 제한: 글 15초, 댓글 10초 (같은 사용자).
 
@@ -111,3 +111,4 @@
 | 날짜 | 내용 |
 |------|------|
 | 2026-09-01 | 초판. 도구 메뉴 첫 항목. 글·댓글·그림 첨부. |
+| 2026-09-01 | 새 글은 관리자 foreducator 알림을 항상 보냄. |
