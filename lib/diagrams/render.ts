@@ -245,11 +245,14 @@ export function sceneToSvg(
   scene: DiagramScene,
   fonts: FontFaces,
   lineWidth: number,
+  cropPad?: number,
 ): string {
+  const box =
+    cropPad != null ? sceneInkBox(scene, cropPad) : { x: 0, y: 0, w: scene.width, h: scene.height };
   const parts: string[] = [
     `<?xml version="1.0" encoding="UTF-8"?>`,
-    `<svg xmlns="http://www.w3.org/2000/svg" width="${scene.width}" height="${scene.height}" viewBox="0 0 ${scene.width} ${scene.height}">`,
-    `<rect width="100%" height="100%" fill="#ffffff"/>`,
+    `<svg xmlns="http://www.w3.org/2000/svg" width="${box.w}" height="${box.h}" viewBox="${box.x} ${box.y} ${box.w} ${box.h}">`,
+    `<rect x="${box.x}" y="${box.y}" width="${box.w}" height="${box.h}" fill="#ffffff"/>`,
   ];
 
   for (const cmd of scene.cmds) {
@@ -569,4 +572,118 @@ export function renderSceneToCanvas(
   ctx.scale(scale, scale);
   paintDiagramScene(ctx, scene, fonts, lineWidth);
   return canvas;
+}
+
+export type SceneBox = { x: number; y: number; w: number; h: number };
+
+/** Axis-aligned ink box of a scene, plus `pad` on every side, clipped to the canvas. */
+export function sceneInkBox(scene: DiagramScene, pad: number): SceneBox {
+  const ink = rawSceneInk(scene);
+  if (!ink) return { x: 0, y: 0, w: scene.width, h: scene.height };
+  const x = Math.max(0, ink.minX - pad);
+  const y = Math.max(0, ink.minY - pad);
+  const x2 = Math.min(scene.width, ink.maxX + pad);
+  const y2 = Math.min(scene.height, ink.maxY + pad);
+  return { x, y, w: Math.max(1, x2 - x), h: Math.max(1, y2 - y) };
+}
+
+function rawSceneInk(scene: DiagramScene): {
+  minX: number;
+  minY: number;
+  maxX: number;
+  maxY: number;
+} | null {
+  let minX = Infinity;
+  let minY = Infinity;
+  let maxX = -Infinity;
+  let maxY = -Infinity;
+  const include = (x: number, y: number) => {
+    if (!Number.isFinite(x) || !Number.isFinite(y)) return;
+    minX = Math.min(minX, x);
+    minY = Math.min(minY, y);
+    maxX = Math.max(maxX, x);
+    maxY = Math.max(maxY, y);
+  };
+  for (const cmd of scene.cmds) includeCmd(cmd, include);
+  for (const text of scene.texts) includeText(text, include);
+  if (!Number.isFinite(minX)) return null;
+  return { minX, minY, maxX, maxY };
+}
+
+function includeCmd(cmd: SceneCmd, include: (x: number, y: number) => void): void {
+  switch (cmd.t) {
+    case "line":
+      include(cmd.x1, cmd.y1);
+      include(cmd.x2, cmd.y2);
+      break;
+    case "quad":
+      include(cmd.x1, cmd.y1);
+      include(cmd.cx, cmd.cy);
+      include(cmd.x2, cmd.y2);
+      break;
+    case "circle":
+      include(cmd.x - cmd.r, cmd.y - cmd.r);
+      include(cmd.x + cmd.r, cmd.y + cmd.r);
+      break;
+    case "dot":
+      include(cmd.x - cmd.r, cmd.y - cmd.r);
+      include(cmd.x + cmd.r, cmd.y + cmd.r);
+      break;
+    case "arc":
+    case "sector":
+      include(cmd.cx - cmd.r, cmd.cy - cmd.r);
+      include(cmd.cx + cmd.r, cmd.cy + cmd.r);
+      break;
+    case "polyline":
+    case "polygon":
+      for (const p of cmd.t === "polyline" ? cmd.pts : cmd.points) include(p.x, p.y);
+      break;
+    case "rightAngle": {
+      include(cmd.x, cmd.y);
+      include(cmd.x + cmd.ux * cmd.size, cmd.y + cmd.uy * cmd.size);
+      include(cmd.x + cmd.vx * cmd.size, cmd.y + cmd.vy * cmd.size);
+      include(
+        cmd.x + (cmd.ux + cmd.vx) * cmd.size,
+        cmd.y + (cmd.uy + cmd.vy) * cmd.size,
+      );
+      break;
+    }
+    case "arrowhead":
+      include(cmd.x, cmd.y);
+      include(cmd.x + cmd.ux * cmd.size, cmd.y + cmd.uy * cmd.size);
+      break;
+    case "roundRect":
+      include(cmd.x, cmd.y);
+      include(cmd.x + cmd.w, cmd.y + cmd.h);
+      break;
+    case "ellipseArc": {
+      const r = Math.hypot(cmd.ux, cmd.uy) + Math.hypot(cmd.vx, cmd.vy);
+      include(cmd.cx - r, cmd.cy - r);
+      include(cmd.cx + r, cmd.cy + r);
+      break;
+    }
+    case "emoji":
+      include(cmd.x - cmd.size, cmd.y - cmd.size);
+      include(cmd.x + cmd.size, cmd.y + cmd.size);
+      break;
+    case "text":
+      includeText(cmd.text, include);
+      break;
+    default:
+      break;
+  }
+}
+
+function includeText(
+  text: SceneText,
+  include: (x: number, y: number) => void,
+): void {
+  const w = Math.max(text.size * 0.85, estimateRunsWidth(text.runs, text.size));
+  const ascent = text.size * 0.82;
+  const descent = text.size * 0.28;
+  let left = text.x;
+  if (text.anchor === "middle") left = text.x - w / 2;
+  else if (text.anchor === "end") left = text.x - w;
+  include(left, text.y - ascent);
+  include(left + w, text.y + descent);
 }

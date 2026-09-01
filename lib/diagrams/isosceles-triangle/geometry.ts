@@ -456,8 +456,10 @@ function labelFromParse(
     return { ...prev, mode: "x", custom: parsed.unknown ?? "x" };
   }
   if (parsed.kind === "number" && parsed.value != null) {
-    const custom = asAngle ? `${parsed.value}°` : String(parsed.value);
-    return { ...prev, mode: "custom", custom };
+    if (asAngle) {
+      return { ...prev, mode: "custom", custom: `${parsed.value}°` };
+    }
+    return { ...prev, mode: "auto", custom: "" };
   }
   if (!text.trim()) return { ...prev, mode: "hide", custom: "" };
   return { ...prev, mode: "custom", custom: text.trim() };
@@ -581,7 +583,7 @@ export function applyEditedLabel(state: IsoscelesState, id: string, text: string
         ...next,
         edges: next.edges.map((e, idx) => {
           if (idx === i) return { ...e, length: label };
-          if (idx === pair && e.length.mode === "custom") {
+          if (idx === pair && label.mode === "custom" && e.length.mode === "custom") {
             const parsedOther = parseMeasureInput(e.length.custom);
             if (parsedOther.kind === "number") {
               return { ...e, length: { ...e.length, custom: label.custom } };

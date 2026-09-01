@@ -26,6 +26,8 @@ import {
   toggleCevian,
   triangleFromAngles,
 } from "./model";
+import { sceneTextPlain } from "@/lib/diagrams/scene";
+import { sceneInkBox, sceneToSvg } from "@/lib/diagrams/render";
 import { buildIsoscelesScene } from "./scene";
 
 function almost(a: number, b: number, eps = 1e-3): void {
@@ -249,6 +251,49 @@ describe("presets", () => {
     scene = buildIsoscelesScene(state);
     const tickLines = scene.cmds.filter((c) => c.t === "line" && !c.id && !c.dashed);
     assert.ok(tickLines.length >= 2);
+  });
+});
+
+describe("length labels", () => {
+  it("defaults numeric lengths to auto so cm is shown", () => {
+    const altitude = normalizeState(ISO_PRESETS[2]!.state);
+    assert.equal(altitude.cevians[0]?.leftLen.label.mode, "auto");
+    const byAngles = normalizeState(ISO_PRESETS[3]!.state);
+    assert.equal(byAngles.edges[2]?.length.mode, "auto");
+    const nested = normalizeState(ISO_PRESETS[4]!.state);
+    assert.equal(nested.cevians[0]?.rightLen.label.mode, "auto");
+    const golden = normalizeState(ISO_PRESETS[5]!.state);
+    assert.equal(golden.edges[1]?.length.mode, "auto");
+
+    const scene = buildIsoscelesScene(altitude);
+    const bd = scene.texts.find((t) => t.id === "p:A:left:length");
+    assert.ok(bd);
+    assert.match(sceneTextPlain(bd), /cm/);
+  });
+
+  it("keeps 숫자 mode when a length is typed as a number", () => {
+    const state = normalizeState(ISO_PRESETS[5]!.state);
+    const next = applyEditedLabel(state, "e:1:length", "8");
+    assert.equal(next.edges[1]!.length.mode, "auto");
+    almost(edgeLength(next.points, 1), 8, 0.05);
+    const unknown = applyEditedLabel(next, "e:1:length", "x");
+    assert.equal(unknown.edges[1]!.length.mode, "x");
+  });
+
+  it("crops export bounds tighter than the square canvas", () => {
+    const scene = buildIsoscelesScene(ISO_PRESETS[0]!.state);
+    const box = sceneInkBox(scene, 12);
+    assert.ok(box.w < scene.width - 40, `${box.w} vs ${scene.width}`);
+    assert.ok(box.h < scene.height - 40, `${box.h} vs ${scene.height}`);
+    assert.ok(box.w > 180 && box.h > 180);
+    const svg = sceneToSvg(
+      scene,
+      { math: "serif", korean: "serif" },
+      1.7,
+      12,
+    );
+    assert.match(svg, /viewBox="/);
+    assert.ok(!svg.includes(`width="${scene.width}"`));
   });
 });
 

@@ -17,7 +17,9 @@ import IsoscelesCanvas, {
 import {
   canvasToPngBlob,
   copyPngToClipboard,
+  cropCanvasToInk,
   downloadBlob,
+  EXPORT_INK_PAD,
 } from "@/lib/diagrams/export-image";
 import {
   applyEqualApex,
@@ -60,7 +62,7 @@ import { buildIsoscelesScene } from "@/lib/diagrams/isosceles-triangle/scene";
 import { renderSceneToCanvas, sceneToSvg } from "@/lib/diagrams/render";
 import type { FontFaces } from "@/lib/diagrams/math-label";
 
-const STORAGE_KEY = "pm-diagram-g2-isosceles-triangle-v1";
+const STORAGE_KEY = "pm-diagram-g2-isosceles-triangle-v2";
 
 const storeListeners = new Set<() => void>();
 
@@ -207,7 +209,11 @@ export default function IsoscelesStudio() {
       state.style.lineWidth,
       state.style.exportScale,
     );
-    const blob = await canvasToPngBlob(canvas);
+    const cropped = cropCanvasToInk(
+      canvas,
+      EXPORT_INK_PAD * state.style.exportScale,
+    );
+    const blob = await canvasToPngBlob(cropped);
     downloadBlob(blob, "이등변삼각형.png");
     setStatus("PNG를 저장했어요.");
   }
@@ -221,14 +227,18 @@ export default function IsoscelesStudio() {
       state.style.lineWidth,
       state.style.exportScale,
     );
-    const blob = await canvasToPngBlob(canvas);
+    const cropped = cropCanvasToInk(
+      canvas,
+      EXPORT_INK_PAD * state.style.exportScale,
+    );
+    const blob = await canvasToPngBlob(cropped);
     await copyPngToClipboard(blob);
     setStatus("클립보드에 그림을 복사했어요. 한글·워드에 붙여넣기 하세요.");
   }
 
   function exportSvg() {
     const scene = buildIsoscelesScene(state);
-    const svg = sceneToSvg(scene, fonts, state.style.lineWidth);
+    const svg = sceneToSvg(scene, fonts, state.style.lineWidth, EXPORT_INK_PAD);
     downloadBlob(
       new Blob([svg], { type: "image/svg+xml;charset=utf-8" }),
       "이등변삼각형.svg",
@@ -986,24 +996,7 @@ function EdgePanel({
             label="길이 값"
             value={Number(edgeLength(state.points, index).toFixed(2))}
             onChange={(len) =>
-              setState((prev) => {
-                const next = applyIsoLength(prev, index, len);
-                return {
-                  ...next,
-                  edges: next.edges.map((e, idx) =>
-                    idx === index
-                      ? {
-                          ...e,
-                          length: {
-                            ...e.length,
-                            mode: "custom" as const,
-                            custom: String(len),
-                          },
-                        }
-                      : e,
-                  ),
-                };
-              })
+              setState((prev) => applyIsoLength(prev, index, len))
             }
             min={0.5}
             max={40}

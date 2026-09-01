@@ -538,7 +538,7 @@ export const ISO_PRESETS: IsoscelesPreset[] = [
           showRightAtD: true,
           leftLen: {
             show: true,
-            label: { ...emptyLabel("custom"), custom: "3" },
+            label: emptyLabel("auto"),
           },
           apexLeft: {
             show: true,
@@ -577,7 +577,7 @@ export const ISO_PRESETS: IsoscelesPreset[] = [
         }),
         makeEdge({
           showLength: true,
-          length: { ...emptyLabel("custom"), custom: "6" },
+          length: emptyLabel("auto"),
         }),
       ],
     }),
@@ -617,7 +617,7 @@ export const ISO_PRESETS: IsoscelesPreset[] = [
             t,
             rightLen: {
               show: true,
-              label: { ...emptyLabel("custom"), custom: "4" },
+              label: emptyLabel("auto"),
             },
             apexRight: {
               show: true,
@@ -650,7 +650,7 @@ export const ISO_PRESETS: IsoscelesPreset[] = [
         makeEdge(),
         makeEdge({
           showLength: true,
-          length: { ...emptyLabel("custom"), custom: "5" },
+          length: emptyLabel("auto"),
         }),
         makeEdge(),
       ],
