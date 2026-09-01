@@ -4,7 +4,7 @@ import { TOOLS } from "@/lib/tools";
 
 export const metadata: Metadata = {
   title: "수업 도구 | 수학하는 즐거움",
-  description: "전자칠판, 그래프 탐구 등 수학 수업을 위한 도구 모음",
+  description: "전자칠판, 의견 게시판, 그래프 탐구 등 수학 수업을 위한 도구 모음",
 };
 
 export default function ToolsPage() {

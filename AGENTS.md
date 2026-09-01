@@ -22,6 +22,10 @@ Before any Supabase work (auth, tables, RLS, migrations, keys), READ and FOLLOW 
 
 When adding or changing **1:1 matchmaking games** (class/global queue, auto-requeue after game end), READ and FOLLOW [`docs/pvp-matchmaking.md`](docs/pvp-matchmaking.md). Product rules summary: [`docs/content-system.md`](docs/content-system.md) §5.4.
 
+# 의견 게시판
+
+When adding or changing the **tools-menu feedback board** (글·댓글·그림 첨부), READ and FOLLOW [`docs/user-forum.md`](docs/user-forum.md). Keep it simpler than foreducator 소통공간: no likes, follows, DMs, or `tboard_*`. Path is `/tools/forum`, never `/board` (전자칠판).
+
 # 문제 그림 그리기
 
 When adding or changing **exam-diagram tools** (학년별 카드, 원의 현 같은 소재별 생성기, PNG 저장), READ and FOLLOW [`docs/problem-diagram-tools.md`](docs/problem-diagram-tools.md) — especially §5.1 (three-column studio). These are specialized generators, not a GeoGebra-style construction app. New tools must go through the shared `[toolId]` page shell (`DiagramToolShell`) so the bottom feedback thread is always present — do not add a per-tool route or copy the comment UI into a studio. Copy the studio grid from `SimilarSolidsStudio` / `HistogramStudio` (`lg:grid-cols-[minmax(0,1fr)_minmax(14rem,16rem)_minmax(15rem,18rem)]`): column 1 figure fills leftover width (`lg:max-w-none`; do not cap at `22rem`) plus settings that strongly change the figure (도형 종류, 변의 수, 치수); column 2 detailed settings (display chips / view / 닮음비); column 3 빠른 그림 + 그림 스타일 only (style open by default). Do not start a new planar/solid/circle tool as a two-column layout (number-line and linear-inequality are the wide-axis exceptions).

@@ -51,7 +51,7 @@ function ToolsMenu({ pathname }: { pathname: string }) {
         </span>
       </button>
       {open ? (
-        <div className="absolute left-1/2 top-full z-50 mt-2 w-56 -translate-x-1/2 rounded-2xl border-2 border-wood/20 bg-cream p-1.5 shadow-xl">
+        <div className="absolute left-1/2 top-full z-50 mt-2 w-60 -translate-x-1/2 rounded-2xl border-2 border-wood/20 bg-cream p-1.5 shadow-xl">
           {TOOLS.map((tool) => {
             const toolActive =
               pathname === tool.href || pathname.startsWith(`${tool.href}/`);

@@ -14,6 +14,9 @@ export function shouldKeepStudentInAdventure(pathname: string): boolean {
   if (pathname === "/tools/figures" || pathname.startsWith("/tools/figures/")) {
     return true;
   }
+  if (pathname === "/tools/forum" || pathname.startsWith("/tools/forum/")) {
+    return true;
+  }
   if (pathname === "/tools/graph") return true;
   return false;
 }

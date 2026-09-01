@@ -16,6 +16,16 @@ export type ToolMeta = {
  */
 export const TOOLS: ToolMeta[] = [
   {
+    key: "forum",
+    label: "의견 게시판",
+    title: "의견 게시판",
+    description:
+      "쓰다 불편한 점, 이런 프로그램이 있으면 좋겠다는 아이디어를 편하게 남겨 주세요.",
+    href: "/tools/forum",
+    emoji: "💬",
+    accentClass: "from-lavender/45 to-peach/30",
+  },
+  {
     key: "board",
     label: "전자칠판",
     title: "전자칠판",

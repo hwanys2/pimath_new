@@ -26,6 +26,8 @@ export const config = {
     "/api/:path*",
     "/board",
     "/board/:path*",
+    "/tools/forum",
+    "/tools/forum/:path*",
     "/reset-password",
     "/forgot-password",
     "/tools/graph/host/:path*",
