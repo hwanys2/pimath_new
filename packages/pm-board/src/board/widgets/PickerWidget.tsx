@@ -9,6 +9,23 @@ type Props = {
   rosters: ClassRoster[];
 };
 
+const FONT_LEVELS = [
+  { label: "작게", drawCqw: 12, drawCqh: 36, teamTitle: 12, teamName: 13 },
+  { label: "보통", drawCqw: 18, drawCqh: 52, teamTitle: 14, teamName: 15 },
+  { label: "크게", drawCqw: 24, drawCqh: 64, teamTitle: 16, teamName: 20 },
+  { label: "아주크게", drawCqw: 32, drawCqh: 76, teamTitle: 19, teamName: 26 },
+  { label: "최대", drawCqw: 42, drawCqh: 88, teamTitle: 22, teamName: 34 },
+] as const;
+
+const FONT_LEVEL_MAX = FONT_LEVELS.length - 1;
+const DEFAULT_FONT_LEVEL = 1;
+
+function clampFontLevel(raw: unknown): number {
+  const n = typeof raw === "number" ? raw : Number(raw);
+  if (!Number.isFinite(n)) return DEFAULT_FONT_LEVEL;
+  return Math.max(0, Math.min(FONT_LEVEL_MAX, Math.round(n)));
+}
+
 function shuffle<T>(arr: T[]): T[] {
   const out = [...arr];
   for (let i = out.length - 1; i > 0; i--) {
@@ -18,6 +35,66 @@ function shuffle<T>(arr: T[]): T[] {
   return out;
 }
 
+function FontSizeControl({
+  level,
+  onChange,
+}: {
+  level: number;
+  onChange: (n: number) => void;
+}) {
+  const meta = FONT_LEVELS[level] ?? FONT_LEVELS[DEFAULT_FONT_LEVEL];
+  return (
+    <div
+      className="flex shrink-0 items-center gap-0.5 rounded-xl border-2 border-black/10 bg-white p-0.5"
+      role="group"
+      aria-label="글씨 크기"
+      title="글씨 크기"
+    >
+      <button
+        type="button"
+        aria-label="글씨 작게"
+        disabled={level <= 0}
+        onClick={() => onChange(level - 1)}
+        className="flex h-8 w-8 items-center justify-center rounded-lg text-wood transition hover:bg-black/5 active:bg-black/10 disabled:opacity-30"
+      >
+        <span className="font-display text-[11px] font-black leading-none">A</span>
+      </button>
+      <div className="flex min-w-[3.25rem] flex-col items-center justify-center px-1">
+        <div className="flex items-center gap-[3px]">
+          {FONT_LEVELS.map((step, i) => (
+            <button
+              key={step.label}
+              type="button"
+              aria-label={step.label}
+              aria-pressed={level === i}
+              onClick={() => onChange(i)}
+              className={`rounded-full transition-all ${
+                i === level
+                  ? "h-2.5 w-2.5 bg-gold shadow-[0_0_0_2px_rgba(255,215,106,0.55)]"
+                  : i < level
+                    ? "h-1.5 w-1.5 bg-gold"
+                    : "h-1.5 w-1.5 bg-wood/20"
+              }`}
+            />
+          ))}
+        </div>
+        <span className="font-display mt-0.5 whitespace-nowrap text-[9px] leading-none text-wood/70">
+          {meta.label}
+        </span>
+      </div>
+      <button
+        type="button"
+        aria-label="글씨 크게"
+        disabled={level >= FONT_LEVEL_MAX}
+        onClick={() => onChange(level + 1)}
+        className="flex h-8 w-8 items-center justify-center rounded-lg text-wood transition hover:bg-black/5 active:bg-black/10 disabled:opacity-30"
+      >
+        <span className="font-display text-[16px] font-black leading-none">A</span>
+      </button>
+    </div>
+  );
+}
+
 export default function PickerWidget({ state, setState, rosters }: Props) {
   const sourceId = (state.sourceId as string) ?? "manual";
   const manualText = (state.manualText as string) ?? "";
@@ -25,6 +102,8 @@ export default function PickerWidget({ state, setState, rosters }: Props) {
   const drawn = (state.drawn as string[]) ?? [];
   const tab = (state.tab as string) ?? "draw";
   const teamCount = (state.teamCount as number) ?? 4;
+  const fontLevel = clampFontLevel(state.fontLevel);
+  const font = FONT_LEVELS[fontLevel] ?? FONT_LEVELS[DEFAULT_FONT_LEVEL];
 
   const [current, setCurrent] = useState<string | null>(null);
   const [spinning, setSpinning] = useState(false);
@@ -67,24 +146,32 @@ export default function PickerWidget({ state, setState, rosters }: Props) {
     setTeams(result);
   };
 
+  const teamCols = fontLevel >= 4 ? "grid-cols-1" : "grid-cols-2";
+
   return (
     <div className="flex h-full flex-col gap-2 p-3">
-      <div className="flex gap-1 rounded-xl bg-black/5 p-1">
-        {[
-          ["draw", "한 명 뽑기"],
-          ["team", "모둠 짜기"],
-        ].map(([key, label]) => (
-          <button
-            key={key}
-            type="button"
-            onClick={() => setState({ tab: key })}
-            className={`font-display flex-1 rounded-lg px-2 py-1 text-sm transition ${
-              tab === key ? "bg-wood text-cream shadow" : "text-wood hover:bg-black/5"
-            }`}
-          >
-            {label}
-          </button>
-        ))}
+      <div className="flex items-center gap-1.5">
+        <div className="flex min-w-0 flex-1 gap-1 rounded-xl bg-black/5 p-1">
+          {[
+            ["draw", "한 명 뽑기"],
+            ["team", "모둠 짜기"],
+          ].map(([key, label]) => (
+            <button
+              key={key}
+              type="button"
+              onClick={() => setState({ tab: key })}
+              className={`font-display flex-1 rounded-lg px-2 py-1 text-sm transition ${
+                tab === key ? "bg-wood text-cream shadow" : "text-wood hover:bg-black/5"
+              }`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+        <FontSizeControl
+          level={fontLevel}
+          onChange={(next) => setState({ fontLevel: next })}
+        />
       </div>
 
       <div className="flex items-center gap-2">
@@ -122,14 +209,17 @@ export default function PickerWidget({ state, setState, rosters }: Props) {
       {tab === "draw" ? (
         <>
           <div
-            className="flex min-h-0 flex-1 items-center justify-center rounded-xl bg-[#f6f1e7] px-2"
+            className="flex min-h-0 flex-1 items-center justify-center rounded-xl bg-[#f6f1e7] px-3 py-2"
             style={{ containerType: "size" }}
           >
             <span
-              className={`font-display max-w-full truncate text-center ${
+              className={`font-display max-w-full text-center break-keep ${
                 spinning ? "text-wood/50" : "text-[#3d2c1e]"
               }`}
-              style={{ fontSize: "min(18cqw, 52cqh)", lineHeight: 1.15 }}
+              style={{
+                fontSize: `min(${font.drawCqw}cqw, ${font.drawCqh}cqh)`,
+                lineHeight: 1.15,
+              }}
             >
               {current ?? (names.length > 0 ? "두구두구..." : "명단이 비었어요")}
             </span>
@@ -172,23 +262,37 @@ export default function PickerWidget({ state, setState, rosters }: Props) {
         <>
           <div className="min-h-0 flex-1 overflow-auto rounded-xl bg-[#f6f1e7] p-2">
             {teams ? (
-              <div className="grid grid-cols-2 gap-2 lg:grid-cols-3">
+              <div className={`grid gap-2 ${teamCols}`}>
                 {teams.map((team, i) => (
                   <div
                     key={i}
                     className="rounded-lg border-2 border-wood/15 bg-white p-2"
                   >
-                    <p className="font-display mb-1 text-sm text-wood">
+                    <p
+                      className="font-display mb-1.5 text-wood"
+                      style={{ fontSize: font.teamTitle, lineHeight: 1.2 }}
+                    >
                       {i + 1}모둠
                     </p>
-                    <p className="text-sm leading-relaxed font-semibold text-[#3d2c1e]">
-                      {team.join(", ")}
-                    </p>
+                    <ul className="flex flex-wrap gap-x-1.5 gap-y-1">
+                      {team.map((name) => (
+                        <li
+                          key={name}
+                          className="rounded-lg bg-[#f6f1e7] px-1.5 py-0.5 font-semibold text-[#3d2c1e]"
+                          style={{ fontSize: font.teamName, lineHeight: 1.25 }}
+                        >
+                          {name}
+                        </li>
+                      ))}
+                    </ul>
                   </div>
                 ))}
               </div>
             ) : (
-              <p className="flex h-full items-center justify-center text-sm text-wood/70">
+              <p
+                className="flex h-full items-center justify-center px-3 text-center text-wood/70"
+                style={{ fontSize: font.teamName }}
+              >
                 모둠 수를 정하고 버튼을 누르세요
               </p>
             )}

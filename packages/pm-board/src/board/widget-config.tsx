@@ -47,10 +47,10 @@ export const WIDGET_DEFS: Record<WidgetKind, WidgetDef> = {
   picker: {
     label: "학생 뽑기",
     icon: PickerIcon,
-    w: 380,
-    h: 430,
-    minW: 300,
-    minH: 340,
+    w: 420,
+    h: 450,
+    minW: 320,
+    minH: 360,
     accent: "#ffd76a",
   },
   dice: {
