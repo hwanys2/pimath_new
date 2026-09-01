@@ -5,6 +5,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { GRADES } from "@/lib/grades";
+import { OPEN_CHAT_URL } from "@/lib/site-links";
 import { TOOLS } from "@/lib/tools";
 import { signOut } from "@/app/auth/actions";
 import NicknameEditor from "@/components/NicknameEditor";
@@ -71,13 +72,28 @@ function ToolsMenu({ pathname }: { pathname: string }) {
               </Link>
             );
           })}
-          <Link
-            href="/tools"
-            onClick={() => setOpen(false)}
-            className="mt-0.5 block rounded-xl border-t border-wood/10 px-3 py-2 text-center text-xs font-semibold text-wood/70 transition hover:bg-wood/10"
-          >
-            모든 도구 보기
-          </Link>
+          <div className="mt-0.5 border-t border-wood/10 pt-0.5">
+            <Link
+              href="/tools"
+              onClick={() => setOpen(false)}
+              className="block rounded-xl px-3 py-2 text-center text-xs font-semibold text-wood/70 transition hover:bg-wood/10"
+            >
+              모든 도구 보기
+            </Link>
+            <a
+              href={OPEN_CHAT_URL}
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={() => setOpen(false)}
+              className="font-display flex items-center gap-2 rounded-xl px-3 py-2.5 text-sm text-wood-dark transition hover:bg-wood/10"
+            >
+              <span aria-hidden>💬</span>
+              오픈채팅방
+              <span aria-hidden className="ml-auto text-[10px] opacity-50">
+                ↗
+              </span>
+            </a>
+          </div>
         </div>
       ) : null}
     </div>

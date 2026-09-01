@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import OpenChatLink from "@/components/OpenChatLink";
 import { TOOLS } from "@/lib/tools";
 
 export const metadata: Metadata = {
@@ -50,6 +51,10 @@ export default function ToolsPage() {
             </p>
           </Link>
         ))}
+      </div>
+
+      <div className="flex justify-center">
+        <OpenChatLink variant="button" />
       </div>
     </div>
   );
