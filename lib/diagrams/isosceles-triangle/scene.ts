@@ -154,15 +154,12 @@ function dimArc(
   if (!label) return;
   const along = norm(sub(b, a));
   const u = perpToward(along, outward);
-  const span = len(sub(b, a));
   const mid = mul(add(a, b), 0.5);
-  const margin = Math.min(span * 0.14, 26);
-  const maxAlong = Math.max(span / 2 - margin, 0);
   const lineId = `${labelId}:line`;
 
-  const textH = signedHeight(offset + meas.dy);
-  const lineH = signedHeight(offset + meas.dy + (meas.lineDy ?? 0));
-  const textAlong = clamp(meas.dx, -maxAlong, maxAlong);
+  const lineH = signedHeight(offset + (meas.lineDy ?? 0), 10, 220);
+  const textAlong = meas.dx;
+  const textH = offset + meas.dy;
   const lineSign = lineH < 0 ? -1 : 1;
   const tick = clamp(Math.abs(lineH) * 0.22, 4.5, 8);
   const aFoot = add(a, mul(u, lineSign * tick));

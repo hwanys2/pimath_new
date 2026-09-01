@@ -256,7 +256,15 @@ export default function IsoscelesCanvas({
             return;
           }
           setState(
-            (prev) => nudgeLabel(prev, drag.id, dx, dy, drag.t === "dimLine"),
+            (prev) =>
+              nudgeLabel(
+                prev,
+                drag.id,
+                dx,
+                dy,
+                drag.t === "dimLine",
+                sceneRef.current?.layout,
+              ),
             false,
           );
         }}
@@ -365,6 +373,7 @@ function sameHit(a: IsoHit | null, b: IsoHit | null): boolean {
 function cursorForHit(hit: IsoHit | null): string {
   if (!hit) return "default";
   if (hit.kind === "label") return "text";
+  if (hit.kind === "dimLine") return "grab";
   if (hit.kind === "vertex" || hit.kind === "foot") return "grab";
   return "pointer";
 }
@@ -441,6 +450,26 @@ function paintOverlays(
       const end = hover.which === "left" ? li : ri;
       strokeSeg(verts[end]!, p);
     }
+  }
+  if (hover?.kind === "dimLine") {
+    ctx.strokeStyle = "rgba(196, 130, 58, 0.9)";
+    ctx.lineWidth = 2.4;
+    ctx.setLineDash([5, 4]);
+    for (const cmd of scene.cmds) {
+      if (!("id" in cmd) || cmd.id !== `${hover.id}:line`) continue;
+      if (cmd.t === "line") {
+        ctx.beginPath();
+        ctx.moveTo(cmd.x1, cmd.y1);
+        ctx.lineTo(cmd.x2, cmd.y2);
+        ctx.stroke();
+      }
+      if (cmd.t === "arc") {
+        ctx.beginPath();
+        ctx.arc(cmd.cx, cmd.cy, cmd.r, cmd.a0, cmd.a1, cmd.ccw);
+        ctx.stroke();
+      }
+    }
+    ctx.setLineDash([]);
   }
   ctx.restore();
 }

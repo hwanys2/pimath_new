@@ -633,7 +633,8 @@ export default function IsoscelesStudio() {
 
             <p className="mt-2 text-[11px] leading-snug text-foreground/45">
               변을 누르면 길이가 켜지고, 보조선을 누르면 그 길이가 켜집니다.
-              글자를 눌러 숫자나 x로 고칩니다.
+              길이 숫자와 점선 설명선은 따로 끌어 옮길 수 있어요. 글자를 눌러
+              숫자나 x로 고칩니다.
             </p>
 
             {activeMarks.length > 0 ? (

@@ -11,6 +11,7 @@ import {
   edgeLength,
   footPoint,
   moveVertexIso,
+  nudgeLabel,
   oppositeSide,
   snapIsosceles,
   wedgeDeg,
@@ -28,7 +29,7 @@ import {
 } from "./model";
 import { sceneTextPlain } from "@/lib/diagrams/scene";
 import { sceneInkBox, sceneToSvg } from "@/lib/diagrams/render";
-import { buildIsoscelesScene } from "./scene";
+import { buildIsoscelesScene, getSceneLayout } from "./scene";
 
 function almost(a: number, b: number, eps = 1e-3): void {
   assert.ok(Math.abs(a - b) < eps, `${a} ≉ ${b}`);
@@ -294,6 +295,50 @@ describe("length labels", () => {
     );
     assert.match(svg, /viewBox="/);
     assert.ok(!svg.includes(`width="${scene.width}"`));
+  });
+
+  it("moves the length number without moving the dim arc", () => {
+    const state = normalizeState(ISO_PRESETS[5]!.state);
+    const layout = getSceneLayout(state);
+    const before = buildIsoscelesScene(state);
+    const arc0 = before.cmds.find((c) => c.t === "arc" && c.id === "e:1:length:line");
+    const text0 = before.texts.find((t) => t.id === "e:1:length");
+    assert.ok(arc0 && arc0.t === "arc");
+    assert.ok(text0);
+    const next = nudgeLabel(state, "e:1:length", 28, -36, false, layout);
+    assert.ok(Math.abs(next.edges[1]!.length.dx) > 1);
+    assert.equal(next.edges[1]!.length.lineDy ?? 0, 0);
+    const after = buildIsoscelesScene(next);
+    const arc1 = after.cmds.find((c) => c.t === "arc" && c.id === "e:1:length:line");
+    const text1 = after.texts.find((t) => t.id === "e:1:length");
+    assert.ok(arc1 && arc1.t === "arc");
+    assert.ok(text1);
+    almost(arc1.r, arc0.r, 0.05);
+    almost(arc1.cx, arc0.cx, 0.05);
+    almost(arc1.cy, arc0.cy, 0.05);
+    assert.ok(Math.hypot(text1.x - text0.x, text1.y - text0.y) > 8);
+  });
+
+  it("moves the dim arc without moving the length number", () => {
+    const state = normalizeState(ISO_PRESETS[5]!.state);
+    const layout = getSceneLayout(state);
+    const before = buildIsoscelesScene(state);
+    const arc0 = before.cmds.find((c) => c.t === "arc" && c.id === "e:1:length:line");
+    const text0 = before.texts.find((t) => t.id === "e:1:length");
+    assert.ok(arc0 && arc0.t === "arc");
+    assert.ok(text0);
+    const next = nudgeLabel(state, "e:1:length", 0, 48, true, layout);
+    assert.ok(Math.abs(next.edges[1]!.length.lineDy ?? 0) > 4);
+    assert.equal(next.edges[1]!.length.dx, 0);
+    assert.equal(next.edges[1]!.length.dy, 0);
+    const after = buildIsoscelesScene(next);
+    const arc1 = after.cmds.find((c) => c.t === "arc" && c.id === "e:1:length:line");
+    const text1 = after.texts.find((t) => t.id === "e:1:length");
+    assert.ok(arc1 && arc1.t === "arc");
+    assert.ok(text1);
+    almost(text1.x, text0.x, 0.8);
+    almost(text1.y, text0.y, 0.8);
+    assert.ok(Math.abs(arc1.r - arc0.r) > 4);
   });
 });
 

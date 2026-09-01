@@ -610,6 +610,7 @@ export function nudgeLabel(
   dx: number,
   dy: number,
   lineOnly: boolean,
+  layout?: { canvas: Vec[]; feet: { from: CevianFrom; canvas: Vec }[] },
 ): IsoscelesState {
   const nameMatch = /^d:(?:([ABC]):)?name$/.exec(id);
   if (nameMatch) {
@@ -636,14 +637,18 @@ export function nudgeLabel(
       },
     });
   }
+  const anchors = lengthAnchors(state, id, layout);
+  const axes = anchors ? dimAxes(anchors.a, anchors.b, layout?.canvas) : null;
   function nudgeMeas(label: MeasLabel): MeasLabel {
+    const alongAmt = axes ? dx * axes.along.x + dy * axes.along.y : dx;
+    const perpAmt = axes ? dx * axes.outward.x + dy * axes.outward.y : dy;
     if (lineOnly) {
-      return { ...label, lineDy: clamp((label.lineDy ?? 0) + dy, -160, 160) };
+      return { ...label, lineDy: clamp((label.lineDy ?? 0) + perpAmt, -220, 220) };
     }
     return {
       ...label,
-      dx: clamp(label.dx + dx, -80, 80),
-      dy: clamp(label.dy + dy, -160, 160),
+      dx: clamp(label.dx + alongAmt, -240, 240),
+      dy: clamp(label.dy + perpAmt, -240, 240),
     };
   }
   const cevLenMatch = /^c:(?:([ABC]):)?length$/.exec(id);
@@ -665,8 +670,83 @@ export function nudgeLabel(
       [field]: { ...c[field], label: nudgeMeas(c[field].label) },
     }));
   }
+  const edgeMatch = /^e:(\d+):length$/.exec(id);
+  if (edgeMatch) {
+    const i = Number(edgeMatch[1]);
+    return {
+      ...state,
+      edges: state.edges.map((e, idx) =>
+        idx === i ? { ...e, length: nudgeMeas(e.length) } : e,
+      ),
+    };
+  }
   const poly = nudgePolygonLabel(toPolygonState(state), id, dx, dy, lineOnly);
   return fromPolygonState(poly, state);
+}
+
+function lengthAnchors(
+  state: IsoscelesState,
+  id: string,
+  layout?: { canvas: Vec[]; feet: { from: CevianFrom; canvas: Vec }[] },
+): { a: Vec; b: Vec } | null {
+  if (!layout?.canvas.length) return null;
+  const pts = layout.canvas;
+  const edgeMatch = /^e:(\d+):length$/.exec(id);
+  if (edgeMatch) {
+    const i = Number(edgeMatch[1]);
+    const a = pts[i];
+    const b = pts[(i + 1) % 3];
+    if (!a || !b) return null;
+    return { a, b };
+  }
+  const cevMatch = /^c:(?:([ABC]):)?length$/.exec(id);
+  if (cevMatch) {
+    const from = resolveCevianFromId(state, cevMatch[1]);
+    if (!from) return null;
+    const foot = layout.feet.find((f) => f.from === from)?.canvas;
+    const apex = pts[CEVIAN_INDEX[from]];
+    if (!foot || !apex) return null;
+    return { a: apex, b: foot };
+  }
+  const partMatch = /^p:(?:([ABC]):)?(left|right):length$/.exec(id);
+  if (partMatch) {
+    const from = resolveCevianFromId(state, partMatch[1]);
+    if (!from) return null;
+    const foot = layout.feet.find((f) => f.from === from)?.canvas;
+    const fromIdx = CEVIAN_INDEX[from];
+    const [li, ri] = oppositeSide(fromIdx);
+    const end = partMatch[2] === "left" ? pts[li] : pts[ri];
+    if (!foot || !end) return null;
+    return { a: end, b: foot };
+  }
+  return null;
+}
+
+function dimAxes(
+  a: Vec,
+  b: Vec,
+  canvas?: Vec[],
+): { along: Vec; outward: Vec } | null {
+  const along = norm(sub(b, a));
+  if (len(along) < 0.5) return null;
+  const mid = mul(add(a, b), 0.5);
+  let cx = mid.x;
+  let cy = mid.y;
+  if (canvas && canvas.length > 0) {
+    cx = 0;
+    cy = 0;
+    for (const p of canvas) {
+      cx += p.x;
+      cy += p.y;
+    }
+    cx /= canvas.length;
+    cy /= canvas.length;
+  }
+  let outward: Vec = { x: -along.y, y: along.x };
+  if (outward.x * (mid.x - cx) + outward.y * (mid.y - cy) < 0) {
+    outward = { x: -outward.x, y: -outward.y };
+  }
+  return { along, outward };
 }
 
 export function clearSelectionMarks(
@@ -793,13 +873,58 @@ function distToSeg(
   return Math.hypot(x - (x1 + dx * t), y - (y1 + dy * t));
 }
 
+function distToArc(
+  x: number,
+  y: number,
+  cx: number,
+  cy: number,
+  r: number,
+  a0: number,
+  a1: number,
+  ccw: boolean,
+): number {
+  let sweep = a1 - a0;
+  if (ccw) {
+    while (sweep > 0) sweep -= Math.PI * 2;
+    while (sweep > -1e-9) sweep -= Math.PI * 2;
+    sweep = -sweep;
+    if (sweep < 1e-9) sweep += Math.PI * 2;
+  } else {
+    while (sweep < 0) sweep += Math.PI * 2;
+    if (sweep < 1e-9) sweep += Math.PI * 2;
+  }
+  const n = Math.max(12, Math.ceil(sweep / (Math.PI / 18)));
+  let best = Infinity;
+  for (let i = 0; i <= n; i += 1) {
+    const t = i / n;
+    const ang = a0 + (ccw ? -sweep : sweep) * t;
+    const px = cx + r * Math.cos(ang);
+    const py = cy + r * Math.sin(ang);
+    best = Math.min(best, Math.hypot(x - px, y - py));
+  }
+  return best;
+}
+
 export type CanvasFoot = { from: CevianFrom; index: 0 | 1 | 2; canvas: Vec };
 
 export function hitTestIso(
   canvasPts: Vec[],
   feet: CanvasFoot[],
   texts: { id: string; x: number; y: number }[],
-  cmds: { t: string; id?: string; x1?: number; y1?: number; x2?: number; y2?: number }[],
+  cmds: {
+    t: string;
+    id?: string;
+    x1?: number;
+    y1?: number;
+    x2?: number;
+    y2?: number;
+    cx?: number;
+    cy?: number;
+    r?: number;
+    a0?: number;
+    a1?: number;
+    ccw?: boolean;
+  }[],
   x: number,
   y: number,
   scale = 1,
@@ -807,14 +932,9 @@ export function hitTestIso(
   const labelR = 22 * Math.max(scale, 0.85);
   let bestText: { id: string; d: number } | null = null;
   for (const text of texts) {
+    if (text.id.endsWith(":line")) continue;
     const d = Math.hypot(text.x - x, text.y - y);
     if (d < labelR && (!bestText || d < bestText.d)) bestText = { id: text.id, d };
-  }
-  if (bestText) {
-    if (bestText.id.endsWith(":line")) {
-      return { kind: "dimLine", id: bestText.id.slice(0, -5) };
-    }
-    return { kind: "label", id: bestText.id };
   }
 
   const pointR = 14 * Math.max(scale, 0.85);
@@ -827,7 +947,6 @@ export function hitTestIso(
       bestFoot = f;
     }
   }
-  if (bestFoot) return { kind: "foot", from: bestFoot.from };
 
   let bestV = -1;
   let bestVd = pointR;
@@ -838,23 +957,48 @@ export function hitTestIso(
       bestV = i;
     }
   });
-  if (bestV >= 0) return { kind: "vertex", index: bestV };
 
-  const dimR = 10 * Math.max(scale, 0.85);
-  let bestDim: IsoHit | null = null;
-  let bestDimD = dimR;
+  const dimR = 12 * Math.max(scale, 0.85);
+  let bestDim: { id: string; d: number } | null = null;
   for (const cmd of cmds) {
     if (!cmd.id || !cmd.id.endsWith(":line")) continue;
     const id = cmd.id.slice(0, -5);
+    let d = Infinity;
     if (cmd.t === "line" && cmd.x1 != null && cmd.y1 != null && cmd.x2 != null && cmd.y2 != null) {
-      const d = distToSeg(x, y, cmd.x1, cmd.y1, cmd.x2, cmd.y2);
-      if (d < bestDimD) {
-        bestDimD = d;
-        bestDim = { kind: "dimLine", id };
-      }
+      d = distToSeg(x, y, cmd.x1, cmd.y1, cmd.x2, cmd.y2);
+    } else if (
+      cmd.t === "arc"
+      && cmd.cx != null
+      && cmd.cy != null
+      && cmd.r != null
+      && cmd.a0 != null
+      && cmd.a1 != null
+    ) {
+      d = distToArc(x, y, cmd.cx, cmd.cy, cmd.r, cmd.a0, cmd.a1, cmd.ccw === true);
     }
+    if (d < dimR && (!bestDim || d < bestDim.d)) bestDim = { id, d };
   }
-  if (bestDim) return bestDim;
+
+  const pointHit: IsoHit | null = bestFoot
+    ? { kind: "foot", from: bestFoot.from }
+    : bestV >= 0
+      ? { kind: "vertex", index: bestV }
+      : null;
+  const pointD = bestFoot ? bestFootD : bestV >= 0 ? bestVd : Infinity;
+  if (
+    pointHit
+    && (!bestText || pointD <= bestText.d)
+    && (!bestDim || pointD <= bestDim.d + 6)
+  ) {
+    return pointHit;
+  }
+  if (bestText && bestDim) {
+    if (bestDim.d <= bestText.d) return { kind: "dimLine", id: bestDim.id };
+    return { kind: "label", id: bestText.id };
+  }
+  if (bestDim) return { kind: "dimLine", id: bestDim.id };
+  if (bestText) return { kind: "label", id: bestText.id };
+  if (pointHit) return pointHit;
 
   const edgeR = 9 * Math.max(scale, 0.85);
   let bestCev: IsoHit | null = null;
