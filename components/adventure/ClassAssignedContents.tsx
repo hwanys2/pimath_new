@@ -1,4 +1,5 @@
 import BlockButton from "@/components/BlockButton";
+import GamePreviewRankingButton from "@/components/content/GamePreviewRankingButton";
 import type { AssignedContentView } from "@/lib/class-contents";
 import {
   contentTypeBadgeClass,
@@ -66,14 +67,23 @@ function ContentCard({
       </div>
 
       {content && !locked ? (
-        <BlockButton
-          href={content.href}
-          variant={contentTypeButtonVariant(content.type)}
-          size="sm"
-          className="w-full"
-        >
-          {contentTypeStartLabel(content.type)}
-        </BlockButton>
+        <div className="flex flex-wrap gap-2">
+          <BlockButton
+            href={content.href}
+            variant={contentTypeButtonVariant(content.type)}
+            size="sm"
+            className="min-w-0 flex-1"
+          >
+            {contentTypeStartLabel(content.type)}
+          </BlockButton>
+          {content.type === "game" ? (
+            <GamePreviewRankingButton
+              contentKey={content.key}
+              title={title}
+              playHref={content.href}
+            />
+          ) : null}
+        </div>
       ) : (
         <span className="inline-flex w-full shrink-0 items-center justify-center rounded-xl bg-wood/10 px-4 py-2 text-sm font-bold text-foreground/40">
           잠김

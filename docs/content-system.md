@@ -179,6 +179,7 @@ type ContentMeta = {
 | `pm_submit_game_run` | 배정·활성일 때만 기록 + XP |
 | `pm_list_game_ranking` | 월드·학교·학급 랭킹 (`world`/`school`/`class` × `all`/`best`). 타학교 이름 마스킹 |
 | `pm_teacher_list_game_ranking` | 교사 대시보드 학급·학교·전체 랭킹 |
+| `pm_list_public_game_ranking` | 단원 카드 랭킹보기 — 전체 개인 최고 5위 (anon 가능, 타학교 이름 마스킹) |
 | `pm_game_presence` | 교사 게임 대시보드 실시간 현황 ([`game-dashboard.md`](game-dashboard.md)) |
 
 학생은 `auth.users`가 아니므로 테이블 직접 SELECT 대신 **세션 토큰 RPC**를 쓴다.
@@ -212,6 +213,7 @@ type ContentMeta = {
 - 활성 → 플레이, 비활성 → 잠금 표시
 - 시뮬레이션: “연습 · 점수 없음”
 - 게임: 배정·활성 시 XP·월드/학교/학급 랭킹, 아니면 “연습 모드” 안내
+- 단원 콘텐츠 카드(`type: game`)에 **랭킹보기** — 전체 개인 최고 5위 모달. 플레이 전 커트라인 확인용. RPC `pm_list_public_game_ranking`
 
 ### 학년 탐험 (공개)
 
@@ -252,3 +254,4 @@ type ContentMeta = {
 | 2026-08-31 | 교사 게임 대시보드 — [`game-dashboard.md`](game-dashboard.md) · presence · 학급 현황/랭킹 |
 | 2026-08-26 | `g3-u3-1-shadow-temple` 삼각비 방탈출 솔로 게임 추가 |
 | 2026-09-02 | 게임 랭킹 타학교 이름 마스킹 · 교사 대시보드 학급/학교/전체 동시 표시 |
+| 2026-09-02 | 단원 게임 카드 **랭킹보기** — 전체 5위 모달 (`pm_list_public_game_ranking`) |

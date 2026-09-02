@@ -17,6 +17,7 @@ import {
 import TeacherAssignSlot, {
   TeacherAssignScope,
 } from "@/components/content/TeacherAssignSlot";
+import GamePreviewRankingButton from "@/components/content/GamePreviewRankingButton";
 
 
 type Props = {
@@ -122,6 +123,13 @@ export default async function UnitPage({ params }: Props) {
                   >
                     {contentTypeStartLabel(content.type)}
                   </BlockButton>
+                  {content.type === "game" ? (
+                    <GamePreviewRankingButton
+                      contentKey={content.key}
+                      title={content.title}
+                      playHref={content.href}
+                    />
+                  ) : null}
                   <TeacherAssignSlot contentKey={content.key} />
                 </div>
               </div>

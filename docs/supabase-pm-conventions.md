@@ -153,6 +153,7 @@ PM_STUDENT_SESSION_SECRET=...  # 서버 전용, 긴 랜덤 문자열
 | `pm_list_game_ranking` | 랭킹 — `world`(전체) / `school`(같은 teacher_id) / `class` × `all`/`best`. 타학교 이름 마스킹 |
 | `pm_list_class_game_ranking` | (레거시) class 스코프 위임 |
 | `pm_teacher_list_game_ranking` | 교사 대시보드 학급·학교·전체 랭킹 (소유 학급 검증, 타학교 이름 마스킹) |
+| `pm_list_public_game_ranking` | 단원 카드 랭킹보기 — 전체 개인 최고 5위 (anon, 타학교 이름 마스킹) |
 | `pm_list_xp_ranking` | 어드벤처 누적 XP 랭킹 (`world`/`school`/`class`) — 상위 3 + 내 등수 ±1 |
 | `pm_teacher_schools` | 교사 학교 스냅샷 (`school_info_id` + 이름). 포에듀 `school_schoolinfo`는 읽기만 |
 | `pm_sync_teacher_school_from_foreducator` / `pm_search_schools` / `pm_set_teacher_school` / `pm_get_my_teacher_school` | 학교 연동·검색·선택 |
