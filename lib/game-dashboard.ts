@@ -20,6 +20,7 @@ import type {
   GameDashboardLiveMatch,
   GameDashboardLiveSession,
   GameDashboardRun,
+  GameDashboardRankRow,
   GameDashboardSnapshot,
   GamePresencePhase,
 } from "@/lib/game-dashboard-types";
@@ -208,6 +209,50 @@ function matchSeats(
   return map;
 }
 
+async function fetchTeacherScopedRanking(
+  classId: string,
+  contentKey: string,
+  scope: "school" | "world",
+): Promise<GameDashboardRankRow[]> {
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("pm_teacher_list_game_ranking", {
+    p_class_id: classId,
+    p_content_key: contentKey,
+    p_scope: scope,
+    p_mode: "best",
+  });
+  if (error) {
+    console.error("[pm] pm_teacher_list_game_ranking failed:", error.message);
+    return [];
+  }
+  return firstRows(data).map((row) => {
+    const r = row as {
+      rank: number;
+      student_id: string;
+      display_name: string;
+      class_name: string | null;
+      school_name: string | null;
+      student_number: number | null;
+      score: number;
+      created_at: string;
+      run_count: number | null;
+      is_masked: boolean;
+    };
+    return {
+      rank: r.rank,
+      studentId: r.student_id,
+      displayName: r.display_name,
+      studentNumber:
+        typeof r.student_number === "number" ? r.student_number : null,
+      className: r.class_name,
+      schoolName: r.school_name,
+      score: r.score,
+      runCount: typeof r.run_count === "number" ? r.run_count : 0,
+      isMasked: Boolean(r.is_masked),
+    };
+  });
+}
+
 function buildRecentRuns(input: {
   kind: GameDashboardKind;
   students: { studentId: string; displayName: string; studentNumber: number | null }[];
@@ -301,6 +346,8 @@ export async function fetchGameDashboardSnapshot(
     resultView,
     soloRuns,
     assignment,
+    schoolRanking,
+    worldRanking,
   ] = await Promise.all([
     fetchClassStudents(classId),
     fetchPresence(classId, contentKey),
@@ -319,6 +366,8 @@ export async function fetchGameDashboardSnapshot(
       .eq("class_id", classId)
       .eq("content_key", contentKey)
       .maybeSingle(),
+    fetchTeacherScopedRanking(classId, contentKey, "school"),
+    fetchTeacherScopedRanking(classId, contentKey, "world"),
   ]);
 
   const dashboardStudents = buildDashboardStudents({
@@ -365,6 +414,8 @@ export async function fetchGameDashboardSnapshot(
     unitLabel: unit ? getUnitLabel(unit) : null,
     students: dashboardStudents,
     ranking,
+    schoolRanking,
+    worldRanking,
     recentRuns: buildRecentRuns({
       kind,
       students: students.map((s) => ({

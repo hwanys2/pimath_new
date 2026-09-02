@@ -32,8 +32,11 @@ export type GameDashboardRankRow = {
   studentId: string;
   displayName: string;
   studentNumber: number | null;
+  className: string | null;
+  schoolName: string | null;
   score: number;
   runCount: number;
+  isMasked: boolean;
 };
 
 export type GameDashboardRun = {
@@ -98,6 +101,8 @@ export type GameDashboardSnapshot = {
   unitLabel: string | null;
   students: GameDashboardStudent[];
   ranking: GameDashboardRankRow[];
+  schoolRanking: GameDashboardRankRow[];
+  worldRanking: GameDashboardRankRow[];
   recentRuns: GameDashboardRun[];
   liveMatches: GameDashboardLiveMatch[];
   liveSession: GameDashboardLiveSession | null;

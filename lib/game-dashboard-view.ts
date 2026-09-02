@@ -108,8 +108,11 @@ export function rankDashboardStudents(
       studentId: student.studentId,
       displayName: student.displayName,
       studentNumber: student.studentNumber,
+      className: null,
+      schoolName: null,
       score: student.bestScore ?? 0,
       runCount: student.runCount,
+      isMasked: false,
     }));
 }
 

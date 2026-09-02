@@ -187,6 +187,12 @@ export default function GameRankingBoard({
         })}
       </div>
 
+      {scope === "world" ? (
+        <p className="mt-3 text-center text-[11px] font-semibold text-foreground/45">
+          다른 학교 학생은 이름 일부를 *로 가려요
+        </p>
+      ) : null}
+
       {loading && rows.length === 0 ? (
         <p className="mt-8 text-center text-sm text-foreground/45">불러오는 중…</p>
       ) : rows.length === 0 ? (

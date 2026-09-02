@@ -132,6 +132,8 @@ describe("buildDashboardStudents + ranking", () => {
         [2, "민수", 800],
       ],
     );
+    assert.equal(ranked[0]?.isMasked, false);
+    assert.equal(ranked[0]?.className, null);
   });
 });
 

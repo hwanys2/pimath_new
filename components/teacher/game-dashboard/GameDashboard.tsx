@@ -237,11 +237,36 @@ export default function GameDashboard({
         session={snapshot.liveSession}
       />
 
-      <div className="grid gap-4 lg:grid-cols-[minmax(0,1.4fr)_minmax(16rem,22rem)]">
-        <div className="rounded-3xl bg-cream/80 p-4 ring-1 ring-wood/10 sm:p-5">
-          <DashboardRoster students={snapshot.students} kind={kind} />
-        </div>
-        <DashboardRanking rows={snapshot.ranking} kind={kind} />
+      <div className="rounded-3xl bg-cream/80 p-4 ring-1 ring-wood/10 sm:p-5">
+        <DashboardRoster students={snapshot.students} kind={kind} />
+      </div>
+
+      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+        <DashboardRanking
+          rows={snapshot.ranking}
+          kind={kind}
+          title="학급 랭킹"
+          hint={kind === "pvp" ? "이 반 · 개인 승수" : "이 반 · 개인 최고 점수"}
+          tone="class"
+        />
+        <DashboardRanking
+          rows={snapshot.schoolRanking}
+          kind={kind}
+          title="학교 랭킹"
+          hint="같은 선생님 학급 · 개인 최고"
+          tone="school"
+          showMeta
+          scoreAsPoints
+        />
+        <DashboardRanking
+          rows={snapshot.worldRanking}
+          kind={kind}
+          title="전체 랭킹"
+          hint="모든 학생 · 다른 학교 이름은 *로 가려요"
+          tone="world"
+          showMeta
+          scoreAsPoints
+        />
       </div>
 
       <DashboardResults

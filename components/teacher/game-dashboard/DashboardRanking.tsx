@@ -4,19 +4,33 @@ import type {
 } from "@/lib/game-dashboard-types";
 import { formatStudentLabel } from "@/lib/students";
 
+export type DashboardRankingTone = "class" | "school" | "world";
+
 function formatScore(kind: GameDashboardKind, score: number): string {
   if (kind === "pvp") return `${Math.round(score / 100)}승`;
   return `${score.toLocaleString()}점`;
+}
+
+function metaLine(row: GameDashboardRankRow): string | null {
+  const parts = [row.className, row.schoolName].filter(
+    (value): value is string => Boolean(value && value.trim()),
+  );
+  if (parts.length === 0) return null;
+  return parts.join(" · ");
 }
 
 function PodiumSlot({
   row,
   place,
   kind,
+  showMeta,
+  scoreAsPoints,
 }: {
   row: GameDashboardRankRow | undefined;
   place: 1 | 2 | 3;
   kind: GameDashboardKind;
+  showMeta: boolean;
+  scoreAsPoints: boolean;
 }) {
   const pedestal =
     place === 1
@@ -39,10 +53,12 @@ function PodiumSlot({
     return <li className="min-w-0 flex-1" aria-hidden />;
   }
 
+  const meta = showMeta ? metaLine(row) : null;
+
   return (
     <li className="flex min-w-0 flex-1 flex-col items-center justify-end">
       <article
-        className={`mb-3 w-full max-w-[10.5rem] rounded-2xl px-2.5 py-2.5 text-center ${card}`}
+        className={`mb-3 w-full max-w-[14rem] rounded-2xl px-3 py-2.5 text-center ${card}`}
       >
         <span
           className={`mx-auto flex items-center justify-center rounded-full font-black ${medal}`}
@@ -55,10 +71,19 @@ function PodiumSlot({
         <h3 className="font-display mt-0.5 truncate text-base text-foreground sm:text-lg">
           {formatStudentLabel(row.displayName, row.studentNumber)}
         </h3>
+        {meta ? (
+          <p className="truncate text-[10px] font-semibold text-foreground/45">
+            {meta}
+          </p>
+        ) : null}
         <p className="font-display mt-0.5 text-lg tabular-nums text-wood">
-          {formatScore(kind, row.score)}
+          {scoreAsPoints
+            ? `${row.score.toLocaleString()}점`
+            : formatScore(kind, row.score)}
         </p>
-        <p className="text-[10px] font-bold text-wood/45">{row.runCount}회</p>
+        {row.runCount > 0 ? (
+          <p className="text-[10px] font-bold text-wood/45">{row.runCount}회</p>
+        ) : null}
       </article>
       <div
         className={`w-full rounded-t-2xl bg-gradient-to-b ${pedestal}`}
@@ -68,12 +93,28 @@ function PodiumSlot({
   );
 }
 
+const TONE_CLASS: Record<DashboardRankingTone, string> = {
+  class: "from-gold/20 via-white/80 to-peach/20 ring-gold/30",
+  school: "from-mint/25 via-white/80 to-sky/15 ring-mint/35",
+  world: "from-lavender/25 via-white/80 to-sky/20 ring-lavender/35",
+};
+
 export default function DashboardRanking({
   rows,
   kind,
+  title,
+  hint,
+  tone = "class",
+  showMeta = false,
+  scoreAsPoints = false,
 }: {
   rows: GameDashboardRankRow[];
   kind: GameDashboardKind;
+  title: string;
+  hint: string;
+  tone?: DashboardRankingTone;
+  showMeta?: boolean;
+  scoreAsPoints?: boolean;
 }) {
   const first = rows.find((r) => r.rank === 1);
   const second = rows.find((r) => r.rank === 2);
@@ -81,12 +122,12 @@ export default function DashboardRanking({
   const rest = rows.filter((r) => r.rank > 3);
 
   return (
-    <section className="flex h-full flex-col rounded-3xl bg-gradient-to-br from-gold/20 via-white/80 to-peach/20 p-4 ring-1 ring-gold/30 sm:p-5">
+    <section
+      className={`flex h-full min-w-0 flex-col rounded-3xl bg-gradient-to-br p-4 ring-1 sm:p-5 ${TONE_CLASS[tone]}`}
+    >
       <div>
-        <h2 className="font-display text-lg text-wood sm:text-xl">학급 랭킹</h2>
-        <p className="text-xs text-foreground/50">
-          {kind === "pvp" ? "개인 승수" : "개인 최고 점수"}
-        </p>
+        <h2 className="font-display text-lg text-wood sm:text-xl">{title}</h2>
+        <p className="text-xs text-foreground/50">{hint}</p>
       </div>
 
       {rows.length === 0 ? (
@@ -96,30 +137,60 @@ export default function DashboardRanking({
       ) : (
         <>
           <ol className="mt-4 flex items-end gap-2">
-            <PodiumSlot row={second} place={2} kind={kind} />
-            <PodiumSlot row={first} place={1} kind={kind} />
-            <PodiumSlot row={third} place={3} kind={kind} />
+            <PodiumSlot
+              row={second}
+              place={2}
+              kind={kind}
+              showMeta={showMeta}
+              scoreAsPoints={scoreAsPoints}
+            />
+            <PodiumSlot
+              row={first}
+              place={1}
+              kind={kind}
+              showMeta={showMeta}
+              scoreAsPoints={scoreAsPoints}
+            />
+            <PodiumSlot
+              row={third}
+              place={3}
+              kind={kind}
+              showMeta={showMeta}
+              scoreAsPoints={scoreAsPoints}
+            />
           </ol>
           {rest.length > 0 ? (
             <ol className="mt-4 space-y-1.5">
-              {rest.slice(0, 12).map((row) => (
-                <li
-                  key={row.studentId}
-                  className="flex items-center justify-between rounded-xl bg-white/70 px-3 py-1.5"
-                >
-                  <span className="flex min-w-0 items-center gap-2">
-                    <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-wood/10 font-display text-xs text-wood">
-                      {row.rank}
+              {rest.slice(0, 15).map((row) => {
+                const meta = showMeta ? metaLine(row) : null;
+                return (
+                  <li
+                    key={row.studentId}
+                    className="flex items-center justify-between gap-2 rounded-xl bg-white/70 px-3 py-1.5"
+                  >
+                    <span className="flex min-w-0 items-center gap-2">
+                      <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-wood/10 font-display text-xs text-wood">
+                        {row.rank}
+                      </span>
+                      <span className="min-w-0">
+                        <span className="block truncate text-sm font-semibold">
+                          {formatStudentLabel(row.displayName, row.studentNumber)}
+                        </span>
+                        {meta ? (
+                          <span className="block truncate text-[10px] text-foreground/45">
+                            {meta}
+                          </span>
+                        ) : null}
+                      </span>
                     </span>
-                    <span className="truncate text-sm font-semibold">
-                      {formatStudentLabel(row.displayName, row.studentNumber)}
+                    <span className="shrink-0 text-sm font-black tabular-nums text-wood">
+                      {scoreAsPoints
+                        ? `${row.score.toLocaleString()}점`
+                        : formatScore(kind, row.score)}
                     </span>
-                  </span>
-                  <span className="shrink-0 text-sm font-black tabular-nums text-wood">
-                    {formatScore(kind, row.score)}
-                  </span>
-                </li>
-              ))}
+                  </li>
+                );
+              })}
             </ol>
           ) : null}
         </>

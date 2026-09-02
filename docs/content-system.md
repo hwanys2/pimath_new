@@ -177,7 +177,8 @@ type ContentMeta = {
 | `pm_list_my_class_contents(session)` | 학생 세션으로 자기 반 배정 목록 조회 |
 | `pm_game_runs` | 학급·활성 배정 게임의 한 판 점수 기록 |
 | `pm_submit_game_run` | 배정·활성일 때만 기록 + XP |
-| `pm_list_game_ranking` | 월드·학교·학급 랭킹 (`world`/`school`/`class` × `all`/`best`) |
+| `pm_list_game_ranking` | 월드·학교·학급 랭킹 (`world`/`school`/`class` × `all`/`best`). 타학교 이름 마스킹 |
+| `pm_teacher_list_game_ranking` | 교사 대시보드 학급·학교·전체 랭킹 |
 | `pm_game_presence` | 교사 게임 대시보드 실시간 현황 ([`game-dashboard.md`](game-dashboard.md)) |
 
 학생은 `auth.users`가 아니므로 테이블 직접 SELECT 대신 **세션 토큰 RPC**를 쓴다.
@@ -250,3 +251,4 @@ type ContentMeta = {
 | 2026-07-30 | 탐구: 학생 솔로 연습 제거, 세션 전용 + 미리보기 |
 | 2026-08-31 | 교사 게임 대시보드 — [`game-dashboard.md`](game-dashboard.md) · presence · 학급 현황/랭킹 |
 | 2026-08-26 | `g3-u3-1-shadow-temple` 삼각비 방탈출 솔로 게임 추가 |
+| 2026-09-02 | 게임 랭킹 타학교 이름 마스킹 · 교사 대시보드 학급/학교/전체 동시 표시 |
