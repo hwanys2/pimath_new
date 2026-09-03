@@ -327,12 +327,20 @@ export default function PolygonStudio() {
                 모든 변 길이
               </ChipToggle>
               {n >= 4 ? (
-                <ChipToggle
-                  on={allDiagonalsOn(state)}
-                  onClick={() => setState((prev) => toggleAllDiagonals(prev))}
-                >
-                  모든 대각선
-                </ChipToggle>
+                <>
+                  <ChipToggle
+                    on={allDiagonalsOn(state)}
+                    onClick={() => setState((prev) => toggleAllDiagonals(prev))}
+                  >
+                    모든 대각선
+                  </ChipToggle>
+                  <ChipToggle
+                    on={state.dashedDiagonals}
+                    onClick={() => set({ dashedDiagonals: !state.dashedDiagonals })}
+                  >
+                    대각선 점선
+                  </ChipToggle>
+                </>
               ) : null}
             </div>
 

@@ -1237,6 +1237,7 @@ function polygonFromTri(state: TrigRatiosState) {
       };
     }),
     diagonals: [] as [number, number][],
+    dashedDiagonals: false,
     interiorAnglesDeg: [0, 0, 0],
     referenceEdgeLength: edgeLength([state.triA, state.triB, state.triC], 0),
     showVertexNames: state.showVertexNames,
@@ -1304,6 +1305,7 @@ function quadPolygonState(state: TrigRatiosState) {
       length: e.length,
     })),
     diagonals: [] as [number, number][],
+    dashedDiagonals: false,
     interiorAnglesDeg: [0, 0, 0, 0],
     referenceEdgeLength: edgeLength(state.quadPoints, 0),
     showVertexNames: state.showVertexNames,

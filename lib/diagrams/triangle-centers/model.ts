@@ -241,6 +241,7 @@ export function toPolygonState(state: TriangleCentersState): PolygonState {
       { showLength: false, length: emptyLabel("auto") },
     ],
     diagonals: [],
+    dashedDiagonals: false,
     interiorAnglesDeg: state.interiorAnglesDeg,
     referenceEdgeLength: state.referenceEdgeLength,
     showVertexNames: state.showVertexNames,

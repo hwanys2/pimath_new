@@ -259,6 +259,7 @@ function abcPolygon(state: SimilarTrianglesState): PolygonState {
       { showLength: false, length: emptyLabel() },
     ],
     diagonals: [],
+    dashedDiagonals: false,
     interiorAnglesDeg: [0, 0, 0],
     referenceEdgeLength: len(sub(state.B, state.C)) || 5,
     showVertexNames: true,

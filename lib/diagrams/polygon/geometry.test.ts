@@ -81,6 +81,25 @@ describe("diagonals", () => {
     assert.equal(isDiagonalPair(5, 0, 4), false);
     assert.equal(isDiagonalPair(5, 0, 2), true);
   });
+
+  it("draws diagonals solid by default and dashed when toggled", () => {
+    const pent = POLYGON_PRESETS.find((p) => p.id === "pent-diag")!;
+    const solid = buildPolygonScene(normalizeState(pent.state));
+    const solidDiags = solid.cmds.filter(
+      (c) => c.t === "line" && typeof c.id === "string" && c.id.startsWith("d:"),
+    );
+    assert.equal(solidDiags.length, 2);
+    assert.ok(solidDiags.every((c) => c.t === "line" && !c.dashed));
+
+    const dashed = buildPolygonScene(
+      normalizeState({ ...pent.state, dashedDiagonals: true }),
+    );
+    const dashedDiags = dashed.cmds.filter(
+      (c) => c.t === "line" && typeof c.id === "string" && c.id.startsWith("d:"),
+    );
+    assert.equal(dashedDiags.length, 2);
+    assert.ok(dashedDiags.every((c) => c.t === "line" && c.dashed));
+  });
 });
 
 describe("convex drag", () => {

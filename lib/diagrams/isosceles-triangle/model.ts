@@ -346,6 +346,7 @@ export function toPolygonState(state: IsoscelesState): PolygonState {
       length: e.length,
     })),
     diagonals: [],
+    dashedDiagonals: false,
     interiorAnglesDeg: state.interiorAnglesDeg,
     referenceEdgeLength: state.referenceEdgeLength,
     showVertexNames: state.showVertexNames,

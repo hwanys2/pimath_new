@@ -44,6 +44,8 @@ export type PolygonState = {
   vertices: VertexMark[];
   edges: EdgeMark[];
   diagonals: [number, number][];
+  /** 대각선을 점선으로 그림. 끈 때는 변과 같은 실선 */
+  dashedDiagonals: boolean;
   /** 꼭짓점별 내각(°). 점 배열에서 파생 — 모양의 진실 원천은 points */
   interiorAnglesDeg: number[];
   /** 변 0 길이(cm). 점 배열에서 파생 */
@@ -173,6 +175,7 @@ export function normalizeState(state: Partial<PolygonState> & Pick<PolygonState,
     vertices,
     edges,
     diagonals,
+    dashedDiagonals: state.dashedDiagonals === true,
     interiorAnglesDeg,
     referenceEdgeLength,
     showVertexNames: state.showVertexNames !== false,
@@ -199,6 +202,7 @@ function baseState(points: Vec[], patch: Partial<PolygonState> = {}): PolygonSta
     vertices: Array.from({ length: n }, (_, i) => makeVertex(i)),
     edges: Array.from({ length: n }, () => makeEdge()),
     diagonals: [],
+    dashedDiagonals: false,
     showVertexNames: true,
     showDots: true,
     unit: "cm",

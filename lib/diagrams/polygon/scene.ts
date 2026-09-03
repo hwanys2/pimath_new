@@ -436,6 +436,8 @@ export function appendPolygonFigure(
       x2: pb.x,
       y2: pb.y,
       stroke: INK,
+      dashed: state.dashedDiagonals || undefined,
+      id: `${prefix}d:${a}-${b}`,
     });
   }
 
