@@ -22,8 +22,10 @@ import {
   altitudeBaseIds,
   altitudeFootId,
   altitudeTriangleFromLegs,
+  altitudeVerticesFor,
   findSeg,
   isLockedRight,
+  kindSupportsAltitude,
   normalizeState,
   patchSegState,
   triangleForRightVertex,
@@ -100,49 +102,74 @@ export function isNearRightAngle(deg: number): boolean {
   return Number.isFinite(deg) && Math.abs(deg - 90) < RIGHT_ANGLE_EPS;
 }
 
+function addAltitudeFeet(
+  out: Record<string, Vec>,
+  A: Vec,
+  B: Vec,
+  C: Vec,
+  state: PythagoreanState,
+): void {
+  const allowed = new Set(altitudeVerticesFor(state.kind));
+  for (const from of state.altitudes ?? []) {
+    if (!allowed.has(from)) continue;
+    const base = altitudeBase(from, A, B, C);
+    out[altitudeFootId(from)] = footToLine(base.apex, base.a, base.b, false);
+  }
+}
+
 export function derivedPoints(state: PythagoreanState): Record<string, Vec> {
   if (state.kind === "rectangle") {
     const w = state.rectWidth;
     const h = state.rectSquare ? w : state.rectHeight;
-    return {
-      A: { x: 0, y: 0 },
-      B: { x: w, y: 0 },
-      C: { x: w, y: h },
+    const A = { x: 0, y: 0 };
+    const B = { x: w, y: 0 };
+    const C = { x: w, y: h };
+    const out: Record<string, Vec> = {
+      A,
+      B,
+      C,
       D: { x: 0, y: h },
     };
+    addAltitudeFeet(out, A, B, C, state);
+    return out;
   }
   const { A, B, C } = state;
   const out: Record<string, Vec> = { A, B, C };
   if (state.kind === "altitude" && state.rightVertex === "A") {
     out.D = footToLine(A, B, C, false);
   }
-  if (state.kind === "triangle") {
-    for (const from of state.altitudes ?? []) {
-      const base = altitudeBase(from, A, B, C);
-      out[altitudeFootId(from)] = footToLine(base.apex, base.a, base.b, false);
-    }
+  if (kindSupportsAltitude(state.kind)) {
+    addAltitudeFeet(out, A, B, C, state);
   }
   return out;
+}
+
+function altitudeStrokePairs(state: PythagoreanState): [string, string][] {
+  const allowed = new Set(altitudeVerticesFor(state.kind));
+  const segs: [string, string][] = [];
+  for (const from of state.altitudes ?? []) {
+    if (!allowed.has(from)) continue;
+    segs.push([from, altitudeFootId(from)]);
+  }
+  return segs;
 }
 
 export function figureStrokes(state: PythagoreanState): [string, string][] {
   switch (state.kind) {
     case "triangle": {
-      const segs: [string, string][] = [
+      return [
         ["A", "B"],
         ["B", "C"],
         ["A", "C"],
+        ...altitudeStrokePairs(state),
       ];
-      for (const from of state.altitudes ?? []) {
-        segs.push([from, altitudeFootId(from)]);
-      }
-      return segs;
     }
     case "squares":
       return [
         ["A", "B"],
         ["B", "C"],
         ["A", "C"],
+        ...altitudeStrokePairs(state),
       ];
     case "altitude":
       return [
@@ -150,6 +177,7 @@ export function figureStrokes(state: PythagoreanState): [string, string][] {
         ["B", "C"],
         ["A", "C"],
         ["A", "D"],
+        ...altitudeStrokePairs(state),
       ];
     case "rectangle":
       return state.showDiagonal
@@ -159,12 +187,14 @@ export function figureStrokes(state: PythagoreanState): [string, string][] {
             ["C", "D"],
             ["D", "A"],
             ["A", "C"],
+            ...altitudeStrokePairs(state),
           ]
         : [
             ["A", "B"],
             ["B", "C"],
             ["C", "D"],
             ["D", "A"],
+            ...altitudeStrokePairs(state),
           ];
     default:
       return [];
@@ -391,9 +421,7 @@ const MIN_LEG = 0.35;
 
 /** Grid cell size in math units when 모눈 is on (matches scene grid pitch for typical figures). */
 export function gridStep(state: PythagoreanState): number {
-  if (!state.showGrid) return 0;
-  if (state.kind === "triangle" || state.kind === "squares") return 1;
-  return 0;
+  return state.showGrid ? 1 : 0;
 }
 
 export function snapMathPoint(state: PythagoreanState, p: Vec): Vec {
@@ -895,12 +923,12 @@ export function resolveSegText(state: PythagoreanState, seg: SegMark): string | 
 
 export function pointIdsFor(state: PythagoreanState | PythagoreanKind): string[] {
   const kind = typeof state === "string" ? state : state.kind;
-  if (kind === "altitude") return ["A", "B", "C", "D"];
-  if (kind === "rectangle") return ["A", "B", "C", "D"];
-  const ids = ["A", "B", "C"];
+  const ids =
+    kind === "altitude" || kind === "rectangle" ? ["A", "B", "C", "D"] : ["A", "B", "C"];
   if (typeof state !== "string") {
-    for (const from of state.altitudes) {
-      ids.push(altitudeFootId(from));
+    for (const from of state.altitudes ?? []) {
+      const foot = altitudeFootId(from);
+      if (!ids.includes(foot)) ids.push(foot);
     }
   }
   return ids;

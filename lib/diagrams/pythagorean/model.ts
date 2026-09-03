@@ -26,6 +26,17 @@ export function isLockedRight(rv: RightVertex): rv is LockedRightVertex {
   return rv === "A" || rv === "B" || rv === "C";
 }
 
+/** Kinds that have triangle ABC, so a vertex can drop an altitude to the opposite side. */
+export function kindSupportsAltitude(kind: PythagoreanKind): boolean {
+  return kind !== "proof";
+}
+
+export function altitudeVerticesFor(kind: PythagoreanKind): AltitudeVertex[] {
+  if (!kindSupportsAltitude(kind)) return [];
+  if (kind === "altitude") return ["B", "C"];
+  return ["A", "B", "C"];
+}
+
 export function altitudeFootId(from: AltitudeVertex): string {
   if (from === "A") return "Ha";
   if (from === "B") return "Hb";
@@ -130,12 +141,34 @@ export function cloneState(state: PythagoreanState): PythagoreanState {
   return structuredClone(state);
 }
 
-/** Leg-aligned grid cell count that fits the current figure (triangle / squares). */
+/** Leg-aligned grid cell count that fits the current figure. */
 export function figureGridExtent(
-  state: Pick<PythagoreanState, "kind" | "rightVertex" | "legLeft" | "legRight" | "A" | "B" | "C">,
+  state: Pick<
+    PythagoreanState,
+    | "kind"
+    | "rightVertex"
+    | "legLeft"
+    | "legRight"
+    | "A"
+    | "B"
+    | "C"
+    | "proofLegA"
+    | "proofLegB"
+    | "proofView"
+    | "rectWidth"
+    | "rectHeight"
+    | "rectSquare"
+  >,
 ): { cols: number; rows: number } {
-  if (state.kind !== "triangle" && state.kind !== "squares") {
-    return { cols: 8, rows: 8 };
+  if (state.kind === "proof") {
+    const span = (state.proofLegA ?? 3) + (state.proofLegB ?? 4);
+    const cols = state.proofView === "both" ? span * 2 + 1.2 : span;
+    return { cols: Math.max(1, Math.ceil(cols)), rows: Math.max(1, Math.ceil(span)) };
+  }
+  if (state.kind === "rectangle") {
+    const w = state.rectWidth ?? 6;
+    const h = state.rectSquare ? w : (state.rectHeight ?? 8);
+    return { cols: Math.max(1, Math.ceil(w)), rows: Math.max(1, Math.ceil(h)) };
   }
   const ll = state.legLeft;
   const lr = state.legRight;
@@ -260,7 +293,7 @@ function mergeSegs(
 ): SegMark[] {
   const base = [
     ...defaultSegsFor(kind),
-    ...(kind === "triangle" ? altitudeSegsFor(altitudes) : []),
+    ...(kindSupportsAltitude(kind) ? altitudeSegsFor(altitudes) : []),
   ];
   const seen = new Set<string>();
   const unique = base.filter((b) => {
@@ -293,6 +326,7 @@ export function toggleAltitude(
   state: PythagoreanState,
   from: AltitudeVertex,
 ): PythagoreanState {
+  if (!altitudeVerticesFor(state.kind).includes(from)) return state;
   const current = parseAltitudes(state.altitudes);
   const has = current.includes(from);
   const altitudes = has ? current.filter((v) => v !== from) : [...current, from];
@@ -403,7 +437,9 @@ export function normalizeState(
         : state.rightVertex === "A" || state.rightVertex === "B"
           ? state.rightVertex
           : "C";
-  const altitudes = kind === "triangle" ? parseAltitudes(state.altitudes) : [];
+  const altitudes = kindSupportsAltitude(kind)
+    ? parseAltitudes(state.altitudes).filter((v) => altitudeVerticesFor(kind).includes(v))
+    : [];
   const ll0 = clamp(state.legLeft ?? 3, 0.5, 40);
   const lr0 = clamp(state.legRight ?? 4, 0.5, 40);
   const lockIso = state.isoscelesRight === true && isLockedRight(rv);
@@ -498,25 +534,15 @@ export function normalizeState(
       legRight: h,
     };
   }
-  if (result.kind === "triangle" || result.kind === "squares") {
-    const extent = figureGridExtent(result);
-    const gridCols = clamp(Math.round(state.gridCols ?? extent.cols), 1, 50);
-    const gridRows = clamp(Math.round(state.gridRows ?? extent.rows), 1, 50);
-    result = {
-      ...result,
-      gridCols: Math.max(gridCols, extent.cols),
-      gridRows: Math.max(gridRows, extent.rows),
-      gridMargin: clamp(state.gridMargin ?? 1, 0, 5),
-    };
-  } else {
-    result = {
-      ...result,
-      gridCols: clamp(Math.round(state.gridCols ?? 8), 1, 50),
-      gridRows: clamp(Math.round(state.gridRows ?? 8), 1, 50),
-      gridMargin: clamp(state.gridMargin ?? 1, 0, 5),
-    };
-  }
-  return result;
+  const extent = figureGridExtent(result);
+  const gridCols = clamp(Math.round(state.gridCols ?? extent.cols), 1, 50);
+  const gridRows = clamp(Math.round(state.gridRows ?? extent.rows), 1, 50);
+  return {
+    ...result,
+    gridCols: Math.max(gridCols, extent.cols),
+    gridRows: Math.max(gridRows, extent.rows),
+    gridMargin: clamp(state.gridMargin ?? 1, 0, 5),
+  };
 }
 
 function build(kind: PythagoreanKind, patch: Partial<PythagoreanState> = {}): PythagoreanState {
@@ -679,16 +705,44 @@ export const PYTHAGOREAN_PRESETS: PythagoreanPreset[] = [
 
 export const DEFAULT_PYTHAGOREAN_STATE: PythagoreanState = PYTHAGOREAN_PRESETS[0]!.state;
 
+export function canvasStyleOf(state: PythagoreanState): Pick<
+  PythagoreanState,
+  | "showGrid"
+  | "showVertexNames"
+  | "showDots"
+  | "gridCols"
+  | "gridRows"
+  | "gridMargin"
+  | "style"
+  | "unit"
+  | "unknownLetter"
+> {
+  return {
+    showGrid: state.showGrid,
+    showVertexNames: state.showVertexNames,
+    showDots: state.showDots,
+    gridCols: state.gridCols,
+    gridRows: state.gridRows,
+    gridMargin: state.gridMargin,
+    style: state.style,
+    unit: state.unit,
+    unknownLetter: state.unknownLetter,
+  };
+}
+
+export function applyPreset(prev: PythagoreanState, preset: PythagoreanState): PythagoreanState {
+  return normalizeState({
+    ...cloneState(preset),
+    ...canvasStyleOf(prev),
+  });
+}
+
 export function withKind(prev: PythagoreanState, kind: PythagoreanKind): PythagoreanState {
   const template =
     PYTHAGOREAN_PRESETS.find((p) => p.state.kind === kind)?.state ?? build(kind);
   return normalizeState({
     ...template,
-    style: prev.style,
-    unit: prev.unit,
-    unknownLetter: prev.unknownLetter,
-    showVertexNames: prev.showVertexNames,
-    showDots: prev.showDots,
+    ...canvasStyleOf(prev),
   });
 }
 

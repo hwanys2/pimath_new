@@ -15,6 +15,7 @@ import {
 } from "./geometry";
 import {
   PYTHAGOREAN_PRESETS,
+  applyPreset,
   cloneState,
   findSeg,
   fitGridToFigure,
@@ -376,5 +377,28 @@ describe("pythagorean geometry", () => {
     assert.ok(Math.abs(next.A.x + 1) < 1e-6);
     assert.ok(Math.abs(next.A.y - 2) < 1e-6);
     assert.ok(Math.abs(angleAt(next.B, next.C, next.A) - 90) > 5);
+  });
+
+  it("keeps the canvas grid on when switching to a proof preset", () => {
+    const start = normalizeState(cloneState(PYTHAGOREAN_PRESETS.find((p) => p.id === "tri-abc")!.state));
+    assert.equal(start.showGrid, true);
+    const proof = PYTHAGOREAN_PRESETS.find((p) => p.id === "proof-both")!.state;
+    const next = applyPreset(start, proof);
+    assert.equal(next.kind, "proof");
+    assert.equal(next.showGrid, true);
+    assert.equal(next.showVertexNames, start.showVertexNames);
+    const scene = buildPythagoreanScene(next);
+    assert.ok(scene.cmds.some((c) => c.id === "grid"), "proof figure should still draw a grid");
+  });
+
+  it("drops an extra altitude from a selected vertex on the squares figure", () => {
+    const base = normalizeState(cloneState(PYTHAGOREAN_PRESETS.find((p) => p.id === "sq-32")!.state));
+    const next = toggleAltitude(base, "C");
+    assert.deepEqual(next.altitudes, ["C"]);
+    const pts = derivedPoints(next);
+    assert.ok(pts.H);
+    assert.ok(figureStrokes(next).some(([a, b]) => a === "C" && b === "H"));
+    const scene = buildPythagoreanScene(next);
+    assert.ok(scene.cmds.some((c) => c.t === "rightAngle"));
   });
 });

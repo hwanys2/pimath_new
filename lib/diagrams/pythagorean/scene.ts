@@ -16,6 +16,7 @@ import {
   emptyLabel,
   gridDrawBounds,
   altitudeFootId,
+  kindSupportsAltitude,
   type MeasLabel,
   type PythagoreanState,
   type Vec,
@@ -237,45 +238,46 @@ function squareCornerPoints(state: PythagoreanState): Vec[] {
 }
 
 function mathBBox(state: PythagoreanState): { min: Vec; max: Vec } {
+  let minX: number;
+  let minY: number;
+  let maxX: number;
+  let maxY: number;
   if (state.kind === "proof") {
     const a = state.proofLegA;
     const b = state.proofLegB;
     const gap = state.proofView === "both" ? 1.2 : 0;
-    return {
-      min: { x: -0.5, y: -0.5 },
-      max: { x: (a + b) * (state.proofView === "both" ? 2 : 1) + gap, y: a + b + 0.5 },
-    };
-  }
-  const pts = Object.values(mathPoints(state));
-  if (state.kind === "squares") {
-    pts.push(...squareCornerPoints(state));
-  }
-  if (state.showGrid && (state.kind === "squares" || state.kind === "triangle")) {
-    const grid = gridDrawBounds(state);
-    let minX = grid.min.x;
-    let minY = grid.min.y;
-    let maxX = grid.max.x;
-    let maxY = grid.max.y;
+    minX = -0.5;
+    minY = -0.5;
+    maxX = (a + b) * (state.proofView === "both" ? 2 : 1) + gap;
+    maxY = a + b + 0.5;
+  } else {
+    const pts = Object.values(mathPoints(state)).filter(
+      (p): p is Vec => typeof (p as Vec)?.x === "number" && typeof (p as Vec)?.y === "number",
+    );
+    if (state.kind === "squares") {
+      pts.push(...squareCornerPoints(state));
+    }
+    minX = Infinity;
+    minY = Infinity;
+    maxX = -Infinity;
+    maxY = -Infinity;
     for (const p of pts) {
       minX = Math.min(minX, p.x);
       minY = Math.min(minY, p.y);
       maxX = Math.max(maxX, p.x);
       maxY = Math.max(maxY, p.y);
     }
+  }
+  if (state.showGrid) {
+    const grid = gridDrawBounds(state);
+    minX = Math.min(minX, grid.min.x);
+    minY = Math.min(minY, grid.min.y);
+    maxX = Math.max(maxX, grid.max.x);
+    maxY = Math.max(maxY, grid.max.y);
     return {
       min: { x: Math.floor(minX), y: Math.floor(minY) },
       max: { x: Math.ceil(maxX), y: Math.ceil(maxY) },
     };
-  }
-  let minX = Infinity;
-  let minY = Infinity;
-  let maxX = -Infinity;
-  let maxY = -Infinity;
-  for (const p of pts) {
-    minX = Math.min(minX, p.x);
-    minY = Math.min(minY, p.y);
-    maxX = Math.max(maxX, p.x);
-    maxY = Math.max(maxY, p.y);
   }
   const pad = 0.22 * Math.max(maxX - minX, maxY - minY, 1);
   return {
@@ -671,6 +673,73 @@ function centroidOf(ids: string[], canvas: Record<string, Vec>): Vec {
   return { x: x / n, y: y / n };
 }
 
+function appendAltitudeExtensions(
+  state: PythagoreanState,
+  layout: SceneLayout,
+  cmds: SceneCmd[],
+): void {
+  if (!kindSupportsAltitude(state.kind) || state.altitudes.length === 0) return;
+  const math = derivedPoints(state);
+  const { canvas } = layout;
+  if (!math.A || !math.B || !math.C) return;
+  for (const from of state.altitudes) {
+    const base = altitudeBase(from, math.A, math.B, math.C);
+    const t = projectT(base.apex, base.a, base.b);
+    if (t >= -1e-4 && t <= 1 + 1e-4) continue;
+    const beyondA = t < 0;
+    const end = beyondA ? base.a : base.b;
+    const other = beyondA ? base.b : base.a;
+    const foot = math[altitudeFootId(from)];
+    if (!foot) continue;
+    const extra = len(sub(foot, end)) + 0.35;
+    const ext = mathToCanvas(extensionPoint(other, end, extra), layout);
+    const fromPt = beyondA ? canvas[base.aId] : canvas[base.bId];
+    if (!fromPt) continue;
+    cmds.push({
+      t: "line",
+      x1: fromPt.x,
+      y1: fromPt.y,
+      x2: ext.x,
+      y2: ext.y,
+      stroke: INK,
+      dashed: true,
+      width: 1.1,
+    });
+  }
+}
+
+function appendAltitudeSegments(
+  state: PythagoreanState,
+  layout: SceneLayout,
+  cmds: SceneCmd[],
+): void {
+  if (!kindSupportsAltitude(state.kind)) return;
+  const { canvas } = layout;
+  for (const from of state.altitudes) {
+    const pa = canvas[from];
+    const pb = canvas[altitudeFootId(from)];
+    if (!pa || !pb) continue;
+    cmds.push({ t: "line", x1: pa.x, y1: pa.y, x2: pb.x, y2: pb.y, stroke: INK });
+  }
+}
+
+function appendAltitudeFeetMarks(
+  state: PythagoreanState,
+  layout: SceneLayout,
+  cmds: SceneCmd[],
+): void {
+  if (!kindSupportsAltitude(state.kind) || state.altitudes.length === 0) return;
+  const { canvas } = layout;
+  if (!canvas.A || !canvas.B || !canvas.C) return;
+  for (const from of state.altitudes) {
+    const foot = canvas[altitudeFootId(from)];
+    const apex = canvas[from];
+    if (!foot || !apex) continue;
+    const base = altitudeBase(from, canvas.A, canvas.B, canvas.C);
+    drawRightAngle(cmds, foot, base.a, apex);
+  }
+}
+
 export function buildPythagoreanScene(state: PythagoreanState): PythagoreanScene {
   const layout = getSceneLayout(state);
   const { canvas } = layout;
@@ -678,7 +747,7 @@ export function buildPythagoreanScene(state: PythagoreanState): PythagoreanScene
   const cmds: SceneCmd[] = [];
   const texts: SceneText[] = [];
 
-  if (state.showGrid && (state.kind === "squares" || state.kind === "triangle")) {
+  if (state.showGrid) {
     const grid = gridDrawBounds(state);
     appendGrid(
       cmds,
@@ -693,6 +762,9 @@ export function buildPythagoreanScene(state: PythagoreanState): PythagoreanScene
 
   if (state.kind === "squares") {
     appendSquaresFigure(state, layout, cmds, texts);
+    appendAltitudeExtensions(state, layout, cmds);
+    appendAltitudeSegments(state, layout, cmds);
+    appendAltitudeFeetMarks(state, layout, cmds);
   } else if (state.kind === "proof") {
     if (state.proofView === "both") {
       appendProofFigure(state, layout, cmds, texts, 0, "inner");
@@ -704,32 +776,7 @@ export function buildPythagoreanScene(state: PythagoreanState): PythagoreanScene
     }
   } else {
     const math = derivedPoints(state);
-    if (state.kind === "triangle" && state.altitudes.length > 0) {
-      for (const from of state.altitudes) {
-        const base = altitudeBase(from, math.A!, math.B!, math.C!);
-        const t = projectT(base.apex, base.a, base.b);
-        if (t >= -1e-4 && t <= 1 + 1e-4) continue;
-        const beyondA = t < 0;
-        const end = beyondA ? base.a : base.b;
-        const other = beyondA ? base.b : base.a;
-        const foot = math[altitudeFootId(from)];
-        if (!foot) continue;
-        const extra = len(sub(foot, end)) + 0.35;
-        const ext = mathToCanvas(extensionPoint(other, end, extra), layout);
-        const fromPt = beyondA ? canvas[base.aId] : canvas[base.bId];
-        if (!fromPt) continue;
-        cmds.push({
-          t: "line",
-          x1: fromPt.x,
-          y1: fromPt.y,
-          x2: ext.x,
-          y2: ext.y,
-          stroke: INK,
-          dashed: true,
-          width: 1.1,
-        });
-      }
-    }
+    appendAltitudeExtensions(state, layout, cmds);
 
     const strokes = figureStrokes(state);
     for (const [a, b] of strokes) {
@@ -769,14 +816,8 @@ export function buildPythagoreanScene(state: PythagoreanState): PythagoreanScene
       }
     }
 
-    if (state.kind === "triangle" && canvas.A && canvas.B && canvas.C) {
-      for (const from of state.altitudes) {
-        const foot = canvas[altitudeFootId(from)];
-        const apex = canvas[from];
-        if (!foot || !apex) continue;
-        const base = altitudeBase(from, canvas.A, canvas.B, canvas.C);
-        drawRightAngle(cmds, foot, base.a, apex);
-      }
+    if (kindSupportsAltitude(state.kind)) {
+      appendAltitudeFeetMarks(state, layout, cmds);
     }
 
     if (state.kind === "rectangle" && state.showRightAngle) {

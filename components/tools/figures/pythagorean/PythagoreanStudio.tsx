@@ -32,11 +32,13 @@ import {
 import {
   DEFAULT_PYTHAGOREAN_STATE,
   PYTHAGOREAN_PRESETS,
-  cloneState,
+  applyPreset,
   findSeg,
   fitGridToFigure,
   figureGridExtent,
   isLockedRight,
+  kindSupportsAltitude,
+  altitudeVerticesFor,
   normalizeState,
   patchSegState,
   setPointName,
@@ -206,12 +208,13 @@ export default function PythagoreanStudio() {
   }
 
   const selSeg = selected?.t === "seg" ? findSeg(state, selected.id) : undefined;
-  const visiblePoints = pointIdsFor(state).filter((id) => id !== "D" || state.kind === "altitude");
+  const visiblePoints = pointIdsFor(state);
   const dragIds = draggableIds(state);
-  const canAltitude = state.kind === "triangle";
+  const canAltitude = kindSupportsAltitude(state.kind);
+  const altitudeVerts = altitudeVerticesFor(state.kind);
   const selectedVertex: AltitudeVertex | null =
-    selected?.t === "point" && (selected.id === "A" || selected.id === "B" || selected.id === "C")
-      ? selected.id
+    selected?.t === "point" && altitudeVerts.includes(selected.id as AltitudeVertex)
+      ? (selected.id as AltitudeVertex)
       : null;
 
   const showLegControls =
@@ -296,14 +299,12 @@ export default function PythagoreanStudio() {
           <section className="rounded-2xl border-2 border-wood/10 bg-white/80 p-3.5">
             <h2 className="font-display text-sm text-wood-dark">캔버스</h2>
             <div className="mt-2 flex flex-wrap gap-1.5">
-              {(state.kind === "triangle" || state.kind === "squares") && (
-                <ChipToggle
-                  on={state.showGrid}
-                  onClick={() => set({ showGrid: !state.showGrid })}
-                >
-                  모눈
-                </ChipToggle>
-              )}
+              <ChipToggle
+                on={state.showGrid}
+                onClick={() => set({ showGrid: !state.showGrid })}
+              >
+                모눈
+              </ChipToggle>
               <ChipToggle
                 on={state.showVertexNames}
                 onClick={() => set({ showVertexNames: !state.showVertexNames })}
@@ -317,7 +318,7 @@ export default function PythagoreanStudio() {
                 점
               </ChipToggle>
             </div>
-            {(state.kind === "triangle" || state.kind === "squares") && state.showGrid ? (
+            {state.showGrid ? (
               <div className="mt-3 space-y-2">
                 <p className="text-xs font-semibold text-foreground/60">모눈 크기</p>
                 <div className="grid grid-cols-2 gap-2">
@@ -430,7 +431,7 @@ export default function PythagoreanStudio() {
               <div className="mt-3 space-y-2">
                 <p className="text-xs font-semibold text-foreground/60">수선</p>
                 <div className="flex flex-wrap gap-1.5">
-                  {(["A", "B", "C"] as const).map((v) => (
+                  {altitudeVerts.map((v) => (
                     <ChipToggle
                       key={v}
                       on={state.altitudes.includes(v)}
@@ -441,7 +442,7 @@ export default function PythagoreanStudio() {
                   ))}
                 </div>
                 <p className="text-[11px] leading-snug text-foreground/45">
-                  꼭짓점을 고르고 대변에 수선의 발을 내려요. 둔각이면 밑변을 점선으로 연장해요.
+                  아래 점을 고르거나 그림에서 꼭짓점을 눌러 대변에 수선을 켜요. 둔각이면 밑변을 점선으로 연장해요.
                 </p>
               </div>
             ) : null}
@@ -641,7 +642,7 @@ export default function PythagoreanStudio() {
                     setState((prev) => setPointName(prev, selected.id, name))
                   }
                 />
-                {selectedVertex && canAltitude ? (
+                {selectedVertex ? (
                   <ChipToggle
                     on={state.altitudes.includes(selectedVertex)}
                     onClick={() =>
@@ -718,7 +719,7 @@ export default function PythagoreanStudio() {
                   key={preset.id}
                   type="button"
                   onClick={() => {
-                    setState(normalizeState(cloneState(preset.state)));
+                    setState((prev) => applyPreset(prev, preset.state));
                     setSelected(null);
                   }}
                   className="rounded-xl bg-black/5 px-2.5 py-2 text-left text-xs font-semibold text-foreground/70 hover:bg-black/10"
