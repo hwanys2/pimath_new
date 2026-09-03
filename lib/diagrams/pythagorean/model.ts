@@ -18,7 +18,28 @@ export type PythagoreanKind =
   | "altitude"
   | "rectangle";
 
-export type RightVertex = "A" | "B" | "C";
+export type LockedRightVertex = "A" | "B" | "C";
+export type RightVertex = LockedRightVertex | "none";
+export type AltitudeVertex = "A" | "B" | "C";
+
+export function isLockedRight(rv: RightVertex): rv is LockedRightVertex {
+  return rv === "A" || rv === "B" || rv === "C";
+}
+
+export function altitudeFootId(from: AltitudeVertex): string {
+  if (from === "A") return "Ha";
+  if (from === "B") return "Hb";
+  return "H";
+}
+
+export function altitudeBaseIds(from: AltitudeVertex): {
+  a: AltitudeVertex;
+  b: AltitudeVertex;
+} {
+  if (from === "A") return { a: "B", b: "C" };
+  if (from === "B") return { a: "A", b: "C" };
+  return { a: "A", b: "B" };
+}
 
 export type ProofView = "both" | "inner" | "tiles";
 
@@ -55,6 +76,8 @@ export type PythagoreanState = {
   legLeft: number;
   legRight: number;
   isoscelesRight: boolean;
+  /** Vertices from which an altitude to the opposite side is drawn. */
+  altitudes: AltitudeVertex[];
   names: Record<string, NameMark>;
   segs: SegMark[];
   showVertexNames: boolean;
@@ -116,6 +139,13 @@ export function figureGridExtent(
   }
   const ll = state.legLeft;
   const lr = state.legRight;
+  if (state.rightVertex === "none") {
+    const xs = [state.A.x, state.B.x, state.C.x];
+    const ys = [state.A.y, state.B.y, state.C.y];
+    const spanX = Math.max(...xs) - Math.min(...xs);
+    const spanY = Math.max(...ys) - Math.min(...ys);
+    return { cols: Math.max(1, Math.ceil(spanX)), rows: Math.max(1, Math.ceil(spanY)) };
+  }
   if (state.rightVertex === "B") {
     return { cols: Math.ceil(lr), rows: Math.ceil(ll) };
   }
@@ -160,6 +190,9 @@ export function defaultNames(): Record<string, NameMark> {
     B: name("B"),
     C: name("C"),
     D: name("D"),
+    H: name("H"),
+    Ha: name("H"),
+    Hb: name("H"),
   };
 }
 
@@ -203,10 +236,40 @@ function mergeNames(prev?: Record<string, NameMark>): Record<string, NameMark> {
   return out;
 }
 
-function mergeSegs(kind: PythagoreanKind, prev?: SegMark[]): SegMark[] {
-  const base = defaultSegsFor(kind);
+function altitudeSegsFor(altitudes: AltitudeVertex[]): SegMark[] {
+  const s = (a: string, b: string, id = `${a}${b}`): SegMark => ({
+    id,
+    a,
+    b,
+    show: false,
+    label: emptyLabel("auto"),
+  });
+  const out: SegMark[] = [];
+  for (const from of altitudes) {
+    const foot = altitudeFootId(from);
+    const base = altitudeBaseIds(from);
+    out.push(s(from, foot), s(base.a, foot), s(base.b, foot));
+  }
+  return out;
+}
+
+function mergeSegs(
+  kind: PythagoreanKind,
+  prev?: SegMark[],
+  altitudes: AltitudeVertex[] = [],
+): SegMark[] {
+  const base = [
+    ...defaultSegsFor(kind),
+    ...(kind === "triangle" ? altitudeSegsFor(altitudes) : []),
+  ];
+  const seen = new Set<string>();
+  const unique = base.filter((b) => {
+    if (seen.has(b.id)) return false;
+    seen.add(b.id);
+    return true;
+  });
   const map = new Map((prev ?? []).map((s) => [s.id, s]));
-  return base.map((b) => {
+  return unique.map((b) => {
     const p = map.get(b.id);
     if (!p) return b;
     return {
@@ -215,6 +278,25 @@ function mergeSegs(kind: PythagoreanKind, prev?: SegMark[]): SegMark[] {
       label: { ...emptyLabel("auto"), ...p.label },
     };
   });
+}
+
+export function parseAltitudes(raw?: AltitudeVertex[]): AltitudeVertex[] {
+  if (!Array.isArray(raw)) return [];
+  const uniq: AltitudeVertex[] = [];
+  for (const v of raw) {
+    if ((v === "A" || v === "B" || v === "C") && !uniq.includes(v)) uniq.push(v);
+  }
+  return uniq;
+}
+
+export function toggleAltitude(
+  state: PythagoreanState,
+  from: AltitudeVertex,
+): PythagoreanState {
+  const current = parseAltitudes(state.altitudes);
+  const has = current.includes(from);
+  const altitudes = has ? current.filter((v) => v !== from) : [...current, from];
+  return normalizeState({ ...state, altitudes });
 }
 
 /** Build A,B,C with right angle at C, hypotenuse AB horizontal on y=0. */
@@ -313,20 +395,26 @@ export function normalizeState(
     (state.kind as string) === "coordinate" ? "triangle" : state.kind;
   const kind = PYTHAGOREAN_KINDS.some((k) => k.id === rawKind) ? rawKind : "triangle";
   const style = { ...DEFAULT_STYLE, ...state.style };
-  const rv =
+  const rv: RightVertex =
     kind === "altitude"
       ? "A"
-      : state.rightVertex === "A" || state.rightVertex === "B"
-        ? state.rightVertex
-        : "C";
+      : state.rightVertex === "none" && kind === "triangle"
+        ? "none"
+        : state.rightVertex === "A" || state.rightVertex === "B"
+          ? state.rightVertex
+          : "C";
+  const altitudes = kind === "triangle" ? parseAltitudes(state.altitudes) : [];
   const ll0 = clamp(state.legLeft ?? 3, 0.5, 40);
   const lr0 = clamp(state.legRight ?? 4, 0.5, 40);
-  const ll = state.isoscelesRight === true ? Math.max(ll0, lr0) : ll0;
-  const lr = state.isoscelesRight === true ? ll : lr0;
+  const lockIso = state.isoscelesRight === true && isLockedRight(rv);
+  const ll = lockIso ? Math.max(ll0, lr0) : ll0;
+  const lr = lockIso ? ll : lr0;
   const legs =
     kind === "altitude"
       ? altitudeTriangleFromLegs(ll, lr)
-      : triangleForRightVertex(ll, lr, rv);
+      : isLockedRight(rv)
+        ? triangleForRightVertex(ll, lr, rv)
+        : triangleFromLegsAtC(ll, lr);
 
   let result = fixCoordAxes({
     kind,
@@ -336,9 +424,10 @@ export function normalizeState(
     rightVertex: rv,
     legLeft: ll,
     legRight: lr,
-    isoscelesRight: state.isoscelesRight === true,
+    isoscelesRight: lockIso,
+    altitudes,
     names: mergeNames(state.names),
-    segs: mergeSegs(kind, state.segs),
+    segs: mergeSegs(kind, state.segs, altitudes),
     showVertexNames: state.showVertexNames !== false,
     showDots: state.showDots !== false,
     showRightAngle: state.showRightAngle !== false,
@@ -556,6 +645,23 @@ const rectSquare = withMarks(
   { AB: customLen("5 cm"), AC: emptyLabel("auto") },
 );
 
+const obtuseAlt = withMarks(
+  build("triangle", {
+    rightVertex: "none",
+    showGrid: false,
+    altitudes: ["A"],
+    A: { x: -1, y: 3 },
+    B: { x: 5, y: 0 },
+    C: { x: 0, y: 0 },
+  }),
+  {
+    BC: customLen("a"),
+    AC: customLen("b"),
+    AB: customLen("c"),
+    AHa: customLen("h"),
+  },
+);
+
 export const PYTHAGOREAN_PRESETS: PythagoreanPreset[] = [
   { id: "tri-abc", title: "a,b,c 호", hint: "기본 기호", state: triABC },
   { id: "tri-912x", title: "9·12·x", hint: "빗변 미지수", state: tri912x },
@@ -566,6 +672,7 @@ export const PYTHAGOREAN_PRESETS: PythagoreanPreset[] = [
   { id: "sq-43", title: "모눈 4×3", hint: "3-4-5", state: sq43 },
   { id: "proof-both", title: "넓이 증명", hint: "c² / a²+b²", state: proofPair },
   { id: "alt-3040", title: "빗변 수선", hint: "30·40 cm", state: alt3040 },
+  { id: "tri-obtuse", title: "둔각 수선", hint: "연장선", state: obtuseAlt },
   { id: "rect-68", title: "직사각형 6×8", hint: "대각선 10", state: rect68 },
   { id: "rect-sq", title: "정사각형", hint: "대각선 5√2", state: rectSquare },
 ];

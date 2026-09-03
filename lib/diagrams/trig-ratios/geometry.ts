@@ -288,6 +288,7 @@ function toPythState(state: TrigRatiosState): PythagoreanState {
     legLeft: state.legLeft,
     legRight: state.legRight,
     isoscelesRight: state.isoscelesRight,
+    altitudes: [],
     names: state.names,
     segs: state.segs,
     showVertexNames: state.showVertexNames,

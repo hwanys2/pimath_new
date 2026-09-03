@@ -15,17 +15,22 @@ import {
 import {
   emptyLabel,
   gridDrawBounds,
+  altitudeFootId,
   type MeasLabel,
   type PythagoreanState,
   type Vec,
 } from "./model";
 import {
+  altitudeBase,
+  angleAt,
   derivedPoints,
   displayName,
+  extensionPoint,
   figureStrokes,
   gridStep,
+  isNearRightAngle,
+  projectT,
   resolveSegText,
-  segLength,
 } from "./geometry";
 
 export type SceneLayout = {
@@ -118,13 +123,10 @@ function dimArc(
   const textH = signedHeight(offset + meas.dy);
   const lineH = signedHeight(offset + (meas.lineDy ?? 0));
   const textAlong = clamp(meas.dx, -maxAlong, maxAlong);
-  const lineAlong = clamp(meas.lineDx ?? 0, -maxAlong, maxAlong);
   const lineSign = lineH < 0 ? -1 : 1;
   const tick = clamp(Math.abs(lineH) * 0.22, 4.5, 8);
-  const lineA = add(a, mul(along, lineAlong));
-  const lineB = add(b, mul(along, lineAlong));
-  const aFoot = add(lineA, mul(u, lineSign * tick));
-  const bFoot = add(lineB, mul(u, lineSign * tick));
+  const aFoot = add(a, mul(u, lineSign * tick));
+  const bFoot = add(b, mul(u, lineSign * tick));
   const sag = lineH - lineSign * tick;
   cmds.push({ t: "line", x1: a.x, y1: a.y, x2: aFoot.x, y2: aFoot.y, id: lineId });
   cmds.push({ t: "line", x1: b.x, y1: b.y, x2: bFoot.x, y2: bFoot.y, id: lineId });
@@ -701,6 +703,34 @@ export function buildPythagoreanScene(state: PythagoreanState): PythagoreanScene
       appendProofFigure(state, layout, cmds, texts, 0, "tiles");
     }
   } else {
+    const math = derivedPoints(state);
+    if (state.kind === "triangle" && state.altitudes.length > 0) {
+      for (const from of state.altitudes) {
+        const base = altitudeBase(from, math.A!, math.B!, math.C!);
+        const t = projectT(base.apex, base.a, base.b);
+        if (t >= -1e-4 && t <= 1 + 1e-4) continue;
+        const beyondA = t < 0;
+        const end = beyondA ? base.a : base.b;
+        const other = beyondA ? base.b : base.a;
+        const foot = math[altitudeFootId(from)];
+        if (!foot) continue;
+        const extra = len(sub(foot, end)) + 0.35;
+        const ext = mathToCanvas(extensionPoint(other, end, extra), layout);
+        const fromPt = beyondA ? canvas[base.aId] : canvas[base.bId];
+        if (!fromPt) continue;
+        cmds.push({
+          t: "line",
+          x1: fromPt.x,
+          y1: fromPt.y,
+          x2: ext.x,
+          y2: ext.y,
+          stroke: INK,
+          dashed: true,
+          width: 1.1,
+        });
+      }
+    }
+
     const strokes = figureStrokes(state);
     for (const [a, b] of strokes) {
       const pa = canvas[a];
@@ -719,13 +749,33 @@ export function buildPythagoreanScene(state: PythagoreanState): PythagoreanScene
         drawRightAngle(cmds, cA, cB, cC);
         drawRightAngle(cmds, cD, cA, cC);
       } else if (state.kind !== "rectangle") {
-        if (rv === "C" && canvas.C && canvas.B && canvas.A) {
-          drawRightAngle(cmds, canvas.C, canvas.B, canvas.A);
-        } else if (rv === "A" && canvas.A && canvas.B && canvas.C) {
-          drawRightAngle(cmds, canvas.A, canvas.B, canvas.C);
-        } else if (rv === "B" && canvas.B && canvas.A && canvas.C) {
-          drawRightAngle(cmds, canvas.B, canvas.A, canvas.C);
+        const corners: [string, string, string][] = [
+          ["A", "B", "C"],
+          ["B", "A", "C"],
+          ["C", "B", "A"],
+        ];
+        for (const [v, f, t] of corners) {
+          const cv = canvas[v];
+          const cf = canvas[f];
+          const ct = canvas[t];
+          const mv = math[v];
+          const mf = math[f];
+          const mt = math[t];
+          if (!cv || !cf || !ct || !mv || !mf || !mt) continue;
+          const locked = rv === v;
+          const freeRight = rv === "none" && isNearRightAngle(angleAt(mf, mv, mt));
+          if (locked || freeRight) drawRightAngle(cmds, cv, cf, ct);
         }
+      }
+    }
+
+    if (state.kind === "triangle" && canvas.A && canvas.B && canvas.C) {
+      for (const from of state.altitudes) {
+        const foot = canvas[altitudeFootId(from)];
+        const apex = canvas[from];
+        if (!foot || !apex) continue;
+        const base = altitudeBase(from, canvas.A, canvas.B, canvas.C);
+        drawRightAngle(cmds, foot, base.a, apex);
       }
     }
 

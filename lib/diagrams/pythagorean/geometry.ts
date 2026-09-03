@@ -2,6 +2,7 @@ import { formatMeasure, normalizeSqrtLabel } from "@/lib/diagrams/math-label";
 import {
   add,
   clamp,
+  isConvex,
   len,
   mul,
   norm,
@@ -18,11 +19,15 @@ import {
   formatHypotenuseLabel,
 } from "./radical";
 import {
+  altitudeBaseIds,
+  altitudeFootId,
   altitudeTriangleFromLegs,
   findSeg,
+  isLockedRight,
   normalizeState,
   patchSegState,
   triangleForRightVertex,
+  type AltitudeVertex,
   type PythagoreanKind,
   type PythagoreanState,
   type SegMark,
@@ -62,9 +67,37 @@ export function angleAt(from: Vec, vertex: Vec, to: Vec): number {
   return (Math.acos(clamp(u.x * w.x + u.y * w.y, -1, 1)) * 180) / Math.PI;
 }
 
-export function footToLine(p: Vec, a: Vec, b: Vec): Vec {
-  const t = clamp(projectT(p, a, b), 0, 1);
+export function footToLine(p: Vec, a: Vec, b: Vec, clampToSegment = true): Vec {
+  const t = clampToSegment ? clamp(projectT(p, a, b), 0, 1) : projectT(p, a, b);
   return lerp(a, b, t);
+}
+
+export function extensionPoint(from: Vec, to: Vec, ext: number): Vec {
+  const dir = norm(sub(to, from));
+  return add(to, mul(dir, ext));
+}
+
+export function altitudeBase(
+  from: AltitudeVertex,
+  A: Vec,
+  B: Vec,
+  C: Vec,
+): { a: Vec; b: Vec; aId: AltitudeVertex; bId: AltitudeVertex; apex: Vec } {
+  const ids = altitudeBaseIds(from);
+  const pts = { A, B, C };
+  return {
+    a: pts[ids.a],
+    b: pts[ids.b],
+    aId: ids.a,
+    bId: ids.b,
+    apex: pts[from],
+  };
+}
+
+const RIGHT_ANGLE_EPS = 0.75;
+
+export function isNearRightAngle(deg: number): boolean {
+  return Number.isFinite(deg) && Math.abs(deg - 90) < RIGHT_ANGLE_EPS;
 }
 
 export function derivedPoints(state: PythagoreanState): Record<string, Vec> {
@@ -81,14 +114,30 @@ export function derivedPoints(state: PythagoreanState): Record<string, Vec> {
   const { A, B, C } = state;
   const out: Record<string, Vec> = { A, B, C };
   if (state.kind === "altitude" && state.rightVertex === "A") {
-    out.D = footToLine(A, B, C);
+    out.D = footToLine(A, B, C, false);
+  }
+  if (state.kind === "triangle") {
+    for (const from of state.altitudes ?? []) {
+      const base = altitudeBase(from, A, B, C);
+      out[altitudeFootId(from)] = footToLine(base.apex, base.a, base.b, false);
+    }
   }
   return out;
 }
 
 export function figureStrokes(state: PythagoreanState): [string, string][] {
   switch (state.kind) {
-    case "triangle":
+    case "triangle": {
+      const segs: [string, string][] = [
+        ["A", "B"],
+        ["B", "C"],
+        ["A", "C"],
+      ];
+      for (const from of state.altitudes ?? []) {
+        segs.push([from, altitudeFootId(from)]);
+      }
+      return segs;
+    }
     case "squares":
       return [
         ["A", "B"],
@@ -153,6 +202,11 @@ function legLengths(state: PythagoreanState): { left: number; right: number; hyp
   const pts = derivedPoints(state);
   const { A, B, C } = pts;
   const rv = state.rightVertex;
+  if (!isLockedRight(rv)) {
+    const left = len(sub(B!, C!));
+    const right = len(sub(A!, C!));
+    return { left, right, hyp: len(sub(A!, B!)) };
+  }
   if (rv === "C") {
     const left = len(sub(B!, C!));
     const right = len(sub(A!, C!));
@@ -190,6 +244,9 @@ export function rebuildTriangleFromLegs(
   }
   const rv = state.kind === "altitude" ? "A" : state.rightVertex;
   let t: { A: Vec; B: Vec; C: Vec };
+  if (rv === "none") {
+    return syncLegFields({ ...state, legLeft: ll, legRight: lr, isoscelesRight: false });
+  }
   if (state.kind === "altitude" || rv === "A") {
     t = altitudeTriangleFromLegs(ll, lr);
   } else {
@@ -221,6 +278,7 @@ function segLegRole(
     return null;
   }
   const rv = state.kind === "altitude" ? "A" : state.rightVertex;
+  if (!isLockedRight(rv)) return null;
   const hyp = ({ C: "AB", A: "BC", B: "AC" } as const)[rv];
   const left = ({ C: "BC", A: "AB", B: "AB" } as const)[rv];
   const right = ({ C: "AC", A: "AC", B: "BC" } as const)[rv];
@@ -442,7 +500,7 @@ function mapRightTriangle(
   A: Vec,
   B: Vec,
   C: Vec,
-): { vertex: Vec; leg1: Vec; leg2: Vec; mapBack: (v: Vec, l1: Vec, l2: Vec) => { A: Vec; B: Vec; C: Vec } } {
+): { vertex: Vec; leg1: Vec; leg2: Vec; mapBack: (v: Vec, l1: Vec, l2: Vec) => { A: Vec; B: Vec; C: Vec } } | null {
   const rv = state.rightVertex;
   if (rv === "C") {
     return {
@@ -460,16 +518,20 @@ function mapRightTriangle(
       mapBack: (v, l1, l2) => ({ A: v, B: l1, C: l2 }),
     };
   }
-  return {
-    vertex: B,
-    leg1: A,
-    leg2: C,
-    mapBack: (v, l1, l2) => ({ A: l1, B: v, C: l2 }),
-  };
+  if (rv === "B") {
+    return {
+      vertex: B,
+      leg1: A,
+      leg2: C,
+      mapBack: (v, l1, l2) => ({ A: l1, B: v, C: l2 }),
+    };
+  }
+  return null;
 }
 
 function dragRole(state: PythagoreanState, moved: string): RightDrag | null {
   const rv = state.rightVertex;
+  if (!isLockedRight(rv)) return null;
   if (rv === "C") {
     if (moved === "C") return "vertex";
     if (moved === "B") return "leg1";
@@ -495,7 +557,9 @@ function applyIsoscelesIfNeeded(
   C: Vec,
 ): { A: Vec; B: Vec; C: Vec } {
   if (!state.isoscelesRight) return { A, B, C };
-  const { vertex, leg1, leg2, mapBack } = mapRightTriangle(state, A, B, C);
+  const mapped = mapRightTriangle(state, A, B, C);
+  if (!mapped) return { A, B, C };
+  const { vertex, leg1, leg2, mapBack } = mapped;
   const eq = enforceIsosceles(vertex, leg1, leg2);
   return mapBack(vertex, eq.leg1, eq.leg2);
 }
@@ -586,10 +650,18 @@ function maintainRightAngle(
     return { ...state, A, B, C };
   }
 
+  if (!isLockedRight(state.rightVertex) && (moved === "A" || moved === "B" || moved === "C")) {
+    const next = { ...state, [moved]: pos } as PythagoreanState;
+    const ptsNext = [next.A, next.B, next.C];
+    if (!isConvex(ptsNext) || !triangleOk(next.A, next.B, next.C)) return state;
+    return syncLegFields(next);
+  }
+
   const role = dragRole(state, moved);
   if (!role) return state;
 
   const mapped = mapRightTriangle(state, A, B, C);
+  if (!mapped) return state;
   const result = moveRightTriangle(mapped.vertex, mapped.leg1, mapped.leg2, role, pos);
   if (!result) return state;
 
@@ -607,12 +679,52 @@ export function movePoint(state: PythagoreanState, id: string, p: Vec): Pythagor
   return state;
 }
 
+function canvasCentroid(canvasPts: Record<string, Vec>, ids: string[]): Vec {
+  let x = 0;
+  let y = 0;
+  let n = 0;
+  for (const id of ids) {
+    const p = canvasPts[id];
+    if (!p) continue;
+    x += p.x;
+    y += p.y;
+    n += 1;
+  }
+  if (n === 0) return { x: 0, y: 0 };
+  return { x: x / n, y: y / n };
+}
+
+function perpOutward(along: Vec, toward: Vec): Vec {
+  const dir = norm(along);
+  let p: Vec = { x: -dir.y, y: dir.x };
+  if (p.x * toward.x + p.y * toward.y < 0) p = { x: -p.x, y: -p.y };
+  return p;
+}
+
+/** Canvas-space axes for a length mark: `dx` along the side, `dy` outward. */
+export function segDimAxes(
+  state: PythagoreanState,
+  canvasPts: Record<string, Vec>,
+  aId: string,
+  bId: string,
+): { along: Vec; outward: Vec } | null {
+  const a = canvasPts[aId];
+  const b = canvasPts[bId];
+  if (!a || !b) return null;
+  const along = norm(sub(b, a));
+  if (len(along) < 1e-6) return null;
+  const mid = mul(add(a, b), 0.5);
+  const face = canvasCentroid(canvasPts, ["A", "B", "C"]);
+  return { along, outward: perpOutward(along, sub(mid, face)) };
+}
+
 export function nudgeLabel(
   state: PythagoreanState,
   id: string,
   dx: number,
   dy: number,
   lineOnly = false,
+  canvasPts?: Record<string, Vec>,
 ): PythagoreanState {
   if (id.startsWith("n:")) {
     const pid = id.slice(2);
@@ -631,32 +743,35 @@ export function nudgeLabel(
     };
   }
 
+  const segMatch = /^s:(.+)$/.exec(id);
+  if (!segMatch) return state;
+  const segId = segMatch[1]!;
+  const seg = findSeg(state, segId);
+  let alongAmt = dx;
+  let perpAmt = dy;
+  if (seg && canvasPts) {
+    const axes = segDimAxes(state, canvasPts, seg.a, seg.b);
+    if (axes) {
+      alongAmt = dx * axes.along.x + dy * axes.along.y;
+      perpAmt = dx * axes.outward.x + dy * axes.outward.y;
+    }
+  }
   function nudgeMeas(label: MeasLabel): MeasLabel {
     if (lineOnly) {
-      return {
-        ...label,
-        lineDx: clamp((label.lineDx ?? 0) + dx, -80, 80),
-        lineDy: clamp((label.lineDy ?? 0) + dy, -160, 160),
-      };
+      return { ...label, lineDy: clamp((label.lineDy ?? 0) + perpAmt, -160, 160) };
     }
     return {
       ...label,
-      dx: clamp(label.dx + dx, -80, 80),
-      dy: clamp(label.dy + dy, -160, 160),
+      dx: clamp(label.dx + alongAmt, -80, 80),
+      dy: clamp(label.dy + perpAmt, -160, 160),
     };
   }
-
-  const segMatch = /^s:(.+)$/.exec(id);
-  if (segMatch) {
-    const segId = segMatch[1]!;
-    return {
-      ...state,
-      segs: state.segs.map((s) =>
-        s.id === segId ? { ...s, label: nudgeMeas(s.label) } : s,
-      ),
-    };
-  }
-  return state;
+  return {
+    ...state,
+    segs: state.segs.map((s) =>
+      s.id === segId ? { ...s, label: nudgeMeas(s.label) } : s,
+    ),
+  };
 }
 
 export function toggleSeg(state: PythagoreanState, id: string): PythagoreanState {
@@ -778,10 +893,17 @@ export function resolveSegText(state: PythagoreanState, seg: SegMark): string | 
   return formatMeasure(auto, state.unit);
 }
 
-export function pointIdsFor(kind: PythagoreanKind): string[] {
+export function pointIdsFor(state: PythagoreanState | PythagoreanKind): string[] {
+  const kind = typeof state === "string" ? state : state.kind;
   if (kind === "altitude") return ["A", "B", "C", "D"];
   if (kind === "rectangle") return ["A", "B", "C", "D"];
-  return ["A", "B", "C"];
+  const ids = ["A", "B", "C"];
+  if (typeof state !== "string") {
+    for (const from of state.altitudes) {
+      ids.push(altitudeFootId(from));
+    }
+  }
+  return ids;
 }
 
 export function normalizeAndSync(state: PythagoreanState): PythagoreanState {

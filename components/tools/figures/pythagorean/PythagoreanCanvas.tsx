@@ -234,7 +234,8 @@ export default function PythagoreanCanvas({
             return;
           }
           setState(
-            (prev) => nudgeLabel(prev, drag.id, dx, dy, drag.t === "dimLine"),
+            (prev) =>
+              nudgeLabel(prev, drag.id, dx, dy, drag.t === "dimLine", sceneRef.current?.layout.canvas),
             false,
           );
         }}

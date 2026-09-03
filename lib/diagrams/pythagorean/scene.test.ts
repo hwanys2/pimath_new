@@ -1,11 +1,25 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { angleAt, applyEditedLabel, movePoint, rebuildTriangleFromLegs, resolveSegText, segLength, snapMathPoint } from "./geometry";
+import {
+  angleAt,
+  applyEditedLabel,
+  derivedPoints,
+  figureStrokes,
+  hitTestPythagorean,
+  movePoint,
+  nudgeLabel,
+  resolveSegText,
+  segDimAxes,
+  segLength,
+  snapMathPoint,
+} from "./geometry";
 import {
   PYTHAGOREAN_PRESETS,
   cloneState,
+  findSeg,
   fitGridToFigure,
   normalizeState,
+  toggleAltitude,
   triangleFromLegs,
 } from "./model";
 import { buildPythagoreanScene } from "./scene";
@@ -215,5 +229,152 @@ describe("pythagorean geometry", () => {
     const ang = angleAt(B, C, A);
     assert.ok(Math.abs(ang - 90) < 0.01);
     assert.ok(Math.abs(Math.hypot(A.x - B.x, A.y - B.y) - 5) < 0.01);
+  });
+
+  it("length text stays put when only the dim line is offset", () => {
+    const base = normalizeState(cloneState(PYTHAGOREAN_PRESETS.find((p) => p.id === "tri-abc")!.state));
+    const movedLine = normalizeState({
+      ...base,
+      segs: base.segs.map((s) =>
+        s.id === "AB" ? { ...s, label: { ...s.label, lineDy: 36 } } : s,
+      ),
+    });
+    const movedText = normalizeState({
+      ...base,
+      segs: base.segs.map((s) =>
+        s.id === "AB" ? { ...s, label: { ...s.label, dy: 36 } } : s,
+      ),
+    });
+    const t0 = buildPythagoreanScene(base).texts.find((t) => t.id === "s:AB");
+    const tLine = buildPythagoreanScene(movedLine).texts.find((t) => t.id === "s:AB");
+    const tText = buildPythagoreanScene(movedText).texts.find((t) => t.id === "s:AB");
+    assert.ok(t0 && tLine && tText);
+    assert.ok(Math.abs(t0.y - tLine.y) < 1.5);
+    assert.ok(Math.hypot(t0.x - tText.x, t0.y - tText.y) > 8);
+
+    const arcId = "s:AB:line";
+    const arc0 = buildPythagoreanScene(base).cmds.find((c) => c.t === "arc" && c.id === arcId);
+    const arcLine = buildPythagoreanScene(movedLine).cmds.find((c) => c.t === "arc" && c.id === arcId);
+    const arcText = buildPythagoreanScene(movedText).cmds.find((c) => c.t === "arc" && c.id === arcId);
+    assert.ok(arc0 && arc0.t === "arc");
+    assert.ok(arcLine && arcLine.t === "arc");
+    assert.ok(arcText && arcText.t === "arc");
+    assert.ok(Math.abs(arc0.r - arcLine.r) > 4, "dim arc should move with lineDy");
+    assert.ok(Math.abs(arc0.r - arcText.r) < 1.5, "dim arc should stay when only the text moves");
+  });
+
+  it("projects dim-line drag onto the side's outward axis", () => {
+    const state = normalizeState(cloneState(PYTHAGOREAN_PRESETS.find((p) => p.id === "tri-abc")!.state));
+    const scene = buildPythagoreanScene(state);
+    const ab = findSeg(state, "AB")!;
+    const axes = segDimAxes(state, scene.layout.canvas, ab.a, ab.b)!;
+    const step = 18;
+    const next = nudgeLabel(
+      state,
+      "s:AB",
+      axes.outward.x * step,
+      axes.outward.y * step,
+      true,
+      scene.layout.canvas,
+    );
+    const moved = findSeg(next, "AB")!;
+    assert.ok(Math.abs((moved.label.lineDy ?? 0) - (ab.label.lineDy ?? 0) - step) < 0.6);
+    assert.equal(moved.label.dx, ab.label.dx);
+    assert.equal(moved.label.dy, ab.label.dy);
+  });
+
+  it("hits the dim arc separately from the length text", () => {
+    const base = normalizeState(cloneState(PYTHAGOREAN_PRESETS.find((p) => p.id === "tri-abc")!.state));
+    const state = normalizeState({
+      ...base,
+      segs: base.segs.map((s) =>
+        s.id === "AB" ? { ...s, label: { ...s.label, lineDy: 48 } } : s,
+      ),
+    });
+    const scene = buildPythagoreanScene(state);
+    const text = scene.texts.find((t) => t.id === "s:AB");
+    assert.ok(text);
+    const labelHit = hitTestPythagorean(
+      scene.layout.canvas,
+      scene.texts,
+      scene.cmds,
+      figureStrokes(state),
+      state.segs,
+      text.x,
+      text.y,
+      1,
+      [],
+    );
+    assert.deepEqual(labelHit, { kind: "label", id: "s:AB" });
+
+    const arc = scene.cmds.find((c) => c.t === "arc" && c.id === "s:AB:line");
+    assert.ok(arc && arc.t === "arc");
+    let sweep = arc.a1 - arc.a0;
+    if (arc.ccw) {
+      while (sweep > 0) sweep -= Math.PI * 2;
+      while (sweep > -1e-9) sweep -= Math.PI * 2;
+      sweep = -sweep;
+      if (sweep < 1e-9) sweep += Math.PI * 2;
+    } else {
+      while (sweep < 0) sweep += Math.PI * 2;
+      if (sweep < 1e-9) sweep += Math.PI * 2;
+    }
+    const midAng = arc.a0 + (arc.ccw ? -sweep : sweep) / 2;
+    const px = arc.cx + arc.r * Math.cos(midAng);
+    const py = arc.cy + arc.r * Math.sin(midAng);
+    const dimHit = hitTestPythagorean(
+      scene.layout.canvas,
+      scene.texts,
+      scene.cmds,
+      figureStrokes(state),
+      state.segs,
+      px,
+      py,
+      1,
+      [],
+    );
+    assert.deepEqual(dimHit, { kind: "dimLine", id: "s:AB" });
+  });
+
+  it("drops an altitude from a selected vertex onto the opposite side", () => {
+    const base = normalizeState(cloneState(PYTHAGOREAN_PRESETS.find((p) => p.id === "tri-abc")!.state));
+    const next = toggleAltitude(base, "C");
+    assert.deepEqual(next.altitudes, ["C"]);
+    const pts = derivedPoints(next);
+    assert.ok(pts.H);
+    const ch = { x: pts.H.x - pts.C!.x, y: pts.H.y - pts.C!.y };
+    const ab = { x: pts.B!.x - pts.A!.x, y: pts.B!.y - pts.A!.y };
+    assert.ok(Math.abs(ch.x * ab.x + ch.y * ab.y) < 1e-6);
+    const scene = buildPythagoreanScene(next);
+    assert.ok(scene.cmds.some((c) => c.t === "rightAngle"));
+    assert.ok(figureStrokes(next).some(([a, b]) => a === "C" && b === "H"));
+  });
+
+  it("extends the base with a dashed line when the altitude foot is outside", () => {
+    const state = normalizeState(cloneState(PYTHAGOREAN_PRESETS.find((p) => p.id === "tri-obtuse")!.state));
+    assert.equal(state.rightVertex, "none");
+    assert.deepEqual(state.altitudes, ["A"]);
+    const pts = derivedPoints(state);
+    assert.ok(pts.Ha);
+    assert.ok(pts.Ha.x < Math.min(pts.B!.x, pts.C!.x) - 1e-6 || pts.Ha.x > Math.max(pts.B!.x, pts.C!.x) + 1e-6
+      || pts.Ha.y < Math.min(pts.B!.y, pts.C!.y) - 1e-6 || pts.Ha.y > Math.max(pts.B!.y, pts.C!.y) + 1e-6);
+    const scene = buildPythagoreanScene(state);
+    const dashed = scene.cmds.filter((c) => c.t === "line" && c.dashed && !c.id);
+    assert.ok(dashed.length >= 1, "obtuse altitude should draw a dashed base extension");
+  });
+
+  it("lets vertices move freely when the right angle is unlocked", () => {
+    const base = normalizeState({
+      kind: "triangle",
+      rightVertex: "none",
+      A: { x: 0, y: 3 },
+      B: { x: 4, y: 0 },
+      C: { x: 0, y: 0 },
+      showGrid: false,
+    });
+    const next = movePoint(base, "A", { x: -1, y: 2 });
+    assert.ok(Math.abs(next.A.x + 1) < 1e-6);
+    assert.ok(Math.abs(next.A.y - 2) < 1e-6);
+    assert.ok(Math.abs(angleAt(next.B, next.C, next.A) - 90) > 5);
   });
 });

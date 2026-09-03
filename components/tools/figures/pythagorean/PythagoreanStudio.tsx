@@ -31,16 +31,17 @@ import {
 } from "@/lib/diagrams/pythagorean/geometry";
 import {
   DEFAULT_PYTHAGOREAN_STATE,
-  PYTHAGOREAN_KINDS,
   PYTHAGOREAN_PRESETS,
   cloneState,
   findSeg,
   fitGridToFigure,
   figureGridExtent,
+  isLockedRight,
   normalizeState,
   patchSegState,
   setPointName,
-  withKind,
+  toggleAltitude,
+  type AltitudeVertex,
   type PythagoreanState,
   type RightVertex,
 } from "@/lib/diagrams/pythagorean/model";
@@ -205,14 +206,19 @@ export default function PythagoreanStudio() {
   }
 
   const selSeg = selected?.t === "seg" ? findSeg(state, selected.id) : undefined;
-  const visiblePoints = pointIdsFor(state.kind).filter((id) => id !== "D" || state.kind === "altitude");
+  const visiblePoints = pointIdsFor(state).filter((id) => id !== "D" || state.kind === "altitude");
   const dragIds = draggableIds(state);
+  const canAltitude = state.kind === "triangle";
+  const selectedVertex: AltitudeVertex | null =
+    selected?.t === "point" && (selected.id === "A" || selected.id === "B" || selected.id === "C")
+      ? selected.id
+      : null;
 
   const showLegControls =
-    state.kind === "triangle" ||
-    state.kind === "squares" ||
-    state.kind === "proof" ||
-    state.kind === "altitude";
+    isLockedRight(state.rightVertex) &&
+    (state.kind === "triangle" ||
+      state.kind === "squares" ||
+      state.kind === "altitude");
 
   return (
     <div className={`${notoSerif.variable} ${notoSerifKr.variable} space-y-4`}>
@@ -288,81 +294,29 @@ export default function PythagoreanStudio() {
           </div>
 
           <section className="rounded-2xl border-2 border-wood/10 bg-white/80 p-3.5">
-            <h2 className="font-display text-sm text-wood-dark">그림 종류</h2>
-            <div className="mt-2 grid grid-cols-2 gap-1.5 sm:grid-cols-3">
-              {PYTHAGOREAN_KINDS.map((k) => (
-                <button
-                  key={k.id}
-                  type="button"
-                  onClick={() => {
-                    if (state.kind === k.id) return;
-                    setState((prev) => withKind(prev, k.id));
-                    setSelected(null);
-                  }}
-                  className={`rounded-xl px-2.5 py-2 text-left text-xs font-semibold ${
-                    state.kind === k.id
-                      ? "bg-wood text-cream"
-                      : "bg-black/5 text-foreground/70 hover:bg-black/10"
-                  }`}
+            <h2 className="font-display text-sm text-wood-dark">캔버스</h2>
+            <div className="mt-2 flex flex-wrap gap-1.5">
+              {(state.kind === "triangle" || state.kind === "squares") && (
+                <ChipToggle
+                  on={state.showGrid}
+                  onClick={() => set({ showGrid: !state.showGrid })}
                 >
-                  {k.label}
-                </button>
-              ))}
+                  모눈
+                </ChipToggle>
+              )}
+              <ChipToggle
+                on={state.showVertexNames}
+                onClick={() => set({ showVertexNames: !state.showVertexNames })}
+              >
+                꼭짓점 이름
+              </ChipToggle>
+              <ChipToggle
+                on={state.showDots}
+                onClick={() => set({ showDots: !state.showDots })}
+              >
+                점
+              </ChipToggle>
             </div>
-
-            {state.kind === "triangle" || state.kind === "squares" ? (
-              <div className="mt-3 space-y-2">
-                <p className="text-xs font-semibold text-foreground/60">직각 위치</p>
-                <Segmented
-                  value={state.rightVertex}
-                  onChange={(v) => set({ rightVertex: v as RightVertex })}
-                  options={[
-                    { id: "C", label: "꼭짓점 C" },
-                    { id: "A", label: "꼭짓점 A" },
-                    { id: "B", label: "꼭짓점 B" },
-                  ]}
-                />
-                {(state.kind === "triangle" || state.kind === "squares") && (
-                  <ChipToggle
-                    on={state.isoscelesRight}
-                    onClick={() => {
-                      const next = !state.isoscelesRight;
-                      if (next) {
-                        const m = Math.max(state.legLeft, state.legRight);
-                        rebuildFromLegs(m, m);
-                      }
-                      set({ isoscelesRight: next });
-                    }}
-                  >
-                    이등변직각
-                  </ChipToggle>
-                )}
-              </div>
-            ) : null}
-
-            {showLegControls && state.kind !== "proof" ? (
-              <div className="mt-3 grid grid-cols-2 gap-2">
-                <NumberField
-                  label="다리 (왼쪽)"
-                  value={state.legLeft}
-                  onChange={(legLeft) => rebuildFromLegs(legLeft, state.legRight)}
-                  min={0.5}
-                  max={40}
-                  step={0.1}
-                  suffix={state.unit}
-                />
-                <NumberField
-                  label="다리 (오른쪽)"
-                  value={state.legRight}
-                  onChange={(legRight) => rebuildFromLegs(state.legLeft, legRight)}
-                  min={0.5}
-                  max={40}
-                  step={0.1}
-                  suffix={state.unit}
-                />
-              </div>
-            ) : null}
-
             {(state.kind === "triangle" || state.kind === "squares") && state.showGrid ? (
               <div className="mt-3 space-y-2">
                 <p className="text-xs font-semibold text-foreground/60">모눈 크기</p>
@@ -386,6 +340,15 @@ export default function PythagoreanStudio() {
                     suffix="칸"
                   />
                 </div>
+                <NumberField
+                  label="여백"
+                  value={state.gridMargin}
+                  onChange={(gridMargin) => set({ gridMargin })}
+                  min={0}
+                  max={5}
+                  step={0.5}
+                  suffix="칸"
+                />
                 <button
                   type="button"
                   onClick={() => setState((prev) => normalizeState(fitGridToFigure(prev)))}
@@ -393,6 +356,168 @@ export default function PythagoreanStudio() {
                 >
                   도형 비율에 맞춤 ({figureGrid.cols}×{figureGrid.rows})
                 </button>
+              </div>
+            ) : null}
+          </section>
+        </div>
+
+        <div className="space-y-4">
+          <section className="rounded-2xl border-2 border-wood/10 bg-white/80 p-3.5">
+            <h2 className="font-display text-sm text-wood-dark">세부 설정</h2>
+            <div className="mt-2 flex flex-wrap gap-1.5">
+              <ChipToggle
+                on={state.showRightAngle}
+                onClick={() => set({ showRightAngle: !state.showRightAngle })}
+              >
+                직각
+              </ChipToggle>
+              {state.kind === "squares" && (
+                <>
+                  <ChipToggle
+                    on={state.showFill}
+                    onClick={() => set({ showFill: !state.showFill })}
+                  >
+                    면 채움
+                  </ChipToggle>
+                  <ChipToggle
+                    on={state.showSquareLabels}
+                    onClick={() => set({ showSquareLabels: !state.showSquareLabels })}
+                  >
+                    ㄱㄴㄷ
+                  </ChipToggle>
+                  <ChipToggle
+                    on={state.showDissection}
+                    onClick={() => set({ showDissection: !state.showDissection })}
+                  >
+                    빗변 분할
+                  </ChipToggle>
+                </>
+              )}
+              {state.kind === "proof" && (
+                <ChipToggle
+                  on={state.showFill}
+                  onClick={() => set({ showFill: !state.showFill })}
+                >
+                  면 채움
+                </ChipToggle>
+              )}
+              {state.kind === "rectangle" && (
+                <ChipToggle
+                  on={state.showDiagonal}
+                  onClick={() => set({ showDiagonal: !state.showDiagonal })}
+                >
+                  대각선
+                </ChipToggle>
+              )}
+            </div>
+
+            {state.kind === "squares" ? (
+              <div className="mt-2">
+                <Segmented
+                  value={state.squareLabelMode}
+                  onChange={(v) =>
+                    set({ squareLabelMode: v as PythagoreanState["squareLabelMode"] })
+                  }
+                  options={[
+                    { id: "korean", label: "ㄱㄴㄷ" },
+                    { id: "formula", label: "a² b² c²" },
+                  ]}
+                />
+              </div>
+            ) : null}
+
+            {canAltitude ? (
+              <div className="mt-3 space-y-2">
+                <p className="text-xs font-semibold text-foreground/60">수선</p>
+                <div className="flex flex-wrap gap-1.5">
+                  {(["A", "B", "C"] as const).map((v) => (
+                    <ChipToggle
+                      key={v}
+                      on={state.altitudes.includes(v)}
+                      onClick={() => setState((prev) => toggleAltitude(prev, v))}
+                    >
+                      {displayName(state, v)}
+                    </ChipToggle>
+                  ))}
+                </div>
+                <p className="text-[11px] leading-snug text-foreground/45">
+                  꼭짓점을 고르고 대변에 수선의 발을 내려요. 둔각이면 밑변을 점선으로 연장해요.
+                </p>
+              </div>
+            ) : null}
+
+            {state.kind === "triangle" || state.kind === "squares" ? (
+              <div className="mt-3 space-y-2">
+                <p className="text-xs font-semibold text-foreground/60">직각 위치</p>
+                <Segmented
+                  value={state.rightVertex}
+                  onChange={(v) => {
+                    const rv = v as RightVertex;
+                    if (rv === "none") {
+                      set({ rightVertex: "none", isoscelesRight: false });
+                      return;
+                    }
+                    setState((prev) =>
+                      rebuildTriangleFromLegs(
+                        { ...prev, rightVertex: rv },
+                        prev.legLeft,
+                        prev.legRight,
+                      ),
+                    );
+                  }}
+                  options={
+                    state.kind === "triangle"
+                      ? [
+                          { id: "C", label: "C" },
+                          { id: "A", label: "A" },
+                          { id: "B", label: "B" },
+                          { id: "none", label: "없음" },
+                        ]
+                      : [
+                          { id: "C", label: "C" },
+                          { id: "A", label: "A" },
+                          { id: "B", label: "B" },
+                        ]
+                  }
+                />
+                {isLockedRight(state.rightVertex) ? (
+                  <ChipToggle
+                    on={state.isoscelesRight}
+                    onClick={() => {
+                      const next = !state.isoscelesRight;
+                      if (next) {
+                        const m = Math.max(state.legLeft, state.legRight);
+                        rebuildFromLegs(m, m);
+                      }
+                      set({ isoscelesRight: next });
+                    }}
+                  >
+                    이등변직각
+                  </ChipToggle>
+                ) : null}
+              </div>
+            ) : null}
+
+            {showLegControls ? (
+              <div className="mt-3 grid grid-cols-2 gap-2">
+                <NumberField
+                  label="다리 (왼쪽)"
+                  value={state.legLeft}
+                  onChange={(legLeft) => rebuildFromLegs(legLeft, state.legRight)}
+                  min={0.5}
+                  max={40}
+                  step={0.1}
+                  suffix={state.unit}
+                />
+                <NumberField
+                  label="다리 (오른쪽)"
+                  value={state.legRight}
+                  onChange={(legRight) => rebuildFromLegs(state.legLeft, legRight)}
+                  min={0.5}
+                  max={40}
+                  step={0.1}
+                  suffix={state.unit}
+                />
               </div>
             ) : null}
 
@@ -466,93 +591,6 @@ export default function PythagoreanStudio() {
                 </div>
               </div>
             ) : null}
-          </section>
-        </div>
-
-        <div className="space-y-4">
-          <section className="rounded-2xl border-2 border-wood/10 bg-white/80 p-3.5">
-            <h2 className="font-display text-sm text-wood-dark">표시</h2>
-            <div className="mt-2 flex flex-wrap gap-1.5">
-              <ChipToggle
-                on={state.showVertexNames}
-                onClick={() => set({ showVertexNames: !state.showVertexNames })}
-              >
-                꼭짓점 이름
-              </ChipToggle>
-              <ChipToggle
-                on={state.showDots}
-                onClick={() => set({ showDots: !state.showDots })}
-              >
-                점
-              </ChipToggle>
-              <ChipToggle
-                on={state.showRightAngle}
-                onClick={() => set({ showRightAngle: !state.showRightAngle })}
-              >
-                직각
-              </ChipToggle>
-              {(state.kind === "squares" || state.kind === "triangle") && (
-                <ChipToggle
-                  on={state.showGrid}
-                  onClick={() => set({ showGrid: !state.showGrid })}
-                >
-                  모눈
-                </ChipToggle>
-              )}
-              {state.kind === "squares" && (
-                <>
-                  <ChipToggle
-                    on={state.showFill}
-                    onClick={() => set({ showFill: !state.showFill })}
-                  >
-                    면 채움
-                  </ChipToggle>
-                  <ChipToggle
-                    on={state.showSquareLabels}
-                    onClick={() => set({ showSquareLabels: !state.showSquareLabels })}
-                  >
-                    ㄱㄴㄷ
-                  </ChipToggle>
-                  <ChipToggle
-                    on={state.showDissection}
-                    onClick={() => set({ showDissection: !state.showDissection })}
-                  >
-                    빗변 분할
-                  </ChipToggle>
-                </>
-              )}
-              {state.kind === "proof" && (
-                <ChipToggle
-                  on={state.showFill}
-                  onClick={() => set({ showFill: !state.showFill })}
-                >
-                  면 채움
-                </ChipToggle>
-              )}
-              {state.kind === "rectangle" && (
-                <ChipToggle
-                  on={state.showDiagonal}
-                  onClick={() => set({ showDiagonal: !state.showDiagonal })}
-                >
-                  대각선
-                </ChipToggle>
-              )}
-            </div>
-
-            {state.kind === "squares" ? (
-              <div className="mt-2">
-                <Segmented
-                  value={state.squareLabelMode}
-                  onChange={(v) =>
-                    set({ squareLabelMode: v as PythagoreanState["squareLabelMode"] })
-                  }
-                  options={[
-                    { id: "korean", label: "ㄱㄴㄷ" },
-                    { id: "formula", label: "a² b² c²" },
-                  ]}
-                />
-              </div>
-            ) : null}
 
             <div className="mt-2 flex flex-wrap gap-1">
               {visiblePoints.map((id) => (
@@ -603,6 +641,16 @@ export default function PythagoreanStudio() {
                     setState((prev) => setPointName(prev, selected.id, name))
                   }
                 />
+                {selectedVertex && canAltitude ? (
+                  <ChipToggle
+                    on={state.altitudes.includes(selectedVertex)}
+                    onClick={() =>
+                      setState((prev) => toggleAltitude(prev, selectedVertex))
+                    }
+                  >
+                    대변에 수선
+                  </ChipToggle>
+                ) : null}
               </div>
             ) : null}
 
@@ -681,27 +729,6 @@ export default function PythagoreanStudio() {
                   </span>
                 </button>
               ))}
-            </div>
-          </section>
-
-          <section className="rounded-2xl border-2 border-wood/10 bg-white/80 p-3.5">
-            <h2 className="font-display text-sm text-wood-dark">길이 표기</h2>
-            <p className="mt-1 text-[11px] text-foreground/45">
-              선분 길이를 켰을 때 숫자·미지수에 붙는 단위예요.
-            </p>
-            <div className="mt-2 grid grid-cols-2 gap-2">
-              <TextField
-                label="단위"
-                value={state.unit}
-                onChange={(unit) => set({ unit })}
-                placeholder="cm"
-              />
-              <TextField
-                label="미지수 글자"
-                value={state.unknownLetter}
-                onChange={(unknownLetter) => set({ unknownLetter })}
-                placeholder="x"
-              />
             </div>
           </section>
 
