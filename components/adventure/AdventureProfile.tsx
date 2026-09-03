@@ -113,7 +113,7 @@ export default function AdventureProfile({
       <div
         className={
           rankingSlot
-            ? "grid items-stretch gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(18rem,22rem)]"
+            ? "grid items-start gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(18rem,22rem)]"
             : undefined
         }
       >
@@ -181,7 +181,7 @@ export default function AdventureProfile({
           </div>
         </section>
         {rankingSlot ? (
-          <div className="min-h-[24rem] lg:h-full lg:min-h-[28rem]">
+          <div className="h-[26rem] min-h-0 overflow-hidden lg:h-[30rem]">
             {rankingSlot}
           </div>
         ) : null}

@@ -17,10 +17,13 @@ import type {
   HofTab,
 } from "@/lib/hall-of-fame";
 
-const TABS: { id: HofTab; label: string }[] = [
+type HofUiTab = "world" | "school" | "class" | "schools";
+
+const TABS: { id: HofUiTab; label: string }[] = [
   { id: "world", label: "전체" },
-  { id: "school", label: "학교별" },
+  { id: "school", label: "학교" },
   { id: "class", label: "학급" },
+  { id: "schools", label: "학교별" },
 ];
 
 function formatXp(n: number): string {
@@ -165,7 +168,14 @@ export default function HallOfFame({
   const [activeClassId, setActiveClassId] = useState(
     lockClassId ?? myClasses[0]?.id ?? initial.selectedClassId,
   );
-  const [drillSchool, setDrillSchool] = useState(false);
+  const [uiTab, setUiTab] = useState<HofUiTab>(
+    initial.tab === "class"
+      ? "class"
+      : initial.tab === "school"
+        ? "school"
+        : "world",
+  );
+  const [drillSchool, setDrillSchool] = useState(initial.tab === "school");
   const [drillClass, setDrillClass] = useState(
     initial.tab === "class" &&
       (Boolean(lockClassId) ||
@@ -195,22 +205,36 @@ export default function HallOfFame({
     });
   };
 
-  const changeTab = (tab: HofTab) => {
-    if (tab === board.tab) return;
-    setDrillSchool(false);
+  const changeTab = (tab: HofUiTab) => {
+    if (tab === uiTab) return;
+    setUiTab(tab);
     if (tab === "class") {
       const classId =
         lockClassId ??
         teacherClassId ??
-        (board.viewer.kind === "student" ? board.selectedClassId : null);
+        (board.viewer.kind === "student" ? board.viewer.classId : null);
       const shouldDrill = Boolean(classId) || classOnly;
       setDrillClass(shouldDrill);
+      setDrillSchool(false);
       if (classId) setActiveClassId(classId);
-      load(tab, board.selectedSchoolId, classId);
+      load("class", board.selectedSchoolId, classId);
       return;
     }
     setDrillClass(false);
-    load(tab, board.selectedSchoolId, effectiveLock ?? board.selectedClassId);
+    if (tab === "school") {
+      const schoolId = board.viewer.schoolInfoId;
+      setDrillSchool(true);
+      if (schoolId == null) return;
+      load("school", schoolId, effectiveLock ?? board.selectedClassId);
+      return;
+    }
+    if (tab === "schools") {
+      setDrillSchool(false);
+      load("school", board.selectedSchoolId, effectiveLock ?? board.selectedClassId);
+      return;
+    }
+    setDrillSchool(false);
+    load("world", board.selectedSchoolId, effectiveLock ?? board.selectedClassId);
   };
 
   const pickClass = (classId: string) => {
@@ -227,7 +251,10 @@ export default function HallOfFame({
     (c) => c.classId === board.selectedClassId,
   );
 
-  const showSchoolStudents = board.tab === "school" && drillSchool;
+  const showSchoolStudents =
+    board.tab === "school" && (uiTab === "school" || drillSchool);
+  const showSchoolsBoard =
+    board.tab === "school" && uiTab === "schools" && !drillSchool;
   const showClassStudents =
     board.tab === "class" && (drillClass || classOnly);
 
@@ -300,16 +327,24 @@ export default function HallOfFame({
 
   const title = classOnly
     ? "학급 학생 포인트 순위"
-    : board.tab === "school" && !showSchoolStudents
+    : uiTab === "schools" && !showSchoolStudents
       ? "학교별 랭킹"
-      : board.tab === "school" && showSchoolStudents
-        ? "학교 안 순위"
-        : board.tab === "class" && !showClassStudents
-          ? "학급 대항전"
-          : "포인트 랭킹";
+      : uiTab === "school"
+        ? "우리 학교"
+        : uiTab === "schools" && showSchoolStudents
+          ? (selectedSchool?.schoolName ?? "학교 안 순위")
+          : uiTab === "class" && !showClassStudents
+            ? "학급 대항전"
+            : uiTab === "class"
+              ? "우리 학급"
+              : "포인트 랭킹";
 
   const body = isPending ? (
     <p className="py-6 text-center text-xs text-foreground/40">불러오는 중…</p>
+  ) : uiTab === "school" && board.viewer.schoolInfoId == null ? (
+    <p className="py-6 text-center text-xs text-foreground/40">
+      아직 우리 학교가 등록되지 않았어요
+    </p>
   ) : board.tab === "world" && !classOnly ? (
     <div>
       {myWorldPlace ? (
@@ -317,7 +352,7 @@ export default function HallOfFame({
       ) : null}
       <StudentRows rows={board.students} showSchool meRef={meRef} />
     </div>
-  ) : board.tab === "school" && !showSchoolStudents && !classOnly ? (
+  ) : showSchoolsBoard && !classOnly ? (
     board.schools.length === 0 ? (
       <p className="py-6 text-center text-xs text-foreground/40">
         학교가 등록되면 대항전이 열려요
@@ -325,7 +360,7 @@ export default function HallOfFame({
     ) : (
       <div>
         <p className="mb-2 text-[11px] font-semibold text-foreground/50">
-          학교 누적 XP 합 · 학교를 누르면 그 학교 학생 순위를 봐요
+          학교 누적 XP 합 · 다른 학교를 누르면 그 학교 학생 순위를 봐요
         </p>
         <ol className="space-y-1">
           {board.schools.map((row: HofSchoolRow) => (
@@ -408,7 +443,7 @@ export default function HallOfFame({
     )
   ) : (
     <div>
-      {board.tab === "school" && !lockClassId && !classOnly ? (
+      {uiTab === "schools" && showSchoolStudents && !lockClassId && !classOnly ? (
         <button
           type="button"
           onClick={() => setDrillSchool(false)}
@@ -458,11 +493,11 @@ export default function HallOfFame({
   return (
     <article
       className={[
-        "quest-card-static overflow-hidden",
-        fillHeight ? "flex h-full min-h-0 flex-col" : "",
+        "quest-card-static flex min-h-0 flex-col overflow-hidden",
+        fillHeight ? "h-full" : "max-h-[30rem]",
       ].join(" ")}
     >
-      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-wood/10 px-4 py-3">
+      <div className="flex shrink-0 flex-wrap items-center justify-between gap-2 border-b border-wood/10 px-4 py-3">
         <div>
           <p className="text-[10px] font-bold tracking-wide text-wood/55">
             {classOnly ? "학급 랭킹" : "명예의 전당"}
@@ -480,12 +515,12 @@ export default function HallOfFame({
 
       {classOnly ? null : (
         <div
-          className="grid grid-cols-3 gap-1 bg-wood/5 p-1.5"
+          className="grid shrink-0 grid-cols-4 gap-0.5 bg-wood/5 p-1.5"
           role="tablist"
           aria-label="랭킹 범위"
         >
           {TABS.map((tab) => {
-            const active = board.tab === tab.id;
+            const active = uiTab === tab.id;
             return (
               <button
                 key={tab.id}
@@ -494,7 +529,7 @@ export default function HallOfFame({
                 aria-selected={active}
                 onClick={() => changeTab(tab.id)}
                 className={[
-                  "rounded-lg py-1.5 text-xs font-black transition",
+                  "truncate rounded-lg px-0.5 py-1.5 text-[11px] font-black transition sm:text-xs",
                   active
                     ? "bg-white text-wood shadow-sm"
                     : "text-wood/60 hover:bg-white/60",
@@ -509,8 +544,8 @@ export default function HallOfFame({
 
       <div
         className={[
-          "overflow-y-auto p-3",
-          fillHeight ? "min-h-0 flex-1" : "max-h-80",
+          "min-h-0 flex-1 overflow-y-auto overscroll-contain p-3",
+          fillHeight ? "" : "max-h-72",
         ].join(" ")}
       >
         {body}

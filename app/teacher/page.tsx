@@ -78,7 +78,7 @@ export default async function TeacherPage() {
             </div>
           </section>
         </div>
-        <div className="flex max-h-[24rem] min-h-0 flex-col overflow-hidden lg:h-0 lg:max-h-none lg:min-h-full">
+        <div className="flex h-[24rem] min-h-0 flex-col overflow-hidden lg:h-[30rem]">
           <HallOfFame
             initial={hof}
             fillHeight
