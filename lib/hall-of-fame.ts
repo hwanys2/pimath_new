@@ -266,7 +266,7 @@ export async function fetchHofBoard(input?: {
       p_scope: tab,
       p_school_info_id: tab === "school" ? selectedSchoolId : null,
       p_class_id: tab === "class" ? selectedClassId : null,
-      p_limit: 20,
+      p_limit: tab === "class" ? 20 : 8,
       p_session_token: token,
     },
   );

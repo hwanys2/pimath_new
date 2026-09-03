@@ -1,7 +1,14 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import {
+  useEffect,
+  useRef,
+  useState,
+  useTransition,
+  type RefObject,
+} from "react";
 import { fetchHofBoardAction } from "@/app/hof/actions";
+import { hofMyPlace } from "@/lib/hof-display";
 import type {
   HofBoard,
   HofClassRow,
@@ -12,7 +19,7 @@ import type {
 
 const TABS: { id: HofTab; label: string }[] = [
   { id: "world", label: "전체" },
-  { id: "school", label: "학교" },
+  { id: "school", label: "학교별" },
   { id: "class", label: "학급" },
 ];
 
@@ -38,12 +45,29 @@ function RankBadge({ rank }: { rank: number }) {
   );
 }
 
+function MyPlaceBanner({
+  rank,
+  label,
+}: {
+  rank: number;
+  label: string;
+}) {
+  return (
+    <p className="mb-2 rounded-xl bg-mint/45 px-3 py-2 text-center text-xs font-black text-wood ring-1 ring-mint/70">
+      {label}에서 나는{" "}
+      <span className="font-display text-base">{rank}</span>등
+    </p>
+  );
+}
+
 function StudentRows({
   rows,
   showSchool,
+  meRef,
 }: {
   rows: HofStudentRow[];
   showSchool: boolean;
+  meRef: RefObject<HTMLLIElement | null>;
 }) {
   if (rows.length === 0) {
     return (
@@ -72,24 +96,34 @@ function StudentRows({
           <li
             key={`gap-${item.after}`}
             aria-hidden
-            className="py-0.5 text-center text-[10px] tracking-[0.3em] text-wood/30"
+            className="py-1 text-center text-[10px] font-black tracking-[0.35em] text-wood/30"
           >
             ···
           </li>
         ) : (
           <li
             key={`s-${item.row.rank}-${item.row.displayName}`}
+            ref={item.row.isMe ? meRef : undefined}
             className={[
               "flex items-center gap-2 rounded-xl px-2 py-1.5",
-              item.row.isMe ? "bg-mint/40 ring-1 ring-mint/60" : "bg-wood/5",
+              item.row.isMe
+                ? "bg-mint/50 ring-2 ring-wood/25 shadow-[0_2px_0_rgba(139,94,60,0.12)]"
+                : "bg-wood/5",
             ].join(" ")}
           >
             <RankBadge rank={item.row.rank} />
             <span className="min-w-0 flex-1">
-              <span className="block truncate text-sm font-bold text-foreground">
+              <span
+                className={[
+                  "block truncate font-bold text-foreground",
+                  item.row.isMe ? "font-display text-base" : "text-sm",
+                ].join(" ")}
+              >
                 {item.row.displayName}
                 {item.row.isMe ? (
-                  <span className="ml-1 text-[10px] text-wood/60">(나)</span>
+                  <span className="ml-1 inline-flex rounded-full bg-wood px-1.5 py-0.5 align-middle text-[9px] font-black text-cream">
+                    나
+                  </span>
                 ) : null}
               </span>
               <span className="block truncate text-[10px] text-foreground/45">
@@ -140,9 +174,9 @@ export default function HallOfFame({
         myClasses.length > 0),
   );
   const [isPending, startTransition] = useTransition();
+  const meRef = useRef<HTMLLIElement>(null);
 
-  const teacherClassId =
-    activeClassId ?? myClasses[0]?.id ?? null;
+  const teacherClassId = activeClassId ?? myClasses[0]?.id ?? null;
   const effectiveLock = classOnly ? teacherClassId : lockClassId;
 
   const load = (
@@ -203,6 +237,48 @@ export default function HallOfFame({
     selectedClass?.className ??
     "학급 학생";
 
+  const viewingOwnSchool =
+    board.selectedSchoolId != null &&
+    board.selectedSchoolId === board.viewer.schoolInfoId;
+  const viewingOwnClass =
+    (activeClassId ?? board.selectedClassId) != null &&
+    (activeClassId ?? board.selectedClassId) === board.viewer.classId;
+
+  const mySchoolPlace = showSchoolStudents
+    ? hofMyPlace({
+        students: board.students,
+        viewingOwnGroup: viewingOwnSchool,
+        viewerRank: board.viewer.schoolRank,
+      })
+    : null;
+  const myClassPlace = showClassStudents
+    ? hofMyPlace({
+        students: board.students,
+        viewingOwnGroup: viewingOwnClass,
+        viewerRank: board.viewer.classRank,
+      })
+    : null;
+  const myWorldPlace =
+    board.tab === "world"
+      ? hofMyPlace({
+          students: board.students,
+          viewingOwnGroup: board.viewer.kind === "student",
+          viewerRank: board.viewer.worldRank,
+        })
+      : null;
+
+  useEffect(() => {
+    if (isPending) return;
+    meRef.current?.scrollIntoView({ block: "nearest", inline: "nearest" });
+  }, [
+    isPending,
+    board.tab,
+    board.selectedSchoolId,
+    board.selectedClassId,
+    showSchoolStudents,
+    showClassStudents,
+  ]);
+
   const classSelect =
     myClasses.length > 0 && board.tab === "class" && showClassStudents ? (
       <label className="flex min-w-0 max-w-[11.5rem] shrink-0 items-center">
@@ -222,50 +298,70 @@ export default function HallOfFame({
       </label>
     ) : null;
 
+  const title = classOnly
+    ? "학급 학생 포인트 순위"
+    : board.tab === "school" && !showSchoolStudents
+      ? "학교별 랭킹"
+      : board.tab === "school" && showSchoolStudents
+        ? "학교 안 순위"
+        : board.tab === "class" && !showClassStudents
+          ? "학급 대항전"
+          : "포인트 랭킹";
+
   const body = isPending ? (
     <p className="py-6 text-center text-xs text-foreground/40">불러오는 중…</p>
   ) : board.tab === "world" && !classOnly ? (
-    <StudentRows rows={board.students} showSchool />
+    <div>
+      {myWorldPlace ? (
+        <MyPlaceBanner rank={myWorldPlace} label="전체" />
+      ) : null}
+      <StudentRows rows={board.students} showSchool meRef={meRef} />
+    </div>
   ) : board.tab === "school" && !showSchoolStudents && !classOnly ? (
     board.schools.length === 0 ? (
       <p className="py-6 text-center text-xs text-foreground/40">
         학교가 등록되면 대항전이 열려요
       </p>
     ) : (
-      <ol className="space-y-1">
-        {board.schools.map((row: HofSchoolRow) => (
-          <li key={row.schoolInfoId}>
-            <button
-              type="button"
-              onClick={() => {
-                setDrillSchool(true);
-                load("school", row.schoolInfoId, board.selectedClassId);
-              }}
-              className={[
-                "flex w-full items-center gap-2 rounded-xl px-2 py-1.5 text-left transition hover:bg-gold/20",
-                row.isMine ? "bg-mint/35 ring-1 ring-mint/50" : "bg-wood/5",
-              ].join(" ")}
-            >
-              <RankBadge rank={row.rank} />
-              <span className="min-w-0 flex-1">
-                <span className="block truncate text-sm font-bold">
-                  {row.schoolName}
-                  {row.isMine ? (
-                    <span className="ml-1 text-[10px] text-wood/60">(우리)</span>
-                  ) : null}
+      <div>
+        <p className="mb-2 text-[11px] font-semibold text-foreground/50">
+          학교 누적 XP 합 · 학교를 누르면 그 학교 학생 순위를 봐요
+        </p>
+        <ol className="space-y-1">
+          {board.schools.map((row: HofSchoolRow) => (
+            <li key={row.schoolInfoId}>
+              <button
+                type="button"
+                onClick={() => {
+                  setDrillSchool(true);
+                  load("school", row.schoolInfoId, board.selectedClassId);
+                }}
+                className={[
+                  "flex w-full items-center gap-2 rounded-xl px-2 py-1.5 text-left transition hover:bg-gold/20",
+                  row.isMine ? "bg-mint/35 ring-1 ring-mint/50" : "bg-wood/5",
+                ].join(" ")}
+              >
+                <RankBadge rank={row.rank} />
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate text-sm font-bold">
+                    {row.schoolName}
+                    {row.isMine ? (
+                      <span className="ml-1 text-[10px] text-wood/60">(우리)</span>
+                    ) : null}
+                  </span>
+                  <span className="text-[10px] text-foreground/45">
+                    {row.studentCount}명
+                    {row.region ? ` · ${row.region}` : ""}
+                  </span>
                 </span>
-                <span className="text-[10px] text-foreground/45">
-                  {row.studentCount}명
-                  {row.region ? ` · ${row.region}` : ""}
+                <span className="shrink-0 font-display text-xs tabular-nums text-wood">
+                  {formatXp(row.totalXp)}
                 </span>
-              </span>
-              <span className="shrink-0 font-display text-xs tabular-nums text-wood">
-                {formatXp(row.totalXp)}
-              </span>
-            </button>
-          </li>
-        ))}
-      </ol>
+              </button>
+            </li>
+          ))}
+        </ol>
+      </div>
     )
   ) : board.tab === "class" && !showClassStudents ? (
     board.classes.length === 0 ? (
@@ -318,7 +414,7 @@ export default function HallOfFame({
           onClick={() => setDrillSchool(false)}
           className="mb-2 text-[11px] font-bold text-wood/70 underline-offset-2 hover:underline"
         >
-          ← 학교 대항전
+          ← 학교별 랭킹
         </button>
       ) : null}
       <div className="mb-2 flex items-center justify-between gap-2">
@@ -342,9 +438,19 @@ export default function HallOfFame({
         </div>
         {classSelect}
       </div>
+      {board.tab === "school" && mySchoolPlace ? (
+        <MyPlaceBanner
+          rank={mySchoolPlace}
+          label={selectedSchool?.schoolName ?? "이 학교"}
+        />
+      ) : null}
+      {board.tab === "class" && myClassPlace ? (
+        <MyPlaceBanner rank={myClassPlace} label={selectedClassName} />
+      ) : null}
       <StudentRows
         rows={board.students}
         showSchool={board.tab !== "class"}
+        meRef={meRef}
       />
     </div>
   );
@@ -361,9 +467,7 @@ export default function HallOfFame({
           <p className="text-[10px] font-bold tracking-wide text-wood/55">
             {classOnly ? "학급 랭킹" : "명예의 전당"}
           </p>
-          <h2 className="font-display text-lg text-wood">
-            {classOnly ? "학급 학생 포인트 순위" : "포인트 랭킹"}
-          </h2>
+          <h2 className="font-display text-lg text-wood">{title}</h2>
         </div>
         {board.viewer.kind === "student" && board.viewer.worldRank ? (
           <p className="text-[11px] font-bold text-wood/70">

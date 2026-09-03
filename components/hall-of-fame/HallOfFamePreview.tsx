@@ -169,8 +169,8 @@ export default function HallOfFamePreview({
 
         <PreviewCard
           badge="⌂ 대항전"
-          title="학교"
-          hint="전교 포인트 합"
+          title="학교별"
+          hint="학교별 랭킹"
           accentClass="from-mint/40 to-sky/25"
         >
           {schools.length === 0 ? (
