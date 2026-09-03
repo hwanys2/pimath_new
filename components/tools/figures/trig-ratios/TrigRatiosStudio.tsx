@@ -62,7 +62,7 @@ import {
 import { buildTrigScene } from "@/lib/diagrams/trig-ratios/scene";
 import { renderSceneToCanvas, sceneToSvg } from "@/lib/diagrams/render";
 import type { FontFaces } from "@/lib/diagrams/math-label";
-import type { RightVertex } from "@/lib/diagrams/pythagorean/model";
+import type { LockedRightVertex } from "@/lib/diagrams/pythagorean/model";
 
 const STORAGE_KEY = "pm-diagram-g3-trig-ratios-v1";
 
@@ -341,7 +341,7 @@ export default function TrigRatiosStudio() {
                 <Segmented
                   value={state.rightVertex}
                   onChange={(v) =>
-                    setState((prev) => rebuildRightForRightVertex(prev, v as RightVertex))
+                    setState((prev) => rebuildRightForRightVertex(prev, v as LockedRightVertex))
                   }
                   options={[
                     { id: "C", label: "꼭짓점 C" },

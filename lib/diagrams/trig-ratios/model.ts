@@ -10,7 +10,7 @@ import {
   triangleForRightVertex,
   triangleFromLegsAtB,
   triangleFromLegsAtC,
-  type RightVertex,
+  type LockedRightVertex,
 } from "@/lib/diagrams/pythagorean/model";
 
 export type { DiagramStyle, MeasLabel, Vec };
@@ -94,14 +94,14 @@ export type TrigRatiosState = {
   A: Vec;
   B: Vec;
   C: Vec;
-  rightVertex: RightVertex;
+  rightVertex: LockedRightVertex;
   legLeft: number;
   legRight: number;
   isoscelesRight: boolean;
   names: Record<string, NameMark>;
   segs: SegMark[];
   showRightAngle: boolean;
-  refAngleVertex: RightVertex;
+  refAngleVertex: LockedRightVertex;
   angles: AngleMark[];
 
   /** unit circle */
@@ -529,7 +529,7 @@ export function normalizeState(
 ): TrigRatiosState {
   const kind = TRIG_KINDS.some((k) => k.id === state.kind) ? state.kind : "right";
   const style = { ...DEFAULT_STYLE, ...state.style };
-  const rv: RightVertex =
+  const rv: LockedRightVertex =
     state.rightVertex === "A" || state.rightVertex === "B" ? state.rightVertex : "C";
   const ll0 = clamp(state.legLeft ?? 3, 0.5, 40);
   const lr0 = clamp(state.legRight ?? 4, 0.5, 40);
