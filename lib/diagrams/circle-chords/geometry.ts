@@ -281,8 +281,9 @@ function labelFromParse(
   if (parsed.kind === "unknown") {
     return { ...prev, mode: "x", custom: parsed.unknown ?? "x" };
   }
-  if (parsed.kind === "number") {
-    return { ...prev, mode: "auto", custom: "" };
+  if (parsed.kind === "number" && parsed.value != null) {
+    // Keep 직접 mode: show exactly what was typed (no forced unit).
+    return { ...prev, mode: "custom", custom: text.trim() || String(parsed.value) };
   }
   if (!text.trim()) {
     return { ...prev, mode: "hide", custom: "" };

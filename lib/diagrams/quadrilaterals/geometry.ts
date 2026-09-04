@@ -590,7 +590,7 @@ function labelFromParse(
     return { ...prev, mode: "x", custom: parsed.unknown ?? "x" };
   }
   if (parsed.kind === "number" && parsed.value != null) {
-    const custom = asAngle ? `${parsed.value}°` : String(parsed.value);
+    const custom = asAngle ? `${parsed.value}°` : text.trim() || String(parsed.value);
     return { ...prev, mode: "custom", custom };
   }
   if (!text.trim()) return { ...prev, mode: "hide", custom: "" };

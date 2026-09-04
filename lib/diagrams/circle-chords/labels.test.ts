@@ -25,4 +25,23 @@ describe("circle chord measure labels", () => {
       "$y$ cm",
     );
   });
+
+  it("keeps free-text custom labels like 4m without forcing the unit", () => {
+    let state = cloneState(CIRCLE_CHORD_PRESETS[0]!.state);
+    const ab = state.chords[0]!.id;
+    state = applyEditedLabel(state, `${ab}:chordLabel`, "4m");
+    assert.equal(state.chords[0]!.chordLabel.mode, "custom");
+    assert.equal(state.chords[0]!.chordLabel.custom, "4m");
+    assert.equal(
+      resolveLabelText(state.chords[0]!.chordLabel, 6, "cm", state.unknownLetter),
+      "4m",
+    );
+    state = applyEditedLabel(state, `${ab}:chordLabel`, "8");
+    assert.equal(state.chords[0]!.chordLabel.mode, "custom");
+    assert.equal(state.chords[0]!.chordLabel.custom, "8");
+    assert.equal(
+      resolveLabelText(state.chords[0]!.chordLabel, 8, "cm", state.unknownLetter),
+      "8",
+    );
+  });
 });

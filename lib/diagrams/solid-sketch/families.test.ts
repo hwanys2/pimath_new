@@ -9,6 +9,7 @@ import {
   familyHasSlant,
   familyIsSmooth,
   normalizeState,
+  resolveLabelText,
   type SolidFamily,
   type VertexDisplayMode,
 } from "./model";
@@ -153,6 +154,26 @@ describe("slant length drives height", () => {
     });
     const next = applyEditedLabel(start, "edge:0-4", "9");
     assert.ok(Math.abs(slantLength(next) - 9) < 1e-6);
+  });
+
+  it("keeps free-text custom labels like 4m without forcing the unit", () => {
+    const start = normalizeState({
+      ...DEFAULT_SOLID_SKETCH_STATE,
+      family: "pyramid",
+      sides: 4,
+      baseSize: 6,
+      height: 4,
+      showSlant: true,
+      slantLabel: { mode: "custom", custom: "", dx: 0, dy: 0 },
+    });
+    const next = applyEditedLabel(start, "slant", "4m");
+    assert.equal(next.slantLabel.mode, "custom");
+    assert.equal(next.slantLabel.custom, "4m");
+    assert.equal(resolveLabelText(next.slantLabel, next.height, next.unit, next.unknownLetter), "4m");
+    const numeric = applyEditedLabel(start, "slant", "8");
+    assert.equal(numeric.slantLabel.mode, "custom");
+    assert.equal(numeric.slantLabel.custom, "8");
+    assert.equal(resolveLabelText(numeric.slantLabel, 8, numeric.unit, numeric.unknownLetter), "8");
   });
 });
 

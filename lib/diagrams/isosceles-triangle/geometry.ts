@@ -459,7 +459,8 @@ function labelFromParse(
     if (asAngle) {
       return { ...prev, mode: "custom", custom: `${parsed.value}°` };
     }
-    return { ...prev, mode: "auto", custom: "" };
+    // Keep 직접 mode: show exactly what was typed (no forced unit).
+    return { ...prev, mode: "custom", custom: text.trim() || String(parsed.value) };
   }
   if (!text.trim()) return { ...prev, mode: "hide", custom: "" };
   return { ...prev, mode: "custom", custom: text.trim() };

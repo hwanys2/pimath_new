@@ -23,6 +23,7 @@ import {
   makeCevian,
   mapCevian,
   normalizeState,
+  resolveLengthText,
   setCevianRole,
   toggleCevian,
   triangleFromAngles,
@@ -272,11 +273,20 @@ describe("length labels", () => {
     assert.match(sceneTextPlain(bd), /cm/);
   });
 
-  it("keeps 숫자 mode when a length is typed as a number", () => {
+  it("keeps typed length text in 직접 mode without forcing the unit", () => {
     const state = normalizeState(ISO_PRESETS[5]!.state);
     const next = applyEditedLabel(state, "e:1:length", "8");
-    assert.equal(next.edges[1]!.length.mode, "auto");
+    assert.equal(next.edges[1]!.length.mode, "custom");
+    assert.equal(next.edges[1]!.length.custom, "8");
     almost(edgeLength(next.points, 1), 8, 0.05);
+    assert.equal(resolveLengthText(next.edges[1]!.length, 8, next.unit, next.unknownLetter), "8");
+    const withUnit = applyEditedLabel(state, "e:1:length", "4m");
+    assert.equal(withUnit.edges[1]!.length.mode, "custom");
+    assert.equal(withUnit.edges[1]!.length.custom, "4m");
+    assert.equal(
+      resolveLengthText(withUnit.edges[1]!.length, 8, withUnit.unit, withUnit.unknownLetter),
+      "4m",
+    );
     const unknown = applyEditedLabel(next, "e:1:length", "x");
     assert.equal(unknown.edges[1]!.length.mode, "x");
   });

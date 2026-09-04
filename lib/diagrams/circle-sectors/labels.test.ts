@@ -54,7 +54,12 @@ describe("circle sector measures", () => {
     const r = state.radius;
     state = applyEditedLabel(state, `${id}:arcLabel`, "15");
     assert.equal(state.radius, r);
-    assert.equal(state.sectors[1]!.arcLabel.mode, "auto");
+    assert.equal(state.sectors[1]!.arcLabel.mode, "custom");
+    assert.equal(state.sectors[1]!.arcLabel.custom, "15");
     assert.ok(state.sectors[1]!.centralAngleDeg > 1);
+  });
+
+  it("keeps free-text custom labels like 4m without forcing the unit", () => {
+    assert.equal(resolveLabelText({ mode: "custom", custom: "4m", dx: 0, dy: 0 }, "6 cm", "cm", "x"), "4m");
   });
 });

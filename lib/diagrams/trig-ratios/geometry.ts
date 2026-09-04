@@ -548,7 +548,7 @@ function labelFromMeasureParse(
     return { ...prev, mode: "x", custom: parsed.unknown ?? "x" };
   }
   if (parsed.kind === "number" && parsed.value != null) {
-    return { ...prev, mode: "custom", custom: String(parsed.value) };
+    return { ...prev, mode: "custom", custom: text.trim() || String(parsed.value) };
   }
   if (!text.trim()) return { ...prev, mode: "hide", custom: "" };
   return { ...prev, mode: "custom", custom: text.trim() };
