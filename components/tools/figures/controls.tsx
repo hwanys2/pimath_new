@@ -325,7 +325,7 @@ export function LabelModeRow({
           type="text"
           value={custom}
           onChange={(e) => onCustom(e.target.value)}
-          placeholder="예: √3  또는  8 cm"
+          placeholder="예: 4m  또는  √3"
           className="mt-1.5 w-full rounded-lg border-2 border-wood/20 bg-white px-2 py-1.5 text-sm outline-none focus:border-wood"
         />
       ) : null}

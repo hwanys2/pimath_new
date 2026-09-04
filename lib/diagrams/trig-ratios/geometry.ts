@@ -32,6 +32,7 @@ import {
   patchSegState,
   roundThetaDeg,
   wrapRotateDeg,
+  snapRotateDeg,
   trigTriangleForRightVertex,
   type AltitudeVertex,
   type AngleMark,
@@ -417,8 +418,13 @@ function cross2(a: Vec, b: Vec): number {
   return a.x * b.y - a.y * b.x;
 }
 
-export function setRotateDeg(state: TrigRatiosState, deg: number): TrigRatiosState {
-  return { ...state, rotateDeg: wrapRotateDeg(deg) };
+export function setRotateDeg(
+  state: TrigRatiosState,
+  deg: number,
+  opts?: { snap?: boolean },
+): TrigRatiosState {
+  const next = opts?.snap === false ? wrapRotateDeg(deg) : snapRotateDeg(deg);
+  return { ...state, rotateDeg: next };
 }
 
 export function setThetaDeg(state: TrigRatiosState, deg: number): TrigRatiosState {
@@ -471,14 +477,11 @@ export function resolveLengthText(
 ): string | null {
   if (label.mode === "hide") return null;
   if (label.mode === "x") return `$${labelUnknownLetter(label, state.unknownLetter)}$`;
-  const computed = formatComputedLength(length, state.unit);
   if (label.mode === "custom") {
     const text = label.custom.trim();
-    if (!text) return null;
-    if (isSymbolicLengthLabel(label)) return normalizeSqrtLabel(text);
-    return computed;
+    return text ? normalizeSqrtLabel(text) : null;
   }
-  return computed;
+  return formatComputedLength(length, state.unit);
 }
 
 export function resolveSegText(state: TrigRatiosState, seg: SegMark): string | null {
@@ -487,14 +490,11 @@ export function resolveSegText(state: TrigRatiosState, seg: SegMark): string | n
   const { label } = seg;
   if (label.mode === "hide") return null;
   if (label.mode === "x") return `$${labelUnknownLetter(label, state.unknownLetter)}$`;
-  const computed = formatRightSegComputed(state, seg, length);
   if (label.mode === "custom") {
     const text = label.custom.trim();
-    if (!text) return null;
-    if (isSymbolicLengthLabel(label)) return normalizeSqrtLabel(text);
-    return computed;
+    return text ? normalizeSqrtLabel(text) : null;
   }
-  return computed;
+  return formatRightSegComputed(state, seg, length);
 }
 
 export function resolveAngleLabel(
@@ -592,17 +592,19 @@ function measureNumber(text: string): number | null {
   return null;
 }
 
-function isSymbolicLengthLabel(label: MeasLabel): boolean {
+function isPreserveCustomLength(label: MeasLabel): boolean {
   if (label.mode === "x") return true;
   if (label.mode === "custom") {
+    // Free text like "4m" or "$b$" stays. Numeric/radical customs unlock to auto
+    // when the figure changes so the shown value stays honest.
     if (measureNumber(label.custom) != null) return false;
-    return parseMeasureInput(label.custom).kind === "unknown";
+    return label.custom.trim().length > 0;
   }
   return false;
 }
 
 function autoLengthLabel(label: MeasLabel): MeasLabel {
-  if (isSymbolicLengthLabel(label) || label.mode === "hide") return label;
+  if (isPreserveCustomLength(label) || label.mode === "hide") return label;
   return { ...label, mode: "auto", custom: "" };
 }
 
@@ -615,7 +617,9 @@ function autoAngleLabel(label: MeasLabel): MeasLabel {
 
 function customLengthValue(label: MeasLabel): number | null {
   if (label.mode !== "custom") return null;
-  if (isSymbolicLengthLabel(label)) return null;
+  // Letter unknowns and free-text units ("4m") do not lock geometry.
+  const parsed = parseMeasureInput(label.custom);
+  if (parsed.kind === "unknown") return null;
   return measureNumber(label.custom);
 }
 

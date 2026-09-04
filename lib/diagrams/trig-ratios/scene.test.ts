@@ -25,8 +25,10 @@ import {
   findAngle,
   normalizeState,
   readPointMark,
+  snapRotateDeg,
 } from "./model";
 import { buildTrigScene } from "./scene";
+import { sceneInkBox } from "@/lib/diagrams/render";
 
 function almost(a: number, b: number, eps = 1e-6): void {
   assert.ok(Math.abs(a - b) < eps, `${a} ≉ ${b}`);
@@ -494,7 +496,7 @@ describe("trig-ratios scene", () => {
     almost(segLength(next, findSeg(next, "BC")!), 5, 1e-4);
     almost(segLength(next, findSeg(next, "AB")!), ab0, 1e-4);
     assert.ok(segLength(next, findSeg(next, "BC")!) > segLength(next, findSeg(next, "AB")!));
-    assert.equal(resolveSegText(next, findSeg(next, "BC")!), "5 cm");
+    assert.equal(resolveSegText(next, findSeg(next, "BC")!), "5");
     assert.equal(resolveSegText(next, findSeg(next, "AB")!), "$\\sqrt{3}$ cm");
   });
 
@@ -509,7 +511,7 @@ describe("trig-ratios scene", () => {
     const next = applyEditedLabel(shown, "s:BC", "5");
     almost(segLength(next, findSeg(next, "BC")!), 5, 1e-4);
     almost(segLength(next, findSeg(next, "AB")!), (5 / 3) * Math.sqrt(3), 1e-3);
-    assert.equal(resolveSegText(next, findSeg(next, "BC")!), "5 cm");
+    assert.equal(resolveSegText(next, findSeg(next, "BC")!), "5");
     const abText = resolveSegText(next, findSeg(next, "AB")!);
     assert.equal(abText, "2.89 cm");
   });
@@ -542,15 +544,36 @@ describe("trig-ratios scene", () => {
       ),
     };
     assert.equal(resolveSegText(shown, findSeg(shown, "AC")!), "$2\\sqrt{3}$ cm");
-    const decimal = {
-      ...shown,
-      segs: shown.segs.map((s) =>
-        s.id === "AC"
-          ? { ...s, show: true, label: { ...s.label, mode: "custom" as const, custom: "3.46 cm" } }
+  });
+
+  it("custom length mode keeps free text like 4m without forcing the unit", () => {
+    const start = normalizeState(cloneState(TRIG_PRESETS.find((p) => p.id === "right-sqrt3")!.state));
+    const custom = {
+      ...start,
+      segs: start.segs.map((s) =>
+        s.id === "BC"
+          ? { ...s, show: true, label: { ...s.label, mode: "custom" as const, custom: "4m" } }
           : s,
       ),
     };
-    assert.equal(resolveSegText(decimal, findSeg(decimal, "AC")!), "$2\\sqrt{3}$ cm");
+    assert.equal(resolveSegText(custom, findSeg(custom, "BC")!), "4m");
+    const plain = applyEditedLabel(start, "s:BC", "4");
+    assert.equal(resolveSegText(plain, findSeg(plain, "BC")!), "4");
+  });
+
+  it("snaps rotation near multiples of 10°", () => {
+    assert.equal(snapRotateDeg(28), 30);
+    assert.equal(snapRotateDeg(31.5), 30);
+    assert.equal(snapRotateDeg(34), 34);
+    assert.equal(snapRotateDeg(358), 0);
+  });
+
+  it("crops export bounds tighter than the square canvas", () => {
+    const scene = buildTrigScene(normalizeState(cloneState(TRIG_PRESETS.find((p) => p.id === "right-sqrt3")!.state)));
+    const box = sceneInkBox(scene, 12);
+    // Dim arcs inflate the axis-aligned box; still expect a clear vertical trim for PNG/SVG crop.
+    assert.ok(box.h < scene.height - 20, `${box.h} vs ${scene.height}`);
+    assert.ok(box.w * box.h < scene.width * scene.height);
   });
 
   it("on-figure length edit changes the named triangle side", () => {

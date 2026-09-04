@@ -17,7 +17,9 @@ import TrigRatiosCanvas, {
 import {
   canvasToPngBlob,
   copyPngToClipboard,
+  cropCanvasToInk,
   downloadBlob,
+  EXPORT_INK_PAD,
 } from "@/lib/diagrams/export-image";
 import {
   applyEditedLabel,
@@ -210,7 +212,11 @@ export default function TrigRatiosStudio() {
       state.style.lineWidth,
       state.style.exportScale,
     );
-    const blob = await canvasToPngBlob(canvas);
+    const cropped = cropCanvasToInk(
+      canvas,
+      EXPORT_INK_PAD * state.style.exportScale,
+    );
+    const blob = await canvasToPngBlob(cropped);
     downloadBlob(blob, "삼각비.png");
     setStatus("PNG를 저장했어요.");
   }
@@ -224,14 +230,18 @@ export default function TrigRatiosStudio() {
       state.style.lineWidth,
       state.style.exportScale,
     );
-    const blob = await canvasToPngBlob(canvas);
+    const cropped = cropCanvasToInk(
+      canvas,
+      EXPORT_INK_PAD * state.style.exportScale,
+    );
+    const blob = await canvasToPngBlob(cropped);
     await copyPngToClipboard(blob);
     setStatus("클립보드에 그림을 복사했어요.");
   }
 
   function exportSvg() {
     const scene = buildTrigScene(state);
-    const svg = sceneToSvg(scene, fonts, state.style.lineWidth);
+    const svg = sceneToSvg(scene, fonts, state.style.lineWidth, EXPORT_INK_PAD);
     downloadBlob(new Blob([svg], { type: "image/svg+xml;charset=utf-8" }), "삼각비.svg");
     setStatus("SVG를 저장했어요.");
   }
@@ -767,7 +777,18 @@ export default function TrigRatiosStudio() {
                     setState((prev) => patchSegState(prev, selected.id, { label: { ...selSeg.label, mode } }))
                   }
                   onCustom={(custom) =>
-                    setState((prev) => applyEditedLabel(prev, `s:${selected.id}`, custom))
+                    setState((prev) => {
+                      const seg = findSeg(prev, selected.id);
+                      if (!seg) return prev;
+                      // Keep free-form text (e.g. "4m") as typed; still resize on plain numbers.
+                      const parsed = custom.trim();
+                      const onlyNumber = /^(-?\d+(?:\.\d+)?)\s*(?:cm|mm)?$/i.test(parsed);
+                      if (onlyNumber) return applyEditedLabel(prev, `s:${selected.id}`, custom);
+                      return patchSegState(prev, selected.id, {
+                        show: true,
+                        label: { ...seg.label, mode: "custom", custom },
+                      });
+                    })
                   }
                 />
               </div>
@@ -795,6 +816,35 @@ export default function TrigRatiosStudio() {
                 step={1}
                 display={`${Math.round(state.rotateDeg)}°`}
               />
+              <div className="mt-2">
+                <NumberField
+                  label="각도"
+                  value={Math.round(state.rotateDeg * 10) / 10}
+                  onChange={(deg) => setState((prev) => setRotateDeg(prev, deg, { snap: false }))}
+                  min={0}
+                  max={359}
+                  step={1}
+                  suffix="°"
+                  hint="10° 근처에서는 슬라이더가 살짝 붙습니다."
+                />
+              </div>
+              <div className="mt-2 flex flex-wrap gap-1">
+                {[0, 30, 45, 60, 90, 180, 270].map((deg) => (
+                  <button
+                    key={deg}
+                    type="button"
+                    onClick={() => setState((prev) => setRotateDeg(prev, deg, { snap: false }))}
+                    className={`rounded-lg px-2 py-1 text-[11px] font-semibold ${
+                      Math.abs(state.rotateDeg - deg) < 0.6 ||
+                      Math.abs(state.rotateDeg - deg - 360) < 0.6
+                        ? "bg-wood/15 text-wood-dark"
+                        : "bg-black/5 text-foreground/55 hover:bg-black/10"
+                    }`}
+                  >
+                    {deg}°
+                  </button>
+                ))}
+              </div>
             </section>
           )}
         </div>

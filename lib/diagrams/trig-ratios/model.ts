@@ -215,6 +215,18 @@ export function wrapRotateDeg(deg: number): number {
   return ((deg % 360) + 360) % 360;
 }
 
+/** Soft snap toward multiples of `step` when within `magnet` degrees. */
+export function snapRotateDeg(deg: number, step = 10, magnet = 2.5): number {
+  const wrapped = wrapRotateDeg(deg);
+  const nearest = Math.round(wrapped / step) * step;
+  const snapped = wrapRotateDeg(nearest);
+  const dist = Math.min(
+    Math.abs(wrapped - snapped),
+    360 - Math.abs(wrapped - snapped),
+  );
+  return dist <= magnet ? snapped : wrapped;
+}
+
 export function cloneState(state: TrigRatiosState): TrigRatiosState {
   return structuredClone(state);
 }
@@ -776,8 +788,8 @@ const rightSqrt3 = withSegs(
     refAngleVertex: "A",
   }),
   {
-    AB: customLen("$\\sqrt{3}$"),
-    BC: customLen("3"),
+    AB: customLen("$\\sqrt{3}$ cm"),
+    BC: customLen("3 cm"),
   },
 );
 
@@ -789,7 +801,7 @@ const rightHyp46 = withSegs(
     ...altitudeTriangleFromLegs(6, 4),
     refAngleVertex: "C",
   }),
-  { AC: customLen("4"), AB: customLen("6") },
+  { AC: customLen("4 cm"), AB: customLen("6 cm") },
 );
 
 const right45xy = withSegs(
@@ -823,7 +835,7 @@ const right60_4 = withSegs(
     "pink",
     degLen(60),
   ),
-  { AB: customLen("4"), AC: xLen("x") },
+  { AB: customLen("4 cm"), AC: xLen("x") },
 );
 
 const right454590 = withAngle(
