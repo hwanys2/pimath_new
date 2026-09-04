@@ -45,10 +45,12 @@ const INK = "#111111";
 const FILL_PINK = "#f7c8d2";
 const FILL_BLUE = "#c5dff0";
 const FILL_GREEN = "#d4edda";
+const FILL_GRAY = "#d9dde3";
 const FILL_YELLOW = "#fce88a";
 const STROKE_PINK = "#e879a8";
 const STROKE_BLUE = "#5b8fc7";
 const STROKE_GREEN = "#3d9b6d";
+const STROKE_GRAY = "#8a9099";
 const DIAGONAL = "#e879a8";
 const GRID = "#c5dff0";
 
@@ -56,6 +58,7 @@ function fillColor(fill: AngleFill): string | null {
   if (fill === "pink") return FILL_PINK;
   if (fill === "blue") return FILL_BLUE;
   if (fill === "green") return FILL_GREEN;
+  if (fill === "gray") return FILL_GRAY;
   return null;
 }
 
@@ -69,6 +72,7 @@ function faceFillColor(fill: FaceFill): string {
 function altitudeStroke(color: AltitudeColor): string {
   if (color === "blue") return STROKE_BLUE;
   if (color === "green") return STROKE_GREEN;
+  if (color === "gray") return STROKE_GRAY;
   return STROKE_PINK;
 }
 

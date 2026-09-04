@@ -43,7 +43,7 @@ export type EdgeDraft = {
   show: boolean;
 };
 
-export type AngleFill = "none" | "pink" | "blue";
+export type AngleFill = "none" | "pink" | "blue" | "green" | "gray";
 
 export type AngleDraft = {
   id: string;
@@ -278,7 +278,10 @@ export function normalizeState(state: InscribedState): InscribedState {
     angles: (state.angles ?? []).map((a) => ({
       ...a,
       show: a.show !== false,
-      fill: a.fill === "pink" || a.fill === "blue" ? a.fill : "none",
+      fill:
+        a.fill === "pink" || a.fill === "blue" || a.fill === "green" || a.fill === "gray"
+          ? a.fill
+          : "none",
       reflex: Boolean(a.reflex),
       right: Boolean(a.right),
       label: a.label ?? emptyLabel("auto"),

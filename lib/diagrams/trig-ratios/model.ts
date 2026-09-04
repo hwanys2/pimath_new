@@ -16,11 +16,11 @@ export { emptyLabel, DEFAULT_STYLE };
 
 export type TrigKind = "right" | "unit-circle" | "triangle-area" | "quad-area";
 
-export type AngleFill = "none" | "pink" | "blue" | "green";
+export type AngleFill = "none" | "pink" | "blue" | "green" | "gray";
 
 export type FaceFill = "pink" | "blue" | "green" | "yellow";
 
-export type AltitudeColor = "pink" | "blue" | "green";
+export type AltitudeColor = "pink" | "blue" | "green" | "gray";
 
 export type QuadFamily = "general" | "parallelogram";
 
@@ -161,7 +161,9 @@ export type TrigPreset = {
 };
 
 function parseAngleFill(value: unknown): AngleFill {
-  if (value === "pink" || value === "blue" || value === "green") return value;
+  if (value === "pink" || value === "blue" || value === "green" || value === "gray") {
+    return value;
+  }
   return "none";
 }
 
@@ -173,6 +175,7 @@ export function cycleAngleFill(current: AngleFill): AngleFill {
   if (current === "none") return "pink";
   if (current === "pink") return "blue";
   if (current === "blue") return "green";
+  if (current === "green") return "gray";
   return "none";
 }
 
@@ -184,7 +187,7 @@ function parseFaceFill(value: unknown, fallback: FaceFill): FaceFill {
 }
 
 function parseAltitudeColor(value: unknown): AltitudeColor {
-  if (value === "blue" || value === "green") return value;
+  if (value === "blue" || value === "green" || value === "gray") return value;
   return "pink";
 }
 
@@ -192,6 +195,7 @@ export const ANGLE_FILL_CHIPS: { id: Exclude<AngleFill, "none">; label: string }
   { id: "pink", label: "분홍" },
   { id: "blue", label: "파랑" },
   { id: "green", label: "초록" },
+  { id: "gray", label: "회색" },
 ];
 
 export const FACE_FILL_CHIPS: { id: FaceFill; label: string }[] = [
@@ -438,7 +442,9 @@ function mergeAngles(base: AngleMark[], prev?: AngleMark[]): AngleMark[] {
     const p = map.get(b.id);
     if (!p) return b;
     const fill =
-      p.fill === "pink" || p.fill === "blue" || p.fill === "green" ? p.fill : "none";
+      p.fill === "pink" || p.fill === "blue" || p.fill === "green" || p.fill === "gray"
+        ? p.fill
+        : "none";
     return {
       ...b,
       show: p.show === true,
@@ -458,7 +464,8 @@ function mergeTriVertices(
     const fill =
       p.fillInterior === "pink" ||
       p.fillInterior === "blue" ||
-      p.fillInterior === "green"
+      p.fillInterior === "green" ||
+      p.fillInterior === "gray"
         ? p.fillInterior
         : "none";
     return {

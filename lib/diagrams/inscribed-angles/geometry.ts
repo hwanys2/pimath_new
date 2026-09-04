@@ -140,7 +140,17 @@ export function isRightDeg(deg: number): boolean {
 export function cycleFill(fill: AngleFill): AngleFill {
   if (fill === "none") return "pink";
   if (fill === "pink") return "blue";
+  if (fill === "blue") return "green";
+  if (fill === "green") return "gray";
   return "none";
+}
+
+export function angleFillLabel(fill: AngleFill): string {
+  if (fill === "pink") return "분홍";
+  if (fill === "blue") return "파랑";
+  if (fill === "green") return "초록";
+  if (fill === "gray") return "회색";
+  return "";
 }
 
 export function hasEdge(state: InscribedState, a: string, b: string): boolean {

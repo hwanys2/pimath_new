@@ -22,7 +22,7 @@ export type QuadFamily =
 
 export type TickCount = 0 | 1 | 2 | 3;
 export type ExtraArcs = 0 | 1 | 2;
-export type AngleFill = "none" | "pink" | "blue";
+export type AngleFill = "none" | "pink" | "blue" | "green" | "gray";
 export type AngleMark = "none" | "dot" | "x";
 export type FaceFill = "none" | "green" | "yellow";
 export type DiagSegId = "AO" | "OC" | "BO" | "OD" | "AC" | "BD";
@@ -839,7 +839,17 @@ export function setFamily(state: QuadState, family: QuadFamily): QuadState {
 export function cycleAngleFill(current: AngleFill): AngleFill {
   if (current === "none") return "pink";
   if (current === "pink") return "blue";
+  if (current === "blue") return "green";
+  if (current === "green") return "gray";
   return "none";
+}
+
+export function angleFillLabel(fill: AngleFill): string {
+  if (fill === "pink") return "분홍";
+  if (fill === "blue") return "파랑";
+  if (fill === "green") return "초록";
+  if (fill === "gray") return "회색";
+  return "";
 }
 
 export function cycleFaceFill(current: FaceFill): FaceFill {

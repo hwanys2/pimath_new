@@ -54,6 +54,7 @@ import {
   QUAD_PRESETS,
   cloneState,
   cycleAngleFill,
+  angleFillLabel,
   cycleAngleMark,
   cycleFaceFill,
   normalizeState,
@@ -715,11 +716,9 @@ function VertexPanel({
             }
           >
             내각 채움
-            {vertex.fillInterior === "pink"
-              ? " 분홍"
-              : vertex.fillInterior === "blue"
-                ? " 파랑"
-                : ""}
+            {angleFillLabel(vertex.fillInterior)
+              ? ` ${angleFillLabel(vertex.fillInterior)}`
+              : ""}
           </ChipToggle>
         ) : null}
         <ChipToggle
@@ -908,6 +907,7 @@ function WedgeFields({
           }
         >
           채움
+          {angleFillLabel(mark.fill) ? ` ${angleFillLabel(mark.fill)}` : ""}
         </ChipToggle>
       </div>
       <NumberField

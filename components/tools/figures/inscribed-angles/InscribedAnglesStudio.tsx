@@ -20,6 +20,7 @@ import {
   CENTER_ID,
   connectedIds,
   cycleFill,
+  angleFillLabel,
   cycleLabelMode,
   deleteSelected,
   hasEdge,
@@ -550,7 +551,7 @@ export default function InscribedAnglesStudio() {
                       }))
                     }
                   >
-                    채움{selAngle.fill === "pink" ? " 분홍" : selAngle.fill === "blue" ? " 파랑" : ""}
+                    채움{angleFillLabel(selAngle.fill) ? ` ${angleFillLabel(selAngle.fill)}` : ""}
                   </ChipToggle>
                   <ChipToggle
                     on={selAngle.reflex}

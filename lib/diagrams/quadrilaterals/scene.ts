@@ -60,12 +60,15 @@ const INK = "#111111";
 const PINK = "#f7c8d2";
 const BLUE = "#c5dcf0";
 const GREEN = "#cfe8c4";
+const GRAY = "#d9dde3";
 const YELLOW = "#f6e6b4";
 const MARK = "#e0709a";
 
 function fillFor(kind: AngleFill): string | null {
   if (kind === "pink") return PINK;
   if (kind === "blue") return BLUE;
+  if (kind === "green") return GREEN;
+  if (kind === "gray") return GRAY;
   return null;
 }
 

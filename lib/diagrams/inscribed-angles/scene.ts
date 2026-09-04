@@ -50,11 +50,15 @@ export type SceneLayout = {
 const INK = "#111111";
 const FILL_PINK = "#f7c8d2";
 const FILL_BLUE = "#c5dff0";
+const FILL_GREEN = "#d4edda";
+const FILL_GRAY = "#d9dde3";
 const HIGHLIGHT = "#e879a8";
 
 function fillColor(fill: AngleFill): string | null {
   if (fill === "pink") return FILL_PINK;
   if (fill === "blue") return FILL_BLUE;
+  if (fill === "green") return FILL_GREEN;
+  if (fill === "gray") return FILL_GRAY;
   return null;
 }
 
