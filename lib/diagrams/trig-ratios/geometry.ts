@@ -32,17 +32,13 @@ import {
   patchSegState,
   roundThetaDeg,
   wrapRotateDeg,
+  trigTriangleForRightVertex,
   type AltitudeVertex,
   type AngleMark,
   type TrigRatiosState,
   type SegMark,
 } from "./model";
 import {
-  altitudeTriangleFromLegs,
-  triangleForRightVertex,
-} from "@/lib/diagrams/pythagorean/model";
-import {
-  rebuildTriangleFromLegs as pythRebuild,
   movePoint as pythMovePoint,
   syncLegFields,
   type PythSelection,
@@ -341,7 +337,21 @@ export function rebuildTriangleFromLegs(
 }
 
 function setRightLegs(state: TrigRatiosState, legLeft: number, legRight: number): TrigRatiosState {
-  return fromPythTriangle(state, pythRebuild(toPythState(state), legLeft, legRight));
+  let ll = Math.max(0.5, legLeft);
+  let lr = Math.max(0.5, legRight);
+  if (state.isoscelesRight) {
+    ll = Math.max(ll, lr);
+    lr = ll;
+  }
+  const t = trigTriangleForRightVertex(ll, lr, state.rightVertex);
+  return normalizeRight({
+    ...state,
+    A: t.A,
+    B: t.B,
+    C: t.C,
+    legLeft: ll,
+    legRight: lr,
+  });
 }
 
 export function movePoint(state: TrigRatiosState, id: string, pos: Vec): TrigRatiosState {
@@ -921,7 +931,7 @@ function rightAnglesMatch(
   angs: Map<string, number>,
 ): boolean {
   if (angs.size === 0) return true;
-  const tri = triangleForRightVertex(left, right, state.rightVertex);
+  const tri = trigTriangleForRightVertex(left, right, state.rightVertex);
   const pts = [tri.A, tri.B, tri.C];
   for (const [id, deg] of angs) {
     const mark = state.angles.find((a) => a.id === id);
@@ -1708,7 +1718,7 @@ export function hitTestTrig(
 }
 
 export function rebuildRightForRightVertex(state: TrigRatiosState, rv: "A" | "B" | "C"): TrigRatiosState {
-  const t = triangleForRightVertex(state.legLeft, state.legRight, rv);
+  const t = trigTriangleForRightVertex(state.legLeft, state.legRight, rv);
   return normalizeRight({
     ...state,
     rightVertex: rv,

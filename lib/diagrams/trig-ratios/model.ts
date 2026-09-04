@@ -7,9 +7,7 @@ import {
 } from "@/lib/diagrams/polygon/model";
 import {
   altitudeTriangleFromLegs,
-  triangleForRightVertex,
   triangleFromLegsAtB,
-  triangleFromLegsAtC,
   type LockedRightVertex,
 } from "@/lib/diagrams/pythagorean/model";
 
@@ -219,6 +217,29 @@ export function wrapRotateDeg(deg: number): number {
 
 export function cloneState(state: TrigRatiosState): TrigRatiosState {
   return structuredClone(state);
+}
+
+/** Right angle at C on the right: B left, C right, A above C. */
+export function triangleFromLegsAtCRight(
+  legBC: number,
+  legAC: number,
+): { A: Vec; B: Vec; C: Vec } {
+  const bc = Math.max(0.5, legBC);
+  const ac = Math.max(0.5, legAC);
+  const B: Vec = { x: 0, y: 0 };
+  const C: Vec = { x: bc, y: 0 };
+  const A: Vec = { x: bc, y: ac };
+  return { A, B, C };
+}
+
+export function trigTriangleForRightVertex(
+  legLeft: number,
+  legRight: number,
+  rightVertex: LockedRightVertex,
+): { A: Vec; B: Vec; C: Vec } {
+  if (rightVertex === "B") return triangleFromLegsAtB(legLeft, legRight);
+  if (rightVertex === "A") return altitudeTriangleFromLegs(legLeft, legRight);
+  return triangleFromLegsAtCRight(legLeft, legRight);
 }
 
 function name(id: string, label?: string, dx = 0, dy = 0): NameMark {
@@ -535,7 +556,7 @@ export function normalizeState(
   const lr0 = clamp(state.legRight ?? 4, 0.5, 40);
   const ll = state.isoscelesRight === true ? Math.max(ll0, lr0) : ll0;
   const lr = state.isoscelesRight === true ? ll : lr0;
-  const legs = triangleForRightVertex(ll, lr, rv);
+  const legs = trigTriangleForRightVertex(ll, lr, rv);
   const quadFamily: QuadFamily =
     state.quadFamily === "parallelogram" ? "parallelogram" : "general";
 
@@ -812,7 +833,7 @@ const right454590 = withAngle(
       legLeft: 1,
       legRight: 1,
       isoscelesRight: true,
-      ...triangleFromLegsAtC(1, 1),
+      ...triangleFromLegsAtCRight(1, 1),
       refAngleVertex: "A",
     }),
     "A",
@@ -832,7 +853,7 @@ const right306090 = withAngle(
       rightVertex: "C",
       legLeft: 1,
       legRight: Math.sqrt(3),
-      ...triangleFromLegsAtC(1, Math.sqrt(3)),
+      ...triangleFromLegsAtCRight(1, Math.sqrt(3)),
       refAngleVertex: "A",
     }),
     "A",

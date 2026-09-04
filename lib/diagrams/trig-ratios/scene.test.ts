@@ -8,6 +8,7 @@ import {
   lengthDimAxes,
   movePoint,
   nudgeLabel,
+  rebuildRightForRightVertex,
   rebuildTriangleFromLegs,
   resolveSegText,
   unitCirclePoints,
@@ -90,6 +91,29 @@ describe("trig-ratios scene", () => {
       assert.ok(Math.hypot(mark.x - b.x, mark.y - b.y) < 3);
       assert.ok(Math.hypot(mark.x - c.x, mark.y - c.y) > 10);
     }
+  });
+
+  it("직각 위치 C keeps B on the left and puts the right angle at C on the right", () => {
+    const start = normalizeState(cloneState(TRIG_PRESETS.find((p) => p.id === "right-sqrt3")!.state));
+    assert.equal(start.rightVertex, "B");
+    assert.ok(start.C.x > start.B.x);
+    const next = rebuildRightForRightVertex(start, "C");
+    assert.equal(next.rightVertex, "C");
+    almost(interiorAngleDeg([next.A, next.B, next.C], 2), 90, 0.5);
+    assert.ok(Math.abs(interiorAngleDeg([next.A, next.B, next.C], 1) - 90) > 10);
+    assert.ok(next.C.x > next.B.x, "C should stay on the right");
+    almost(next.A.x, next.C.x);
+    almost(next.B.y, next.C.y);
+    const rebuilt = rebuildTriangleFromLegs(next, next.legLeft, next.legRight);
+    assert.ok(rebuilt.C.x > rebuilt.B.x);
+    almost(interiorAngleDeg([rebuilt.A, rebuilt.B, rebuilt.C], 2), 90, 0.5);
+    const scene = buildTrigScene(next);
+    const mark = scene.cmds.find((c) => c.t === "rightAngle");
+    assert.ok(mark && mark.t === "rightAngle");
+    const b = scene.layout.canvas.B!;
+    const c = scene.layout.canvas.C!;
+    assert.ok(Math.hypot(mark.x - c.x, mark.y - c.y) < 2);
+    assert.ok(Math.hypot(mark.x - b.x, mark.y - b.y) > 20);
   });
 
   it("can draw an angle arc without the degree number", () => {

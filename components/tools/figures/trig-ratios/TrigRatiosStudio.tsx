@@ -64,7 +64,7 @@ import { renderSceneToCanvas, sceneToSvg } from "@/lib/diagrams/render";
 import type { FontFaces } from "@/lib/diagrams/math-label";
 import type { LockedRightVertex } from "@/lib/diagrams/pythagorean/model";
 
-const STORAGE_KEY = "pm-diagram-g3-trig-ratios-v1";
+const STORAGE_KEY = "pm-diagram-g3-trig-ratios-v2";
 
 const storeListeners = new Set<() => void>();
 let cachedRaw: string | null = null;
