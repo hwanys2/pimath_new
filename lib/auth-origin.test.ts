@@ -59,4 +59,16 @@ describe("resolveAuthOrigin", () => {
     );
     assert.equal(isAllowedAuthHost("localhost:3000"), true);
   });
+
+  it("uses the Cloudflare Workers host so OAuth cookies match the callback", () => {
+    assert.equal(
+      resolveAuthOrigin({
+        configured: "https://pimath.kr",
+        host: "pimath-new.hwanys2.workers.dev",
+        protocol: "https",
+      }),
+      "https://pimath-new.hwanys2.workers.dev",
+    );
+    assert.equal(isAllowedAuthHost("pimath-new.hwanys2.workers.dev"), true);
+  });
 });

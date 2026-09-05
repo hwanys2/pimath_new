@@ -2,12 +2,16 @@ import { headers } from "next/headers";
 
 const PIMATH_HOSTS = new Set(["pimath.kr", "www.pimath.kr"]);
 
+/** Cloudflare Workers preview / default deploy host for this project. */
+const CLOUDFLARE_AUTH_HOSTS = new Set(["pimath-new.hwanys2.workers.dev"]);
+
 export function isAllowedAuthHost(host: string): boolean {
   const hostname = host.split(":")[0]?.toLowerCase() ?? "";
   return (
     hostname === "localhost" ||
     hostname === "127.0.0.1" ||
-    PIMATH_HOSTS.has(hostname)
+    PIMATH_HOSTS.has(hostname) ||
+    CLOUDFLARE_AUTH_HOSTS.has(hostname)
   );
 }
 

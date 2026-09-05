@@ -189,7 +189,8 @@ PM_STUDENT_SESSION_SECRET=...  # 서버 전용, 긴 랜덤 문자열
   - 로컬: `http://localhost:3000/auth/callback`
   - 프로덕션: `https://pimath.kr/auth/callback`, `https://www.pimath.kr/auth/callback`
   - (선택) Vercel 기본 도메인: `https://pimath-new.vercel.app/auth/callback`
-  - 비밀번호 재설정: 위 도메인 + `?next=/reset-password` 변형도 등록
+  - Cloudflare Workers: `https://pimath-new.hwanys2.workers.dev/auth/callback`
+  - 비밀번호 재설정: 위 도메인 + `?next=/reset-password` 변형도 등록 (Workers 포함)
 
 ---
 
