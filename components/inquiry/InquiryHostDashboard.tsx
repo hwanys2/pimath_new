@@ -27,6 +27,7 @@ import {
   type InquiryContentKey,
 } from "@/lib/inquiry-content-registry";
 import {
+  INQUIRY_POLL_MS,
   type InquiryHostTab,
   type InquiryPollState,
   type InquiryResponseRow,
@@ -221,9 +222,13 @@ export default function InquiryHostDashboard({
     };
   }, [selectedClassId, poll, validKey]);
 
-  useSessionPoll(sessionId, () => {
-    if (sessionId) void poll(sessionId);
-  });
+  useSessionPoll(
+    sessionId,
+    () => {
+      if (sessionId) void poll(sessionId);
+    },
+    { fallbackMs: INQUIRY_POLL_MS },
+  );
 
   const startSession = () => {
     if (!sessionId || !validKey) return;

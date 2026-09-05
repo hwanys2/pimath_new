@@ -9,41 +9,50 @@ import {
   sessionSyncChannelName,
 } from "./channel";
 
-const BROADCAST_SUBSCRIBE_TIMEOUT_MS = 3000;
+const BROADCAST_SUBSCRIBE_TIMEOUT_MS = 5000;
 
 async function sendBroadcast(channelName: string): Promise<void> {
   try {
     const supabase = createBrowserSupabaseClient();
+    // Unique topic instance so we don't fight an existing subscriber on this tab.
     const channel = supabase.channel(channelName, {
       config: { broadcast: { ack: false, self: false } },
     });
 
     await new Promise<void>((resolve) => {
-      const timeoutId = window.setTimeout(() => {
+      let settled = false;
+      const finish = () => {
+        if (settled) return;
+        settled = true;
+        window.clearTimeout(timeoutId);
         void supabase.removeChannel(channel);
         resolve();
+      };
+
+      const sendThenFinish = () => {
+        void channel
+          .send({
+            type: "broadcast",
+            event: SESSION_SYNC_EVENT,
+            payload: { at: Date.now() },
+          })
+          .catch(() => undefined)
+          .finally(finish);
+      };
+
+      const timeoutId = window.setTimeout(() => {
+        // Last attempt even if subscribe callback was late/missed.
+        sendThenFinish();
       }, BROADCAST_SUBSCRIBE_TIMEOUT_MS);
 
       channel.subscribe((status) => {
         if (status === "SUBSCRIBED") {
-          void channel
-            .send({
-              type: "broadcast",
-              event: SESSION_SYNC_EVENT,
-              payload: { at: Date.now() },
-            })
-            .finally(() => {
-              window.clearTimeout(timeoutId);
-              void supabase.removeChannel(channel);
-              resolve();
-            });
+          sendThenFinish();
           return;
         }
 
         if (status === "CHANNEL_ERROR" || status === "TIMED_OUT") {
-          window.clearTimeout(timeoutId);
-          void supabase.removeChannel(channel);
-          resolve();
+          finish();
         }
       });
     });

@@ -452,9 +452,14 @@ export default function InquiryStudentView({
     applyPollResult,
   ]);
 
-  useSessionPoll(sessionId, () => {
-    void sessionPollTick();
-  });
+  useSessionPoll(
+    sessionId,
+    () => {
+      void sessionPollTick();
+    },
+    // Inquiry pacing feels broken at the global 8s fallback when Realtime misses.
+    { fallbackMs: INQUIRY_POLL_MS },
+  );
 
   useEffect(() => {
     if (!studentClassId || !canParticipate || !validKey || sessionId) return;
