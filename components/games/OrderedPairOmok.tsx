@@ -16,10 +16,12 @@ import {
   omokLeaveQueueAction,
   omokLobbyContextAction,
   omokPlaceMoveAction,
-  omokPollAction,
   omokTimeoutMoveAction,
-  omokTouchGameAction,
 } from "@/app/play/g1-u2-3-ordered-pair-omok/actions";
+import {
+  omokPollClient,
+  omokTouchGameClient,
+} from "@/lib/omok-client";
 import { PVP_REMATCH_SECONDS } from "@/lib/pvp-constants";
 import {
   notifyPvpJoinResult,
@@ -128,6 +130,7 @@ export default function OrderedPairOmok() {
   });
   const gameIdRef = useRef<string | null>(null);
   const guestIdRef = useRef("");
+  const sessionTokenRef = useRef<string | null>(null);
   const myStoneRef = useRef<Stone>("black");
   const modeRef = useRef<Mode>("ai");
   const queueScopeRef = useRef<"class" | "global">("class");
@@ -135,6 +138,22 @@ export default function OrderedPairOmok() {
   const classIdRef = useRef<string | null>(null);
   const pollChannelRef = useRef<string | null>(null);
   const requeueIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  const pollOnce = useCallback(async (gid?: string | null) => {
+    return omokPollClient({
+      sessionToken: sessionTokenRef.current,
+      guestId: guestIdRef.current,
+      gameId: gid ?? gameIdRef.current,
+    });
+  }, []);
+
+  const touchOnce = useCallback(async (gid: string) => {
+    return omokTouchGameClient({
+      sessionToken: sessionTokenRef.current,
+      guestId: guestIdRef.current,
+      gameId: gid,
+    });
+  }, []);
 
   useEffect(() => {
     gameIdRef.current = gameId;
@@ -207,16 +226,13 @@ export default function OrderedPairOmok() {
 
     const tick = () => {
       if (endingRef.current || !gameIdRef.current) return;
-      void omokTouchGameAction({
-        guestId: guestIdRef.current,
-        gameId: gameIdRef.current,
-      });
+      void touchOnce(gameIdRef.current);
     };
 
     tick();
     const id = window.setInterval(tick, OMOK_PRESENCE_HEARTBEAT_MS);
     return () => window.clearInterval(id);
-  }, [screen, mode, gameId]);
+  }, [screen, mode, gameId, touchOnce]);
 
   useEffect(() => {
     setGuestId(ensureGuestId());
@@ -225,6 +241,8 @@ export default function OrderedPairOmok() {
       setCanUseClass(ctx.canUseClass);
       setPlayerName(ctx.displayName);
       setQueueScope(ctx.canUseClass ? "class" : "global");
+      sessionTokenRef.current = ctx.sessionToken;
+      if (ctx.classId) classIdRef.current = ctx.classId;
     })();
   }, []);
 
@@ -422,10 +440,7 @@ export default function OrderedPairOmok() {
         try {
           await applyTimeoutIfNeeded();
           if (endingRef.current) return;
-          const state = await omokPollAction({
-            guestId: guestIdRef.current,
-            gameId: gameIdRef.current ?? pollGameId,
-          });
+          const state = await pollOnce(gameIdRef.current ?? pollGameId);
           if ("error" in state) {
             setStatusMsg(
               typeof state.error === "string" && state.error.trim()
@@ -462,7 +477,7 @@ export default function OrderedPairOmok() {
       };
       stopVisiblePollRef.current = startHybridVisiblePoll(channel, tick);
     },
-    [applyPollPlaying, applyTimeoutIfNeeded, stopPoll],
+    [applyPollPlaying, applyTimeoutIfNeeded, pollOnce, stopPoll],
   );
 
   useEffect(() => () => stopPoll(), [stopPoll]);
@@ -556,10 +571,7 @@ export default function OrderedPairOmok() {
     setMode("pvp");
     if (joined.gameId) {
       setGameId(joined.gameId);
-      const state = await omokPollAction({
-        guestId: guestIdRef.current,
-        gameId: joined.gameId,
-      });
+      const state = await pollOnce(joined.gameId);
       if (!("error" in state)) applyPollPlaying(state);
       startPoll(joined.gameId);
     } else {
@@ -585,10 +597,7 @@ export default function OrderedPairOmok() {
     setStatusMsg("전체로 확대해서 기다리는 중이에요…");
     if (res.gameId) {
       setGameId(res.gameId);
-      const state = await omokPollAction({
-        guestId: guestIdRef.current,
-        gameId: res.gameId,
-      });
+      const state = await pollOnce(res.gameId);
       if (!("error" in state)) applyPollPlaying(state);
       notifyPvpJoinResult(CONTENT_KEY, {
         gameId: res.gameId,
@@ -703,10 +712,7 @@ export default function OrderedPairOmok() {
       if (!res.ok) {
         setStatusMsg(res.message ?? "둘 수 없어요.");
         if (res.error === "not_your_turn" || res.error === "game_over") {
-          const state = await omokPollAction({
-            guestId: guestIdRef.current,
-            gameId: gameIdRef.current,
-          });
+          const state = await pollOnce(gameIdRef.current);
           if (!("error" in state)) applyPollPlaying(state);
         }
         return;
@@ -784,10 +790,7 @@ export default function OrderedPairOmok() {
     setMode("pvp");
     if (joined.gameId) {
       setGameId(joined.gameId);
-      const state = await omokPollAction({
-        guestId: guestIdRef.current,
-        gameId: joined.gameId,
-      });
+      const state = await pollOnce(joined.gameId);
       if (!("error" in state)) applyPollPlaying(state);
       startPoll(joined.gameId);
     } else {
@@ -799,7 +802,7 @@ export default function OrderedPairOmok() {
       );
       startPoll(null);
     }
-  }, [applyPollPlaying, clearRequeueTimer, startPoll]);
+  }, [applyPollPlaying, clearRequeueTimer, pollOnce, startPoll]);
 
   useEffect(() => {
     if (screen !== "ended" || mode !== "pvp") {

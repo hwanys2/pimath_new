@@ -252,6 +252,13 @@ async function triggerPvpRequeue() {
 
 ## 8. 폴링 규칙
 
+고빈도 `poll`(및 omok `touch_game` heartbeat)은 **브라우저 → Supabase RPC**로 직접 호출한다.  
+Next.js Server Action을 거치지 않아 호스팅 Function 과금을 피한다.  
+`join` / `leave` / `place_move` 등 드문 요청은 기존처럼 Server Action을 유지해도 된다.
+
+학생 신원: 로비 bootstrap(`*LobbyContextAction`)에서 opaque `sessionToken`을 한 번 내려받아 클라이언트가 poll RPC에 넘긴다.  
+게스트: `localStorage` `guestId`만으로 충분하다.
+
 ```ts
 const POLL_MS = 1200;
 
@@ -259,12 +266,16 @@ function startPoll(gameId?: string | null) {
   stopPoll();
   const tick = async () => {
     if (endingRef.current || placingRef.current) return;
-    const state = await pollAction({ guestId, gameId: gameId ?? gameIdRef.current });
+    const state = await pollClient({
+      sessionToken,
+      guestId,
+      gameId: gameId ?? gameIdRef.current,
+    });
     applyPollPlaying(state);
     // turn timeout 처리 (해당 게임에 수당 제한이 있을 때)
   };
   void tick();
-  pollRef.current = setInterval(() => void tick(), POLL_MS);
+  // Prefer startHybridVisiblePoll (Realtime nudge + visible interval)
 }
 ```
 
@@ -282,7 +293,8 @@ function startPoll(gameId?: string | null) {
 | 게스트 | `guest:{localStorage uuid}` | `class` 불가 → `global`만 |
 
 - 게스트 ID: 컴포넌트 `localStorage` + `guestIdRef` (게임별 키, 예: `pm_sq_guest_id`).
-- 서버: `getStudentSessionToken()` + `p_guest_id`를 RPC에 전달.
+- 서버(join/move 등): `getStudentSessionToken()` + `p_guest_id`를 RPC에 전달.
+- 클라이언트(poll/touch): 로비에서 받은 `sessionToken` + `guestId`를 RPC에 전달.
 
 ---
 
