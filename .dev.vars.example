@@ -1,5 +1,7 @@
 NEXTJS_ENV=development
 
+# Cloudflare deploy requires Workers Paid ($5/mo) — Free 10ms CPU cannot run OpenNext.
+# wrangler.jsonc uses Smart Placement (near Supabase ap-northeast-2).
 # Copy these into Cloudflare Workers → Settings → Variables and secrets
 # (Build + Runtime). Do not commit real values.
 

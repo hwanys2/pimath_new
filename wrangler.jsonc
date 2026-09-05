@@ -4,6 +4,9 @@
   "name": "pimath-new",
   "compatibility_date": "2026-09-05",
   "compatibility_flags": ["nodejs_compat", "global_fetch_strictly_public"],
+  "placement": {
+    "mode": "smart"
+  },
   "assets": {
     "directory": ".open-next/assets",
     "binding": "ASSETS"

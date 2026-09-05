@@ -192,6 +192,13 @@ PM_STUDENT_SESSION_SECRET=...  # 서버 전용, 긴 랜덤 문자열
   - Cloudflare Workers: `https://pimath-new.hwanys2.workers.dev/auth/callback`
   - 비밀번호 재설정: 위 도메인 + `?next=/reset-password` 변형도 등록 (Workers 포함)
 
+### Cloudflare Workers 배포 메모
+
+- **Workers Paid ($5/월) 필수** — Free 플랜 CPU 10ms로는 OpenNext/Next.js가 동작하지 않는다.
+- `wrangler.jsonc`에 **Smart Placement** (`placement.mode = "smart"`)를 켠다. Vercel `icn1` 고정 대신 Supabase(`ap-northeast-2`) 쪽으로 실행 위치를 옮긴다.
+- 빌드·런타임 Variables에 `.dev.vars.example`의 `PM_*` / Mathpix / OpenAI 키를 모두 넣는다. Site URL은 foreducator 그대로 두고, Workers 콜백만 Redirect allow list에 추가한다.
+- Deploy는 `npx @opennextjs/cloudflare deploy`(또는 Workers Builds의 동일 커맨드)로 해서 R2/D1 `populateCache`가 돌아가게 한다.
+
 ---
 
 ## 6. 절대 하지 말 것 (체크리스트)
