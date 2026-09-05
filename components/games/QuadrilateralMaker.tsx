@@ -16,10 +16,10 @@ import {
   quadLobbyContextAction,
   quadPickShapeAction,
   quadPlaceMoveAction,
-  quadPollAction,
   quadSubmitRpsAction,
   quadTimeoutMoveAction,
 } from "@/app/play/g2-u3-1-quadrilateral-maker/actions";
+import { quadPollClient } from "@/lib/quad-client";
 import { PVP_POLL_MS, PVP_REMATCH_SECONDS } from "@/lib/pvp-constants";
 import {
   notifyPvpJoinResult,
@@ -235,6 +235,7 @@ export default function QuadrilateralMaker() {
   });
   const gameIdRef = useRef<string | null>(null);
   const guestIdRef = useRef("");
+  const sessionTokenRef = useRef<string | null>(null);
   const myStoneRef = useRef<Stone>("black");
   const modeRef = useRef<Mode>("ai");
   const myShapeRef = useRef<QuadShape | null>(null);
@@ -243,6 +244,14 @@ export default function QuadrilateralMaker() {
   const classIdRef = useRef<string | null>(null);
   const pollChannelRef = useRef<string | null>(null);
   const requeueIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  const pollOnce = useCallback(async (gid?: string | null) => {
+    return quadPollClient({
+      sessionToken: sessionTokenRef.current,
+      guestId: guestIdRef.current,
+      gameId: gid ?? gameIdRef.current,
+    });
+  }, []);
 
   useEffect(() => {
     gameIdRef.current = gameId;
@@ -276,6 +285,8 @@ export default function QuadrilateralMaker() {
       setCanUseClass(ctx.canUseClass);
       setPlayerName(ctx.displayName);
       setQueueScope(ctx.canUseClass ? "class" : "global");
+      sessionTokenRef.current = ctx.sessionToken;
+      if (ctx.classId) classIdRef.current = ctx.classId;
     })();
   }, []);
 
@@ -498,10 +509,7 @@ export default function QuadrilateralMaker() {
         try {
           await applyTimeoutIfNeeded();
           if (endingRef.current) return;
-          const state = await quadPollAction({
-            guestId: guestIdRef.current,
-            gameId: gameIdRef.current ?? pollGameId,
-          });
+          const state = await pollOnce(gameIdRef.current ?? pollGameId);
           if ("error" in state) {
             setStatusMsg(`연결 문제: ${state.error}`);
             return;
@@ -537,7 +545,7 @@ export default function QuadrilateralMaker() {
         fallbackMs: PVP_POLL_MS,
       });
     },
-    [applyPollPlaying, applyTimeoutIfNeeded, stopPoll],
+    [applyPollPlaying, applyTimeoutIfNeeded, pollOnce, stopPoll],
   );
 
   useEffect(() => () => stopPoll(), [stopPoll]);
@@ -639,10 +647,7 @@ export default function QuadrilateralMaker() {
     setMode("pvp");
     if (joined.gameId) {
       setGameId(joined.gameId);
-      const state = await quadPollAction({
-        guestId: guestIdRef.current,
-        gameId: joined.gameId,
-      });
+      const state = await pollOnce(joined.gameId);
       if (!("error" in state)) applyPollPlaying(state);
       startPoll(joined.gameId);
     } else {
@@ -669,10 +674,7 @@ export default function QuadrilateralMaker() {
     if (res.gameId) {
       setGameId(res.gameId);
       gameIdRef.current = res.gameId;
-      const state = await quadPollAction({
-        guestId: guestIdRef.current,
-        gameId: res.gameId,
-      });
+      const state = await pollOnce(res.gameId);
       if (!("error" in state)) applyPollPlaying(state);
       notifyPvpJoinResult(CONTENT_KEY, {
         gameId: res.gameId,
@@ -981,10 +983,7 @@ export default function QuadrilateralMaker() {
     setMode("pvp");
     if (joined.gameId) {
       setGameId(joined.gameId);
-      const state = await quadPollAction({
-        guestId: guestIdRef.current,
-        gameId: joined.gameId,
-      });
+      const state = await pollOnce(joined.gameId);
       if (!("error" in state)) applyPollPlaying(state);
       startPoll(joined.gameId);
     } else {
@@ -996,7 +995,7 @@ export default function QuadrilateralMaker() {
       );
       startPoll(null);
     }
-  }, [applyPollPlaying, clearRequeueTimer, startPoll]);
+  }, [applyPollPlaying, clearRequeueTimer, pollOnce, startPoll]);
 
   useEffect(() => {
     if (screen !== "ended" || mode !== "pvp") {

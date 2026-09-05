@@ -15,10 +15,10 @@ import {
   sqLeaveQueueAction,
   sqLobbyContextAction,
   sqPlaceMoveAction,
-  sqPollAction,
   sqSubmitRpsAction,
   sqTimeoutMoveAction,
 } from "@/app/play/g3-u1-square-maker/actions";
+import { sqPollClient } from "@/lib/sq-client";
 import { PVP_POLL_MS, PVP_REMATCH_SECONDS } from "@/lib/pvp-constants";
 import {
   notifyPvpJoinResult,
@@ -269,12 +269,21 @@ export default function SquareMaker() {
   });
   const gameIdRef = useRef<string | null>(null);
   const guestIdRef = useRef("");
+  const sessionTokenRef = useRef<string | null>(null);
   const myStoneRef = useRef<Stone>("black");
   const modeRef = useRef<Mode>("ai");
   const queueScopeRef = useRef<"class" | "global">("class");
   const classIdRef = useRef<string | null>(null);
   const pollChannelRef = useRef<string | null>(null);
   const requeueIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  const pollOnce = useCallback(async (gid?: string | null) => {
+    return sqPollClient({
+      sessionToken: sessionTokenRef.current,
+      guestId: guestIdRef.current,
+      gameId: gid ?? gameIdRef.current,
+    });
+  }, []);
 
   useEffect(() => {
     gameIdRef.current = gameId;
@@ -302,6 +311,8 @@ export default function SquareMaker() {
       setCanUseClass(ctx.canUseClass);
       setPlayerName(ctx.displayName);
       setQueueScope(ctx.canUseClass ? "class" : "global");
+      sessionTokenRef.current = ctx.sessionToken;
+      if (ctx.classId) classIdRef.current = ctx.classId;
     })();
   }, []);
 
@@ -539,10 +550,7 @@ export default function SquareMaker() {
         try {
           await applyTimeoutIfNeeded();
           if (endingRef.current) return;
-          const state = await sqPollAction({
-            guestId: guestIdRef.current,
-            gameId: gameIdRef.current ?? pollGameId,
-          });
+          const state = await pollOnce(gameIdRef.current ?? pollGameId);
           if ("error" in state) {
             setStatusMsg(`연결 문제: ${state.error}`);
             return;
@@ -578,7 +586,7 @@ export default function SquareMaker() {
         fallbackMs: PVP_POLL_MS,
       });
     },
-    [applyPollPlaying, applyTimeoutIfNeeded, stopPoll],
+    [applyPollPlaying, applyTimeoutIfNeeded, pollOnce, stopPoll],
   );
 
   useEffect(() => () => stopPoll(), [stopPoll]);
@@ -697,10 +705,7 @@ export default function SquareMaker() {
     setMode("pvp");
     if (joined.gameId) {
       setGameId(joined.gameId);
-      const state = await sqPollAction({
-        guestId: guestIdRef.current,
-        gameId: joined.gameId,
-      });
+      const state = await pollOnce(joined.gameId);
       if (!("error" in state)) applyPollPlaying(state);
       startPoll(joined.gameId);
     } else {
@@ -727,10 +732,7 @@ export default function SquareMaker() {
     if (res.gameId) {
       setGameId(res.gameId);
       gameIdRef.current = res.gameId;
-      const state = await sqPollAction({
-        guestId: guestIdRef.current,
-        gameId: res.gameId,
-      });
+      const state = await pollOnce(res.gameId);
       if (!("error" in state)) applyPollPlaying(state);
       notifyPvpJoinResult(CONTENT_KEY, {
         gameId: res.gameId,
@@ -985,10 +987,7 @@ export default function SquareMaker() {
     setMode("pvp");
     if (joined.gameId) {
       setGameId(joined.gameId);
-      const state = await sqPollAction({
-        guestId: guestIdRef.current,
-        gameId: joined.gameId,
-      });
+      const state = await pollOnce(joined.gameId);
       if (!("error" in state)) applyPollPlaying(state);
       startPoll(joined.gameId);
     } else {
@@ -1000,7 +999,7 @@ export default function SquareMaker() {
       );
       startPoll(null);
     }
-  }, [applyPollPlaying, clearRequeueTimer, startPoll]);
+  }, [applyPollPlaying, clearRequeueTimer, pollOnce, startPoll]);
 
   useEffect(() => {
     if (screen !== "ended" || mode !== "pvp") {

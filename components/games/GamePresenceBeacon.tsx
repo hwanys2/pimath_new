@@ -9,7 +9,11 @@ import {
   type GamePresencePhase,
 } from "@/lib/game-dashboard-types";
 import { contentKeyFromPlayPath } from "@/lib/game-dashboard-view";
-import { leaveGamePresence, pingGamePresence } from "@/app/play/presence-actions";
+import { getStudentRpcCredentialsAction } from "@/app/play/student-rpc-credentials";
+import {
+  leaveGamePresenceClient,
+  pingGamePresenceClient,
+} from "@/lib/presence-client";
 import { notifyDashboardChanged } from "@/lib/session-sync";
 import { startVisibleInterval } from "@/lib/visible-interval";
 
@@ -31,14 +35,20 @@ export default function GamePresenceBeacon() {
 
     let cancelled = false;
     let sentEnter = false;
+    let sessionToken: string | null = null;
+    let stopInterval: (() => void) | null = null;
 
     const notify = () => {
       void notifyDashboardChanged(classId, contentKey);
     };
 
     const ping = () => {
-      if (cancelled) return;
-      void pingGamePresence({ contentKey, phase: "playing" }).then(() => {
+      if (cancelled || !sessionToken) return;
+      void pingGamePresenceClient({
+        sessionToken,
+        contentKey,
+        phase: "playing",
+      }).then(() => {
         if (!sentEnter) {
           sentEnter = true;
           notify();
@@ -46,13 +56,21 @@ export default function GamePresenceBeacon() {
       });
     };
 
-    ping();
-    const stop = startVisibleInterval(ping, GAME_PRESENCE_PING_MS);
+    void (async () => {
+      const creds = await getStudentRpcCredentialsAction();
+      if (cancelled) return;
+      sessionToken = creds.sessionToken;
+      if (!sessionToken) return;
+      ping();
+      stopInterval = startVisibleInterval(ping, GAME_PRESENCE_PING_MS);
+    })();
 
     return () => {
       cancelled = true;
-      stop();
-      void leaveGamePresence({ contentKey });
+      stopInterval?.();
+      if (sessionToken) {
+        void leaveGamePresenceClient({ sessionToken, contentKey });
+      }
       notify();
     };
   }, [enabled, contentKey, classId]);
@@ -79,18 +97,31 @@ export function useGamePresence(
   useEffect(() => {
     if (!enabled || !contentKey) return;
     let cancelled = false;
+    let sessionToken: string | null = null;
+    let stopInterval: (() => void) | null = null;
+
     const ping = () => {
-      if (cancelled) return;
-      void pingGamePresence({
+      if (cancelled || !sessionToken) return;
+      void pingGamePresenceClient({
+        sessionToken,
         contentKey,
         phase: latest.current.phase,
         liveScore: latest.current.liveScore,
       });
     };
-    const stop = startVisibleInterval(ping, GAME_PRESENCE_PING_MS);
+
+    void (async () => {
+      const creds = await getStudentRpcCredentialsAction();
+      if (cancelled) return;
+      sessionToken = creds.sessionToken;
+      if (!sessionToken) return;
+      ping();
+      stopInterval = startVisibleInterval(ping, GAME_PRESENCE_PING_MS);
+    })();
+
     return () => {
       cancelled = true;
-      stop();
+      stopInterval?.();
     };
   }, [enabled, contentKey, phase, liveScore]);
 
