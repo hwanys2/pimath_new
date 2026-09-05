@@ -91,11 +91,11 @@ setup → live → closed
 | `pm_inquiry_close` | `closed` |
 | `pm_inquiry_join` | 학생 참가 |
 | `pm_inquiry_submit_response` | step 응답 저장 |
-| `pm_inquiry_poll` / `teacher_poll` | 1.2s 폴링 (학생 poll은 `step_response` 포함) |
+| `pm_inquiry_poll` / `teacher_poll` | 학생·교사 poll (`step_response` 포함) |
 | `pm_inquiry_list_responses` | 교사: 전체 응답 |
 | `pm_inquiry_record_session_runs` | 세션 종료 시 `pm_game_runs` 일괄 기록 |
 
-동기화는 **HTTP 폴링 1.2s** (Supabase Realtime 없음). [`pvp-matchmaking.md`](pvp-matchmaking.md)와 무관.
+동기화는 **Realtime Broadcast + HTTP 폴백 폴링** (`INQUIRY_POLL_MS` = 2s). Broadcast가 실패하면 최대 약 2초 뒤 학생이 step을 따라간다.
 
 ---
 
