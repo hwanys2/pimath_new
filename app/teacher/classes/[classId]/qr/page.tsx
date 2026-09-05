@@ -6,7 +6,6 @@ import ClassQrPrintSheet from "@/components/teacher/ClassQrPrintSheet";
 import { requireTeacher } from "@/lib/auth";
 import { getAuthOrigin } from "@/lib/auth-origin";
 import { getStudentQrLoginUrl } from "@/lib/student-qr";
-import { qrDataUrl } from "@/lib/student-qr-image";
 import { createClient } from "@/lib/supabase/server";
 
 type Props = {
@@ -46,20 +45,16 @@ export default async function ClassQrPrintPage({ params }: Props) {
     getAuthOrigin(),
   ]);
 
+  // Generate QR images in the browser — Workers CPU cannot afford N×PNG encodes.
   const students = error
     ? []
-    : await Promise.all(
-        rows.map(async (row) => ({
-          id: row.student_id,
-          displayName: row.display_name,
-          loginId: row.login_id,
-          studentNumber: row.student_number,
-          qrDataUrl: await qrDataUrl(
-            getStudentQrLoginUrl(origin, row.token),
-            512,
-          ),
-        })),
-      );
+    : rows.map((row) => ({
+        id: row.student_id,
+        displayName: row.display_name,
+        loginId: row.login_id,
+        studentNumber: row.student_number,
+        loginUrl: getStudentQrLoginUrl(origin, row.token),
+      }));
 
   return (
     <div className="flex flex-col gap-6">

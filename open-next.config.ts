@@ -1,6 +1,15 @@
 import { defineCloudflareConfig } from "@opennextjs/cloudflare";
+import r2IncrementalCache from "@opennextjs/cloudflare/overrides/incremental-cache/r2-incremental-cache";
+import { withRegionalCache } from "@opennextjs/cloudflare/overrides/incremental-cache/regional-cache";
+import doQueue from "@opennextjs/cloudflare/overrides/queue/do-queue";
+import d1NextTagCache from "@opennextjs/cloudflare/overrides/tag-cache/d1-next-tag-cache";
 
-// Baseline config: SSR/Server Actions work without R2/D1.
-// Add R2 incremental cache + DO queue later for ISR/revalidatePath persistence.
-// See https://opennext.js.org/cloudflare/caching
-export default defineCloudflareConfig();
+// ISR + revalidatePath need persistent cache (R2), a revalidation queue (DO),
+// and a tag store (D1). Deploy via `opennextjs-cloudflare deploy` so populateCache runs.
+export default defineCloudflareConfig({
+  incrementalCache: withRegionalCache(r2IncrementalCache, {
+    mode: "long-lived",
+  }),
+  queue: doQueue,
+  tagCache: d1NextTagCache,
+});

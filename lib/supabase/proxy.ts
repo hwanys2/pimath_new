@@ -15,12 +15,19 @@ export async function updateSession(request: NextRequest) {
             return request.cookies.getAll();
           },
           setAll(cookiesToSet, headers) {
+            const secure =
+              process.env.NODE_ENV === "production" ||
+              request.nextUrl.protocol === "https:";
             cookiesToSet.forEach(({ name, value }) =>
               request.cookies.set(name, value),
             );
             supabaseResponse = NextResponse.next({ request });
             cookiesToSet.forEach(({ name, value, options }) =>
-              supabaseResponse.cookies.set(name, value, options),
+              supabaseResponse.cookies.set(name, value, {
+                ...options,
+                // Workers / HTTPS previews must set Secure or browsers drop refresh cookies.
+                ...(secure ? { secure: true, sameSite: "lax" as const } : {}),
+              }),
             );
             Object.entries(headers).forEach(([key, value]) =>
               supabaseResponse.headers.set(key, value),

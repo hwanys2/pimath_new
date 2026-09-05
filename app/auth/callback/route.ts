@@ -2,6 +2,7 @@ import { createServerClient, type CookieOptions } from "@supabase/ssr";
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 import { AUTH_NEXT_COOKIE, STUDENT_SESSION_COOKIE } from "@/lib/auth-routes";
+import { resolveAuthOrigin } from "@/lib/auth-origin";
 import { safeNextPath } from "@/lib/safe-next-path";
 import { syncForeducatorAccount } from "@/lib/supabase/account";
 import { getSupabaseAnonKey, getSupabaseUrl } from "@/lib/supabase/env";
@@ -13,15 +14,15 @@ type PendingCookie = {
 };
 
 function callbackSiteOrigin(request: Request): string {
-  const { origin } = new URL(request.url);
-  if (process.env.NODE_ENV === "development") return origin;
-
-  const forwardedHost = request.headers.get("x-forwarded-host");
-  if (forwardedHost) {
-    const proto = request.headers.get("x-forwarded-proto") ?? "https";
-    return `${proto}://${forwardedHost}`;
-  }
-  return origin;
+  const url = new URL(request.url);
+  return resolveAuthOrigin({
+    configured: process.env.PM_SITE_URL,
+    host: request.headers.get("x-forwarded-host") ?? url.host,
+    protocol:
+      request.headers.get("x-forwarded-proto") ??
+      (url.protocol === "https:" ? "https" : "http"),
+    nodeEnv: process.env.NODE_ENV,
+  });
 }
 
 function redirectWithCookies(

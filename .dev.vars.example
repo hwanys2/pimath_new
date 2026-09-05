@@ -1,1 +1,18 @@
 NEXTJS_ENV=development
+
+# Copy these into Cloudflare Workers → Settings → Variables and secrets
+# (Build + Runtime). Do not commit real values.
+
+# Required
+PM_SUPABASE_URL=
+PM_SUPABASE_ANON_KEY=
+PM_STUDENT_SESSION_SECRET=
+
+# Auth / redirects (canonical production site; Workers host is allow-listed in code)
+PM_SITE_URL=https://pimath.kr
+
+# Optional
+NEXT_PUBLIC_GA_MEASUREMENT_ID=
+MATHPIX_APP_ID=
+MATHPIX_APP_KEY=
+OPENAI_API_KEY=

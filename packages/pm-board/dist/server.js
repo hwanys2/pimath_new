@@ -171,7 +171,7 @@ async function handleRecognizeMath(body, env) {
   }
   const src = image.startsWith("data:") ? image : `data:image/png;base64,${image}`;
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 25e3);
+  const timeout = setTimeout(() => controller.abort(), 2e4);
   try {
     const res = await fetch(MATHPIX_URL, {
       method: "POST",
@@ -218,22 +218,32 @@ Respond ONLY with valid JSON: {"steps":["step1","step2",...],"answerLatex":"..."
 Each step may use LaTeX inside $...$ for math. Use Korean explanations.`;
   const user = `LaTeX: ${latex}
 Expression: ${expr}`;
-  const res = await fetch("https://api.openai.com/v1/chat/completions", {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      "Content-Type": "application/json"
-    },
-    body: JSON.stringify({
-      model: OPENAI_MODEL,
-      temperature: 0.2,
-      response_format: { type: "json_object" },
-      messages: [
-        { role: "system", content: system },
-        { role: "user", content: user }
-      ]
-    })
-  });
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 2e4);
+  let res;
+  try {
+    res = await fetch("https://api.openai.com/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        "Content-Type": "application/json"
+      },
+      signal: controller.signal,
+      body: JSON.stringify({
+        model: OPENAI_MODEL,
+        temperature: 0.2,
+        response_format: { type: "json_object" },
+        messages: [
+          { role: "system", content: system },
+          { role: "user", content: user }
+        ]
+      })
+    });
+  } catch {
+    return null;
+  } finally {
+    clearTimeout(timeout);
+  }
   if (!res.ok) return null;
   const data = await res.json();
   const text = data.choices?.[0]?.message?.content;

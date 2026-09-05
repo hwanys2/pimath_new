@@ -1,8 +1,10 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { rotateStudentQrToken } from "@/app/teacher/actions";
 import { downloadDataUrl } from "@/components/teacher/downloadDataUrl";
 import { studentQrFileName } from "@/lib/student-qr";
+import { qrDataUrl } from "@/lib/student-qr-image";
 import { formatStudentLabel } from "@/lib/students";
 
 export type QrCardStudent = {
@@ -10,7 +12,7 @@ export type QrCardStudent = {
   displayName: string;
   loginId: string;
   studentNumber: number | null;
-  qrDataUrl: string;
+  loginUrl: string;
 };
 
 export default function ClassQrPrintSheet({
@@ -74,6 +76,18 @@ function QrPrintCard({
   className: string;
   student: QrCardStudent;
 }) {
+  const [dataUrl, setDataUrl] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    void qrDataUrl(student.loginUrl, 256).then((url) => {
+      if (!cancelled) setDataUrl(url);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [student.loginUrl]);
+
   return (
     <article className="qr-print-card flex flex-col items-center gap-2 rounded-2xl border-2 border-wood/15 bg-white p-4">
       <p className="text-[11px] font-semibold tracking-wide text-wood/70">
@@ -83,12 +97,18 @@ function QrPrintCard({
       <h3 className="font-display text-xl text-foreground">
         {formatStudentLabel(student.displayName, student.studentNumber)}
       </h3>
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img
-        src={student.qrDataUrl}
-        alt={`${student.displayName} 로그인 QR`}
-        className="h-44 w-44 rounded-xl border border-wood/10"
-      />
+      {dataUrl ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src={dataUrl}
+          alt={`${student.displayName} 로그인 QR`}
+          className="h-44 w-44 rounded-xl border border-wood/10"
+        />
+      ) : (
+        <div className="flex h-44 w-44 items-center justify-center rounded-xl border border-wood/10 bg-wood/5 text-xs text-wood/50">
+          QR 준비 중…
+        </div>
+      )}
       <p className="text-center text-[11px] text-foreground/55">
         카메라로 찍으면 바로 입장
       </p>
@@ -97,10 +117,12 @@ function QrPrintCard({
       <div className="no-print mt-1 flex flex-wrap justify-center gap-2">
         <button
           type="button"
-          className="text-xs font-semibold text-wood underline-offset-2 hover:underline"
+          disabled={!dataUrl}
+          className="text-xs font-semibold text-wood underline-offset-2 hover:underline disabled:opacity-40"
           onClick={() => {
+            if (!dataUrl) return;
             downloadDataUrl(
-              student.qrDataUrl,
+              dataUrl,
               studentQrFileName(student.displayName),
             );
           }}
