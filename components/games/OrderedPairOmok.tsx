@@ -22,7 +22,7 @@ import {
   omokPollClient,
   omokTouchGameClient,
 } from "@/lib/omok-client";
-import { PVP_REMATCH_SECONDS } from "@/lib/pvp-constants";
+import { PVP_POLL_MS, PVP_REMATCH_SECONDS } from "@/lib/pvp-constants";
 import {
   notifyPvpJoinResult,
   notifyPvpMutation,
@@ -461,6 +461,7 @@ export default function OrderedPairOmok() {
               stopVisiblePollRef.current = startHybridVisiblePoll(
                 nextChannel,
                 tick,
+                { fallbackMs: PVP_POLL_MS },
               );
             }
           }
@@ -475,7 +476,9 @@ export default function OrderedPairOmok() {
           pollInFlightRef.current = false;
         }
       };
-      stopVisiblePollRef.current = startHybridVisiblePoll(channel, tick);
+      stopVisiblePollRef.current = startHybridVisiblePoll(channel, tick, {
+        fallbackMs: PVP_POLL_MS,
+      });
     },
     [applyPollPlaying, applyTimeoutIfNeeded, pollOnce, stopPoll],
   );

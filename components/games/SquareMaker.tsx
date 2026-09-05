@@ -19,7 +19,7 @@ import {
   sqSubmitRpsAction,
   sqTimeoutMoveAction,
 } from "@/app/play/g3-u1-square-maker/actions";
-import { PVP_REMATCH_SECONDS } from "@/lib/pvp-constants";
+import { PVP_POLL_MS, PVP_REMATCH_SECONDS } from "@/lib/pvp-constants";
 import {
   notifyPvpJoinResult,
   notifyPvpMutation,
@@ -559,6 +559,7 @@ export default function SquareMaker() {
               stopVisiblePollRef.current = startHybridVisiblePoll(
                 nextChannel,
                 tick,
+                { fallbackMs: PVP_POLL_MS },
               );
             }
           }
@@ -573,7 +574,9 @@ export default function SquareMaker() {
           pollInFlightRef.current = false;
         }
       };
-      stopVisiblePollRef.current = startHybridVisiblePoll(channel, tick);
+      stopVisiblePollRef.current = startHybridVisiblePoll(channel, tick, {
+        fallbackMs: PVP_POLL_MS,
+      });
     },
     [applyPollPlaying, applyTimeoutIfNeeded, stopPoll],
   );

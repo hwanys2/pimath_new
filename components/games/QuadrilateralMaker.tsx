@@ -20,7 +20,7 @@ import {
   quadSubmitRpsAction,
   quadTimeoutMoveAction,
 } from "@/app/play/g2-u3-1-quadrilateral-maker/actions";
-import { PVP_REMATCH_SECONDS } from "@/lib/pvp-constants";
+import { PVP_POLL_MS, PVP_REMATCH_SECONDS } from "@/lib/pvp-constants";
 import {
   notifyPvpJoinResult,
   notifyPvpMutation,
@@ -518,6 +518,7 @@ export default function QuadrilateralMaker() {
               stopVisiblePollRef.current = startHybridVisiblePoll(
                 nextChannel,
                 tick,
+                { fallbackMs: PVP_POLL_MS },
               );
             }
           }
@@ -532,7 +533,9 @@ export default function QuadrilateralMaker() {
           pollInFlightRef.current = false;
         }
       };
-      stopVisiblePollRef.current = startHybridVisiblePoll(channel, tick);
+      stopVisiblePollRef.current = startHybridVisiblePoll(channel, tick, {
+        fallbackMs: PVP_POLL_MS,
+      });
     },
     [applyPollPlaying, applyTimeoutIfNeeded, stopPoll],
   );

@@ -52,5 +52,5 @@ export function resolvePvpPollChannel(input: {
   return null;
 }
 
-/** Slow fallback poll while subscribed — catches missed broadcasts. */
+/** Slow fallback poll for classroom session/dashboard hybrid sync (not PvP). */
 export const SESSION_SYNC_FALLBACK_POLL_MS = 8000;
