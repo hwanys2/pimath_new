@@ -64,4 +64,71 @@ describe("inscribed angle scenes", () => {
       "$y$",
     );
   });
+
+  it("draws inscribed and central angles towards the interior (minor arc < 180°)", () => {
+    const scene = buildInscribedScene(cloneState(INSCRIBED_PRESETS[0]!.state));
+    const twoPi = Math.PI * 2;
+    const norm = (a: number) => ((a % twoPi) + twoPi) % twoPi;
+    const calcSweepDeg = (arc: { a0: number; a1: number; ccw: boolean }) => {
+      const s = arc.ccw
+        ? (norm(arc.a0) - norm(arc.a1) + twoPi) % twoPi
+        : (norm(arc.a1) - norm(arc.a0) + twoPi) % twoPi;
+      return (s * 180) / Math.PI;
+    };
+
+    const pArc = scene.cmds.find(
+      (c): c is Extract<typeof c, { t: "arc" }> => c.t === "arc" && c.id === "ang:P:A:B:line",
+    );
+    assert.ok(pArc, "ang:P:A:B arc should exist");
+    const pSweep = calcSweepDeg(pArc);
+    assert.ok(
+      Math.abs(pSweep - 35) < 0.5,
+      `Inscribed angle ∠APB sweep should be ~35°, got ${pSweep}°`,
+    );
+
+    const oArc = scene.cmds.find(
+      (c): c is Extract<typeof c, { t: "arc" }> => c.t === "arc" && c.id === "ang:O:A:B:line",
+    );
+    assert.ok(oArc, "ang:O:A:B arc should exist");
+    const oSweep = calcSweepDeg(oArc);
+    assert.ok(
+      Math.abs(oSweep - 70) < 0.5,
+      `Central angle ∠AOB sweep should be ~70°, got ${oSweep}°`,
+    );
+
+    // Label for inscribed angle ∠APB should be inside the circle, not outside
+    const pText = scene.texts.find((t) => t.id === "ang:P:A:B");
+    assert.ok(pText, "ang:P:A:B text should exist");
+    const distFromCenter = Math.hypot(pText.x - scene.layout.origin.x, pText.y - scene.layout.origin.y);
+    assert.ok(
+      distFromCenter < scene.layout.visualR,
+      `Inscribed angle label should be inside circle (< ${scene.layout.visualR}), was ${distFromCenter}`,
+    );
+  });
+
+  it("handles reflex angle in quad-ac correctly", () => {
+    const quadPreset = INSCRIBED_PRESETS.find((p) => p.id === "quad-ac")!;
+    const scene = buildInscribedScene(cloneState(quadPreset.state));
+    const twoPi = Math.PI * 2;
+    const norm = (a: number) => ((a % twoPi) + twoPi) % twoPi;
+    const calcSweepDeg = (arc: { a0: number; a1: number; ccw: boolean }) => {
+      const s = arc.ccw
+        ? (norm(arc.a0) - norm(arc.a1) + twoPi) % twoPi
+        : (norm(arc.a1) - norm(arc.a0) + twoPi) % twoPi;
+      return (s * 180) / Math.PI;
+    };
+
+    const minorArc = scene.cmds.find(
+      (c): c is Extract<typeof c, { t: "arc" }> => c.t === "arc" && c.id === "ang:O:B:D:line",
+    );
+    assert.ok(minorArc);
+    assert.ok(Math.abs(calcSweepDeg(minorArc) - 140) < 0.5);
+
+    const reflexArc = scene.cmds.find(
+      (c): c is Extract<typeof c, { t: "arc" }> =>
+        c.t === "arc" && c.id === "ang:O:B:D:reflex:line",
+    );
+    assert.ok(reflexArc);
+    assert.ok(Math.abs(calcSweepDeg(reflexArc) - 220) < 0.5);
+  });
 });

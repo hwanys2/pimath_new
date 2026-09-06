@@ -80,10 +80,12 @@ export default function InscribedAnglesCanvas({
     y: number;
   } | null>(null);
   const editRef = useRef(edit);
-  editRef.current = edit;
-  stateRef.current = state;
-  toolRef.current = tool;
-  selectedRef.current = selected;
+  useEffect(() => {
+    editRef.current = edit;
+    stateRef.current = state;
+    toolRef.current = tool;
+    selectedRef.current = selected;
+  });
 
   const paint = useCallback(() => {
     const canvas = canvasRef.current;
@@ -330,36 +332,11 @@ export default function InscribedAnglesCanvas({
             }
             if (frame && drag.t === "label") {
               const arc = current.arcs.find((a) => a.id === drag.id);
-              const angle = current.angles.find((a) => a.id === drag.id);
               if (arc) {
                 setState(
                   (prev) => ({
                     ...prev,
                     arcs: prev.arcs.map((a) =>
-                      a.id === drag.id
-                        ? {
-                            ...a,
-                            label: nudgeMeasureLabel(
-                              a.label,
-                              dx,
-                              dy,
-                              frame.along,
-                              frame.outward,
-                              frame.halfSpan,
-                            ),
-                          }
-                        : a,
-                    ),
-                  }),
-                  false,
-                );
-                return;
-              }
-              if (angle) {
-                setState(
-                  (prev) => ({
-                    ...prev,
-                    angles: prev.angles.map((a) =>
                       a.id === drag.id
                         ? {
                             ...a,

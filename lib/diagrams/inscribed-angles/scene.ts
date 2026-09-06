@@ -11,7 +11,6 @@ import {
   resolveLengthText,
   type AngleDraft,
   type AngleFill,
-  type ArcDraft,
   type InscribedState,
 } from "@/lib/diagrams/inscribed-angles/model";
 import {
@@ -118,17 +117,20 @@ function canvasCcwSpan(from: number, to: number): number {
   return d;
 }
 
-function smallerArc(a0: number, a1: number): { a0: number; a1: number; ccw: boolean } {
-  let d = a1 - a0;
-  while (d <= -Math.PI) d += Math.PI * 2;
-  while (d > Math.PI) d -= Math.PI * 2;
-  if (d >= 0) return { a0, a1, ccw: false };
-  return { a0: a1, a1: a0, ccw: true };
+function smallerArc(
+  a0: number,
+  a1: number,
+): { a0: number; a1: number; ccw: boolean } {
+  if (ccwSpan(a0, a1) <= Math.PI) return { a0, a1, ccw: false };
+  return { a0, a1, ccw: true };
 }
 
-function largerArc(a0: number, a1: number): { a0: number; a1: number; ccw: boolean } {
-  const small = smallerArc(a0, a1);
-  return { a0: small.a0, a1: small.a1, ccw: !small.ccw };
+function largerArc(
+  a0: number,
+  a1: number,
+): { a0: number; a1: number; ccw: boolean } {
+  if (ccwSpan(a0, a1) <= Math.PI) return { a0, a1, ccw: true };
+  return { a0, a1, ccw: false };
 }
 
 function arcSweep(a0: number, a1: number, ccw: boolean): number {
@@ -725,18 +727,6 @@ export function measureFrame(
     const mid = map(polar(state.radius, midDeg));
     const radial = norm(sub(mid, layout.origin));
     return { along: { x: -radial.y, y: radial.x }, outward: radial, halfSpan: layout.visualR * 0.6 };
-  }
-  const angle = state.angles.find((a) => a.id === id);
-  if (angle) {
-    const v = namedPos(state, angle.vertex);
-    const from = armPos(state, angle.vertex, angle.from);
-    const to = armPos(state, angle.vertex, angle.to);
-    if (!v || !from || !to) return null;
-    const cv = map(v);
-    const u = norm(sub(map(from), cv));
-    const w = norm(sub(map(to), cv));
-    const mid = norm(add(u, w));
-    return { along: { x: -mid.y, y: mid.x }, outward: mid, halfSpan: 28 };
   }
   return null;
 }
