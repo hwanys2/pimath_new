@@ -1,8 +1,9 @@
 /**
- * Math helpers & game logic for 「특수각 비트 탭」 (중3 · 3.1 삼각비).
+ * Math helpers & physics types for 「특수각 스트라이크: 미티어 디펜스」 (중3 · 3.1 삼각비).
  *
- * 특수각 0°, 30°, 45°, 60°, 90°의 삼각비 값을 훈련합니다.
- * (tan 90°는 값이 정의되지 않으므로 절대 출제되지 않습니다.)
+ * 하늘에서 떨어지는 특수각 운석들을 실시간 레이저 포탑으로 격추하는 아케이드 디펜스 게임.
+ * - 특수각 0°, 30°, 45°, 60°, 90°
+ * - tan 90°는 "값이 정의되지 않음(불능)"을 이용한 해골 폭탄 기믹으로 구현!
  */
 
 import { SCORE_HARD_MAX, applyScoreGain } from "@/lib/xp";
@@ -12,59 +13,87 @@ export const CONTENT_KEY = "g3-u3-1-trigo-beat";
 export const START_LIVES = 3;
 export const MAX_LIVES = 3;
 export const FEVER_COMBO = 10;
-export const FEVER_DURATION_SEC = 7;
+export const FEVER_DURATION_SEC = 8;
 
 export type TrigFn = "sin" | "cos" | "tan";
 export type SpecialAngle = 0 | 30 | 45 | 60 | 90;
 
-export type PadOption = {
+export type BulletValue = {
   id: string;
   latex: string;
   display: string;
-  numeric: number;
+  keyLabel: string;
+  category: "common" | "tan_only";
 };
 
-export const SIN_COS_PADS: PadOption[] = [
-  { id: "0", latex: "0", display: "0", numeric: 0 },
-  { id: "1/2", latex: "\\frac{1}{2}", display: "1/2", numeric: 0.5 },
-  { id: "sqrt2/2", latex: "\\frac{\\sqrt{2}}{2}", display: "√2/2", numeric: 0.7071 },
-  { id: "sqrt3/2", latex: "\\frac{\\sqrt{3}}{2}", display: "√3/2", numeric: 0.866 },
-  { id: "1", latex: "1", display: "1", numeric: 1 },
+/**
+ * 7개의 특수각 탄환 정의:
+ * 1: 0
+ * 2: 1/2
+ * 3: √2/2
+ * 4: √3/2
+ * 5: 1
+ * 6: √3/3
+ * 7: √3
+ */
+export const BULLET_VALUES: BulletValue[] = [
+  { id: "0", latex: "0", display: "0", keyLabel: "1", category: "common" },
+  { id: "1/2", latex: "\\frac{1}{2}", display: "1/2", keyLabel: "2", category: "common" },
+  { id: "sqrt2/2", latex: "\\frac{\\sqrt{2}}{2}", display: "√2/2", keyLabel: "3", category: "common" },
+  { id: "sqrt3/2", latex: "\\frac{\\sqrt{3}}{2}", display: "√3/2", keyLabel: "4", category: "common" },
+  { id: "1", latex: "1", display: "1", keyLabel: "5", category: "common" },
+  { id: "sqrt3/3", latex: "\\frac{\\sqrt{3}}{3}", display: "√3/3", keyLabel: "6", category: "tan_only" },
+  { id: "sqrt3", latex: "\\sqrt{3}", display: "√3", keyLabel: "7", category: "tan_only" },
 ];
 
-export const TAN_PADS: PadOption[] = [
-  { id: "0", latex: "0", display: "0", numeric: 0 },
-  { id: "sqrt3/3", latex: "\\frac{\\sqrt{3}}{3}", display: "√3/3", numeric: 0.5774 },
-  { id: "1", latex: "1", display: "1", numeric: 1 },
-  { id: "sqrt3", latex: "\\sqrt{3}", display: "√3", numeric: 1.732 },
-];
-
-export type BeatProblem = {
-  id: string;
+export type Meteor = {
+  id: number;
   fn: TrigFn;
   angle: SpecialAngle;
-  correctPadId: string;
+  isBomb: boolean; // tan 90° 해골 폭탄 여부
+  correctBulletId: string; // isBomb이면 "NONE"
   promptLatex: string;
   promptText: string;
-  pads: PadOption[];
-  timeLimitSec: number;
-  phase: number;
-  showGuideHint: boolean;
+  x: number;
+  y: number;
+  radius: number;
+  speed: number;
+  vx: number; // 지그재그 흔들림
+  spawnTime: number;
+  color: string;
 };
 
-export type ProblemResultKind = "perfect" | "great" | "wrong" | "timeout";
-
-export type ProblemLogItem = {
-  i: number;
-  fn: TrigFn;
-  angle: SpecialAngle;
-  result: ProblemResultKind;
-  chosenPadId: string | null;
-  correctPadId: string;
-  timeSpentSec: number;
+export type Particle = {
+  x: number;
+  y: number;
+  vx: number;
+  vy: number;
+  color: string;
+  size: number;
+  life: number;
+  maxLife: number;
 };
 
-export function getExactTrigPadId(fn: TrigFn, angle: SpecialAngle): string {
+export type LaserBeam = {
+  startX: number;
+  startY: number;
+  targetX: number;
+  targetY: number;
+  color: string;
+  progress: number; // 0 to 1
+  isHit: boolean;
+};
+
+export type FloatingText = {
+  x: number;
+  y: number;
+  text: string;
+  color: string;
+  life: number;
+  maxLife: number;
+};
+
+export function getExactTrigBulletId(fn: TrigFn, angle: SpecialAngle): string {
   if (fn === "sin") {
     switch (angle) {
       case 0:
@@ -92,7 +121,6 @@ export function getExactTrigPadId(fn: TrigFn, angle: SpecialAngle): string {
         return "0";
     }
   } else {
-    // tan: 90°는 없음!
     switch (angle) {
       case 0:
         return "0";
@@ -103,222 +131,158 @@ export function getExactTrigPadId(fn: TrigFn, angle: SpecialAngle): string {
       case 60:
         return "sqrt3";
       case 90:
-        throw new Error("tan 90° is undefined and must never be generated");
+        return "BOMB"; // tan 90°는 폭탄!
     }
   }
 }
 
-/**
- * 단계별 출제 함수 및 제한 시간 곡선:
- * - Phase 1 (0 ~ 7 콤보): sin 훈련 (가이드 힌트 제공, 3.2초)
- * - Phase 2 (8 ~ 17 콤보): sin + cos 역방향 훈련 (2.6초 -> 2.0초)
- * - Phase 3 (18 ~ 29 콤보): tan 합류 (1.8초 -> 1.45초)
- * - Phase 4 (30 ~ 44 콤보): sin + cos + tan 카오스 믹스 (1.3초 -> 0.95초)
- * - Phase 5 (45+ 콤보): 서바이벌 하이퍼 스피드 (0.9초 -> 0.5초까지 점진적 가속)
- */
-export function getPhaseInfo(combo: number): {
-  phase: number;
-  timeLimitSec: number;
-  allowedFns: TrigFn[];
-  showGuideHint: boolean;
-} {
-  if (combo < 8) {
+export type WaveSettings = {
+  wave: number;
+  title: string;
+  spawnIntervalSec: number;
+  meteorSpeed: number;
+  allowTan: boolean;
+  allowBomb: boolean;
+  maxSimultaneous: number;
+};
+
+export function getWaveSettings(score: number): WaveSettings {
+  if (score < 180) {
     return {
-      phase: 1,
-      timeLimitSec: 3.2,
-      allowedFns: ["sin"],
-      showGuideHint: true,
+      wave: 1,
+      title: "Wave 1: 사인의 공습",
+      spawnIntervalSec: 2.8,
+      meteorSpeed: 38,
+      allowTan: false,
+      allowBomb: false,
+      maxSimultaneous: 2,
     };
   }
-  if (combo < 18) {
-    const progress = (combo - 8) / 10;
-    const timeLimitSec = Math.max(2.0, 2.6 - progress * 0.6);
+  if (score < 420) {
     return {
-      phase: 2,
-      timeLimitSec: Number(timeLimitSec.toFixed(2)),
-      allowedFns: ["sin", "cos"],
-      showGuideHint: false,
+      wave: 2,
+      title: "Wave 2: 코사인과 역방향 교차",
+      spawnIntervalSec: 2.3,
+      meteorSpeed: 48,
+      allowTan: false,
+      allowBomb: false,
+      maxSimultaneous: 3,
     };
   }
-  if (combo < 30) {
-    const progress = (combo - 18) / 12;
-    const timeLimitSec = Math.max(1.45, 1.8 - progress * 0.35);
+  if (score < 720) {
     return {
-      phase: 3,
-      timeLimitSec: Number(timeLimitSec.toFixed(2)),
-      allowedFns: ["tan", "tan", "sin", "cos"],
-      showGuideHint: false,
+      wave: 3,
+      title: "Wave 3: 탄젠트 합류 & tan 90° 폭탄 주의!",
+      spawnIntervalSec: 1.8,
+      meteorSpeed: 58,
+      allowTan: true,
+      allowBomb: true,
+      maxSimultaneous: 4,
     };
   }
-  if (combo < 45) {
-    const progress = (combo - 30) / 15;
-    const timeLimitSec = Math.max(0.95, 1.3 - progress * 0.35);
+  if (score < 1050) {
     return {
-      phase: 4,
-      timeLimitSec: Number(timeLimitSec.toFixed(2)),
-      allowedFns: ["sin", "cos", "tan"],
-      showGuideHint: false,
+      wave: 4,
+      title: "Wave 4: 초고속 탄막 세례",
+      spawnIntervalSec: 1.4,
+      meteorSpeed: 70,
+      allowTan: true,
+      allowBomb: true,
+      maxSimultaneous: 5,
     };
   }
 
-  // Phase 5: 하이퍼 서바이벌 (0.9초에서 0.5초 한계까지 가속)
-  const hyperOver = combo - 45;
-  const timeLimitSec = Math.max(0.5, 0.9 - hyperOver * 0.02);
+  // Wave 5: 무한 서바이벌 (점점 빨라져 결국 뚫림)
+  const over = Math.floor((score - 1050) / 200);
   return {
-    phase: 5,
-    timeLimitSec: Number(timeLimitSec.toFixed(2)),
-    allowedFns: ["sin", "cos", "tan"],
-    showGuideHint: false,
+    wave: 5,
+    title: "Wave 5: 종말의 유성우 (SURVIVAL)",
+    spawnIntervalSec: Math.max(0.8, 1.2 - over * 0.1),
+    meteorSpeed: Math.min(115, 82 + over * 6),
+    allowTan: true,
+    allowBomb: true,
+    maxSimultaneous: 6,
   };
 }
 
-const SIN_COS_ANGLES: SpecialAngle[] = [0, 30, 45, 60, 90];
-const TAN_ANGLES: SpecialAngle[] = [0, 30, 45, 60]; // 90° 절대 제외!
+let nextMeteorId = 1;
 
-export function generateBeatProblem(
-  combo: number,
-  lastProblem?: { fn: TrigFn; angle: SpecialAngle } | null,
-): BeatProblem {
-  const { phase, timeLimitSec, allowedFns, showGuideHint } = getPhaseInfo(combo);
+export function createMeteor(
+  waveSettings: WaveSettings,
+  fieldWidth: number,
+): Meteor {
+  const allowTan = waveSettings.allowTan;
+  const fns: TrigFn[] = allowTan ? ["sin", "cos", "tan", "tan"] : ["sin", "cos"];
+  const fn = fns[Math.floor(Math.random() * fns.length)]!;
 
-  // 1. 함수 선택
-  const candidates = allowedFns;
-  const fn = candidates[Math.floor(Math.random() * candidates.length)]!;
-
-  // 2. 각도 선택
-  const anglePool = fn === "tan" ? TAN_ANGLES : SIN_COS_ANGLES;
   let angle: SpecialAngle;
-  let attempts = 0;
-  do {
-    angle = anglePool[Math.floor(Math.random() * anglePool.length)]!;
-    attempts++;
-  } while (
-    attempts < 8 &&
-    lastProblem &&
-    lastProblem.fn === fn &&
-    lastProblem.angle === angle
-  );
+  let isBomb = false;
 
-  const correctPadId = getExactTrigPadId(fn, angle);
-  const pads = fn === "tan" ? TAN_PADS : SIN_COS_PADS;
+  if (fn === "tan") {
+    // tan 90° 폭탄 출현 확률 (allowBomb일 때 약 18%)
+    if (waveSettings.allowBomb && Math.random() < 0.18) {
+      angle = 90;
+      isBomb = true;
+    } else {
+      const tanAngles: SpecialAngle[] = [0, 30, 45, 60];
+      angle = tanAngles[Math.floor(Math.random() * tanAngles.length)]!;
+    }
+  } else {
+    const sinCosAngles: SpecialAngle[] = [0, 30, 45, 60, 90];
+    angle = sinCosAngles[Math.floor(Math.random() * sinCosAngles.length)]!;
+  }
+
+  const correctBulletId = getExactTrigBulletId(fn, angle);
+
+  let color = "#38bdf8"; // sin 하늘색
+  if (fn === "cos") color = "#c084fc"; // cos 보라색
+  if (fn === "tan") color = isBomb ? "#ef4444" : "#34d399"; // tan 에메랄드 / 폭탄 빨간색
 
   const fnSymbol = fn === "sin" ? "\\sin" : fn === "cos" ? "\\cos" : "\\tan";
-  const promptLatex = `${fnSymbol} ${angle}^\\circ`;
-  const promptText = `${fn} ${angle}°`;
+  const promptLatex = isBomb ? "\\tan 90^\\circ \\; ☠️" : `${fnSymbol} ${angle}^\\circ`;
+  const promptText = isBomb ? "tan 90° ☠️" : `${fn} ${angle}°`;
+
+  // X 좌표는 좌우 패딩을 고려하여 랜덤 배치
+  const padding = 60;
+  const x = padding + Math.random() * (fieldWidth - padding * 2);
+  const vx = (Math.random() - 0.5) * 15; // 미세한 좌우 흔들림
 
   return {
-    id: `${fn}-${angle}-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+    id: nextMeteorId++,
     fn,
     angle,
-    correctPadId,
+    isBomb,
+    correctBulletId,
     promptLatex,
     promptText,
-    pads,
-    timeLimitSec,
-    phase,
-    showGuideHint,
+    x,
+    y: -30,
+    radius: isBomb ? 34 : 30,
+    speed: waveSettings.meteorSpeed * (0.9 + Math.random() * 0.25),
+    vx,
+    spawnTime: performance.now(),
+    color,
   };
 }
 
-export function calcProblemScore(
+export function calcDestroyScore(
   currentScore: number,
-  remainingRatio: number,
   combo: number,
   isFever: boolean,
-): { newScore: number; gained: number; verdict: "perfect" | "great" } {
-  const base = 22;
-  const isPerfect = remainingRatio >= 0.45;
-  const speedBonus = isPerfect ? 12 : Math.round(remainingRatio * 10);
-  const comboBonus = Math.min(Math.floor(combo * 1.5), 18);
+  altitudeRatio: number, // 높을수록(일찍 맞힐수록) 추가 보너스
+): { newScore: number; gained: number } {
+  const base = 25;
+  const speedBonus = Math.round(altitudeRatio * 15);
+  const comboBonus = Math.min(combo * 2, 20);
 
   let totalGain = base + speedBonus + comboBonus;
   if (isFever) {
-    totalGain = Math.round(totalGain * 1.4);
+    totalGain = Math.round(totalGain * 1.5);
   }
 
   const newScore = applyScoreGain(currentScore, totalGain);
   return {
     newScore: Math.min(newScore, SCORE_HARD_MAX),
     gained: totalGain,
-    verdict: isPerfect ? "perfect" : "great",
-  };
-}
-
-export type TrigBeatSummary = {
-  cleared: number;
-  maxCombo: number;
-  feverCount: number;
-  accuracy: number;
-  weakFn: string;
-  totalTimeSec: number;
-};
-
-export function analyzeTrigPerformance(logs: ProblemLogItem[]): {
-  summary: TrigBeatSummary;
-  fnStats: Record<TrigFn, { total: number; correct: number; rate: number }>;
-  feedbackMessage: string;
-} {
-  const total = logs.length;
-  const hits = logs.filter((l) => l.result === "perfect" || l.result === "great");
-  const cleared = hits.length;
-  const accuracy = total > 0 ? Math.round((cleared / total) * 100) : 0;
-
-  const fnStats: Record<TrigFn, { total: number; correct: number; rate: number }> = {
-    sin: { total: 0, correct: 0, rate: 100 },
-    cos: { total: 0, correct: 0, rate: 100 },
-    tan: { total: 0, correct: 0, rate: 100 },
-  };
-
-  for (const log of logs) {
-    fnStats[log.fn].total++;
-    if (log.result === "perfect" || log.result === "great") {
-      fnStats[log.fn].correct++;
-    }
-  }
-
-  for (const fn of ["sin", "cos", "tan"] as TrigFn[]) {
-    const s = fnStats[fn];
-    s.rate = s.total > 0 ? Math.round((s.correct / s.total) * 100) : 100;
-  }
-
-  let weakestFn: TrigFn = "sin";
-  let minRate = 101;
-  for (const fn of ["sin", "cos", "tan"] as TrigFn[]) {
-    if (fnStats[fn].total >= 2 && fnStats[fn].rate < minRate) {
-      minRate = fnStats[fn].rate;
-      weakestFn = fn;
-    }
-  }
-
-  let weakLabel = "없음 (마스터!)";
-  let feedbackMessage = "특수각 삼각비를 완벽하게 마스터하셨습니다! 반사적으로 답이 나오는 수준입니다.";
-
-  if (minRate < 85) {
-    if (weakestFn === "tan") {
-      weakLabel = "탄젠트 (tan)";
-      feedbackMessage =
-        "탄젠트(tan) 값이 아직 헷갈리시나요? tan 30°는 분모에 3이 있고(√3/3), 60°는 큰 값(√3)이라는 점을 기억하세요!";
-    } else if (weakestFn === "cos") {
-      weakLabel = "코사인 (cos)";
-      feedbackMessage =
-        "코사인(cos)은 사인의 반대입니다! 각도가 커질수록 1에서 0으로 작아진다는 크기 순서를 잊지 마세요.";
-    } else {
-      weakLabel = "사인 (sin)";
-      feedbackMessage =
-        "사인(sin)은 각도가 커질수록 0에서 1로 커집니다! 30°=1/2, 45°=√2/2, 60°=√3/2 순서를 복습해보세요.";
-    }
-  }
-
-  return {
-    summary: {
-      cleared,
-      maxCombo: 0,
-      feverCount: 0,
-      accuracy,
-      weakFn: weakLabel,
-      totalTimeSec: Math.round(logs.reduce((sum, l) => sum + l.timeSpentSec, 0)),
-    },
-    fnStats,
-    feedbackMessage,
   };
 }

@@ -274,11 +274,11 @@ export const CONTENTS: ContentMeta[] = [
     key: "g3-u3-1-trigo-beat",
     unitId: "g3-3-1",
     type: "game",
-    title: "특수각 비트 탭",
+    title: "특수각 스트라이크: 미티어 디펜스",
     href: "/play/g3-u3-1-trigo-beat",
     awardsXp: true,
     description:
-      "0°부터 90°까지 특수각 삼각비(sin·cos·tan)를 크기 순 건반 패드로 비트에 맞춰 탭하는 서바이벌 게임입니다. 학급 배정·활성 시 XP와 랭킹이 쌓여요.",
+      "쏟아지는 특수각 운석들을 회전 레이저 포탑으로 공중 요격하는 실시간 아케이드 디펜스 게임입니다. tan 90° 해골 폭탄을 조심하세요! 학급 배정·활성 시 XP와 랭킹이 쌓여요.",
   },
   {
     key: "g3-u3-1-shadow-temple",
