@@ -16,6 +16,7 @@ import {
   figureStrokes,
   interiorAngleDeg,
   segLength,
+  setQuadFamily,
 } from "./geometry";
 import {
   TRIG_PRESETS,
@@ -656,5 +657,77 @@ describe("trig-ratios scene", () => {
     const values = buildTrigScene(noTan);
     assert.ok(values.texts.some((t) => t.id === "axis:Ax"));
     assert.ok(!values.texts.some((t) => t.id === "axis:Dy"));
+  });
+
+  it("general quad angle edit preserves previously typed angles and keeps sum to 360°", () => {
+    const start = normalizeState({ kind: "quad-area", quadFamily: "general" });
+    // Step 1: User edits angle B (v:1) to 60°
+    const step1 = applyEditedLabel(start, "v:1", "60");
+    almost(interiorAngleDeg(step1.quadPoints, 1), 60, 0.5);
+    const sum1 = [0, 1, 2, 3].reduce((acc, i) => acc + interiorAngleDeg(step1.quadPoints, i), 0);
+    almost(sum1, 360, 0.5);
+
+    // Step 2: User edits angle A (v:0) to 110° -> B must stay 60°
+    const step2 = applyEditedLabel(step1, "v:0", "110");
+    almost(interiorAngleDeg(step2.quadPoints, 0), 110, 0.5);
+    almost(interiorAngleDeg(step2.quadPoints, 1), 60, 0.5);
+    const sum2 = [0, 1, 2, 3].reduce((acc, i) => acc + interiorAngleDeg(step2.quadPoints, i), 0);
+    almost(sum2, 360, 0.5);
+
+    // Step 3: User edits angle C (v:2) to 70° -> A(110°) and B(60°) stay, D automatically becomes 120°
+    const step3 = applyEditedLabel(step2, "v:2", "70");
+    almost(interiorAngleDeg(step3.quadPoints, 0), 110, 0.5);
+    almost(interiorAngleDeg(step3.quadPoints, 1), 60, 0.5);
+    almost(interiorAngleDeg(step3.quadPoints, 2), 70, 0.5);
+    almost(interiorAngleDeg(step3.quadPoints, 3), 120, 0.5);
+    const sum3 = [0, 1, 2, 3].reduce((acc, i) => acc + interiorAngleDeg(step3.quadPoints, i), 0);
+    almost(sum3, 360, 0.5);
+
+    // Step 4: User edits angle D (v:3) to 80° -> oldest (B) yields, A(110°), C(70°), D(80°) stay, B becomes 100°
+    const step4 = applyEditedLabel(step3, "v:3", "80");
+    almost(interiorAngleDeg(step4.quadPoints, 0), 110, 0.5);
+    almost(interiorAngleDeg(step4.quadPoints, 2), 70, 0.5);
+    almost(interiorAngleDeg(step4.quadPoints, 3), 80, 0.5);
+    almost(interiorAngleDeg(step4.quadPoints, 1), 100, 0.5);
+  });
+
+  it("parallelogram mode keeps opposite sides and angles equal on edits", () => {
+    const start = normalizeState(cloneState(TRIG_PRESETS.find((p) => p.id === "quad-60150")!.state));
+    const para = setQuadFamily(start, "parallelogram");
+    assert.equal(para.quadFamily, "parallelogram");
+
+    // D should be A + (C - B)
+    const [A, B, C, D] = para.quadPoints;
+    almost(D.x, A.x + C.x - B.x, 1e-4);
+    almost(D.y, A.y + C.y - B.y, 1e-4);
+
+    // Opposite angles equal, adjacent sum to 180°
+    const angA = interiorAngleDeg(para.quadPoints, 0);
+    const angB = interiorAngleDeg(para.quadPoints, 1);
+    const angC = interiorAngleDeg(para.quadPoints, 2);
+    const angD = interiorAngleDeg(para.quadPoints, 3);
+    almost(angA, angC, 0.1);
+    almost(angB, angD, 0.1);
+    almost(angA + angB, 180, 0.1);
+
+    // Change angle B to 50°
+    const editedAng = applyEditedLabel(para, "v:1", "50");
+    almost(interiorAngleDeg(editedAng.quadPoints, 1), 50, 0.2);
+    almost(interiorAngleDeg(editedAng.quadPoints, 3), 50, 0.2);
+    almost(interiorAngleDeg(editedAng.quadPoints, 0), 130, 0.2);
+    almost(interiorAngleDeg(editedAng.quadPoints, 2), 130, 0.2);
+
+    // Change side AB to 6
+    const editedSide = applyEditedLabel(editedAng, "s:AB", "6");
+    const lenAB = Math.hypot(editedSide.quadPoints[0].x - editedSide.quadPoints[1].x, editedSide.quadPoints[0].y - editedSide.quadPoints[1].y);
+    const lenCD = Math.hypot(editedSide.quadPoints[2].x - editedSide.quadPoints[3].x, editedSide.quadPoints[2].y - editedSide.quadPoints[3].y);
+    almost(lenAB, 6, 0.1);
+    almost(lenCD, 6, 0.1);
+
+    // Drag point A -> D moves together, parallelogram preserved
+    const dragged = movePoint(editedSide, "A", { x: editedSide.quadPoints[0].x + 1, y: editedSide.quadPoints[0].y + 0.5 });
+    const [dA, dB, dC, dD] = dragged.quadPoints;
+    almost(dD.x, dA.x + dC.x - dB.x, 1e-4);
+    almost(dD.y, dA.y + dC.y - dB.y, 1e-4);
   });
 });

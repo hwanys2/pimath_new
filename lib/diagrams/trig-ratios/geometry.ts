@@ -27,6 +27,7 @@ import {
 } from "@/lib/diagrams/pythagorean/radical";
 import {
   altitudeFootId,
+  defaultQuadPoints,
   findSeg,
   formatThetaLabel,
   patchSegState,
@@ -36,6 +37,7 @@ import {
   trigTriangleForRightVertex,
   type AltitudeVertex,
   type AngleMark,
+  type QuadFamily,
   type TrigRatiosState,
   type SegMark,
 } from "./model";
@@ -383,6 +385,31 @@ export function movePoint(state: TrigRatiosState, id: string, pos: Vec): TrigRat
     case "quad-area": {
       const i = "ABCD".indexOf(id);
       if (i < 0) return state;
+      if (state.quadFamily === "parallelogram") {
+        const pts = state.quadPoints.slice();
+        let [A, B, C, D] = pts as [Vec, Vec, Vec, Vec];
+        if (i === 0) {
+          A = pos;
+          D = add(A, sub(C, B));
+        } else if (i === 2) {
+          C = pos;
+          D = add(A, sub(C, B));
+        } else if (i === 3) {
+          D = pos;
+          A = add(B, sub(D, C));
+        } else if (i === 1) {
+          const delta = sub(pos, B);
+          B = pos;
+          A = add(A, delta);
+          C = add(C, delta);
+          D = add(D, delta);
+        }
+        const newPts = [A, B, C, D];
+        if (!isConvex(newPts) || edgeLength(newPts, 0) < 0.4 || edgeLength(newPts, 1) < 0.4) {
+          return state;
+        }
+        return unlockShownNumeric(syncParallelogramLabels({ ...state, quadPoints: newPts }));
+      }
       const pts = state.quadPoints.slice();
       pts[i] = pos;
       if (!validQuad(state, pts)) return state;
@@ -416,6 +443,62 @@ function validQuad(state: TrigRatiosState, points: Vec[]): boolean {
 
 function cross2(a: Vec, b: Vec): number {
   return a.x * b.y - a.y * b.x;
+}
+
+export function syncParallelogramLabels(state: TrigRatiosState): TrigRatiosState {
+  const pts = state.quadPoints;
+  if (pts.length !== 4) return state;
+  const thetaB = Math.round(interiorAngleDeg(pts, 1) * 10) / 10;
+  const thetaA = Math.round((180 - thetaB) * 10) / 10;
+  const angleValues = [thetaA, thetaB, thetaA, thetaB];
+
+  const lenBC = Math.round(len(sub(pts[2]!, pts[1]!)) * 10) / 10;
+  const lenAB = Math.round(len(sub(pts[0]!, pts[1]!)) * 10) / 10;
+  const edgeValues = [lenAB, lenBC, lenAB, lenBC];
+
+  const quadVertices = state.quadVertices.map((v, i) => {
+    if (!v.showInterior) return v;
+    const str = `${angleValues[i]}°`;
+    return {
+      ...v,
+      interior: { ...v.interior, mode: "custom" as const, custom: str },
+    };
+  });
+
+  const quadEdges = state.quadEdges.map((e, i) => {
+    if (!e.showLength) return e;
+    const str = `${edgeValues[i]}`;
+    return {
+      ...e,
+      length: { ...e.length, mode: "custom" as const, custom: str },
+    };
+  });
+
+  return { ...state, quadVertices, quadEdges };
+}
+
+export function setQuadFamily(state: TrigRatiosState, family: QuadFamily): TrigRatiosState {
+  if (state.quadFamily === family) return state;
+  if (family === "general") {
+    return { ...state, quadFamily: "general" };
+  }
+  let pts = state.quadPoints;
+  if (pts.length !== 4 || !isConvex(pts)) {
+    pts = defaultQuadPoints("parallelogram");
+  }
+  const B = pts[1]!;
+  const C = pts[2]!;
+  const A = pts[0]!;
+  const D = add(A, sub(C, B));
+  let newPts = [A, B, C, D];
+  if (!isConvex(newPts) || edgeLength(newPts, 0) < 0.4 || edgeLength(newPts, 1) < 0.4) {
+    newPts = defaultQuadPoints("parallelogram");
+  }
+  return syncParallelogramLabels({
+    ...state,
+    quadFamily: "parallelogram",
+    quadPoints: newPts,
+  });
 }
 
 export function setRotateDeg(
@@ -820,14 +903,13 @@ function applyLockSet(
     return fromPolygonTri(state, next);
   }
   if (state.kind === "quad-area") {
-    const poly = quadPolyWithLocks(state, locks);
-    const next =
-      required.t === "seg"
-        ? applyEdgeLengthChange(poly, ["AB", "BC", "CD", "DA"].indexOf(required.id), required.value)
-        : required.t === "qang"
-          ? applyInteriorAngleChange(poly, required.index, required.value)
-          : poly;
-    return fromQuadPolygon(state, next);
+    if (required.t === "seg") {
+      return applySegNumeric(state, required.id, required.value);
+    }
+    if (required.t === "qang") {
+      return applyQuadAngleNumeric(state, required.index, required.value);
+    }
+    return state;
   }
   return null;
 }
@@ -1123,6 +1205,12 @@ export function applyEditedLabel(
 
 function applySegNumeric(state: TrigRatiosState, segId: string, value: number): TrigRatiosState {
   const target = clamp(value, 0.4, 40);
+  if (state.kind === "quad-area") {
+    if (state.quadFamily === "parallelogram") {
+      return applyParallelogramEdge(state, segId, target);
+    }
+    return applyGeneralQuadEdge(state, segId, target);
+  }
   return applyMeasureConstraint(state, { t: "seg", id: segId, value: target });
 }
 
@@ -1215,8 +1303,368 @@ function applyAngleNumeric(state: TrigRatiosState, angId: string, value: number)
   return state;
 }
 
+export function applyParallelogramAngle(
+  state: TrigRatiosState,
+  vi: number,
+  deg: number,
+): TrigRatiosState {
+  const clampedDeg = clamp(Math.round(deg * 10) / 10, 10, 170);
+  const thetaB = vi === 1 || vi === 3 ? clampedDeg : Math.round((180 - clampedDeg) * 10) / 10;
+  const thetaA = Math.round((180 - thetaB) * 10) / 10;
+  const angleValues = [thetaA, thetaB, thetaA, thetaB];
+
+  const pts = state.quadPoints;
+  const B = pts[1] ?? { x: -3.6, y: 0 };
+  const C = pts[2] ?? { x: 1.2, y: 0 };
+  const A_old = pts[0] ?? { x: -2.2, y: 2.4 };
+
+  const bcVec = sub(C, B);
+  const beta = Math.atan2(bcVec.y, bcVec.x);
+  const lab = Math.max(0.5, len(sub(A_old, B)));
+
+  const angleBA = beta + (thetaB * Math.PI) / 180;
+  const A = add(B, { x: lab * Math.cos(angleBA), y: lab * Math.sin(angleBA) });
+  const D = add(A, bcVec);
+  const newPoints = [A, B, C, D];
+
+  const quadVertices = state.quadVertices.map((v, i) => {
+    const isTarget = i === vi;
+    if (!v.showInterior && !isTarget) return v;
+    const str = `${angleValues[i]}°`;
+    return {
+      ...v,
+      showInterior: isTarget ? true : v.showInterior,
+      interior: { ...v.interior, mode: "custom" as const, custom: str },
+    };
+  });
+
+  return touchLockOrder(
+    {
+      ...state,
+      quadPoints: newPoints,
+      quadVertices,
+    },
+    `v:${vi}`,
+  );
+}
+
+export function applyParallelogramEdge(
+  state: TrigRatiosState,
+  segId: string,
+  newLength: number,
+): TrigRatiosState {
+  const target = clamp(Math.round(newLength * 10) / 10, 0.5, 40);
+  const pts = state.quadPoints;
+  const B = pts[1] ?? { x: -3.6, y: 0 };
+  const C = pts[2] ?? { x: 1.2, y: 0 };
+  const A = pts[0] ?? { x: -2.2, y: 2.4 };
+
+  let newA = A;
+  let newC = C;
+
+  if (segId === "AB" || segId === "CD") {
+    const ba = sub(A, B);
+    const uBA = norm(ba);
+    newA = add(B, mul(uBA, target));
+  } else if (segId === "BC" || segId === "DA") {
+    const bc = sub(C, B);
+    const uBC = norm(bc);
+    newC = add(B, mul(uBC, target));
+  }
+  const newD = add(newA, sub(newC, B));
+  const newPoints = [newA, B, newC, newD];
+
+  const lenStr = `${target}`;
+  const isPairAB = segId === "AB" || segId === "CD";
+  const quadEdges = state.quadEdges.map((e, idx) => {
+    const id = ["AB", "BC", "CD", "DA"][idx]!;
+    const match = isPairAB ? (id === "AB" || id === "CD") : (id === "BC" || id === "DA");
+    if (!match) return e;
+    return {
+      ...e,
+      showLength: id === segId ? true : e.showLength,
+      length: { ...e.length, mode: "custom" as const, custom: lenStr },
+    };
+  });
+
+  return touchLockOrder(
+    {
+      ...state,
+      quadPoints: newPoints,
+      quadEdges,
+    },
+    `s:${segId}`,
+  );
+}
+
+function buildQuadFromAngles(
+  state: TrigRatiosState,
+  targetAngles: [number, number, number, number],
+): Vec[] {
+  const [thetaA, thetaB, thetaC] = targetAngles;
+  const pts = state.quadPoints;
+  const B = pts[1] ?? { x: -3.2, y: 0 };
+  const C = pts[2] ?? { x: 2.8, y: 0 };
+  const A_old = pts[0] ?? { x: -0.8, y: 2.8 };
+
+  const bcVec = sub(C, B);
+  const beta = Math.atan2(bcVec.y, bcVec.x);
+  const angBA = beta + (thetaB * Math.PI) / 180;
+  const uBA = { x: Math.cos(angBA), y: Math.sin(angBA) };
+
+  const alphaAD = beta + ((thetaB + thetaA - 180) * Math.PI) / 180;
+  const uAD = { x: Math.cos(alphaAD), y: Math.sin(alphaAD) };
+
+  const alphaCD = beta + ((180 - thetaC) * Math.PI) / 180;
+  const uCD = { x: Math.cos(alphaCD), y: Math.sin(alphaCD) };
+
+  const cr = cross2(uAD, uCD);
+  const labPreferred = Math.max(0.5, len(sub(A_old, B)));
+
+  if (Math.abs(cr) < 1e-4) {
+    const A = add(B, mul(uBA, labPreferred));
+    const D = add(A, bcVec);
+    return [A, B, C, D];
+  }
+
+  const num_t_const = cross2(bcVec, uCD);
+  const num_t_lab = cross2(uBA, uCD);
+  const num_s_const = -cross2(uAD, bcVec);
+  const num_s_lab = cross2(uAD, uBA);
+
+  let minLab = 0.5;
+  let maxLab = 25.0;
+
+  const coeff_t = -num_t_lab / cr;
+  const const_t = num_t_const / cr;
+  if (Math.abs(coeff_t) > 1e-7) {
+    const bound = (0.4 - const_t) / coeff_t;
+    if (coeff_t > 0) minLab = Math.max(minLab, bound);
+    else maxLab = Math.min(maxLab, bound);
+  }
+
+  const coeff_s = num_s_lab / cr;
+  const const_s = num_s_const / cr;
+  if (Math.abs(coeff_s) > 1e-7) {
+    const bound = (0.4 - const_s) / coeff_s;
+    if (coeff_s > 0) minLab = Math.max(minLab, bound);
+    else maxLab = Math.min(maxLab, bound);
+  }
+
+  let chosenLab = labPreferred;
+  if (minLab < maxLab) {
+    chosenLab = Math.min(maxLab - 0.1, Math.max(minLab + 0.1, labPreferred));
+  } else {
+    chosenLab = Math.max(0.5, (minLab + maxLab) / 2);
+  }
+
+  const t = (num_t_const - chosenLab * num_t_lab) / cr;
+  const A = add(B, mul(uBA, chosenLab));
+  const D = add(A, mul(uAD, t));
+  const candidate = [A, B, C, D];
+
+  if (isConvex(candidate) && edgeLength(candidate, 0) >= 0.4 && edgeLength(candidate, 2) >= 0.4) {
+    return candidate;
+  }
+  return pts;
+}
+
+export function applyGeneralQuadAngle(
+  state: TrigRatiosState,
+  vi: number,
+  value: number,
+): TrigRatiosState {
+  const newDeg = clamp(Math.round(value * 10) / 10, 15, 165);
+  const curAngles = [0, 1, 2, 3].map((i) =>
+    Math.round(interiorAngleDeg(state.quadPoints, i) * 10) / 10,
+  );
+
+  const lockOrderVertices: number[] = [];
+  for (const id of state.lockOrder) {
+    if (id.startsWith("v:")) {
+      const idx = Number(id.slice(2));
+      if (idx !== vi && idx >= 0 && idx < 4 && state.quadVertices[idx]?.showInterior) {
+        if (!lockOrderVertices.includes(idx)) lockOrderVertices.push(idx);
+      }
+    }
+  }
+  for (let i = 0; i < 4; i += 1) {
+    if (
+      i !== vi &&
+      state.quadVertices[i]?.showInterior &&
+      customAngleValue(state.quadVertices[i]!.interior) != null
+    ) {
+      if (!lockOrderVertices.includes(i)) lockOrderVertices.push(i);
+    }
+  }
+
+  const lockedValues: Record<number, number> = {};
+  for (const idx of lockOrderVertices) {
+    const val = customAngleValue(state.quadVertices[idx]!.interior) ?? curAngles[idx]!;
+    lockedValues[idx] = clamp(Math.round(val * 10) / 10, 15, 165);
+  }
+
+  const target: [number, number, number, number] = [0, 0, 0, 0];
+  let updatedLockOrder = state.lockOrder.filter((id) => id !== `v:${vi}`);
+
+  if (lockOrderVertices.length === 0) {
+    target[vi] = newDeg;
+    const rem = 360 - newDeg;
+    const unlocked = [0, 1, 2, 3].filter((i) => i !== vi);
+    const sumCur = unlocked.reduce((acc, i) => acc + curAngles[i]!, 0);
+    let allocated = 0;
+    unlocked.forEach((k, idx) => {
+      if (idx === unlocked.length - 1) {
+        target[k] = Math.round((rem - allocated) * 10) / 10;
+      } else {
+        const val = Math.round(((rem * curAngles[k]!) / sumCur) * 10) / 10;
+        target[k] = val;
+        allocated += val;
+      }
+    });
+  } else if (lockOrderVertices.length === 1) {
+    const p1 = lockOrderVertices[0]!;
+    const val1 = lockedValues[p1]!;
+    let actualDeg = newDeg;
+    if (actualDeg + val1 > 330) actualDeg = 330 - val1;
+    if (actualDeg + val1 < 30) actualDeg = 30 - val1;
+    actualDeg = Math.round(actualDeg * 10) / 10;
+    target[p1] = val1;
+    target[vi] = actualDeg;
+    const rem = 360 - (actualDeg + val1);
+    const unlocked = [0, 1, 2, 3].filter((i) => i !== vi && i !== p1);
+    const sumCur = unlocked.reduce((acc, i) => acc + curAngles[i]!, 0);
+    let allocated = 0;
+    unlocked.forEach((k, idx) => {
+      if (idx === unlocked.length - 1) {
+        target[k] = Math.round((rem - allocated) * 10) / 10;
+      } else {
+        const val = Math.round(((rem * curAngles[k]!) / sumCur) * 10) / 10;
+        target[k] = val;
+        allocated += val;
+      }
+    });
+  } else if (lockOrderVertices.length === 2) {
+    const [p1, p2] = lockOrderVertices as [number, number];
+    const val1 = lockedValues[p1]!;
+    const val2 = lockedValues[p2]!;
+    let actualDeg = newDeg;
+    const sumPrev = val1 + val2;
+    if (actualDeg + sumPrev > 345) actualDeg = 345 - sumPrev;
+    if (actualDeg + sumPrev < 195) actualDeg = 195 - sumPrev;
+    actualDeg = Math.round(actualDeg * 10) / 10;
+    target[p1] = val1;
+    target[p2] = val2;
+    target[vi] = actualDeg;
+    const p3 = [0, 1, 2, 3].find((i) => i !== vi && i !== p1 && i !== p2)!;
+    target[p3] = Math.round((360 - (actualDeg + sumPrev)) * 10) / 10;
+  } else {
+    const oldest = lockOrderVertices[0]!;
+    const [p1, p2] = lockOrderVertices.slice(1) as [number, number];
+    const val1 = lockedValues[p1]!;
+    const val2 = lockedValues[p2]!;
+    let actualDeg = newDeg;
+    const sumPrev = val1 + val2;
+    if (actualDeg + sumPrev > 345) actualDeg = 345 - sumPrev;
+    if (actualDeg + sumPrev < 195) actualDeg = 195 - sumPrev;
+    actualDeg = Math.round(actualDeg * 10) / 10;
+    target[p1] = val1;
+    target[p2] = val2;
+    target[vi] = actualDeg;
+    target[oldest] = Math.round((360 - (actualDeg + sumPrev)) * 10) / 10;
+    updatedLockOrder = updatedLockOrder.filter((id) => id !== `v:${oldest}`);
+  }
+
+  updatedLockOrder.push(`v:${vi}`);
+
+  const newPoints = buildQuadFromAngles(state, target);
+
+  const quadVertices = state.quadVertices.map((v, i) => {
+    const isTarget = i === vi;
+    const valStr = `${target[i]}°`;
+    if (isTarget) {
+      return {
+        ...v,
+        showInterior: true,
+        interior: { ...v.interior, mode: "custom" as const, custom: valStr },
+      };
+    }
+    if (v.showInterior) {
+      return {
+        ...v,
+        interior: { ...v.interior, mode: "custom" as const, custom: valStr },
+      };
+    }
+    return v;
+  });
+
+  return {
+    ...state,
+    quadPoints: newPoints,
+    quadVertices,
+    lockOrder: updatedLockOrder,
+  };
+}
+
+export function applyGeneralQuadEdge(
+  state: TrigRatiosState,
+  segId: string,
+  newLength: number,
+): TrigRatiosState {
+  const target = clamp(Math.round(newLength * 10) / 10, 0.5, 40);
+  const pts = state.quadPoints;
+  const B = pts[1] ?? { x: -3.2, y: 0 };
+  const C = pts[2] ?? { x: 2.8, y: 0 };
+  const A = pts[0] ?? { x: -0.8, y: 2.8 };
+
+  let newPoints = pts;
+  if (segId === "BC") {
+    const uBC = norm(sub(C, B));
+    const newC = add(B, mul(uBC, target));
+    const angles = [0, 1, 2, 3].map((i) =>
+      interiorAngleDeg(pts, i),
+    ) as [number, number, number, number];
+    const tempState = { ...state, quadPoints: [A, B, newC, pts[3]!] };
+    newPoints = buildQuadFromAngles(tempState, angles);
+  } else if (segId === "AB") {
+    const uBA = norm(sub(A, B));
+    const newA = add(B, mul(uBA, target));
+    const angles = [0, 1, 2, 3].map((i) =>
+      interiorAngleDeg(pts, i),
+    ) as [number, number, number, number];
+    const tempState = { ...state, quadPoints: [newA, B, C, pts[3]!] };
+    newPoints = buildQuadFromAngles(tempState, angles);
+  } else {
+    const poly = quadPolyWithLocks(state, [{ t: "seg", id: segId, value: target }]);
+    const next = applyEdgeLengthChange(poly, ["AB", "BC", "CD", "DA"].indexOf(segId), target);
+    newPoints = next.points.slice(0, 4);
+  }
+
+  const quadEdges = state.quadEdges.map((e, idx) => {
+    const id = ["AB", "BC", "CD", "DA"][idx]!;
+    if (id !== segId) return e;
+    return {
+      ...e,
+      showLength: true,
+      length: { ...e.length, mode: "custom" as const, custom: `${target}` },
+    };
+  });
+
+  return touchLockOrder(
+    {
+      ...state,
+      quadPoints: newPoints,
+      quadEdges,
+    },
+    `s:${segId}`,
+  );
+}
+
 function applyQuadAngleNumeric(state: TrigRatiosState, vi: number, value: number): TrigRatiosState {
-  return applyMeasureConstraint(state, { t: "qang", index: vi, value: clamp(value, 1, 179) });
+  if (state.quadFamily === "parallelogram") {
+    return applyParallelogramAngle(state, vi, value);
+  }
+  return applyGeneralQuadAngle(state, vi, value);
 }
 
 function polygonFromTri(state: TrigRatiosState) {

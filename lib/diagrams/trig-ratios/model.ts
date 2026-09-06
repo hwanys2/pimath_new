@@ -381,7 +381,7 @@ function makeTriEdge(patch: Partial<TriEdgeMark> = {}): TriEdgeMark {
   return { showLength: false, length: emptyLabel("auto"), ...patch };
 }
 
-function defaultQuadPoints(family: QuadFamily): Vec[] {
+export function defaultQuadPoints(family: QuadFamily): Vec[] {
   if (family === "parallelogram") {
     return [
       { x: -2.2, y: 2.4 },

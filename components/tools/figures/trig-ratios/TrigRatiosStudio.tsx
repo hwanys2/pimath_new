@@ -28,6 +28,7 @@ import {
   rebuildTriangleFromLegs,
   segDisplayName,
   segLength,
+  setQuadFamily,
   setRotateDeg,
   setThetaDeg,
   trianglePoints,
@@ -440,9 +441,9 @@ export default function TrigRatiosStudio() {
                 <Segmented
                   value={state.quadFamily}
                   onChange={(v) =>
-                    set({
-                      quadFamily: v as TrigRatiosState["quadFamily"],
-                    })
+                    setState((prev) =>
+                      setQuadFamily(prev, v as TrigRatiosState["quadFamily"]),
+                    )
                   }
                   options={[
                     { id: "general", label: "일반" },
