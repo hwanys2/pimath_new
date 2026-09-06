@@ -24,6 +24,7 @@ import {
 import {
   applyEditedLabel,
   interiorAngleDeg,
+  quadDiagAngleDeg,
   rebuildRightForRightVertex,
   rebuildTriangleFromLegs,
   segDisplayName,
@@ -32,6 +33,7 @@ import {
   setRotateDeg,
   setThetaDeg,
   trianglePoints,
+  worldQuadPoints,
   worldRightTriangle,
   type TrigSelection,
 } from "@/lib/diagrams/trig-ratios/geometry";
@@ -49,6 +51,7 @@ import {
   findSeg,
   normalizeState,
   patchAngleState,
+  patchQuadDiagAngle,
   patchQuadInterior,
   patchSegState,
   pointDisplayOf,
@@ -630,11 +633,38 @@ export default function TrigRatiosStudio() {
                     면 채움
                   </ChipToggle>
                   <ChipToggle
-                    on={state.showQuadDiagonal}
-                    onClick={() => set({ showQuadDiagonal: !state.showQuadDiagonal })}
+                    on={state.showQuadDiagAC}
+                    onClick={() => set({ showQuadDiagAC: !state.showQuadDiagAC })}
+                  >
+                    대각선 AC
+                  </ChipToggle>
+                  <ChipToggle
+                    on={state.showQuadDiagBD || state.showQuadDiagonal}
+                    onClick={() => {
+                      const next = !(state.showQuadDiagBD || state.showQuadDiagonal);
+                      set({ showQuadDiagBD: next, showQuadDiagonal: next });
+                    }}
                   >
                     대각선 BD
                   </ChipToggle>
+                  {state.showQuadDiagAC && (state.showQuadDiagBD || state.showQuadDiagonal) ? (
+                    <>
+                      {state.quadDiagAngles.map((a) => (
+                        <ChipToggle
+                          key={a.id}
+                          on={a.show}
+                          onClick={() => {
+                            setState((prev) =>
+                              patchQuadDiagAngle(prev, a.id, { show: !a.show }),
+                            );
+                            setSelected({ t: "ang", id: a.id });
+                          }}
+                        >
+                          ∠{a.id}
+                        </ChipToggle>
+                      ))}
+                    </>
+                  ) : null}
                   {state.quadVertices.map((v, i) => (
                     <ChipToggle
                       key={`qang-${i}`}
@@ -948,6 +978,9 @@ function angleChipTitle(angId: string, state: TrigRatiosState): string {
 function currentAngleDeg(state: TrigRatiosState, angId: string): number {
   if (angId === "theta") return state.thetaDeg;
   if (angId === "y" || angId === "z") return 90 - state.thetaDeg;
+  if (["AOB", "BOC", "COD", "DOA"].includes(angId)) {
+    return quadDiagAngleDeg(worldQuadPoints(state), angId);
+  }
   if (angId.startsWith("v:")) {
     const i = Number(angId.slice(2));
     return interiorAngleDeg(state.quadPoints, i);
@@ -978,7 +1011,9 @@ function AngleDisplayPanel({
   const unit = angId === "theta" || angId === "y" || angId === "z";
   const quad = angId.startsWith("v:");
   const quadIndex = quad ? Number(angId.slice(2)) : -1;
-  const mark = unit || quad ? null : findAngle(state, angId);
+  const isQuadDiag = ["AOB", "BOC", "COD", "DOA"].includes(angId);
+  const diagAngle = isQuadDiag ? state.quadDiagAngles.find((a) => a.id === angId) : null;
+  const mark = unit || quad || isQuadDiag ? null : findAngle(state, angId);
   const quadV = quad ? state.quadVertices[quadIndex] : null;
 
   let fill: AngleFill = "none";
@@ -995,6 +1030,9 @@ function AngleDisplayPanel({
   } else if (quadV) {
     fill = quadV.fillInterior;
     label = quadV.interior;
+  } else if (diagAngle) {
+    fill = diagAngle.fill;
+    label = diagAngle.label;
   } else if (mark) {
     fill = mark.fill;
     label = mark.label;
@@ -1005,6 +1043,7 @@ function AngleDisplayPanel({
     else if (angId === "y") set({ yAngleFill: next });
     else if (angId === "z") set({ zAngleFill: next });
     else if (quad) setState((prev) => patchQuadInterior(prev, quadIndex, { fillInterior: next }));
+    else if (isQuadDiag) setState((prev) => patchQuadDiagAngle(prev, angId, { fill: next }));
     else setState((prev) => patchAngleState(prev, angId, { fill: next }));
   }
 
@@ -1014,12 +1053,13 @@ function AngleDisplayPanel({
     else if (angId === "y") set({ yAngleLabel: next });
     else if (angId === "z") set({ zAngleLabel: next });
     else if (quad) setState((prev) => patchQuadInterior(prev, quadIndex, { interior: next }));
+    else if (isQuadDiag) setState((prev) => patchQuadDiagAngle(prev, angId, { label: next }));
     else setState((prev) => patchAngleState(prev, angId, { label: next }));
   }
 
   const deg = currentAngleDeg(state, angId);
   const labelId = quad ? `v:${quadIndex}:interior` : `a:${angId}`;
-  const canEditValue = !unit && (quad || Boolean(mark && (mark.id === "A" || mark.id === "B" || mark.id === "C")));
+  const canEditValue = !unit && !isQuadDiag && (quad || Boolean(mark && (mark.id === "A" || mark.id === "B" || mark.id === "C")));
 
   return (
     <div className="mt-3 space-y-2">

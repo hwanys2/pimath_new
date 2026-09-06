@@ -30,6 +30,7 @@ import {
   defaultQuadPoints,
   findSeg,
   formatThetaLabel,
+  patchQuadDiagAngle,
   patchSegState,
   roundThetaDeg,
   wrapRotateDeg,
@@ -134,6 +135,40 @@ export function worldQuadPoints(state: TrigRatiosState): Vec[] {
   if (deg < 1e-9) return pts;
   const O = mul(add(add(pts[0]!, pts[2]!), add(pts[1]!, pts[3]!)), 0.25);
   return pts.map((p) => rotateAround(p, O, deg));
+}
+
+export function quadDiagonalIntersection(points: Vec[]): Vec {
+  const a = points[0]!;
+  const b = points[1]!;
+  const c = points[2]!;
+  const d = points[3]!;
+  const r = sub(c, a);
+  const s = sub(d, b);
+  const den = r.x * s.y - r.y * s.x;
+  if (Math.abs(den) < 1e-9) {
+    return mul(add(a, c), 0.5);
+  }
+  const ca = sub(b, a);
+  const t = (ca.x * s.y - ca.y * s.x) / den;
+  return add(a, mul(r, t));
+}
+
+export function quadDiagAngleDeg(points: Vec[], angId: string): number {
+  const [A, B, C, D] = points;
+  if (!A || !B || !C || !D) return 90;
+  const O = quadDiagonalIntersection(points);
+  switch (angId) {
+    case "AOB":
+      return angleDeg(A, O, B);
+    case "BOC":
+      return angleDeg(B, O, C);
+    case "COD":
+      return angleDeg(C, O, D);
+    case "DOA":
+      return angleDeg(D, O, A);
+    default:
+      return 90;
+  }
 }
 
 export function unitCirclePoints(state: TrigRatiosState): Record<string, Vec> {
@@ -1157,6 +1192,15 @@ export function applyEditedLabel(
       }
       return { ...state, [key]: labelFromAngleParse(parsed, trimmed, prev) };
     }
+    if (state.kind === "quad-area" && ["AOB", "BOC", "COD", "DOA"].includes(angId)) {
+      const mark = state.quadDiagAngles.find((a) => a.id === angId);
+      if (!mark) return state;
+      const parsed = parseAngleInput(trimmed);
+      return patchQuadDiagAngle(state, angId, {
+        show: true,
+        label: labelFromAngleParse(parsed, trimmed, mark.label),
+      });
+    }
     const pool = state.kind === "triangle-area" ? state.triAngles : state.angles;
     const mark = pool.find((a) => a.id === angId);
     if (!mark) return state;
@@ -1927,6 +1971,12 @@ export function nudgeLabel(
       if (angId === "theta") return { ...state, thetaLabel: nudgeMeas(state.thetaLabel, dx, dy, lineOnly) };
       if (angId === "y") return { ...state, yAngleLabel: nudgeMeas(state.yAngleLabel, dx, dy, lineOnly) };
       if (angId === "z") return { ...state, zAngleLabel: nudgeMeas(state.zAngleLabel, dx, dy, lineOnly) };
+    }
+    if (state.kind === "quad-area" && ["AOB", "BOC", "COD", "DOA"].includes(angId)) {
+      const mark = state.quadDiagAngles.find((a) => a.id === angId);
+      return patchQuadDiagAngle(state, angId, {
+        label: nudgeMeas(mark?.label ?? emptyLabel("auto"), dx, dy, lineOnly),
+      });
     }
     const key = state.kind === "triangle-area" ? "triAngles" : "angles";
     return {

@@ -151,6 +151,9 @@ export type TrigRatiosState = {
   showQuadFill: boolean;
   quadFill: FaceFill;
   showQuadDiagonal: boolean;
+  showQuadDiagAC: boolean;
+  showQuadDiagBD: boolean;
+  quadDiagAngles: AngleMark[];
 };
 
 export type TrigPreset = {
@@ -406,6 +409,15 @@ function defaultQuadEdges(): TriEdgeMark[] {
   return [0, 1, 2, 3].map(() => makeTriEdge());
 }
 
+export function defaultQuadDiagAngles(): AngleMark[] {
+  return [
+    ang("AOB", "O", "A", "B"),
+    ang("BOC", "O", "B", "C"),
+    ang("COD", "O", "C", "D"),
+    ang("DOA", "O", "D", "A"),
+  ];
+}
+
 function mergeNames(
   base: Record<string, NameMark>,
   prev?: Record<string, NameMark>,
@@ -561,6 +573,9 @@ function baseDefaults(kind: TrigKind): TrigRatiosState {
     showQuadFill: true,
     quadFill: "pink",
     showQuadDiagonal: true,
+    showQuadDiagAC: false,
+    showQuadDiagBD: true,
+    quadDiagAngles: defaultQuadDiagAngles(),
   };
 }
 
@@ -671,7 +686,16 @@ export function normalizeState(
     quadEdges: mergeTriEdges(defaultQuadEdges(), state.quadEdges),
     showQuadFill: state.showQuadFill !== false,
     quadFill: parseFaceFill(state.quadFill, "pink"),
-    showQuadDiagonal: state.showQuadDiagonal !== false,
+    showQuadDiagonal:
+      typeof state.showQuadDiagBD === "boolean"
+        ? state.showQuadDiagBD
+        : state.showQuadDiagonal !== false,
+    showQuadDiagAC: state.showQuadDiagAC === true,
+    showQuadDiagBD:
+      typeof state.showQuadDiagBD === "boolean"
+        ? state.showQuadDiagBD
+        : state.showQuadDiagonal !== false,
+    quadDiagAngles: mergeAngles(defaultQuadDiagAngles(), state.quadDiagAngles),
     showVertexNames: state.showVertexNames !== false,
     showDots: state.showDots !== false,
     unit: state.unit?.trim() ? state.unit : "cm",
@@ -1318,6 +1342,17 @@ export function patchQuadInterior(
   return {
     ...state,
     quadVertices: state.quadVertices.map((v, i) => (i === index ? { ...v, ...patch } : v)),
+  };
+}
+
+export function patchQuadDiagAngle(
+  state: TrigRatiosState,
+  id: string,
+  patch: Partial<AngleMark>,
+): TrigRatiosState {
+  return {
+    ...state,
+    quadDiagAngles: state.quadDiagAngles.map((a) => (a.id === id ? { ...a, ...patch } : a)),
   };
 }
 

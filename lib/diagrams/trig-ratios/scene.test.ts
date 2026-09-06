@@ -15,6 +15,8 @@ import {
   isObtuseAtA,
   figureStrokes,
   interiorAngleDeg,
+  quadDiagonalIntersection,
+  quadDiagAngleDeg,
   segLength,
   setQuadFamily,
   setRotateDeg,
@@ -27,6 +29,7 @@ import {
   formatThetaLabel,
   findAngle,
   normalizeState,
+  patchQuadDiagAngle,
   readPointMark,
   snapRotateDeg,
 } from "./model";
@@ -753,5 +756,77 @@ describe("trig-ratios scene", () => {
     const scene = buildTrigScene(rotated);
     assert.ok(scene.texts.length > 0);
     assert.ok(scene.cmds.length > 0);
+  });
+
+  it("supports both quad diagonals AC and BD independently, and 4 intersection angles", () => {
+    const base = normalizeState(cloneState(TRIG_PRESETS.find((p) => p.id === "quad-diag")!.state));
+
+    // 1. Initially quad-diag has showQuadDiagBD: true and showQuadDiagAC: false
+    assert.equal(base.showQuadDiagBD, true);
+    assert.equal(base.showQuadDiagAC, false);
+    const sceneBD = buildTrigScene(base);
+    const bdLines = sceneBD.cmds.filter((c) => c.t === "line" && c.stroke === "#e879a8");
+    assert.equal(bdLines.length, 1);
+
+    // 2. Only showQuadDiagAC
+    const onlyAC = { ...base, showQuadDiagAC: true, showQuadDiagBD: false, showQuadDiagonal: false };
+    const sceneAC = buildTrigScene(onlyAC);
+    const acLines = sceneAC.cmds.filter((c) => c.t === "line" && c.stroke === "#e879a8");
+    assert.equal(acLines.length, 1);
+
+    // 3. Both diagonals on
+    const both = { ...base, showQuadDiagAC: true, showQuadDiagBD: true };
+    const sceneBoth = buildTrigScene(both);
+    const bothLines = sceneBoth.cmds.filter((c) => c.t === "line" && c.stroke === "#e879a8");
+    assert.equal(bothLines.length, 2);
+
+    // Check intersection math
+    const O = quadDiagonalIntersection(both.quadPoints);
+    assert.ok(Number.isFinite(O.x) && Number.isFinite(O.y));
+
+    // Check 4 intersection angles: supplementary & vertically opposite
+    const aob = quadDiagAngleDeg(both.quadPoints, "AOB");
+    const boc = quadDiagAngleDeg(both.quadPoints, "BOC");
+    const cod = quadDiagAngleDeg(both.quadPoints, "COD");
+    const doa = quadDiagAngleDeg(both.quadPoints, "DOA");
+
+    almost(aob + boc, 180, 0.01);
+    almost(cod + doa, 180, 0.01);
+    almost(aob, cod, 0.01);
+    almost(boc, doa, 0.01);
+
+    // 4. Toggle intersection angles
+    const withAngles = patchQuadDiagAngle(
+      patchQuadDiagAngle(both, "AOB", { show: true, fill: "pink" }),
+      "BOC",
+      { show: true, fill: "blue" },
+    );
+    const sceneAngles = buildTrigScene(withAngles);
+    const aobArc = sceneAngles.cmds.find((c) => c.t === "arc" && c.id === "a:AOB");
+    const bocArc = sceneAngles.cmds.find((c) => c.t === "arc" && c.id === "a:BOC");
+    const codArc = sceneAngles.cmds.find((c) => c.t === "arc" && c.id === "a:COD");
+    assert.ok(aobArc, "AOB arc should be rendered");
+    assert.ok(bocArc, "BOC arc should be rendered");
+    assert.equal(codArc, undefined, "COD arc should not be rendered");
+
+    // Check angle fill polygons rendered
+    const pinkFill = sceneAngles.cmds.find((c) => c.t === "polygon" && c.fill === "#f7c8d2");
+    const blueFill = sceneAngles.cmds.find((c) => c.t === "polygon" && c.fill === "#c5dff0");
+    assert.ok(pinkFill, "AOB pink fill should be rendered");
+    assert.ok(blueFill, "BOC blue fill should be rendered");
+
+    // 5. Edit angle label (e.g. unknown x or custom)
+    const withX = applyEditedLabel(withAngles, "a:AOB", "x");
+    const markAOB = withX.quadDiagAngles.find((a) => a.id === "AOB");
+    assert.equal(markAOB?.label.mode, "x");
+    const sceneX = buildTrigScene(withX);
+    const aobText = sceneX.texts.find((t) => t.id === "a:AOB");
+    assert.ok(aobText, "AOB text should be rendered");
+
+    // 6. Nudge angle label
+    const nudged = nudgeLabel(withX, "a:AOB", 10, -5);
+    const nudgedMark = nudged.quadDiagAngles.find((a) => a.id === "AOB");
+    assert.equal(nudgedMark?.label.dx, 10);
+    assert.equal(nudgedMark?.label.dy, -5);
   });
 });

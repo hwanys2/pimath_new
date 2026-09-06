@@ -12,6 +12,8 @@ import {
   isNearRightAngle,
   isObtuseAtA,
   projectT,
+  quadDiagonalIntersection,
+  quadDiagAngleDeg,
   resolveAngleLabel,
   resolveLengthText,
   resolveSegText,
@@ -919,7 +921,20 @@ function paintQuadArea(
     if (!pa || !pb) continue;
     cmds.push({ t: "line", x1: pa.x, y1: pa.y, x2: pb.x, y2: pb.y, stroke: INK, width: style.lineWidth });
   }
-  if (state.showQuadDiagonal && canvas.B && canvas.D) {
+  const showAC = state.showQuadDiagAC;
+  const showBD = state.showQuadDiagBD || state.showQuadDiagonal;
+  if (showAC && canvas.A && canvas.C) {
+    cmds.push({
+      t: "line",
+      x1: canvas.A.x,
+      y1: canvas.A.y,
+      x2: canvas.C.x,
+      y2: canvas.C.y,
+      stroke: DIAGONAL,
+      width: style.lineWidth + 0.4,
+    });
+  }
+  if (showBD && canvas.B && canvas.D) {
     cmds.push({
       t: "line",
       x1: canvas.B.x,
@@ -929,6 +944,36 @@ function paintQuadArea(
       stroke: DIAGONAL,
       width: style.lineWidth + 0.4,
     });
+  }
+  if (showAC && showBD && canvas.A && canvas.B && canvas.C && canvas.D) {
+    const O = quadDiagonalIntersection(pts);
+    const diagAngles = state.quadDiagAngles ?? [];
+    const angDefs: Record<string, { from: Vec; to: Vec; toward: Vec }> = {
+      AOB: { from: canvas.A, to: canvas.B, toward: mul(add(canvas.A, canvas.B), 0.5) },
+      BOC: { from: canvas.B, to: canvas.C, toward: mul(add(canvas.B, canvas.C), 0.5) },
+      COD: { from: canvas.C, to: canvas.D, toward: mul(add(canvas.C, canvas.D), 0.5) },
+      DOA: { from: canvas.D, to: canvas.A, toward: mul(add(canvas.D, canvas.A), 0.5) },
+    };
+    for (const ang of diagAngles) {
+      if (!ang.show) continue;
+      const def = angDefs[ang.id];
+      if (!def) continue;
+      const deg = quadDiagAngleDeg(mathPts, ang.id);
+      const label = resolveAngleLabel(state, ang, deg);
+      drawAngle(
+        cmds,
+        texts,
+        O,
+        def.from,
+        def.to,
+        label,
+        `a:${ang.id}`,
+        ang.label,
+        style.fontSize,
+        fillColor(ang.fill),
+        def.toward,
+      );
+    }
   }
   for (let i = 0; i < 4; i += 1) {
     const v = state.quadVertices[i];
