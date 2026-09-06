@@ -805,7 +805,7 @@ export default function TrigRatiosStudio() {
             ) : null}
           </section>
 
-          {(state.kind === "right" || state.kind === "quad-area") && (
+          {state.kind !== "unit-circle" && (
             <section className="rounded-2xl border-2 border-wood/10 bg-white/80 p-3.5">
               <h2 className="font-display text-sm text-wood-dark">보기</h2>
               <SliderField

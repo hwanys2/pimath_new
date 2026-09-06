@@ -151,7 +151,17 @@ export function unitCirclePoints(state: TrigRatiosState): Record<string, Vec> {
 }
 
 export function trianglePoints(state: TrigRatiosState): Record<string, Vec> {
-  const { triA: A, triB: B, triC: C } = state;
+  const { triA: A0, triB: B0, triC: C0 } = state;
+  const deg = wrapRotateDeg(state.rotateDeg);
+  let A = A0;
+  let B = B0;
+  let C = C0;
+  if (deg >= 1e-9) {
+    const O = mul(add(add(A0, B0), C0), 1 / 3);
+    A = rotateAround(A0, O, deg);
+    B = rotateAround(B0, O, deg);
+    C = rotateAround(C0, O, deg);
+  }
   const out: Record<string, Vec> = { A, B, C };
   const alts = state.altitudes ?? [];
   if (alts.includes("A")) out.Ha = footToLine(A, B, C, false);
@@ -376,7 +386,14 @@ export function movePoint(state: TrigRatiosState, id: string, pos: Vec): TrigRat
     case "triangle-area": {
       const key = id as "A" | "B" | "C";
       if (key !== "A" && key !== "B" && key !== "C") return state;
-      const patch = { [`tri${key}`]: pos } as Partial<TrigRatiosState>;
+      const deg = wrapRotateDeg(state.rotateDeg);
+      let localPos = pos;
+      if (deg >= 1e-9) {
+        const { triA: A0, triB: B0, triC: C0 } = state;
+        const O = mul(add(add(A0, B0), C0), 1 / 3);
+        localPos = rotateAround(pos, O, -deg);
+      }
+      const patch = { [`tri${key}`]: localPos } as Partial<TrigRatiosState>;
       const next = { ...state, ...patch };
       const pts = [next.triA, next.triB, next.triC];
       if (!isConvex(pts) || edgeLength(pts, 0) < 0.4) return state;
@@ -385,21 +402,28 @@ export function movePoint(state: TrigRatiosState, id: string, pos: Vec): TrigRat
     case "quad-area": {
       const i = "ABCD".indexOf(id);
       if (i < 0) return state;
+      const deg = wrapRotateDeg(state.rotateDeg);
+      let localPos = pos;
+      if (deg >= 1e-9) {
+        const pts0 = state.quadPoints;
+        const O = mul(add(add(pts0[0]!, pts0[2]!), add(pts0[1]!, pts0[3]!)), 0.25);
+        localPos = rotateAround(pos, O, -deg);
+      }
       if (state.quadFamily === "parallelogram") {
         const pts = state.quadPoints.slice();
         let [A, B, C, D] = pts as [Vec, Vec, Vec, Vec];
         if (i === 0) {
-          A = pos;
+          A = localPos;
           D = add(A, sub(C, B));
         } else if (i === 2) {
-          C = pos;
+          C = localPos;
           D = add(A, sub(C, B));
         } else if (i === 3) {
-          D = pos;
+          D = localPos;
           A = add(B, sub(D, C));
         } else if (i === 1) {
-          const delta = sub(pos, B);
-          B = pos;
+          const delta = sub(localPos, B);
+          B = localPos;
           A = add(A, delta);
           C = add(C, delta);
           D = add(D, delta);
@@ -411,7 +435,7 @@ export function movePoint(state: TrigRatiosState, id: string, pos: Vec): TrigRat
         return unlockShownNumeric(syncParallelogramLabels({ ...state, quadPoints: newPts }));
       }
       const pts = state.quadPoints.slice();
-      pts[i] = pos;
+      pts[i] = localPos;
       if (!validQuad(state, pts)) return state;
       return unlockShownNumeric({ ...state, quadPoints: pts });
     }

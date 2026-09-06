@@ -17,6 +17,8 @@ import {
   interiorAngleDeg,
   segLength,
   setQuadFamily,
+  setRotateDeg,
+  trianglePoints,
 } from "./geometry";
 import {
   TRIG_PRESETS,
@@ -729,5 +731,27 @@ describe("trig-ratios scene", () => {
     const [dA, dB, dC, dD] = dragged.quadPoints;
     almost(dD.x, dA.x + dC.x - dB.x, 1e-4);
     almost(dD.y, dA.y + dC.y - dB.y, 1e-4);
+  });
+
+  it("supports rotating triangle-area figure while preserving side lengths and angles", () => {
+    const start = normalizeState(cloneState(TRIG_PRESETS.find((p) => p.id === "tri-608")!.state));
+    const origMath = trianglePoints(start);
+    const origAB = Math.hypot(origMath.B.x - origMath.A.x, origMath.B.y - origMath.A.y);
+    const origAngA = interiorAngleDeg([origMath.A, origMath.B, origMath.C], 0);
+
+    const rotated = setRotateDeg(start, 45);
+    const rotMath = trianglePoints(rotated);
+    const rotAB = Math.hypot(rotMath.B.x - rotMath.A.x, rotMath.B.y - rotMath.A.y);
+    const rotAngA = interiorAngleDeg([rotMath.A, rotMath.B, rotMath.C], 0);
+
+    almost(rotAB, origAB, 1e-4);
+    almost(rotAngA, origAngA, 1e-4);
+
+    assert.notEqual(rotMath.A.x, origMath.A.x);
+    assert.notEqual(rotMath.A.y, origMath.A.y);
+
+    const scene = buildTrigScene(rotated);
+    assert.ok(scene.texts.length > 0);
+    assert.ok(scene.cmds.length > 0);
   });
 });
