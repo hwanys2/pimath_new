@@ -1,3 +1,6 @@
+"use client";
+
+import { useState } from "react";
 import {
   isPvpContent,
   isSessionGameContent,
@@ -213,9 +216,9 @@ function TrigoSlashDetail({ items }: { items: ActivityDetailsV1["items"] }) {
 function ShadowTempleDetail({ items }: { items: ActivityDetailsV1["items"] }) {
   if (!items?.length) return null;
   const hintLabel = (n: unknown) => {
-    if (n === 2) return "풀이";
-    if (n === 1) return "개념";
-    return "없음";
+    const count = typeof n === "number" ? n : Number(n) || 0;
+    if (count <= 0) return "없음";
+    return `${count}줄 (−${count * 10}점)`;
   };
   return (
     <div className="mt-2 overflow-x-auto">
@@ -225,18 +228,28 @@ function ShadowTempleDetail({ items }: { items: ActivityDetailsV1["items"] }) {
             <th className="py-1 pr-3 font-semibold">방</th>
             <th className="py-1 pr-3 font-semibold">시련</th>
             <th className="py-1 pr-3 font-semibold">시도</th>
-            <th className="py-1 font-semibold">수첩</th>
+            <th className="py-1 font-semibold">수첩(힌트)</th>
           </tr>
         </thead>
         <tbody>
-          {items.map((item, i) => (
-            <tr key={i} className="border-b border-wood/8">
-              <td className="py-1 pr-3">{String(item.room ?? i + 1)}</td>
-              <td className="py-1 pr-3">{String(item.title ?? "—")}</td>
-              <td className="py-1 pr-3">{String(item.attempts ?? "—")}</td>
-              <td className="py-1">{hintLabel(item.hint)}</td>
-            </tr>
-          ))}
+          {items.map((item, i) => {
+            const count =
+              typeof item.hint === "number" ? item.hint : Number(item.hint) || 0;
+            return (
+              <tr key={i} className="border-b border-wood/8">
+                <td className="py-1 pr-3">{String(item.room ?? i + 1)}</td>
+                <td className="py-1 pr-3">{String(item.title ?? "—")}</td>
+                <td className="py-1 pr-3">{String(item.attempts ?? "—")}회</td>
+                <td
+                  className={`py-1 ${
+                    count > 0 ? "font-semibold text-rose-600" : "text-foreground/70"
+                  }`}
+                >
+                  {hintLabel(item.hint)}
+                </td>
+              </tr>
+            );
+          })}
         </tbody>
       </table>
     </div>
@@ -423,6 +436,7 @@ export function ContentResultTable({
   contentType: ContentType;
   students: StudentActivitySummary[];
 }) {
+  const [expandedId, setExpandedId] = useState<string | null>(null);
   const participated = students.filter((s) => s.participated).length;
 
   return (
@@ -437,6 +451,12 @@ export function ContentResultTable({
             contentKey={contentKey}
             contentType={contentType}
             student={student}
+            expanded={expandedId === student.studentId}
+            onToggle={() =>
+              setExpandedId((curr) =>
+                curr === student.studentId ? null : student.studentId,
+              )
+            }
           />
         ))}
       </div>

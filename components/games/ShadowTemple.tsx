@@ -91,9 +91,11 @@ function NarrationTypewriter({
   onDone: () => void;
 }) {
   const onDoneRef = useRef(onDone);
-  onDoneRef.current = onDone;
   const linesRef = useRef(lines);
-  linesRef.current = lines;
+  useEffect(() => {
+    onDoneRef.current = onDone;
+    linesRef.current = lines;
+  });
 
   const [lineIdx, setLineIdx] = useState(0);
   const [charIdx, setCharIdx] = useState(0);
@@ -761,6 +763,7 @@ export default function ShadowTemple() {
   const endingRef = useRef(false);
   const wrongTotalRef = useRef(0);
   const hintTotalRef = useRef(0);
+  const pendingHintPenaltyRef = useRef(0);
   const cluesTotalRef = useRef(0);
   const roomsClearedRef = useRef(0);
   const puzzleLogsRef = useRef<PuzzleLog[]>([]);
@@ -854,7 +857,13 @@ export default function ShadowTemple() {
       const torches = torchesRemaining(finalTimeLeftRef.current);
       const bonus = timeBonus(finalTimeLeftRef.current);
       if (finalOutcome === "escaped") {
-        finalScore = applyScoreGain(finalScore, bonus);
+        let netBonus = bonus;
+        if (pendingHintPenaltyRef.current > 0) {
+          const deduction = Math.min(netBonus, pendingHintPenaltyRef.current);
+          netBonus -= deduction;
+          pendingHintPenaltyRef.current -= deduction;
+        }
+        finalScore = applyScoreGain(finalScore, netBonus);
         scoreRef.current = finalScore;
         setScore(finalScore);
         audio.play("collapse");
@@ -936,7 +945,8 @@ export default function ShadowTemple() {
         heartbeatOnRef.current = false;
         audio?.stopHeartbeat();
       }
-      if (left <= 0 && phaseRef.current === "playing") {
+      if (left <= 0) {
+        window.clearInterval(iv);
         endGame("trapped");
       }
     }, 250);
@@ -947,6 +957,8 @@ export default function ShadowTemple() {
 
   const enterTemple = () => {
     setRun(generateRun());
+    setPhase("ready");
+    phaseRef.current = "ready";
     setRoomIndex(0);
     setPuzzleIndex(0);
     setStage("enter");
@@ -959,6 +971,7 @@ export default function ShadowTemple() {
     setSolvedInfo(null);
     setScore(0);
     scoreRef.current = 0;
+    pendingHintPenaltyRef.current = 0;
     setTimeLeft(TOTAL_TIME_SEC);
     setStatusMsg("");
     setSubmitResult(null);
@@ -1043,8 +1056,12 @@ export default function ShadowTemple() {
     const line = lines[hintRevealed]!;
     const free = isFreeHintLine(line);
     if (!free) {
-      const nextScore = applyHintLinePenalty(scoreRef.current);
+      const { nextScore, nextPending } = applyHintLinePenalty(
+        scoreRef.current,
+        pendingHintPenaltyRef.current,
+      );
       scoreRef.current = nextScore;
+      pendingHintPenaltyRef.current = nextPending;
       setScore(nextScore);
       hintTotalRef.current += 1;
     }
@@ -1086,8 +1103,14 @@ export default function ShadowTemple() {
 
   const handleCorrect = () => {
     if (!room || !puzzle) return;
-    const award = puzzleAward(attempt, puzzle.weight);
-    const next = applyScoreGain(scoreRef.current, award);
+    const rawAward = puzzleAward(attempt, puzzle.weight);
+    let netAward = rawAward;
+    if (pendingHintPenaltyRef.current > 0) {
+      const deduction = Math.min(netAward, pendingHintPenaltyRef.current);
+      netAward -= deduction;
+      pendingHintPenaltyRef.current -= deduction;
+    }
+    const next = applyScoreGain(scoreRef.current, netAward);
     scoreRef.current = next;
     setScore(next);
     puzzleLogsRef.current.push({
@@ -1104,7 +1127,7 @@ export default function ShadowTemple() {
     sfx("correct");
     setSolvedInfo({
       line: puzzle.solvedLine,
-      award,
+      award: netAward,
       isLastPuzzleOfRoom,
       isFinal,
     });

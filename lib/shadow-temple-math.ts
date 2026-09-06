@@ -144,9 +144,20 @@ export function puzzleAward(attempt: number, weight: number): number {
   return Math.max(20, Math.round(base * weight));
 }
 
-/** Live score loss when opening a paid notebook line (floor at 0). */
-export function applyHintLinePenalty(current: number): number {
-  return Math.max(0, Math.round(current) - HINT_LINE_PENALTY);
+/**
+ * Calculate live score deduction when opening a paid notebook line.
+ * If current score is less than the penalty (e.g. at the start of room 1),
+ * the remaining penalty is tracked as pending and deducted upon solving.
+ */
+export function applyHintLinePenalty(
+  current: number,
+  pending = 0,
+): { nextScore: number; nextPending: number } {
+  const c = Math.max(0, Math.round(current));
+  if (c >= HINT_LINE_PENALTY) {
+    return { nextScore: c - HINT_LINE_PENALTY, nextPending: pending };
+  }
+  return { nextScore: 0, nextPending: pending + (HINT_LINE_PENALTY - c) };
 }
 
 /** How many torches are still lit for the remaining time. */

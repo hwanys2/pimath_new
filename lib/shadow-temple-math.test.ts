@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { generateRun } from "@/lib/shadow-temple-math";
+import { applyHintLinePenalty, generateRun } from "@/lib/shadow-temple-math";
 
 describe("generateRun play order", () => {
   it("goes tan → area → construction → finale", () => {
@@ -82,5 +82,24 @@ describe("generateRun play order", () => {
       );
     }
   });
+
+  it("properly tracks hint penalties even when score starts at 0", () => {
+    // When score has enough points: deducts live, no pending
+    const r1 = applyHintLinePenalty(150, 0);
+    assert.deepEqual(r1, { nextScore: 140, nextPending: 0 });
+
+    // When score is 0 (room 1 start): score stays 0, tracks 10 pending
+    const r2 = applyHintLinePenalty(0, 0);
+    assert.deepEqual(r2, { nextScore: 0, nextPending: 10 });
+
+    // Opening another hint from 0 accumulates pending penalty
+    const r3 = applyHintLinePenalty(0, r2.nextPending);
+    assert.deepEqual(r3, { nextScore: 0, nextPending: 20 });
+
+    // Partial score (e.g. 5 points left): consumes 5, remaining 5 becomes pending
+    const r4 = applyHintLinePenalty(5, 0);
+    assert.deepEqual(r4, { nextScore: 0, nextPending: 5 });
+  });
 });
+
 
