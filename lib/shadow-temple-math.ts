@@ -620,8 +620,8 @@ type AltarVariant = {
 
 const ALTAR_ACUTE_POOL: readonly AltarVariant[] = [
   { a: 8, b: 6, deg: 60, exact: "12√3", distractors: ["24", "12"] },
-  { a: 6, b: 4, deg: 45, exact: "6√2", distractors: ["12", "6√3"] },
-  { a: 10, b: 4, deg: 30, exact: "10", distractors: ["20", "10√3"] },
+  { a: 6, b: 6, deg: 45, exact: "9√2", distractors: ["18", "9√3"] },
+  { a: 8, b: 8, deg: 30, exact: "16", distractors: ["32", "16√3"] },
 ];
 
 const ALTAR_OBTUSE_POOL: readonly AltarVariant[] = [
@@ -649,16 +649,16 @@ function buildAltarPuzzle(v: AltarVariant, which: "acute" | "obtuse"): Puzzle {
   return {
     prompt:
       which === "acute"
-        ? "첫 번째 제단 — 넓이가 새겨진 황금 판 중 알맞은 것을 제단 위에 올리세요."
-        : "두 번째 제단 — 끼인각이 둔각이다! 알맞은 황금 판을 올리세요.",
+        ? "첫 번째 제단 (예각삼각형) — 알맞은 넓이가 새겨진 황금 판을 제단 위에 올리세요."
+        : "두 번째 제단 (둔각삼각형) — 끼인각이 둔각이다! 알맞은 황금 판을 올리세요.",
     approxNote: undefined,
     clues:
       which === "acute"
         ? [
             {
               id: "altar1",
-              label: "제단의 눈금",
-              text: `삼각형 제단의 두 변은 ${v.a} 와 ${v.b}, 끼인각은 ${v.deg}° 다.`,
+              label: "예각 제단",
+              text: `첫 번째 제단은 예각삼각형이다. 두 변은 ${v.a} 와 ${v.b}, 끼인각은 ${v.deg}°(예각)다.`,
             },
             {
               id: "sun",
@@ -669,8 +669,8 @@ function buildAltarPuzzle(v: AltarVariant, which: "acute" | "obtuse"): Puzzle {
         : [
             {
               id: "altar2",
-              label: "두 번째 제단",
-              text: `이번 제단의 두 변은 ${v.a} 와 ${v.b}, 끼인각은 무려 ${v.deg}° — 둔각이다!`,
+              label: "둔각 제단",
+              text: `두 번째 제단은 둔각삼각형이다. 두 변은 ${v.a} 와 ${v.b}, 끼인각은 무려 ${v.deg}°(둔각)다!`,
             },
             {
               id: "shadow",
@@ -688,12 +688,12 @@ function buildAltarPuzzle(v: AltarVariant, which: "acute" | "obtuse"): Puzzle {
       which === "acute"
         ? [
             "박사의 수첩 3쪽 —",
-            "「삼각형의 넓이 = ½ × (한 변) × (이웃 변) × sin (끼인각).」",
+            "「예각삼각형의 넓이 = ½ × (한 변) × (이웃 변) × sin (끼인각).」",
             "S = ½ × a × b × sin θ",
           ]
         : [
             "박사의 수첩 3쪽 (뒷면) —",
-            "「θ 가 둔각이면 sin θ = sin (180° − θ). 공식은 그대로!」",
+            "「둔각삼각형의 넓이: θ 가 둔각이면 sin θ = sin (180° − θ). 공식은 그대로!」",
             "S = ½ × a × b × sin (180° − θ)",
           ],
     hintSolve: [
@@ -702,7 +702,7 @@ function buildAltarPuzzle(v: AltarVariant, which: "acute" | "obtuse"): Puzzle {
     ],
     solvedLine:
       which === "acute"
-        ? "황금 판이 제단에 녹아들며 방 절반에 태양빛이 번진다. 하지만 제단이 하나 더…!"
+        ? "황금 판이 제단에 녹아들며 방 절반에 태양빛이 번진다. 하지만 둔각삼각형 제단이 하나 더…!"
         : "두 번째 판이 빛나자 온 방이 눈부신 태양빛으로 가득 찬다. 바닥의 금 틈이 갈라지며, 아래로 내려가는 숨겨진 길이 드러난다!",
     weight: 0.5,
   };
@@ -715,9 +715,9 @@ function buildAltarRoom(): Room {
     id: 3,
     kind: "sunAltar",
     title: "태양의 제단",
-    objective: "삼각형의 넓이 — S = ½ab × sin θ (둔각이면 보각의 sin)",
+    objective: "삼각형의 넓이 — 예각삼각형과 둔각삼각형의 넓이 (S = ½ab × sin θ)",
     enterStory: [
-      "수호자가 비켜 준 길 끝, 비밀의 방 한가운데에 삼각형 제단 두 개가 마주 보고 서 있다.",
+      "수호자가 비켜 준 길 끝, 비밀의 방 한가운데에 예각삼각형과 둔각삼각형 모양의 제단 두 개가 마주 보고 서 있다.",
       "천장의 틈으로 새벽 별빛이 스며들고, 제단 곁에는 넓이가 새겨진 황금 판들이 놓여 있다.",
       "두 제단을 모두 깨워야 더 깊은 길이 열린다.",
     ],

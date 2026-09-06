@@ -289,8 +289,8 @@ for (const v of SHIELD) {
 /* ---------------- Altar ---------------- */
 const ALTAR_ACUTE = [
   { a: 8, b: 6, deg: 60 },
-  { a: 6, b: 4, deg: 45 },
-  { a: 10, b: 4, deg: 30 },
+  { a: 6, b: 6, deg: 45 },
+  { a: 8, b: 8, deg: 30 },
 ];
 const ALTAR_OBTUSE = [
   { a: 10, b: 4, deg: 120 },

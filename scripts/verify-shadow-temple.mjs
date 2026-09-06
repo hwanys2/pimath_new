@@ -118,8 +118,8 @@ const parseExact = (s) => {
 };
 const ALTARS = [
   { a: 8, b: 6, deg: 60, exact: "12√3", distractors: ["24", "12"] },
-  { a: 6, b: 4, deg: 45, exact: "6√2", distractors: ["12", "6√3"] },
-  { a: 10, b: 4, deg: 30, exact: "10", distractors: ["20", "10√3"] },
+  { a: 6, b: 6, deg: 45, exact: "9√2", distractors: ["18", "9√3"] },
+  { a: 8, b: 8, deg: 30, exact: "16", distractors: ["32", "16√3"] },
   { a: 10, b: 4, deg: 120, exact: "10√3", distractors: ["20", "10"] },
   { a: 8, b: 6, deg: 135, exact: "12√2", distractors: ["24", "12√3"] },
   { a: 12, b: 5, deg: 150, exact: "15", distractors: ["30", "15√3"] },

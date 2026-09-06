@@ -1010,7 +1010,7 @@ function SunAltarScene({ room, found, onFind, puzzleIndex, solvedCount }: SceneP
           <Hotspot
             x={acuteWoodCx}
             y={232}
-            label="제단의 눈금"
+            label="예각 제단"
             found={hasAltar1}
             onClick={() => onFind("altar1")}
           />
@@ -1021,7 +1021,7 @@ function SunAltarScene({ room, found, onFind, puzzleIndex, solvedCount }: SceneP
           <Hotspot
             x={obtuseWoodCx}
             y={232}
-            label="두 번째 제단"
+            label="둔각 제단"
             found={hasAltar2}
             onClick={() => onFind("altar2")}
           />
