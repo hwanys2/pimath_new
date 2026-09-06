@@ -39,10 +39,9 @@ type Phase = "ready" | "playing" | "ended";
 
 const MUTE_KEY = "pm_trigo_beat_mute";
 
-// 캔버스 가상 좌표계 (800 x 540)
 const VW = 800;
 const VH = 540;
-const BASE_Y = 490; // 지상 방어선 Y좌표
+const BASE_Y = 490;
 const TURRET_X = 400;
 const TURRET_Y = 495;
 
@@ -57,7 +56,7 @@ function Latex({ latex, className }: { latex: string; className?: string }) {
 }
 
 function playSound(
-  kind: "laser" | "hit" | "bomb" | "wrong" | "base_hit" | "fever" | "pass",
+  kind: "laser" | "hit" | "wrong" | "base_hit" | "fever" | "lock",
   combo: number,
   muted: boolean,
 ) {
@@ -76,7 +75,6 @@ function playSound(
     gain.connect(ctx.destination);
 
     if (kind === "laser") {
-      // 퓨웅- 레이저 발사음
       osc.type = "sawtooth";
       osc.frequency.setValueAtTime(850, now);
       osc.frequency.exponentialRampToValueAtTime(220, now + 0.12);
@@ -85,7 +83,6 @@ function playSound(
       osc.start(now);
       osc.stop(now + 0.14);
     } else if (kind === "hit") {
-      // 쾅! 크리스탈 폭발음 (콤보에 따라 피치 상승)
       const scale = [523.25, 587.33, 659.25, 783.99, 880.0, 1046.5];
       const freq = scale[combo % scale.length]!;
       osc.type = "triangle";
@@ -95,8 +92,15 @@ function playSound(
       gain.gain.exponentialRampToValueAtTime(0.001, now + 0.28);
       osc.start(now);
       osc.stop(now + 0.3);
+    } else if (kind === "lock") {
+      // 삑- 락온 조준음
+      osc.type = "sine";
+      osc.frequency.setValueAtTime(987.77, now);
+      gain.gain.setValueAtTime(0.05, now);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.08);
+      osc.start(now);
+      osc.stop(now + 0.09);
     } else if (kind === "fever") {
-      // 피버 팡파르
       osc.type = "sawtooth";
       osc.frequency.setValueAtTime(523, now);
       osc.frequency.setValueAtTime(659, now + 0.08);
@@ -106,26 +110,17 @@ function playSound(
       gain.gain.exponentialRampToValueAtTime(0.001, now + 0.45);
       osc.start(now);
       osc.stop(now + 0.47);
-    } else if (kind === "pass") {
-      // 폭탄 안전 통과 차임
-      osc.type = "sine";
-      osc.frequency.setValueAtTime(660, now);
-      osc.frequency.exponentialRampToValueAtTime(880, now + 0.12);
-      gain.gain.setValueAtTime(0.06, now);
-      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.2);
-      osc.start(now);
-      osc.stop(now + 0.22);
     } else if (kind === "wrong") {
-      // 불발
+      // 둔탁한 오답 부저음
       osc.type = "square";
-      osc.frequency.setValueAtTime(240, now);
-      osc.frequency.setValueAtTime(160, now + 0.08);
-      gain.gain.setValueAtTime(0.06, now);
-      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.18);
+      osc.frequency.setValueAtTime(180, now);
+      osc.frequency.setValueAtTime(120, now + 0.12);
+      gain.gain.setValueAtTime(0.09, now);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.25);
       osc.start(now);
-      osc.stop(now + 0.2);
+      osc.stop(now + 0.27);
     } else {
-      // bomb or base_hit 둔탁한 폭발
+      // base_hit 지상 충돌 대폭발음
       osc.type = "sawtooth";
       osc.frequency.setValueAtTime(140, now);
       osc.frequency.exponentialRampToValueAtTime(45, now + 0.35);
@@ -153,7 +148,11 @@ export default function TrigoBeat() {
   const [waveInfo, setWaveInfo] = useState<WaveSettings>(getWaveSettings(0));
   const [isFever, setIsFever] = useState(false);
   const [feverSec, setFeverSec] = useState(0);
+
+  // 현재 락온된 타겟 (선택된 운석)
   const [lockedTargetId, setLockedTargetId] = useState<number | null>(null);
+  const [currentTargetPrompt, setCurrentTargetPrompt] = useState<string | null>(null);
+  const [currentTargetLatex, setCurrentTargetLatex] = useState<string | null>(null);
 
   const [muted, setMuted] = useState(() => {
     if (typeof window === "undefined") return false;
@@ -164,7 +163,6 @@ export default function TrigoBeat() {
     }
   });
 
-  // 결과 & 랭킹
   const [submitResult, setSubmitResult] =
     useState<GameSubmitClientResult | null>(null);
   const [ranking, setRanking] = useState<RankingRow[]>([]);
@@ -190,7 +188,7 @@ export default function TrigoBeat() {
   const floatTextsRef = useRef<FloatingText[]>([]);
   const starsRef = useRef<{ x: number; y: number; s: number; b: number }[]>([]);
 
-  const turretAngleRef = useRef(-Math.PI / 2); // 위쪽(90도)
+  const turretAngleRef = useRef(-Math.PI / 2);
   const targetTurretAngleRef = useRef(-Math.PI / 2);
   const screenShakeRef = useRef(0);
   const lastSpawnTimeRef = useRef(0);
@@ -261,7 +259,7 @@ export default function TrigoBeat() {
     }, 1000);
   }, []);
 
-  // 게임 오버 처리
+  // 게임 오버
   const endGame = useCallback(async () => {
     if (phaseRef.current === "ended") return;
     setPhase("ended");
@@ -280,7 +278,7 @@ export default function TrigoBeat() {
         details: activityDetailsV1({
           cleared: finalCleared,
           maxCombo: finalMaxCombo,
-          accuracy: 100, // 격추 위주
+          accuracy: 100,
           weakFn: "스트라이크 요격",
           feverCount: feverCountRef.current,
         }),
@@ -300,7 +298,7 @@ export default function TrigoBeat() {
     }
   }, []);
 
-  // 파티클 생성 헬퍼
+  // 폭발 파티클
   const spawnExplosion = useCallback(
     (x: number, y: number, color: string, count = 22) => {
       screenShakeRef.current = 10;
@@ -324,35 +322,27 @@ export default function TrigoBeat() {
     [],
   );
 
-  // 탄환 발사 & 격추 로직
+  // 현재 활성화된 타겟 찾기 (수동 락온 또는 가장 낮은 위험 운석)
+  const getActiveTarget = useCallback((): Meteor | null => {
+    const meteors = meteorsRef.current;
+    if (meteors.length === 0) return null;
+
+    if (lockedTargetIdRef.current != null) {
+      const found = meteors.find((m) => m.id === lockedTargetIdRef.current);
+      if (found) return found;
+    }
+
+    // 수동 선택이 없으면 지상에 가장 가까운(y가 가장 큰) 운석 자동 타겟팅
+    const sorted = [...meteors].sort((a, b) => b.y - a.y);
+    return sorted[0] ?? null;
+  }, []);
+
+  // 탄환 선택 및 사격 (먼저 선택된 타겟에 대해 정답 판정!)
   const shootBullet = useCallback(
     (bullet: BulletValue) => {
       if (phaseRef.current !== "playing") return;
 
-      const meteors = meteorsRef.current;
-      if (meteors.length === 0) return;
-
-      // 타겟 결정: 수동 락온된 타겟이 있으면 그것, 없으면 Y가 가장 큰(가장 낮은) 유효 운석
-      let target: Meteor | null = null;
-      if (lockedTargetIdRef.current != null) {
-        target =
-          meteors.find((m) => m.id === lockedTargetIdRef.current) ?? null;
-      }
-
-      // 만약 락온된 타겟이 없거나 이미 사라졌으면, 이 탄환과 일치하는 정답 운석 중 가장 위험한(Y가 큰) 것 검색
-      if (!target) {
-        const matching = meteors
-          .filter((m) => m.correctBulletId === bullet.id)
-          .sort((a, b) => b.y - a.y);
-        if (matching.length > 0) {
-          target = matching[0]!;
-        } else {
-          // 정답이 없다면 화면에서 가장 낮은 운석을 향해 불발 사격
-          const sorted = [...meteors].sort((a, b) => b.y - a.y);
-          target = sorted[0]!;
-        }
-      }
-
+      const target = getActiveTarget();
       if (!target) return;
 
       // 포탑 각도 갱신
@@ -362,7 +352,6 @@ export default function TrigoBeat() {
       turretAngleRef.current = Math.atan2(dy, dx);
 
       const isHit = target.correctBulletId === bullet.id;
-      const isBombHit = target.isBomb;
 
       // 레이저 빔 생성
       lasersRef.current.push({
@@ -370,46 +359,15 @@ export default function TrigoBeat() {
         startY: TURRET_Y,
         targetX: target.x,
         targetY: target.y,
-        color: isBombHit ? "#ef4444" : isHit ? "#38bdf8" : "#f43f5e",
+        color: isHit ? "#38bdf8" : "#f43f5e",
         progress: 0,
         isHit,
       });
 
       playSound("laser", comboRef.current, mutedRef.current);
 
-      if (isBombHit) {
-        // ☠️ tan 90° 폭탄을 쐈을 때: 기지 대폭발 패널티!
-        playSound("bomb", 0, mutedRef.current);
-        spawnExplosion(target.x, target.y, "#ef4444", 35);
-        screenShakeRef.current = 18;
-
-        floatTextsRef.current.push({
-          x: target.x,
-          y: target.y,
-          text: "DANGER! tan 90° 불능 폭발! -1 HP",
-          color: "#ef4444",
-          life: 0,
-          maxLife: 1.2,
-        });
-
-        // 운석 제거
-        meteorsRef.current = meteorsRef.current.filter((m) => m.id !== target!.id);
-        if (lockedTargetIdRef.current === target.id) {
-          setLockedTargetId(null);
-        }
-
-        // 실드 감소
-        const nextLives = livesRef.current - 1;
-        setLives(nextLives);
-        livesRef.current = nextLives;
-        setCombo(0);
-        comboRef.current = 0;
-
-        if (nextLives <= 0) {
-          endGame();
-        }
-      } else if (isHit) {
-        // 정답 격추!
+      if (isHit) {
+        // [정답 격추 성공!]
         const newCombo = comboRef.current + 1;
         setCombo(newCombo);
         comboRef.current = newCombo;
@@ -436,7 +394,6 @@ export default function TrigoBeat() {
         playSound("hit", newCombo, mutedRef.current);
         spawnExplosion(target.x, target.y, target.color, 25);
 
-        // 플로팅 텍스트
         const popLabel = altitudeRatio > 0.6 ? `PERFECT! +${gained}` : `+${gained}`;
         floatTextsRef.current.push({
           x: target.x,
@@ -452,28 +409,38 @@ export default function TrigoBeat() {
           triggerFever();
         }
 
-        // 제거
-        meteorsRef.current = meteorsRef.current.filter((m) => m.id !== target!.id);
+        // 운석 제거
+        meteorsRef.current = meteorsRef.current.filter((m) => m.id !== target.id);
         if (lockedTargetIdRef.current === target.id) {
           setLockedTargetId(null);
+          lockedTargetIdRef.current = null;
         }
       } else {
-        // 오답 빗나감
+        // [오답! 즉시 목숨(하트) 차감!]
         playSound("wrong", 0, mutedRef.current);
+        screenShakeRef.current = 14;
         setCombo(0);
         comboRef.current = 0;
 
+        const nextLives = livesRef.current - 1;
+        setLives(nextLives);
+        livesRef.current = nextLives;
+
         floatTextsRef.current.push({
           x: target.x,
-          y: target.y - 15,
-          text: "MISS...",
+          y: target.y - 20,
+          text: "오답! -1 HP 💥",
           color: "#f43f5e",
           life: 0,
-          maxLife: 0.6,
+          maxLife: 1.0,
         });
+
+        if (nextLives <= 0) {
+          endGame();
+        }
       }
     },
-    [spawnExplosion, triggerFever, endGame],
+    [getActiveTarget, spawnExplosion, triggerFever, endGame],
   );
 
   // 키보드 바인딩 (1~7)
@@ -511,7 +478,7 @@ export default function TrigoBeat() {
       const dt = Math.min((now - lastFrameTimeRef.current) / 1000, 0.1);
       lastFrameTimeRef.current = now;
 
-      // 1. 운석 스폰 로직
+      // 1. 운석 스폰
       const wave = getWaveSettings(scoreRef.current);
       if (
         now - lastSpawnTimeRef.current >= wave.spawnIntervalSec * 1000 &&
@@ -529,7 +496,6 @@ export default function TrigoBeat() {
         m.y += m.speed * dt;
         m.x += m.vx * dt;
 
-        // 벽 튕김
         if (m.x < m.radius + 10) {
           m.x = m.radius + 10;
           m.vx = Math.abs(m.vx);
@@ -538,44 +504,47 @@ export default function TrigoBeat() {
           m.vx = -Math.abs(m.vx);
         }
 
-        // 지상 도달 체크
+        // 지상 충돌 체크 -> 목숨 차감!
         if (m.y + m.radius >= BASE_Y) {
-          if (m.isBomb) {
-            // ☠️ tan 90° 폭탄은 안전 통과! 보너스 부여
-            playSound("pass", 0, mutedRef.current);
-            floatTextsRef.current.push({
-              x: m.x,
-              y: BASE_Y - 20,
-              text: "SAFE PASS! +10",
-              color: "#34d399",
-              life: 0,
-              maxLife: 1.0,
-            });
-            const newScore = scoreRef.current + 10;
-            setScore(newScore);
-            scoreRef.current = newScore;
-          } else {
-            // 일반 운석이 지상 기지에 충돌: 실드 파괴!
-            playSound("base_hit", 0, mutedRef.current);
-            spawnExplosion(m.x, BASE_Y, "#f97316", 30);
-            screenShakeRef.current = 15;
+          playSound("base_hit", 0, mutedRef.current);
+          spawnExplosion(m.x, BASE_Y, "#f97316", 30);
+          screenShakeRef.current = 15;
 
-            const nextLives = livesRef.current - 1;
-            setLives(nextLives);
-            livesRef.current = nextLives;
-            setCombo(0);
-            comboRef.current = 0;
+          const nextLives = livesRef.current - 1;
+          setLives(nextLives);
+          livesRef.current = nextLives;
+          setCombo(0);
+          comboRef.current = 0;
 
-            if (nextLives <= 0) {
-              endGame();
-              return;
-            }
+          if (lockedTargetIdRef.current === m.id) {
+            setLockedTargetId(null);
+            lockedTargetIdRef.current = null;
+          }
+
+          if (nextLives <= 0) {
+            endGame();
+            return;
           }
         } else {
           survivingMeteors.push(m);
         }
       }
       meteorsRef.current = survivingMeteors;
+
+      // 현재 타겟 갱신 (상단 HUD용)
+      const active = getActiveTarget();
+      if (active) {
+        setCurrentTargetPrompt(active.promptText);
+        setCurrentTargetLatex(active.promptLatex);
+        // 포탑 부드럽게 타겟 조준
+        const dx = active.x - TURRET_X;
+        const dy = active.y - TURRET_Y;
+        targetTurretAngleRef.current = Math.atan2(dy, dx);
+      } else {
+        setCurrentTargetPrompt(null);
+        setCurrentTargetLatex(null);
+        targetTurretAngleRef.current = -Math.PI / 2;
+      }
 
       // 3. 파티클 갱신
       const parts = particlesRef.current;
@@ -584,7 +553,7 @@ export default function TrigoBeat() {
         p.life += dt;
         p.x += p.vx * dt;
         p.y += p.vy * dt;
-        p.vy += 120 * dt; // 중력
+        p.vy += 120 * dt;
         if (p.life >= p.maxLife) {
           parts.splice(i, 1);
         }
@@ -620,21 +589,20 @@ export default function TrigoBeat() {
       ctx.save();
       ctx.clearRect(0, 0, VW, VH);
 
-      // 스크린 쉐이크 적용
       if (screenShakeRef.current > 0) {
         const ox = (Math.random() - 0.5) * screenShakeRef.current;
         const oy = (Math.random() - 0.5) * screenShakeRef.current;
         ctx.translate(ox, oy);
       }
 
-      // 1) 우주 배경 그라디언트
+      // 1) 배경 그라디언트
       const bgGrad = ctx.createLinearGradient(0, 0, 0, VH);
       bgGrad.addColorStop(0, isFeverRef.current ? "#1e1305" : "#090d16");
       bgGrad.addColorStop(1, isFeverRef.current ? "#2e1208" : "#111827");
       ctx.fillStyle = bgGrad;
       ctx.fillRect(0, 0, VW, VH);
 
-      // 2) 반짝이는 배경 별
+      // 2) 배경 별
       for (const st of starsRef.current) {
         ctx.fillStyle = `rgba(255, 255, 255, ${st.b})`;
         ctx.beginPath();
@@ -642,7 +610,7 @@ export default function TrigoBeat() {
         ctx.fill();
       }
 
-      // 3) 지상 에너지 배리어 라인
+      // 3) 지상 방어선
       ctx.strokeStyle = isFeverRef.current ? "#fbbf24" : "#38bdf8";
       ctx.lineWidth = 2.5;
       ctx.beginPath();
@@ -650,13 +618,12 @@ export default function TrigoBeat() {
       ctx.lineTo(VW, BASE_Y);
       ctx.stroke();
 
-      // 배리어 글로우
       ctx.fillStyle = isFeverRef.current
         ? "rgba(251, 191, 36, 0.08)"
         : "rgba(56, 189, 248, 0.06)";
       ctx.fillRect(0, BASE_Y, VW, VH - BASE_Y);
 
-      // 4) 레이저 빔 렌더링
+      // 4) 레이저 빔
       for (const laser of lasers) {
         const curX =
           laser.startX + (laser.targetX - laser.startX) * Math.min(1, laser.progress * 1.4);
@@ -675,10 +642,12 @@ export default function TrigoBeat() {
       }
 
       // 5) 운석 렌더링
-      for (const m of meteorsRef.current) {
-        const isLocked = lockedTargetIdRef.current === m.id;
+      const activeTargetId = active?.id;
 
-        // 꼬리 화염 파티클
+      for (const m of meteorsRef.current) {
+        const isTarget = m.id === activeTargetId;
+
+        // 꼬리 화염
         ctx.fillStyle = m.color;
         ctx.globalAlpha = 0.25;
         ctx.beginPath();
@@ -686,9 +655,9 @@ export default function TrigoBeat() {
         ctx.fill();
         ctx.globalAlpha = 1.0;
 
-        // 운석 구체 글로우
+        // 구체 글로우
         ctx.shadowColor = m.color;
-        ctx.shadowBlur = m.isBomb ? 18 : 12;
+        ctx.shadowBlur = isTarget ? 20 : 12;
 
         const sphereGrad = ctx.createRadialGradient(
           m.x - m.radius * 0.3,
@@ -700,32 +669,43 @@ export default function TrigoBeat() {
         );
         sphereGrad.addColorStop(0, "#ffffff");
         sphereGrad.addColorStop(0.4, m.color);
-        sphereGrad.addColorStop(1, m.isBomb ? "#7f1d1d" : "#0f172a");
+        sphereGrad.addColorStop(1, "#0f172a");
 
         ctx.fillStyle = sphereGrad;
         ctx.beginPath();
         ctx.arc(m.x, m.y, m.radius, 0, Math.PI * 2);
         ctx.fill();
 
-        ctx.strokeStyle = m.isBomb ? "#f87171" : "#ffffff";
-        ctx.lineWidth = 1.5;
+        ctx.strokeStyle = isTarget ? "#facc15" : "#ffffff";
+        ctx.lineWidth = isTarget ? 2.5 : 1.5;
         ctx.stroke();
         ctx.shadowBlur = 0;
 
-        // 락온 십자선
-        if (isLocked) {
-          ctx.strokeStyle = "#fbbf24";
-          ctx.lineWidth = 2;
+        // [조준 락온 타겟 표시]
+        if (isTarget) {
+          ctx.strokeStyle = "#facc15";
+          ctx.lineWidth = 2.5;
+
+          // 외곽 회전 점선 링
+          ctx.save();
+          ctx.translate(m.x, m.y);
+          ctx.rotate((now / 1000) * 2);
           ctx.beginPath();
-          ctx.arc(m.x, m.y, m.radius + 8, 0, Math.PI * 2);
+          ctx.arc(0, 0, m.radius + 12, 0, Math.PI * 2);
+          ctx.setLineDash([8, 6]);
           ctx.stroke();
+          ctx.restore();
+
+          // 상단 TARGET 뱃지
+          ctx.fillStyle = "#facc15";
+          ctx.font = "bold 11px sans-serif";
+          ctx.textAlign = "center";
+          ctx.fillText("TARGET 🎯", m.x, m.y - m.radius - 14);
         }
 
-        // 운석 텍스트 (수식)
+        // 운석 수식 텍스트
         ctx.fillStyle = "#ffffff";
-        ctx.font = m.isBomb
-          ? "bold 15px 'Pretendard', sans-serif"
-          : "bold 16px 'Pretendard', sans-serif";
+        ctx.font = "bold 16px 'Pretendard', sans-serif";
         ctx.textAlign = "center";
         ctx.textBaseline = "middle";
         ctx.shadowColor = "rgba(0, 0, 0, 0.9)";
@@ -734,7 +714,7 @@ export default function TrigoBeat() {
         ctx.shadowBlur = 0;
       }
 
-      // 6) 파티클 렌더링
+      // 6) 파티클
       for (const p of particlesRef.current) {
         const alpha = Math.max(0, 1 - p.life / p.maxLife);
         ctx.fillStyle = p.color;
@@ -745,7 +725,7 @@ export default function TrigoBeat() {
       }
       ctx.globalAlpha = 1.0;
 
-      // 7) 플로팅 텍스트 렌더링
+      // 7) 플로팅 텍스트
       for (const ft of floatTextsRef.current) {
         const alpha = Math.max(0, 1 - ft.life / ft.maxLife);
         ctx.fillStyle = ft.color;
@@ -759,8 +739,7 @@ export default function TrigoBeat() {
       ctx.globalAlpha = 1.0;
       ctx.shadowBlur = 0;
 
-      // 8) 메카닉 레이저 포탑 렌더링
-      // 각도 보간
+      // 8) 레이저 포탑
       turretAngleRef.current +=
         (targetTurretAngleRef.current - turretAngleRef.current) * 0.25;
       const angle = turretAngleRef.current;
@@ -768,21 +747,20 @@ export default function TrigoBeat() {
       ctx.save();
       ctx.translate(TURRET_X, TURRET_Y);
 
-      // 포신 (Barrel)
+      // 포신
       ctx.save();
-      ctx.rotate(angle + Math.PI / 2); // 캔버스 회전 오프셋
+      ctx.rotate(angle + Math.PI / 2);
       ctx.fillStyle = isFeverRef.current ? "#fbbf24" : "#94a3b8";
       ctx.fillRect(-5, -28, 10, 26);
       ctx.strokeStyle = "#38bdf8";
       ctx.lineWidth = 1.5;
       ctx.strokeRect(-5, -28, 10, 26);
 
-      // 포구 팁
       ctx.fillStyle = "#38bdf8";
       ctx.fillRect(-7, -32, 14, 4);
       ctx.restore();
 
-      // 포탑 원형 베이스
+      // 원형 베이스
       ctx.fillStyle = "#1e293b";
       ctx.beginPath();
       ctx.arc(0, 0, 20, 0, Math.PI * 2);
@@ -791,7 +769,7 @@ export default function TrigoBeat() {
       ctx.lineWidth = 2.5;
       ctx.stroke();
 
-      // 코어 램프
+      // 코어
       ctx.fillStyle = isFeverRef.current ? "#fbbf24" : "#38bdf8";
       ctx.shadowColor = isFeverRef.current ? "#fbbf24" : "#38bdf8";
       ctx.shadowBlur = 10;
@@ -808,9 +786,9 @@ export default function TrigoBeat() {
 
     animId = requestAnimationFrame(loop);
     return () => cancelAnimationFrame(animId);
-  }, [phase, spawnExplosion, endGame]);
+  }, [phase, getActiveTarget, spawnExplosion, endGame]);
 
-  // 운석 탭 타겟팅 핸들러
+  // 운석 직접 탭 (수동 락온 선택)
   const handleCanvasClick = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
     if (phaseRef.current !== "playing") return;
     const canvas = canvasRef.current;
@@ -821,20 +799,15 @@ export default function TrigoBeat() {
     const clickX = (e.clientX - rect.left) * scaleX;
     const clickY = (e.clientY - rect.top) * scaleY;
 
-    // 클릭된 운석 탐색
     for (const m of meteorsRef.current) {
       const dist = Math.hypot(m.x - clickX, m.y - clickY);
-      if (dist <= m.radius + 15) {
+      if (dist <= m.radius + 16) {
         setLockedTargetId(m.id);
         lockedTargetIdRef.current = m.id;
-        const dx = m.x - TURRET_X;
-        const dy = m.y - TURRET_Y;
-        targetTurretAngleRef.current = Math.atan2(dy, dx);
+        playSound("lock", 0, mutedRef.current);
         return;
       }
     }
-    setLockedTargetId(null);
-    lockedTargetIdRef.current = null;
   }, []);
 
   const startGame = useCallback(() => {
@@ -852,6 +825,7 @@ export default function TrigoBeat() {
     isFeverRef.current = false;
     setWaveInfo(getWaveSettings(0));
     setLockedTargetId(null);
+    lockedTargetIdRef.current = null;
     setSubmitResult(null);
 
     meteorsRef.current = [];
@@ -863,7 +837,6 @@ export default function TrigoBeat() {
     phaseRef.current = "playing";
   }, []);
 
-  // 랭킹 탭 전환
   const handleScopeChange = useCallback(
     (scope: RankingScope) => {
       setRankingScope(scope);
@@ -902,8 +875,6 @@ export default function TrigoBeat() {
     [rankingScope],
   );
 
-  // ── 렌더링 ──
-
   // 1. Ready 화면
   if (phase === "ready") {
     return (
@@ -919,63 +890,44 @@ export default function TrigoBeat() {
             특수각 스트라이크: 미티어 디펜스
           </h1>
           <p className="mt-2 text-sm text-foreground/70 sm:text-base">
-            하늘에서 쏟아지는 특수각 운석들을 회전 레이저 포탑으로 공중 요격하세요!
-            <br />
-            특수각 삼각비 탄환을 신속히 장전해 지구를 지켜내세요.
+            하늘에서 쏟아지는 특수각 운석들을 조준하고 정확한 삼각비 탄환으로 요격하세요!
           </p>
         </div>
 
-        {/* 조작 안내 및 특수 규칙 */}
         <div className="mt-6 space-y-3 rounded-2xl border border-wood/15 bg-white/70 p-4 dark:bg-black/30 sm:p-5">
           <h2 className="text-xs font-bold uppercase tracking-wider text-wood">
             작전 브리핑
           </h2>
 
-          <div className="grid gap-3 sm:grid-cols-2 text-xs leading-relaxed text-foreground/85">
-            <div className="rounded-xl border border-wood/10 bg-wood/5 p-3">
-              <span className="font-bold text-blue-600 dark:text-blue-400">
-                🚀 실시간 공중 요격
+          <ul className="space-y-2.5 text-xs leading-relaxed text-foreground/85">
+            <li className="flex items-start gap-2.5">
+              <span className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-blue-500/20 text-blue-600 font-bold text-xs">
+                1
               </span>
-              <p className="mt-1">
-                낙하하는 운석의 삼각비에 맞는 탄환(0 ~ √3)을 누르면 포탑이 즉시 회전하여 요격 레이저를 쏩니다!
-              </p>
-            </div>
+              <span>
+                <strong>타겟 조준 (선택)</strong>: 화면의 운석을 탭해 공격할 대상을 조준하세요. 탭하지 않아도 <strong>지상에 가장 가까운 운석이 자동 조준</strong>됩니다.
+              </span>
+            </li>
+            <li className="flex items-start gap-2.5">
+              <span className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-emerald-500/20 text-emerald-600 font-bold text-xs">
+                2
+              </span>
+              <span>
+                <strong>탄환 발사</strong>: 조준된 운석의 삼각비 값을 하단 탄환(또는 숫자키 1~7)에서 골라 쏘세요!
+              </span>
+            </li>
+            <li className="flex items-start gap-2.5">
+              <span className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-rose-500/20 text-rose-600 font-bold text-xs">
+                3
+              </span>
+              <span>
+                <strong className="text-rose-600">오답 시 즉시 목숨(하트) -1 차감!</strong> 또한 운석이 바닥에 닿아도 목숨이 깎입니다! 신중하고 빠르게 격추하세요!
+              </span>
+            </li>
+          </ul>
 
-            <div className="rounded-xl border border-rose-500/20 bg-rose-500/10 p-3">
-              <span className="font-bold text-rose-600 dark:text-rose-400">
-                ☠️ tan 90° 해골 폭탄 주의!
-              </span>
-              <p className="mt-1">
-                tan 90°는 <strong>값이 정의되지 않습니다!</strong> 건드리면 즉시 대폭발하여 기지 실드가 깎이니 절대 쏘지 말고 통과시키세요!
-              </p>
-            </div>
-          </div>
-
-          <div className="rounded-xl border border-wood/10 bg-wood/5 p-3 text-xs">
-            <div className="font-bold text-wood">⚡ 탄환 키보드 단축키 (데스크톱)</div>
-            <div className="mt-2 flex flex-wrap gap-2 font-mono text-[11px]">
-              <span className="rounded bg-white px-1.5 py-0.5 shadow-sm border border-wood/15">
-                [1] = 0
-              </span>
-              <span className="rounded bg-white px-1.5 py-0.5 shadow-sm border border-wood/15">
-                [2] = 1/2
-              </span>
-              <span className="rounded bg-white px-1.5 py-0.5 shadow-sm border border-wood/15">
-                [3] = √2/2
-              </span>
-              <span className="rounded bg-white px-1.5 py-0.5 shadow-sm border border-wood/15">
-                [4] = √3/2
-              </span>
-              <span className="rounded bg-white px-1.5 py-0.5 shadow-sm border border-wood/15">
-                [5] = 1
-              </span>
-              <span className="rounded bg-emerald-50 text-emerald-700 px-1.5 py-0.5 shadow-sm border border-emerald-500/20">
-                [6] = √3/3
-              </span>
-              <span className="rounded bg-emerald-50 text-emerald-700 px-1.5 py-0.5 shadow-sm border border-emerald-500/20">
-                [7] = √3
-              </span>
-            </div>
+          <div className="mt-4 border-t border-wood/10 pt-3 text-[11px] text-foreground/60">
+            💡 데스크톱에서는 숫자키 <kbd className="rounded border bg-wood/10 px-1 py-0.5 font-mono text-xs">1</kbd> ~ <kbd className="rounded border bg-wood/10 px-1 py-0.5 font-mono text-xs">7</kbd> 로 신속하게 발사할 수 있습니다!
           </div>
         </div>
 
@@ -1035,7 +987,6 @@ export default function TrigoBeat() {
           )}
         </div>
 
-        {/* 요약 카드 */}
         <div className="grid grid-cols-2 gap-3 text-center sm:grid-cols-3">
           <div className="rounded-2xl border border-wood/15 bg-white/70 p-3 dark:bg-black/20">
             <div className="text-[11px] font-semibold text-foreground/55">
@@ -1063,7 +1014,6 @@ export default function TrigoBeat() {
           </div>
         </div>
 
-        {/* 랭킹 보드 */}
         <div className="rounded-2xl border border-wood/15 bg-white/60 p-4 dark:bg-black/20">
           <GameRankingBoard
             rows={ranking}
@@ -1110,11 +1060,19 @@ export default function TrigoBeat() {
           ))}
         </div>
 
-        {/* 웨이브 및 콤보 */}
+        {/* 현재 조준 타겟 안내 뱃지 */}
         <div className="flex items-center gap-2">
-          <span className="rounded-md border border-wood/20 bg-wood/10 px-2 py-0.5 text-xs font-bold text-foreground/75">
-            {waveInfo.title}
-          </span>
+          {currentTargetPrompt ? (
+            <div className="flex items-center gap-1.5 rounded-full border border-amber-500/40 bg-amber-500/15 px-3 py-1 text-xs font-bold text-amber-700 dark:text-amber-300">
+              <span>🎯 조준:</span>
+              <Latex latex={currentTargetLatex ?? ""} className="font-extrabold text-sm" />
+            </div>
+          ) : (
+            <span className="text-xs text-foreground/50 font-medium">
+              대기 중...
+            </span>
+          )}
+
           {combo > 1 && (
             <span className="rounded-full border border-amber-500/30 bg-amber-500/15 px-2.5 py-0.5 text-xs font-black text-amber-600 animate-pulse">
               🔥 {combo} COMBO!
@@ -1157,7 +1115,7 @@ export default function TrigoBeat() {
 
         {/* 캔버스 상단 안내 플로팅 팁 */}
         <div className="pointer-events-none absolute left-3 top-3 rounded-lg bg-black/50 px-2.5 py-1 text-[11px] font-semibold text-white/70 backdrop-blur-sm">
-          💡 운석을 탭하면 조준 락온! / 하단 탄환이나 숫자키(1~7)로 격추!
+          💡 운석을 탭해 타겟을 바꾸거나, 하단 탄환으로 조준된 운석을 격추하세요! (오답 시 목숨 -1)
         </div>
       </div>
 
@@ -1165,8 +1123,8 @@ export default function TrigoBeat() {
       <div className="rounded-3xl border border-wood/20 bg-wood/5 p-3.5 shadow-sm">
         <div className="mb-2 flex items-center justify-between px-1 text-[11px] font-semibold text-foreground/60">
           <span>탄환 선택 (클릭 또는 키보드 1~7)</span>
-          <span className="text-emerald-700 dark:text-emerald-400">
-            초록색은 tan 전용 탄환
+          <span className="text-rose-600 dark:text-rose-400 font-bold">
+            ⚠️ 오답 시 즉시 목숨 -1
           </span>
         </div>
 
@@ -1185,12 +1143,10 @@ export default function TrigoBeat() {
                     : "border-wood/20 bg-white hover:border-sky-500 hover:bg-sky-500/10 dark:bg-black/40 text-foreground",
                 ].join(" ")}
               >
-                {/* 단축키 뱃지 */}
                 <span className="absolute left-1.5 top-1 rounded border border-wood/15 bg-wood/5 px-1 text-[9px] font-mono opacity-60">
                   {bullet.keyLabel}
                 </span>
 
-                {/* 탄환 수식 (LaTeX) */}
                 <Latex
                   latex={bullet.latex}
                   className="mt-2 font-display text-base font-bold group-hover:scale-105 transition-transform sm:text-lg"

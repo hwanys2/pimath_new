@@ -2,8 +2,8 @@
  * Math helpers & physics types for 「특수각 스트라이크: 미티어 디펜스」 (중3 · 3.1 삼각비).
  *
  * 하늘에서 떨어지는 특수각 운석들을 실시간 레이저 포탑으로 격추하는 아케이드 디펜스 게임.
- * - 특수각 0°, 30°, 45°, 60°, 90°
- * - tan 90°는 "값이 정의되지 않음(불능)"을 이용한 해골 폭탄 기믹으로 구현!
+ * - 특수각: 0°, 30°, 45°, 60°, 90°
+ * - tan 90°는 정의되지 않으므로 탄젠트는 0°, 30°, 45°, 60°만 출제됩니다.
  */
 
 import { SCORE_HARD_MAX, applyScoreGain } from "@/lib/xp";
@@ -27,7 +27,7 @@ export type BulletValue = {
 };
 
 /**
- * 7개의 특수각 탄환 정의:
+ * 7개의 특수각 탄환:
  * 1: 0
  * 2: 1/2
  * 3: √2/2
@@ -50,15 +50,14 @@ export type Meteor = {
   id: number;
   fn: TrigFn;
   angle: SpecialAngle;
-  isBomb: boolean; // tan 90° 해골 폭탄 여부
-  correctBulletId: string; // isBomb이면 "NONE"
+  correctBulletId: string;
   promptLatex: string;
   promptText: string;
   x: number;
   y: number;
   radius: number;
   speed: number;
-  vx: number; // 지그재그 흔들림
+  vx: number;
   spawnTime: number;
   color: string;
 };
@@ -80,7 +79,7 @@ export type LaserBeam = {
   targetX: number;
   targetY: number;
   color: string;
-  progress: number; // 0 to 1
+  progress: number;
   isHit: boolean;
 };
 
@@ -121,6 +120,7 @@ export function getExactTrigBulletId(fn: TrigFn, angle: SpecialAngle): string {
         return "0";
     }
   } else {
+    // tan: 90°는 없음!
     switch (angle) {
       case 0:
         return "0";
@@ -130,8 +130,8 @@ export function getExactTrigBulletId(fn: TrigFn, angle: SpecialAngle): string {
         return "1";
       case 60:
         return "sqrt3";
-      case 90:
-        return "BOMB"; // tan 90°는 폭탄!
+      default:
+        return "0";
     }
   }
 }
@@ -142,7 +142,6 @@ export type WaveSettings = {
   spawnIntervalSec: number;
   meteorSpeed: number;
   allowTan: boolean;
-  allowBomb: boolean;
   maxSimultaneous: number;
 };
 
@@ -154,7 +153,6 @@ export function getWaveSettings(score: number): WaveSettings {
       spawnIntervalSec: 2.8,
       meteorSpeed: 38,
       allowTan: false,
-      allowBomb: false,
       maxSimultaneous: 2,
     };
   }
@@ -165,18 +163,16 @@ export function getWaveSettings(score: number): WaveSettings {
       spawnIntervalSec: 2.3,
       meteorSpeed: 48,
       allowTan: false,
-      allowBomb: false,
       maxSimultaneous: 3,
     };
   }
   if (score < 720) {
     return {
       wave: 3,
-      title: "Wave 3: 탄젠트 합류 & tan 90° 폭탄 주의!",
+      title: "Wave 3: 탄젠트 합류",
       spawnIntervalSec: 1.8,
       meteorSpeed: 58,
       allowTan: true,
-      allowBomb: true,
       maxSimultaneous: 4,
     };
   }
@@ -187,7 +183,6 @@ export function getWaveSettings(score: number): WaveSettings {
       spawnIntervalSec: 1.4,
       meteorSpeed: 70,
       allowTan: true,
-      allowBomb: true,
       maxSimultaneous: 5,
     };
   }
@@ -200,7 +195,6 @@ export function getWaveSettings(score: number): WaveSettings {
     spawnIntervalSec: Math.max(0.8, 1.2 - over * 0.1),
     meteorSpeed: Math.min(115, 82 + over * 6),
     allowTan: true,
-    allowBomb: true,
     maxSimultaneous: 6,
   };
 }
@@ -216,17 +210,11 @@ export function createMeteor(
   const fn = fns[Math.floor(Math.random() * fns.length)]!;
 
   let angle: SpecialAngle;
-  let isBomb = false;
 
   if (fn === "tan") {
-    // tan 90° 폭탄 출현 확률 (allowBomb일 때 약 18%)
-    if (waveSettings.allowBomb && Math.random() < 0.18) {
-      angle = 90;
-      isBomb = true;
-    } else {
-      const tanAngles: SpecialAngle[] = [0, 30, 45, 60];
-      angle = tanAngles[Math.floor(Math.random() * tanAngles.length)]!;
-    }
+    // tan: 90°는 완전히 제외! 0°, 30°, 45°, 60°만 출제
+    const tanAngles: SpecialAngle[] = [0, 30, 45, 60];
+    angle = tanAngles[Math.floor(Math.random() * tanAngles.length)]!;
   } else {
     const sinCosAngles: SpecialAngle[] = [0, 30, 45, 60, 90];
     angle = sinCosAngles[Math.floor(Math.random() * sinCosAngles.length)]!;
@@ -236,28 +224,26 @@ export function createMeteor(
 
   let color = "#38bdf8"; // sin 하늘색
   if (fn === "cos") color = "#c084fc"; // cos 보라색
-  if (fn === "tan") color = isBomb ? "#ef4444" : "#34d399"; // tan 에메랄드 / 폭탄 빨간색
+  if (fn === "tan") color = "#34d399"; // tan 에메랄드
 
   const fnSymbol = fn === "sin" ? "\\sin" : fn === "cos" ? "\\cos" : "\\tan";
-  const promptLatex = isBomb ? "\\tan 90^\\circ \\; ☠️" : `${fnSymbol} ${angle}^\\circ`;
-  const promptText = isBomb ? "tan 90° ☠️" : `${fn} ${angle}°`;
+  const promptLatex = `${fnSymbol} ${angle}^\\circ`;
+  const promptText = `${fn} ${angle}°`;
 
-  // X 좌표는 좌우 패딩을 고려하여 랜덤 배치
   const padding = 60;
   const x = padding + Math.random() * (fieldWidth - padding * 2);
-  const vx = (Math.random() - 0.5) * 15; // 미세한 좌우 흔들림
+  const vx = (Math.random() - 0.5) * 15;
 
   return {
     id: nextMeteorId++,
     fn,
     angle,
-    isBomb,
     correctBulletId,
     promptLatex,
     promptText,
     x,
     y: -30,
-    radius: isBomb ? 34 : 30,
+    radius: 30,
     speed: waveSettings.meteorSpeed * (0.9 + Math.random() * 0.25),
     vx,
     spawnTime: performance.now(),
@@ -269,7 +255,7 @@ export function calcDestroyScore(
   currentScore: number,
   combo: number,
   isFever: boolean,
-  altitudeRatio: number, // 높을수록(일찍 맞힐수록) 추가 보너스
+  altitudeRatio: number,
 ): { newScore: number; gained: number } {
   const base = 25;
   const speedBonus = Math.round(altitudeRatio * 15);
