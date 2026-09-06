@@ -1148,7 +1148,7 @@ function AngleDisplayPanel({
 
   const deg = currentAngleDeg(state, angId);
   const labelId = quad ? `v:${quadIndex}:interior` : `a:${angId}`;
-  const canEditValue = !unit && !isQuadDiag && (quad || Boolean(mark && (mark.id === "A" || mark.id === "B" || mark.id === "C")));
+  const canEditValue = !unit && (isQuadDiag || quad || Boolean(mark && (mark.id === "A" || mark.id === "B" || mark.id === "C")));
 
   return (
     <div className="mt-3 space-y-2">

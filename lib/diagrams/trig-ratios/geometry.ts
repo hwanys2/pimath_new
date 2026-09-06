@@ -1196,10 +1196,14 @@ export function applyEditedLabel(
       const mark = state.quadDiagAngles.find((a) => a.id === angId);
       if (!mark) return state;
       const parsed = parseAngleInput(trimmed);
-      return patchQuadDiagAngle(state, angId, {
+      let labeled = patchQuadDiagAngle(state, angId, {
         show: true,
         label: labelFromAngleParse(parsed, trimmed, mark.label),
       });
+      if (parsed.kind === "number" && parsed.value != null) {
+        labeled = applyQuadDiagAngleNumeric(labeled, angId, parsed.value);
+      }
+      return labeled;
     }
     const pool = state.kind === "triangle-area" ? state.triAngles : state.angles;
     const mark = pool.find((a) => a.id === angId);
@@ -1733,6 +1737,135 @@ function applyQuadAngleNumeric(state: TrigRatiosState, vi: number, value: number
     return applyParallelogramAngle(state, vi, value);
   }
   return applyGeneralQuadAngle(state, vi, value);
+}
+
+function targetAOBFromDiagAngle(angId: string, value: number): number {
+  const v = clamp(Math.round(value * 10) / 10, 10, 170);
+  switch (angId) {
+    case "AOB":
+    case "COD":
+      return v;
+    case "BOC":
+    case "DOA":
+      return Math.round((180 - v) * 10) / 10;
+    default:
+      return v;
+  }
+}
+
+function syncQuadDiagAngleLabels(state: TrigRatiosState): TrigRatiosState {
+  const pts = state.quadPoints;
+  if (pts.length !== 4) return state;
+  const quadDiagAngles = state.quadDiagAngles.map((a) => {
+    if (!a.show) return a;
+    const deg = Math.round(quadDiagAngleDeg(pts, a.id) * 10) / 10;
+    if (a.label.mode === "custom") {
+      const parsed = parseAngleInput(a.label.custom);
+      if (parsed.kind === "number") {
+        return {
+          ...a,
+          label: { ...a.label, custom: `${deg}°` },
+        };
+      }
+    }
+    return a;
+  });
+  return { ...state, quadDiagAngles };
+}
+
+function applyParallelogramDiagAngle(
+  state: TrigRatiosState,
+  angId: string,
+  value: number,
+): TrigRatiosState {
+  const targetAOB = targetAOBFromDiagAngle(angId, value);
+  const pts = state.quadPoints;
+  if (pts.length !== 4) return state;
+
+  let [A, B, C, D] = pts as [Vec, Vec, Vec, Vec];
+  if (!A || !B || !C || !D) return state;
+
+  D = add(A, sub(C, B));
+
+  const d1 = len(sub(C, A));
+  const d2 = len(sub(D, B));
+  const r1 = Math.max(0.5, d1 / 2);
+  const r2 = Math.max(0.5, d2 / 2);
+
+  const phi = (clamp(targetAOB, 10, 170) * Math.PI) / 180;
+  const cosPhi = Math.cos(phi);
+  const sinPhi = Math.sin(phi);
+
+  const L = Math.sqrt(Math.max(1e-6, r1 * r1 + r2 * r2 + 2 * r1 * r2 * cosPhi));
+  const h = Math.max(0.1, (r1 * r2 * sinPhi) / L);
+  const uAx = -(r1 * (r1 + r2 * cosPhi)) / L;
+  const uBx = -(r2 * (r2 + r1 * cosPhi)) / L;
+
+  const Ox = (A.x + B.x + C.x + D.x) / 4;
+  const newA: Vec = { x: Ox + uAx, y: 2 * h };
+  const newB: Vec = { x: Ox + uBx, y: 0 };
+  const newC: Vec = { x: Ox - uAx, y: 0 };
+  const newD: Vec = { x: Ox - uBx, y: 2 * h };
+
+  const newPoints = [newA, newB, newC, newD];
+  const synced = syncParallelogramLabels({
+    ...state,
+    quadPoints: newPoints,
+  });
+  return syncQuadDiagAngleLabels(synced);
+}
+
+function applyGeneralQuadDiagAngle(
+  state: TrigRatiosState,
+  angId: string,
+  value: number,
+): TrigRatiosState {
+  const targetAOB = targetAOBFromDiagAngle(angId, value);
+  const pts = state.quadPoints;
+  if (pts.length !== 4) return state;
+
+  const [A, B, C, D] = pts as [Vec, Vec, Vec, Vec];
+  if (!A || !B || !C || !D) return state;
+
+  const O = quadDiagonalIntersection(pts);
+  const rA = len(sub(A, O));
+  const rC = len(sub(C, O));
+  const rB = len(sub(B, O));
+  const rD = len(sub(D, O));
+
+  if (rA < 1e-4 || rC < 1e-4 || rB < 1e-4 || rD < 1e-4) return state;
+
+  const psiA = Math.atan2(A.y - O.y, A.x - O.x);
+  const cross = (A.x - O.x) * (B.y - O.y) - (A.y - O.y) * (B.x - O.x);
+  const sign = cross >= 0 ? 1 : -1;
+
+  const phi = (clamp(targetAOB, 10, 170) * Math.PI) / 180;
+  const newPsiB = psiA + sign * phi;
+
+  const uB: Vec = { x: Math.cos(newPsiB), y: Math.sin(newPsiB) };
+  const newB = add(O, mul(uB, rB));
+  const newD = sub(O, mul(uB, rD));
+
+  const newPoints = [A, newB, C, newD];
+  if (!isConvex(newPoints)) return state;
+
+  const next = {
+    ...state,
+    quadPoints: newPoints,
+  };
+  return syncQuadDiagAngleLabels(next);
+}
+
+export function applyQuadDiagAngleNumeric(
+  state: TrigRatiosState,
+  angId: string,
+  value: number,
+): TrigRatiosState {
+  if (state.kind !== "quad-area") return state;
+  if (state.quadFamily === "parallelogram") {
+    return applyParallelogramDiagAngle(state, angId, value);
+  }
+  return applyGeneralQuadDiagAngle(state, angId, value);
 }
 
 function polygonFromTri(state: TrigRatiosState) {

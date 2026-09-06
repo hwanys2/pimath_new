@@ -850,4 +850,68 @@ describe("trig-ratios scene", () => {
     assert.ok(acDiff, "AC should have blue stroke");
     assert.ok(bdDiff, "BD should have green stroke");
   });
+
+  it("adjusts quadrilateral geometry when diagonal intersection angle is modified", () => {
+    // Test parallelogram mode
+    const paraBase = normalizeState(cloneState(TRIG_PRESETS.find((p) => p.id === "quad-para")!.state));
+    const paraWithDiags = {
+      ...paraBase,
+      showQuadDiagAC: true,
+      showQuadDiagBD: true,
+    };
+
+    const origD1 = Math.hypot(
+      paraWithDiags.quadPoints[2].x - paraWithDiags.quadPoints[0].x,
+      paraWithDiags.quadPoints[2].y - paraWithDiags.quadPoints[0].y,
+    );
+    const origD2 = Math.hypot(
+      paraWithDiags.quadPoints[3].x - paraWithDiags.quadPoints[1].x,
+      paraWithDiags.quadPoints[3].y - paraWithDiags.quadPoints[1].y,
+    );
+
+    // 1. Adjust AOB to 60° in parallelogram
+    const edited60 = applyEditedLabel(paraWithDiags, "a:AOB", "60");
+    const aob60 = quadDiagAngleDeg(edited60.quadPoints, "AOB");
+    const boc60 = quadDiagAngleDeg(edited60.quadPoints, "BOC");
+    almost(aob60, 60, 0.1);
+    almost(boc60, 120, 0.1);
+
+    // Check parallelogram properties preserved
+    const [A60, B60, C60, D60] = edited60.quadPoints;
+    almost(D60.x, A60.x + C60.x - B60.x, 1e-4);
+    almost(D60.y, A60.y + C60.y - B60.y, 1e-4);
+    almost(B60.y, C60.y, 1e-4); // Base BC is horizontal
+    almost(A60.y, D60.y, 1e-4); // Top AD is horizontal
+
+    // Check diagonal lengths preserved
+    const newD1 = Math.hypot(C60.x - A60.x, C60.y - A60.y);
+    const newD2 = Math.hypot(D60.x - B60.x, D60.y - B60.y);
+    almost(newD1, origD1, 1e-3);
+    almost(newD2, origD2, 1e-3);
+
+    // 2. Adjust BOC to 100° in parallelogram
+    const editedBOC = applyEditedLabel(edited60, "a:BOC", "100");
+    const aob100 = quadDiagAngleDeg(editedBOC.quadPoints, "AOB");
+    const boc100 = quadDiagAngleDeg(editedBOC.quadPoints, "BOC");
+    almost(boc100, 100, 0.1);
+    almost(aob100, 80, 0.1);
+
+    const [Ab, Bb, Cb, Db] = editedBOC.quadPoints;
+    almost(Db.x, Ab.x + Cb.x - Bb.x, 1e-4);
+    almost(Db.y, Ab.y + Cb.y - Bb.y, 1e-4);
+
+    // 3. Test general quad mode
+    const genBase = normalizeState(cloneState(TRIG_PRESETS.find((p) => p.id === "quad-diag")!.state));
+    const genWithDiags = {
+      ...genBase,
+      showQuadDiagAC: true,
+      showQuadDiagBD: true,
+    };
+
+    const genEdited = applyEditedLabel(genWithDiags, "a:AOB", "70");
+    const genAOB = quadDiagAngleDeg(genEdited.quadPoints, "AOB");
+    const genBOC = quadDiagAngleDeg(genEdited.quadPoints, "BOC");
+    almost(genAOB, 70, 0.1);
+    almost(genBOC, 110, 0.1);
+  });
 });
