@@ -528,6 +528,68 @@ body {
   );
 }
 
+/* ── 특수각 비트 탭 (trigo-beat) ─────────────────────────── */
+
+@keyframes trigo-beat-pop {
+  0% {
+    transform: scale(0.6) translateY(6px);
+    opacity: 0;
+  }
+  50% {
+    transform: scale(1.15) translateY(-2px);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(1) translateY(0);
+    opacity: 1;
+  }
+}
+
+.trigo-beat-pop {
+  animation: trigo-beat-pop 0.3s cubic-bezier(0.18, 0.89, 0.32, 1.28) forwards;
+}
+
+@keyframes trigo-beat-shake {
+  0%, 100% {
+    transform: translateX(0);
+  }
+  20%, 60% {
+    transform: translateX(-8px);
+  }
+  40%, 80% {
+    transform: translateX(8px);
+  }
+}
+
+.trigo-beat-shake {
+  animation: trigo-beat-shake 0.32s ease-in-out;
+}
+
+@keyframes trigo-beat-combo {
+  0% {
+    transform: scale(0.85);
+  }
+  50% {
+    transform: scale(1.22);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+.trigo-beat-combo {
+  animation: trigo-beat-combo 0.22s ease-out;
+}
+
+.trigo-beat-fever-bg {
+  background: radial-gradient(
+    circle at 50% 30%,
+    rgba(251, 191, 36, 0.22) 0%,
+    rgba(244, 63, 94, 0.12) 45%,
+    transparent 80%
+  );
+}
+
 /* ── 그래프 탐구 (순서쌍 모으기) ───────────────────────────── */
 
 @keyframes pm-graph-point-pop {

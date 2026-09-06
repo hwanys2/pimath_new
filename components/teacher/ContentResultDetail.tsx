@@ -243,6 +243,53 @@ function ShadowTempleDetail({ items }: { items: ActivityDetailsV1["items"] }) {
   );
 }
 
+function TrigoBeatDetail({ items }: { items: ActivityDetailsV1["items"] }) {
+  if (!items?.length) return null;
+  const resultBadge: Record<string, { label: string; color: string }> = {
+    perfect: { label: "Perfect!", color: "text-amber-600 bg-amber-500/10" },
+    great: { label: "Great", color: "text-emerald-600 bg-emerald-500/10" },
+    wrong: { label: "오답", color: "text-rose-600 bg-rose-500/10" },
+    timeout: { label: "시간초과", color: "text-neutral-500 bg-neutral-500/10" },
+  };
+
+  return (
+    <div className="mt-2 overflow-x-auto">
+      <table className="w-full min-w-[280px] text-left text-xs">
+        <thead>
+          <tr className="border-b border-wood/15 text-foreground/55">
+            <th className="py-1 pr-3 font-semibold">#</th>
+            <th className="py-1 pr-3 font-semibold">문제</th>
+            <th className="py-1 pr-3 font-semibold">결과</th>
+            <th className="py-1 font-semibold">반응(초)</th>
+          </tr>
+        </thead>
+        <tbody>
+          {items.map((item, i) => {
+            const res = String(item.result ?? "");
+            const badge = resultBadge[res] ?? { label: res || "—", color: "text-foreground/70" };
+            return (
+              <tr key={i} className="border-b border-wood/8">
+                <td className="py-1 pr-3 font-mono">{String(item.i ?? i + 1)}</td>
+                <td className="py-1 pr-3 font-medium">
+                  {String(item.fn ?? "")} {String(item.angle ?? "")}°
+                </td>
+                <td className="py-1 pr-3">
+                  <span className={`inline-block rounded px-1.5 py-0.5 text-[11px] font-semibold ${badge.color}`}>
+                    {badge.label}
+                  </span>
+                </td>
+                <td className="py-1 font-mono text-foreground/60">
+                  {item.timeSpentSec != null ? `${Number(item.timeSpentSec).toFixed(1)}s` : "—"}
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
 export function ContentResultDetail({
   contentKey,
   details,
@@ -266,6 +313,10 @@ export function ContentResultDetail({
 
   if (contentKey === "g3-u3-1-trigo-slash") {
     return <TrigoSlashDetail items={details.items} />;
+  }
+
+  if (contentKey === "g3-u3-1-trigo-beat") {
+    return <TrigoBeatDetail items={details.items} />;
   }
 
   if (contentKey === "g3-u3-1-shadow-temple") {
