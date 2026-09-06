@@ -28,6 +28,7 @@ import {
   type AltitudeColor,
   type AngleFill,
   type FaceFill,
+  type QuadDiagColor,
   type TrigRatiosState,
 } from "./model";
 
@@ -75,6 +76,14 @@ function altitudeStroke(color: AltitudeColor): string {
   if (color === "blue") return STROKE_BLUE;
   if (color === "green") return STROKE_GREEN;
   if (color === "gray") return STROKE_GRAY;
+  return STROKE_PINK;
+}
+
+function diagStroke(color: QuadDiagColor): string {
+  if (color === "blue") return STROKE_BLUE;
+  if (color === "green") return STROKE_GREEN;
+  if (color === "gray") return STROKE_GRAY;
+  if (color === "black") return INK;
   return STROKE_PINK;
 }
 
@@ -923,6 +932,8 @@ function paintQuadArea(
   }
   const showAC = state.showQuadDiagAC;
   const showBD = state.showQuadDiagBD || state.showQuadDiagonal;
+  const strokeAC = diagStroke(state.quadDiagColorAC ?? state.quadDiagColor ?? "pink");
+  const strokeBD = diagStroke(state.quadDiagColorBD ?? state.quadDiagColor ?? "pink");
   if (showAC && canvas.A && canvas.C) {
     cmds.push({
       t: "line",
@@ -930,7 +941,7 @@ function paintQuadArea(
       y1: canvas.A.y,
       x2: canvas.C.x,
       y2: canvas.C.y,
-      stroke: DIAGONAL,
+      stroke: strokeAC,
       width: style.lineWidth + 0.4,
     });
   }
@@ -941,7 +952,7 @@ function paintQuadArea(
       y1: canvas.B.y,
       x2: canvas.D.x,
       y2: canvas.D.y,
-      stroke: DIAGONAL,
+      stroke: strokeBD,
       width: style.lineWidth + 0.4,
     });
   }

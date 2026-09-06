@@ -22,6 +22,8 @@ export type FaceFill = "pink" | "blue" | "green" | "yellow";
 
 export type AltitudeColor = "pink" | "blue" | "green" | "gray";
 
+export type QuadDiagColor = "pink" | "blue" | "green" | "gray" | "black";
+
 export type QuadFamily = "general" | "parallelogram";
 
 export type AltitudeVertex = "A" | "B" | "C";
@@ -153,6 +155,9 @@ export type TrigRatiosState = {
   showQuadDiagonal: boolean;
   showQuadDiagAC: boolean;
   showQuadDiagBD: boolean;
+  quadDiagColor: QuadDiagColor;
+  quadDiagColorAC?: QuadDiagColor;
+  quadDiagColorBD?: QuadDiagColor;
   quadDiagAngles: AngleMark[];
 };
 
@@ -193,6 +198,27 @@ function parseAltitudeColor(value: unknown): AltitudeColor {
   if (value === "blue" || value === "green" || value === "gray") return value;
   return "pink";
 }
+
+export function parseQuadDiagColor(value: unknown): QuadDiagColor {
+  if (
+    value === "pink" ||
+    value === "blue" ||
+    value === "green" ||
+    value === "gray" ||
+    value === "black"
+  ) {
+    return value;
+  }
+  return "pink";
+}
+
+export const QUAD_DIAG_COLOR_CHIPS: { id: QuadDiagColor; label: string }[] = [
+  { id: "pink", label: "분홍" },
+  { id: "blue", label: "파랑" },
+  { id: "green", label: "초록" },
+  { id: "gray", label: "회색" },
+  { id: "black", label: "검정" },
+];
 
 export const ANGLE_FILL_CHIPS: { id: Exclude<AngleFill, "none">; label: string }[] = [
   { id: "pink", label: "분홍" },
@@ -575,6 +601,9 @@ function baseDefaults(kind: TrigKind): TrigRatiosState {
     showQuadDiagonal: true,
     showQuadDiagAC: false,
     showQuadDiagBD: true,
+    quadDiagColor: "pink",
+    quadDiagColorAC: "pink",
+    quadDiagColorBD: "pink",
     quadDiagAngles: defaultQuadDiagAngles(),
   };
 }
@@ -695,6 +724,13 @@ export function normalizeState(
       typeof state.showQuadDiagBD === "boolean"
         ? state.showQuadDiagBD
         : state.showQuadDiagonal !== false,
+    quadDiagColor: parseQuadDiagColor(state.quadDiagColor),
+    quadDiagColorAC: state.quadDiagColorAC
+      ? parseQuadDiagColor(state.quadDiagColorAC)
+      : parseQuadDiagColor(state.quadDiagColor),
+    quadDiagColorBD: state.quadDiagColorBD
+      ? parseQuadDiagColor(state.quadDiagColorBD)
+      : parseQuadDiagColor(state.quadDiagColor),
     quadDiagAngles: mergeAngles(defaultQuadDiagAngles(), state.quadDiagAngles),
     showVertexNames: state.showVertexNames !== false,
     showDots: state.showDots !== false,

@@ -828,5 +828,26 @@ describe("trig-ratios scene", () => {
     const nudgedMark = nudged.quadDiagAngles.find((a) => a.id === "AOB");
     assert.equal(nudgedMark?.label.dx, 10);
     assert.equal(nudgedMark?.label.dy, -5);
+
+    // 7. Diagonal color configuration (global and per-diagonal)
+    const withBlue = { ...both, quadDiagColor: "blue" as const, quadDiagColorAC: "blue" as const, quadDiagColorBD: "blue" as const };
+    const sceneBlue = buildTrigScene(withBlue);
+    const blueLines = sceneBlue.cmds.filter((c) => c.t === "line" && c.stroke === "#5b8fc7");
+    assert.equal(blueLines.length, 2);
+
+    const withBlack = { ...both, quadDiagColor: "black" as const, quadDiagColorAC: "black" as const, quadDiagColorBD: "black" as const };
+    const sceneBlack = buildTrigScene(withBlack);
+    const blackDiagLines = sceneBlack.cmds.filter(
+      (c) => c.t === "line" && c.stroke === "#111111" && (c.width ?? 0) > withBlack.style.lineWidth,
+    );
+    assert.equal(blackDiagLines.length, 2);
+
+    // Independent colors: AC blue, BD green
+    const withDiff = { ...both, quadDiagColorAC: "blue" as const, quadDiagColorBD: "green" as const };
+    const sceneDiff = buildTrigScene(withDiff);
+    const acDiff = sceneDiff.cmds.find((c) => c.t === "line" && c.stroke === "#5b8fc7");
+    const bdDiff = sceneDiff.cmds.find((c) => c.t === "line" && c.stroke === "#3d9b6d");
+    assert.ok(acDiff, "AC should have blue stroke");
+    assert.ok(bdDiff, "BD should have green stroke");
   });
 });

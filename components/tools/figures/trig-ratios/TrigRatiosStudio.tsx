@@ -41,6 +41,7 @@ import {
   ANGLE_FILL_CHIPS,
   DEFAULT_TRIG_STATE,
   FACE_FILL_CHIPS,
+  QUAD_DIAG_COLOR_CHIPS,
   TRIG_KINDS,
   TRIG_PRESETS,
   cloneState,
@@ -63,6 +64,7 @@ import {
   type AltitudeVertex,
   type AngleFill,
   type MeasLabel,
+  type QuadDiagColor,
   type TrigRatiosState,
 } from "@/lib/diagrams/trig-ratios/model";
 import { buildTrigScene } from "@/lib/diagrams/trig-ratios/scene";
@@ -726,6 +728,93 @@ export default function TrigRatiosStudio() {
                     </ChipToggle>
                   ))}
                 </div>
+
+                {state.showQuadDiagAC || state.showQuadDiagBD || state.showQuadDiagonal ? (() => {
+                  const hasAC = state.showQuadDiagAC;
+                  const hasBD = state.showQuadDiagBD || state.showQuadDiagonal;
+                  const colorAC = state.quadDiagColorAC ?? state.quadDiagColor ?? "pink";
+                  const colorBD = state.quadDiagColorBD ?? state.quadDiagColor ?? "pink";
+
+                  if (hasAC && hasBD) {
+                    return (
+                      <div className="space-y-2 pt-1">
+                        <div>
+                          <p className="text-[11px] font-semibold text-foreground/50">대각선 색 (전체)</p>
+                          <div className="flex flex-wrap gap-1">
+                            {QUAD_DIAG_COLOR_CHIPS.map((chip) => (
+                              <ChipToggle
+                                key={chip.id}
+                                on={colorAC === chip.id && colorBD === chip.id}
+                                onClick={() =>
+                                  set({
+                                    quadDiagColor: chip.id,
+                                    quadDiagColorAC: chip.id,
+                                    quadDiagColorBD: chip.id,
+                                  })
+                                }
+                              >
+                                {chip.label}
+                              </ChipToggle>
+                            ))}
+                          </div>
+                        </div>
+                        <div className="space-y-1.5 pt-0.5">
+                          <div className="flex items-center gap-2">
+                            <span className="text-[11px] font-medium text-foreground/60 w-14">대각선 AC</span>
+                            <div className="flex flex-wrap gap-1">
+                              {QUAD_DIAG_COLOR_CHIPS.map((chip) => (
+                                <ChipToggle
+                                  key={chip.id}
+                                  on={colorAC === chip.id}
+                                  onClick={() => set({ quadDiagColorAC: chip.id })}
+                                >
+                                  {chip.label}
+                                </ChipToggle>
+                              ))}
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <span className="text-[11px] font-medium text-foreground/60 w-14">대각선 BD</span>
+                            <div className="flex flex-wrap gap-1">
+                              {QUAD_DIAG_COLOR_CHIPS.map((chip) => (
+                                <ChipToggle
+                                  key={chip.id}
+                                  on={colorBD === chip.id}
+                                  onClick={() => set({ quadDiagColorBD: chip.id })}
+                                >
+                                  {chip.label}
+                                </ChipToggle>
+                              ))}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  }
+
+                  return (
+                    <div className="pt-1">
+                      <p className="text-[11px] font-semibold text-foreground/50">대각선 색</p>
+                      <div className="flex flex-wrap gap-1">
+                        {QUAD_DIAG_COLOR_CHIPS.map((chip) => (
+                          <ChipToggle
+                            key={chip.id}
+                            on={(hasAC ? colorAC : colorBD) === chip.id}
+                            onClick={() => {
+                              if (hasAC) {
+                                set({ quadDiagColor: chip.id, quadDiagColorAC: chip.id });
+                              } else {
+                                set({ quadDiagColor: chip.id, quadDiagColorBD: chip.id });
+                              }
+                            }}
+                          >
+                            {chip.label}
+                          </ChipToggle>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })() : null}
               </div>
             ) : null}
 
