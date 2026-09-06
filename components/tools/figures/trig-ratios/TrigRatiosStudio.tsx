@@ -872,15 +872,48 @@ export default function TrigRatiosStudio() {
                   <ChipToggle
                     key={id}
                     on={state.quadEdges[i]?.showLength ?? false}
-                    onClick={() =>
+                    onClick={() => {
+                      setSelected({ t: "seg", id });
                       set({
                         quadEdges: state.quadEdges.map((e, idx) =>
                           idx === i ? { ...e, showLength: !e.showLength } : e,
                         ),
-                      })
-                    }
+                      });
+                    }}
                   >
                     {id}
+                  </ChipToggle>
+                ))}
+                {(["AC", "BD"] as const).map((id) => (
+                  <ChipToggle
+                    key={id}
+                    on={state.quadDiagEdges?.[id]?.showLength ?? false}
+                    onClick={() => {
+                      setSelected({ t: "seg", id });
+                      const cur = state.quadDiagEdges?.[id]?.showLength ?? false;
+                      const nextShow = !cur;
+                      const nextDiagEdges = {
+                        ...state.quadDiagEdges,
+                        [id]: {
+                          ...(state.quadDiagEdges?.[id] ?? { length: { mode: "auto", custom: "" } }),
+                          showLength: nextShow,
+                        },
+                      };
+                      if (id === "AC") {
+                        set({
+                          quadDiagEdges: nextDiagEdges,
+                          showQuadDiagAC: nextShow ? true : state.showQuadDiagAC,
+                        });
+                      } else {
+                        set({
+                          quadDiagEdges: nextDiagEdges,
+                          showQuadDiagBD: nextShow ? true : state.showQuadDiagBD,
+                          showQuadDiagonal: nextShow ? true : state.showQuadDiagonal,
+                        });
+                      }
+                    }}
+                  >
+                    대각선 {id}
                   </ChipToggle>
                 ))}
               </div>
@@ -888,6 +921,15 @@ export default function TrigRatiosStudio() {
 
             {selected?.t === "seg" && selSeg ? (
               <div className="mt-3 space-y-2">
+                <NumberField
+                  label={`${selected.id === "AC" || selected.id === "BD" ? "대각선 " : "선분 "}${selected.id} 길이 값`}
+                  value={Number(segLength(state, selSeg).toFixed(1))}
+                  onChange={(n) => setState((prev) => applyEditedLabel(prev, `s:${selected.id}`, String(n)))}
+                  min={0.5}
+                  max={40}
+                  step={0.1}
+                  suffix={state.unit}
+                />
                 <LabelModeRow
                   title="길이"
                   mode={selSeg.label.mode}

@@ -200,12 +200,14 @@ export default function TrigRatiosCanvas({
           if (hit?.kind === "label") {
             const angId = angleIdFromSceneId(hit.id);
             if (angId) onSelect({ t: "ang", id: angId });
+            else if (hit.id.startsWith("s:")) onSelect({ t: "seg", id: hit.id.slice(2) });
             dragRef.current = { t: "label", id: hit.id, x: p.x, y: p.y, moved: false };
             setCursor("grabbing");
             e.currentTarget.setPointerCapture(e.pointerId);
             return;
           }
           if (hit?.kind === "dimLine") {
+            if (hit.id.startsWith("s:")) onSelect({ t: "seg", id: hit.id.slice(2) });
             dragRef.current = { t: "dimLine", id: hit.id, x: p.x, y: p.y, moved: false };
             setCursor("grabbing");
             e.currentTarget.setPointerCapture(e.pointerId);

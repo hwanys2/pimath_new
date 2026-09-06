@@ -159,6 +159,7 @@ export type TrigRatiosState = {
   quadDiagColorAC?: QuadDiagColor;
   quadDiagColorBD?: QuadDiagColor;
   quadDiagAngles: AngleMark[];
+  quadDiagEdges: Record<"AC" | "BD", TriEdgeMark>;
 };
 
 export type TrigPreset = {
@@ -532,6 +533,31 @@ function mergeTriEdges(base: TriEdgeMark[], prev?: TriEdgeMark[]): TriEdgeMark[]
   });
 }
 
+export function defaultQuadDiagEdges(): Record<"AC" | "BD", TriEdgeMark> {
+  return {
+    AC: makeTriEdge(),
+    BD: makeTriEdge(),
+  };
+}
+
+function mergeQuadDiagEdges(
+  base: Record<"AC" | "BD", TriEdgeMark>,
+  prev?: Partial<Record<"AC" | "BD", TriEdgeMark>>,
+): Record<"AC" | "BD", TriEdgeMark> {
+  return {
+    AC: {
+      ...base.AC,
+      showLength: prev?.AC?.showLength === true,
+      length: { ...emptyLabel("auto"), ...(prev?.AC?.length ?? {}) },
+    },
+    BD: {
+      ...base.BD,
+      showLength: prev?.BD?.showLength === true,
+      length: { ...emptyLabel("auto"), ...(prev?.BD?.length ?? {}) },
+    },
+  };
+}
+
 function baseDefaults(kind: TrigKind): TrigRatiosState {
   const style = { ...DEFAULT_STYLE };
   return {
@@ -605,6 +631,7 @@ function baseDefaults(kind: TrigKind): TrigRatiosState {
     quadDiagColorAC: "pink",
     quadDiagColorBD: "pink",
     quadDiagAngles: defaultQuadDiagAngles(),
+    quadDiagEdges: defaultQuadDiagEdges(),
   };
 }
 
@@ -732,6 +759,7 @@ export function normalizeState(
       ? parseQuadDiagColor(state.quadDiagColorBD)
       : parseQuadDiagColor(state.quadDiagColor),
     quadDiagAngles: mergeAngles(defaultQuadDiagAngles(), state.quadDiagAngles),
+    quadDiagEdges: mergeQuadDiagEdges(defaultQuadDiagEdges(), state.quadDiagEdges),
     showVertexNames: state.showVertexNames !== false,
     showDots: state.showDots !== false,
     unit: state.unit?.trim() ? state.unit : "cm",
@@ -1393,6 +1421,31 @@ export function patchQuadDiagAngle(
 }
 
 export function findSeg(state: TrigRatiosState, id: string): SegMark | undefined {
+  if (state.kind === "quad-area") {
+    if (id === "AC" || id === "BD") {
+      const edge = state.quadDiagEdges?.[id];
+      if (!edge) return undefined;
+      return {
+        id,
+        a: id[0]!,
+        b: id[1]!,
+        show: edge.showLength,
+        label: edge.length,
+      };
+    }
+    const quadSegIds = ["AB", "BC", "CD", "DA"];
+    const qIdx = quadSegIds.indexOf(id);
+    if (qIdx >= 0 && state.quadEdges?.[qIdx]) {
+      const e = state.quadEdges[qIdx]!;
+      return {
+        id,
+        a: id[0]!,
+        b: id[1]!,
+        show: e.showLength,
+        label: e.length,
+      };
+    }
+  }
   const pool = state.kind === "triangle-area" ? state.triSegs : state.segs;
   return pool.find((s) => s.id === id);
 }
@@ -1402,6 +1455,41 @@ export function patchSegState(
   id: string,
   patch: Partial<SegMark>,
 ): TrigRatiosState {
+  if (state.kind === "quad-area") {
+    if (id === "AC" || id === "BD") {
+      const prev = state.quadDiagEdges?.[id] ?? { showLength: false, length: emptyLabel("auto") };
+      const show = patch.show !== undefined ? patch.show : prev.showLength;
+      const length = patch.label ?? prev.length;
+      return {
+        ...state,
+        quadDiagEdges: {
+          ...state.quadDiagEdges,
+          [id]: {
+            ...prev,
+            showLength: show,
+            length,
+          },
+        },
+      };
+    }
+    const quadSegIds = ["AB", "BC", "CD", "DA"];
+    const qIdx = quadSegIds.indexOf(id);
+    if (qIdx >= 0) {
+      return {
+        ...state,
+        quadEdges: state.quadEdges.map((e, idx) => {
+          if (idx !== qIdx) return e;
+          const show = patch.show !== undefined ? patch.show : e.showLength;
+          const length = patch.label ?? e.length;
+          return {
+            ...e,
+            showLength: show,
+            length,
+          };
+        }),
+      };
+    }
+  }
   const key = state.kind === "triangle-area" ? "triSegs" : "segs";
   return {
     ...state,

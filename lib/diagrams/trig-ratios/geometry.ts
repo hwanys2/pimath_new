@@ -805,6 +805,18 @@ function reconcileNumericLabels(state: TrigRatiosState, keep: Set<string>): Trig
     };
   }
   if (state.kind === "quad-area") {
+    const quadDiagEdges = state.quadDiagEdges
+      ? {
+          AC:
+            state.quadDiagEdges.AC?.showLength && !keep.has("s:AC")
+              ? { ...state.quadDiagEdges.AC, length: autoLengthLabel(state.quadDiagEdges.AC.length) }
+              : state.quadDiagEdges.AC,
+          BD:
+            state.quadDiagEdges.BD?.showLength && !keep.has("s:BD")
+              ? { ...state.quadDiagEdges.BD, length: autoLengthLabel(state.quadDiagEdges.BD.length) }
+              : state.quadDiagEdges.BD,
+        }
+      : state.quadDiagEdges;
     return {
       ...state,
       quadEdges: state.quadEdges.map((e, i) => {
@@ -815,6 +827,10 @@ function reconcileNumericLabels(state: TrigRatiosState, keep: Set<string>): Trig
       quadVertices: state.quadVertices.map((v, i) =>
         v.showInterior && !keep.has(`v:${i}`) ? { ...v, interior: autoAngleLabel(v.interior) } : v,
       ),
+      quadDiagAngles: state.quadDiagAngles.map((a) =>
+        a.show && !keep.has(`a:${a.id}`) ? { ...a, label: autoAngleLabel(a.label) } : a,
+      ),
+      quadDiagEdges,
     };
   }
   if (state.kind === "triangle-area") {
@@ -871,6 +887,19 @@ function collectLocks(state: TrigRatiosState, except?: string): MeasureLock[] {
       if (!e?.showLength || key === except) continue;
       const value = customLengthValue(e.length);
       if (value != null) out.push({ t: "seg", id, value });
+    }
+    for (const id of ["AC", "BD"] as const) {
+      const e = state.quadDiagEdges?.[id];
+      const key = `s:${id}`;
+      if (!e?.showLength || key === except) continue;
+      const value = customLengthValue(e.length);
+      if (value != null) out.push({ t: "seg", id, value });
+    }
+    for (const a of state.quadDiagAngles ?? []) {
+      const key = `a:${a.id}`;
+      if (!a.show || key === except) continue;
+      const value = customAngleValue(a.label);
+      if (value != null) out.push({ t: "ang", id: a.id, value });
     }
     for (const [i, v] of state.quadVertices.entries()) {
       const key = `v:${i}`;
@@ -1142,6 +1171,20 @@ function patchShownLength(
   label: MeasLabel,
 ): TrigRatiosState {
   if (state.kind === "quad-area") {
+    if (segId === "AC" || segId === "BD") {
+      const prevEdge = state.quadDiagEdges?.[segId] ?? { showLength: false, length: { mode: "auto", custom: "" } };
+      return {
+        ...state,
+        quadDiagEdges: {
+          ...state.quadDiagEdges,
+          [segId]: {
+            ...prevEdge,
+            showLength: true,
+            length: label,
+          },
+        },
+      };
+    }
     const i = ["AB", "BC", "CD", "DA"].indexOf(segId);
     if (i >= 0) {
       return {
@@ -1167,7 +1210,9 @@ export function applyEditedLabel(
     const segId = labelId.slice(2);
     const prev =
       state.kind === "quad-area"
-        ? state.quadEdges[["AB", "BC", "CD", "DA"].indexOf(segId)]?.length
+        ? (segId === "AC" || segId === "BD"
+            ? state.quadDiagEdges?.[segId]?.length
+            : state.quadEdges[["AB", "BC", "CD", "DA"].indexOf(segId)]?.length)
         : findSeg(state, segId)?.label;
     if (!prev) return state;
     const parsed = parseMeasureInput(trimmed);
@@ -1278,6 +1323,9 @@ export function applyEditedLabel(
 function applySegNumeric(state: TrigRatiosState, segId: string, value: number): TrigRatiosState {
   const target = clamp(value, 0.4, 40);
   if (state.kind === "quad-area") {
+    if (segId === "AC" || segId === "BD") {
+      return applyQuadDiagLengthNumeric(state, segId, target);
+    }
     if (state.quadFamily === "parallelogram") {
       return applyParallelogramEdge(state, segId, target);
     }
@@ -1868,6 +1916,138 @@ export function applyQuadDiagAngleNumeric(
   return applyGeneralQuadDiagAngle(state, angId, value);
 }
 
+function applyParallelogramDiagLength(
+  state: TrigRatiosState,
+  segId: "AC" | "BD" | string,
+  newLength: number,
+): TrigRatiosState {
+  const target = clamp(Math.round(newLength * 10) / 10, 0.5, 40);
+  const pts = state.quadPoints;
+  if (pts.length !== 4) return state;
+
+  let [A, B, C, D] = pts as [Vec, Vec, Vec, Vec];
+  if (!A || !B || !C || !D) return state;
+
+  D = add(A, sub(C, B));
+
+  const d1 = len(sub(C, A));
+  const d2 = len(sub(D, B));
+
+  const r1 = segId === "AC" ? Math.max(0.25, target / 2) : Math.max(0.25, d1 / 2);
+  const r2 = segId === "BD" ? Math.max(0.25, target / 2) : Math.max(0.25, d2 / 2);
+
+  const phiDeg = clamp(quadDiagAngleDeg([A, B, C, D], "AOB"), 10, 170);
+  const phi = (phiDeg * Math.PI) / 180;
+  const cosPhi = Math.cos(phi);
+  const sinPhi = Math.sin(phi);
+
+  const L = Math.sqrt(Math.max(1e-6, r1 * r1 + r2 * r2 + 2 * r1 * r2 * cosPhi));
+  const h = Math.max(0.1, (r1 * r2 * sinPhi) / L);
+  const uAx = -(r1 * (r1 + r2 * cosPhi)) / L;
+  const uBx = -(r2 * (r2 + r1 * cosPhi)) / L;
+
+  const Ox = (A.x + B.x + C.x + D.x) / 4;
+  const newA: Vec = { x: Ox + uAx, y: 2 * h };
+  const newB: Vec = { x: Ox + uBx, y: 0 };
+  const newC: Vec = { x: Ox - uAx, y: 0 };
+  const newD: Vec = { x: Ox - uBx, y: 2 * h };
+
+  const newPoints = [newA, newB, newC, newD];
+
+  const diagAC = state.quadDiagEdges?.AC ?? { showLength: false, length: { mode: "auto", custom: "" } };
+  const diagBD = state.quadDiagEdges?.BD ?? { showLength: false, length: { mode: "auto", custom: "" } };
+
+  const quadDiagEdges = {
+    ...state.quadDiagEdges,
+    AC: segId === "AC"
+      ? { ...diagAC, showLength: true, length: { ...diagAC.length, mode: "custom" as const, custom: `${target}` } }
+      : diagAC,
+    BD: segId === "BD"
+      ? { ...diagBD, showLength: true, length: { ...diagBD.length, mode: "custom" as const, custom: `${target}` } }
+      : diagBD,
+  };
+
+  const synced = syncParallelogramLabels({
+    ...state,
+    quadPoints: newPoints,
+    quadDiagEdges,
+  });
+  return touchLockOrder(syncQuadDiagAngleLabels(synced), `s:${segId}`);
+}
+
+function applyGeneralQuadDiagLength(
+  state: TrigRatiosState,
+  segId: "AC" | "BD" | string,
+  newLength: number,
+): TrigRatiosState {
+  const target = clamp(Math.round(newLength * 10) / 10, 0.5, 40);
+  const pts = state.quadPoints;
+  if (pts.length !== 4) return state;
+
+  const [A, B, C, D] = pts as [Vec, Vec, Vec, Vec];
+  if (!A || !B || !C || !D) return state;
+
+  const O = quadDiagonalIntersection(pts);
+  let newPoints: Vec[] = pts;
+
+  if (segId === "AC") {
+    const d1 = len(sub(C, A));
+    if (d1 < 1e-4) return state;
+    const k = target / d1;
+    const newA = add(O, mul(sub(A, O), k));
+    const newC = add(O, mul(sub(C, O), k));
+    newPoints = [newA, B, newC, D];
+  } else if (segId === "BD") {
+    const d2 = len(sub(D, B));
+    if (d2 < 1e-4) return state;
+    const k = target / d2;
+    const newB = add(O, mul(sub(B, O), k));
+    const newD = add(O, mul(sub(D, O), k));
+    newPoints = [A, newB, C, newD];
+  }
+
+  if (!isConvex(newPoints)) return state;
+
+  const diagAC = state.quadDiagEdges?.AC ?? { showLength: false, length: { mode: "auto", custom: "" } };
+  const diagBD = state.quadDiagEdges?.BD ?? { showLength: false, length: { mode: "auto", custom: "" } };
+
+  const quadDiagEdges = {
+    ...state.quadDiagEdges,
+    AC: segId === "AC"
+      ? { ...diagAC, showLength: true, length: { ...diagAC.length, mode: "custom" as const, custom: `${target}` } }
+      : diagAC,
+    BD: segId === "BD"
+      ? { ...diagBD, showLength: true, length: { ...diagBD.length, mode: "custom" as const, custom: `${target}` } }
+      : diagBD,
+  };
+
+  const synced = syncQuadDiagAngleLabels({
+    ...state,
+    quadPoints: newPoints,
+    quadDiagEdges,
+  });
+  return touchLockOrder(synced, `s:${segId}`);
+}
+
+export function applyQuadDiagLengthNumeric(
+  state: TrigRatiosState,
+  segId: "AC" | "BD" | string,
+  newLength: number,
+): TrigRatiosState {
+  if (state.kind !== "quad-area" || (segId !== "AC" && segId !== "BD")) return state;
+  const target = clamp(Math.round(newLength * 10) / 10, 0.5, 40);
+  const stateWithDiag: TrigRatiosState = {
+    ...state,
+    ...(segId === "AC"
+      ? { showQuadDiagAC: true }
+      : { showQuadDiagBD: true, showQuadDiagonal: true }),
+  };
+  if (state.quadFamily === "parallelogram") {
+    return applyParallelogramDiagLength(stateWithDiag, segId, target);
+  }
+  return applyGeneralQuadDiagLength(stateWithDiag, segId, target);
+}
+
 function polygonFromTri(state: TrigRatiosState) {
   return {
     points: [state.triA, state.triB, state.triC],
@@ -2166,6 +2346,19 @@ function patchLengthLabel(
     return { ...state, radiusLabel: updater(state.radiusLabel) };
   }
   if (state.kind === "quad-area") {
+    if (segId === "AC" || segId === "BD") {
+      const prevEdge = state.quadDiagEdges?.[segId] ?? { showLength: false, length: { mode: "auto", custom: "" } };
+      return {
+        ...state,
+        quadDiagEdges: {
+          ...state.quadDiagEdges,
+          [segId]: {
+            ...prevEdge,
+            length: updater(prevEdge.length),
+          },
+        },
+      };
+    }
     const i = ["AB", "BC", "CD", "DA"].indexOf(segId);
     if (i >= 0) {
       return {
@@ -2221,6 +2414,11 @@ export function lengthDimAxes(
   const along = norm(sub(b, a));
   if (len(along) < 1e-6) return null;
   const mid = mul(add(a, b), 0.5);
+  if (state.kind === "quad-area" && (segId === "AC" || segId === "BD")) {
+    const towardId = segId === "AC" ? "D" : "A";
+    const toward = canvasPts[towardId] ? sub(canvasPts[towardId]!, mid) : { x: -along.y, y: along.x };
+    return { along, outward: perpToward(along, toward) };
+  }
   const ids =
     state.kind === "unit-circle"
       ? ["O", "A", "B", "C", "D"]
@@ -2235,7 +2433,7 @@ function lengthEndpoints(state: TrigRatiosState, segId: string): { a: string; b:
   if (segId === "radius") return { a: "O", b: "O" };
   const seg = findSeg(state, segId);
   if (seg) return { a: seg.a, b: seg.b };
-  if (["AB", "BC", "CD", "DA"].includes(segId)) {
+  if (["AB", "BC", "CD", "DA", "AC", "BD"].includes(segId)) {
     return { a: segId[0]!, b: segId[1]! };
   }
   return null;

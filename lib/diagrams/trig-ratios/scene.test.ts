@@ -914,4 +914,100 @@ describe("trig-ratios scene", () => {
     almost(genAOB, 70, 0.1);
     almost(genBOC, 110, 0.1);
   });
+
+  it("adjusts diagonal length while preserving diagonal angle and parallelogram properties", () => {
+    // 1. Parallelogram test
+    const paraBase = normalizeState(cloneState(TRIG_PRESETS.find((p) => p.id === "quad-para")!.state));
+    const para = {
+      ...paraBase,
+      showQuadDiagAC: true,
+      showQuadDiagBD: true,
+    };
+
+    const origAOB = quadDiagAngleDeg(para.quadPoints, "AOB");
+    const origD2 = Math.hypot(
+      para.quadPoints[3].x - para.quadPoints[1].x,
+      para.quadPoints[3].y - para.quadPoints[1].y,
+    );
+
+    // Edit diagonal AC length to 10
+    const editedAC = applyEditedLabel(para, "s:AC", "10");
+    const lenAC = Math.hypot(
+      editedAC.quadPoints[2].x - editedAC.quadPoints[0].x,
+      editedAC.quadPoints[2].y - editedAC.quadPoints[0].y,
+    );
+    const lenBD = Math.hypot(
+      editedAC.quadPoints[3].x - editedAC.quadPoints[1].x,
+      editedAC.quadPoints[3].y - editedAC.quadPoints[1].y,
+    );
+    const newAOB = quadDiagAngleDeg(editedAC.quadPoints, "AOB");
+
+    almost(lenAC, 10, 0.1);
+    almost(lenBD, origD2, 0.1); // BD length preserved
+    almost(newAOB, origAOB, 0.1); // Intersection angle preserved!
+
+    // Check parallelogram properties
+    const [A, B, C, D] = editedAC.quadPoints;
+    almost(D.x, A.x + C.x - B.x, 1e-4);
+    almost(D.y, A.y + C.y - B.y, 1e-4);
+    almost(B.y, 0, 1e-4);
+    almost(C.y, 0, 1e-4); // Base BC horizontal
+
+    // Check diagonals bisect each other: midpoint of AC == midpoint of BD
+    almost((A.x + C.x) / 2, (B.x + D.x) / 2, 1e-4);
+    almost((A.y + C.y) / 2, (B.y + D.y) / 2, 1e-4);
+
+    // Check dimension lines painted
+    const sceneAC = buildTrigScene(editedAC);
+    const acDimText = sceneAC.texts.find((t) => t.id === "s:AC");
+    assert.ok(acDimText, "AC dimension label should be rendered");
+
+    // Edit diagonal BD length to 8
+    const editedBD = applyEditedLabel(editedAC, "s:BD", "8");
+    const lenAC2 = Math.hypot(
+      editedBD.quadPoints[2].x - editedBD.quadPoints[0].x,
+      editedBD.quadPoints[2].y - editedBD.quadPoints[0].y,
+    );
+    const lenBD2 = Math.hypot(
+      editedBD.quadPoints[3].x - editedBD.quadPoints[1].x,
+      editedBD.quadPoints[3].y - editedBD.quadPoints[1].y,
+    );
+    const newAOB2 = quadDiagAngleDeg(editedBD.quadPoints, "AOB");
+
+    almost(lenAC2, 10, 0.1); // AC length preserved
+    almost(lenBD2, 8, 0.1); // BD length updated to 8
+    almost(newAOB2, origAOB, 0.1); // Angle still preserved!
+
+    const [A2, B2, C2, D2] = editedBD.quadPoints;
+    almost(D2.x, A2.x + C2.x - B2.x, 1e-4);
+    almost(D2.y, A2.y + C2.y - B2.y, 1e-4);
+
+    // 2. General quadrilateral test
+    const genBase = normalizeState(cloneState(TRIG_PRESETS.find((p) => p.id === "quad-diag")!.state));
+    const gen = {
+      ...genBase,
+      showQuadDiagAC: true,
+      showQuadDiagBD: true,
+    };
+    const genOrigAOB = quadDiagAngleDeg(gen.quadPoints, "AOB");
+    const genOrigBD = Math.hypot(
+      gen.quadPoints[3].x - gen.quadPoints[1].x,
+      gen.quadPoints[3].y - gen.quadPoints[1].y,
+    );
+
+    const genEdited = applyEditedLabel(gen, "s:AC", "12");
+    const genLenAC = Math.hypot(
+      genEdited.quadPoints[2].x - genEdited.quadPoints[0].x,
+      genEdited.quadPoints[2].y - genEdited.quadPoints[0].y,
+    );
+    const genLenBD = Math.hypot(
+      genEdited.quadPoints[3].x - genEdited.quadPoints[1].x,
+      genEdited.quadPoints[3].y - genEdited.quadPoints[1].y,
+    );
+    const genNewAOB = quadDiagAngleDeg(genEdited.quadPoints, "AOB");
+
+    almost(genLenAC, 12, 0.1);
+    almost(genLenBD, genOrigBD, 0.1);
+    almost(genNewAOB, genOrigAOB, 0.1);
+  });
 });

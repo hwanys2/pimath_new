@@ -1032,6 +1032,48 @@ function paintQuadArea(
       style.fontSize,
     );
   }
+  if (showAC && state.quadDiagEdges?.AC?.showLength && canvas.A && canvas.C) {
+    const a = canvas.A;
+    const b = canvas.C;
+    const ac = sub(b, a);
+    const toward = canvas.D ? sub(canvas.D, mul(add(a, b), 0.5)) : { x: -ac.y, y: ac.x };
+    const outward = norm(perpToward(ac, toward));
+    const diagLength = len(sub(mathPts[2]!, mathPts[0]!));
+    const label = resolveLengthText(state, state.quadDiagEdges.AC.length, diagLength);
+    dimArc(
+      cmds,
+      texts,
+      a,
+      b,
+      outward,
+      style.dimOffset,
+      label,
+      "s:AC",
+      state.quadDiagEdges.AC.length,
+      style.fontSize,
+    );
+  }
+  if (showBD && state.quadDiagEdges?.BD?.showLength && canvas.B && canvas.D) {
+    const a = canvas.B;
+    const b = canvas.D;
+    const bd = sub(b, a);
+    const toward = canvas.A ? sub(canvas.A, mul(add(a, b), 0.5)) : { x: -bd.y, y: bd.x };
+    const outward = norm(perpToward(bd, toward));
+    const diagLength = len(sub(mathPts[3]!, mathPts[1]!));
+    const label = resolveLengthText(state, state.quadDiagEdges.BD.length, diagLength);
+    dimArc(
+      cmds,
+      texts,
+      a,
+      b,
+      outward,
+      style.dimOffset,
+      label,
+      "s:BD",
+      state.quadDiagEdges.BD.length,
+      style.fontSize,
+    );
+  }
 }
 
 function edgeLength(points: Vec[], i: number): number {
