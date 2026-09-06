@@ -939,18 +939,7 @@ export default function TrigRatiosStudio() {
                     setState((prev) => patchSegState(prev, selected.id, { label: { ...selSeg.label, mode } }))
                   }
                   onCustom={(custom) =>
-                    setState((prev) => {
-                      const seg = findSeg(prev, selected.id);
-                      if (!seg) return prev;
-                      // Keep free-form text (e.g. "4m") as typed; still resize on plain numbers.
-                      const parsed = custom.trim();
-                      const onlyNumber = /^(-?\d+(?:\.\d+)?)\s*(?:cm|mm)?$/i.test(parsed);
-                      if (onlyNumber) return applyEditedLabel(prev, `s:${selected.id}`, custom);
-                      return patchSegState(prev, selected.id, {
-                        show: true,
-                        label: { ...seg.label, mode: "custom", custom },
-                      });
-                    })
+                    setState((prev) => applyEditedLabel(prev, `s:${selected.id}`, custom))
                   }
                 />
               </div>

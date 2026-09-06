@@ -1010,4 +1010,61 @@ describe("trig-ratios scene", () => {
     almost(genLenBD, genOrigBD, 0.1);
     almost(genNewAOB, genOrigAOB, 0.1);
   });
+
+  it("preserves custom units and free-form text on diagonals and sides", () => {
+    const base = normalizeState(cloneState(TRIG_PRESETS.find((p) => p.id === "quad-para")!.state));
+    const withDiags = {
+      ...base,
+      showQuadDiagAC: true,
+      showQuadDiagBD: true,
+    };
+
+    // 1. Diagonal AC with "10cm"
+    const with10cm = applyEditedLabel(withDiags, "s:AC", "10cm");
+    assert.equal(with10cm.quadDiagEdges.AC.length.mode, "custom");
+    assert.equal(with10cm.quadDiagEdges.AC.length.custom, "10cm");
+    const lenAC = Math.hypot(
+      with10cm.quadPoints[2].x - with10cm.quadPoints[0].x,
+      with10cm.quadPoints[2].y - with10cm.quadPoints[0].y,
+    );
+    almost(lenAC, 10, 0.1);
+
+    const scene10cm = buildTrigScene(with10cm);
+    const acText = scene10cm.texts.find((t) => t.id === "s:AC");
+    assert.ok(acText);
+    const combined10cm = acText.runs.map((r) => r.text).join("");
+    assert.ok(combined10cm.includes("10") && combined10cm.includes("cm"));
+
+    // 2. Diagonal BD with "cm" only
+    const origBD = Math.hypot(
+      withDiags.quadPoints[3].x - withDiags.quadPoints[1].x,
+      withDiags.quadPoints[3].y - withDiags.quadPoints[1].y,
+    );
+    const withCm = applyEditedLabel(withDiags, "s:BD", "cm");
+    assert.equal(withCm.quadDiagEdges.BD.length.mode, "custom");
+    assert.equal(withCm.quadDiagEdges.BD.length.custom, "cm");
+    const lenBD = Math.hypot(
+      withCm.quadPoints[3].x - withCm.quadPoints[1].x,
+      withCm.quadPoints[3].y - withCm.quadPoints[1].y,
+    );
+    almost(lenBD, origBD, 1e-3);
+
+    const sceneCm = buildTrigScene(withCm);
+    const bdText = sceneCm.texts.find((t) => t.id === "s:BD");
+    assert.ok(bdText);
+    assert.equal(bdText.runs.map((r) => r.text).join(""), "cm");
+
+    // 3. Diagonal with free text "4m" and math sqrt
+    const with4m = applyEditedLabel(withDiags, "s:AC", "4m");
+    assert.equal(with4m.quadDiagEdges.AC.length.custom, "4m");
+
+    const withSqrt = applyEditedLabel(withDiags, "s:AC", "√3 cm");
+    assert.equal(withSqrt.quadDiagEdges.AC.length.custom, "√3 cm");
+
+    // 4. Parallelogram side AB with "6cm"
+    const withSideCm = applyEditedLabel(withDiags, "s:AB", "6cm");
+    const edgeAB = withSideCm.quadEdges[0]!;
+    assert.equal(edgeAB.length.mode, "custom");
+    assert.equal(edgeAB.length.custom, "6cm");
+  });
 });

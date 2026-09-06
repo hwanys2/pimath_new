@@ -517,6 +517,7 @@ export function syncParallelogramLabels(state: TrigRatiosState): TrigRatiosState
 
   const quadVertices = state.quadVertices.map((v, i) => {
     if (!v.showInterior) return v;
+    if (v.interior.mode === "x" || v.interior.mode === "hide") return v;
     const str = `${angleValues[i]}°`;
     return {
       ...v,
@@ -526,7 +527,11 @@ export function syncParallelogramLabels(state: TrigRatiosState): TrigRatiosState
 
   const quadEdges = state.quadEdges.map((e, i) => {
     if (!e.showLength) return e;
-    const str = `${edgeValues[i]}`;
+    if (e.length.mode === "x" || e.length.mode === "hide") return e;
+    const hasCm = e.length.mode === "custom" && /cm$/i.test(e.length.custom.trim());
+    const hasMm = e.length.mode === "custom" && /mm$/i.test(e.length.custom.trim());
+    const unitSuffix = hasCm ? "cm" : hasMm ? "mm" : "";
+    const str = `${edgeValues[i]}${unitSuffix}`;
     return {
       ...e,
       length: { ...e.length, mode: "custom" as const, custom: str },
@@ -692,7 +697,9 @@ function labelFromMeasureParse(
   if (parsed.kind === "number" && parsed.value != null) {
     return { ...prev, mode: "custom", custom: text.trim() || String(parsed.value) };
   }
-  if (!text.trim()) return { ...prev, mode: "hide", custom: "" };
+  if (!text.trim()) {
+    return { ...prev, mode: prev.mode === "custom" ? "custom" : "hide", custom: "" };
+  }
   return { ...prev, mode: "custom", custom: text.trim() };
 }
 
@@ -707,7 +714,9 @@ function labelFromAngleParse(
   if (parsed.kind === "number" && parsed.value != null) {
     return { ...prev, mode: "custom", custom: `${parsed.value}°` };
   }
-  if (!text.trim()) return { ...prev, mode: "hide", custom: "" };
+  if (!text.trim()) {
+    return { ...prev, mode: prev.mode === "custom" ? "custom" : "hide", custom: "" };
+  }
   return { ...prev, mode: "custom", custom: text.trim() };
 }
 
@@ -1217,9 +1226,11 @@ export function applyEditedLabel(
     if (!prev) return state;
     const parsed = parseMeasureInput(trimmed);
     const numeric = measureNumber(trimmed);
-    let next = patchShownLength(state, segId, labelFromMeasureParse(parsed, trimmed, prev));
+    const targetLabel = labelFromMeasureParse(parsed, trimmed, prev);
+    let next = patchShownLength(state, segId, targetLabel);
     if (numeric != null && numeric > 0) {
       next = applySegNumeric(next, segId, numeric);
+      next = patchShownLength(next, segId, targetLabel);
     }
     return next;
   }
@@ -1500,10 +1511,11 @@ export function applyParallelogramEdge(
     const id = ["AB", "BC", "CD", "DA"][idx]!;
     const match = isPairAB ? (id === "AB" || id === "CD") : (id === "BC" || id === "DA");
     if (!match) return e;
+    const preserve = id === segId && e.length.mode === "custom" && e.length.custom.trim().length > 0;
     return {
       ...e,
       showLength: id === segId ? true : e.showLength,
-      length: { ...e.length, mode: "custom" as const, custom: lenStr },
+      length: preserve ? e.length : { ...e.length, mode: "custom" as const, custom: lenStr },
     };
   });
 
@@ -1763,10 +1775,11 @@ export function applyGeneralQuadEdge(
   const quadEdges = state.quadEdges.map((e, idx) => {
     const id = ["AB", "BC", "CD", "DA"][idx]!;
     if (id !== segId) return e;
+    const preserve = e.length.mode === "custom" && e.length.custom.trim().length > 0;
     return {
       ...e,
       showLength: true,
-      length: { ...e.length, mode: "custom" as const, custom: `${target}` },
+      length: preserve ? e.length : { ...e.length, mode: "custom" as const, custom: `${target}` },
     };
   });
 
@@ -1960,10 +1973,24 @@ function applyParallelogramDiagLength(
   const quadDiagEdges = {
     ...state.quadDiagEdges,
     AC: segId === "AC"
-      ? { ...diagAC, showLength: true, length: { ...diagAC.length, mode: "custom" as const, custom: `${target}` } }
+      ? {
+          ...diagAC,
+          showLength: true,
+          length:
+            diagAC.length.mode === "custom" && diagAC.length.custom.trim().length > 0
+              ? diagAC.length
+              : { ...diagAC.length, mode: "custom" as const, custom: `${target}` },
+        }
       : diagAC,
     BD: segId === "BD"
-      ? { ...diagBD, showLength: true, length: { ...diagBD.length, mode: "custom" as const, custom: `${target}` } }
+      ? {
+          ...diagBD,
+          showLength: true,
+          length:
+            diagBD.length.mode === "custom" && diagBD.length.custom.trim().length > 0
+              ? diagBD.length
+              : { ...diagBD.length, mode: "custom" as const, custom: `${target}` },
+        }
       : diagBD,
   };
 
@@ -2014,10 +2041,24 @@ function applyGeneralQuadDiagLength(
   const quadDiagEdges = {
     ...state.quadDiagEdges,
     AC: segId === "AC"
-      ? { ...diagAC, showLength: true, length: { ...diagAC.length, mode: "custom" as const, custom: `${target}` } }
+      ? {
+          ...diagAC,
+          showLength: true,
+          length:
+            diagAC.length.mode === "custom" && diagAC.length.custom.trim().length > 0
+              ? diagAC.length
+              : { ...diagAC.length, mode: "custom" as const, custom: `${target}` },
+        }
       : diagAC,
     BD: segId === "BD"
-      ? { ...diagBD, showLength: true, length: { ...diagBD.length, mode: "custom" as const, custom: `${target}` } }
+      ? {
+          ...diagBD,
+          showLength: true,
+          length:
+            diagBD.length.mode === "custom" && diagBD.length.custom.trim().length > 0
+              ? diagBD.length
+              : { ...diagBD.length, mode: "custom" as const, custom: `${target}` },
+        }
       : diagBD,
   };
 

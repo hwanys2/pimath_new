@@ -1462,6 +1462,8 @@ export function patchSegState(
       const length = patch.label ?? prev.length;
       return {
         ...state,
+        ...(id === "AC" && show ? { showQuadDiagAC: true } : {}),
+        ...(id === "BD" && show ? { showQuadDiagBD: true, showQuadDiagonal: true } : {}),
         quadDiagEdges: {
           ...state.quadDiagEdges,
           [id]: {
