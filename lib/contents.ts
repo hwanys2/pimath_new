@@ -291,14 +291,14 @@ export const CONTENTS: ContentMeta[] = [
       "고대 신전에 갇혔다! 방마다 단서를 조사하고 삼각비(길이·높이·넓이)로 장치를 풀어 15분 안에 탈출하는 방탈출 게임입니다. 학급 배정·활성 시 XP와 랭킹이 쌓여요.",
   },
   {
-    key: "g3-u3-2-starlight-slingshot",
+    key: "g3-u3-2-inscribed-pop",
     unitId: "g3-3-2",
     type: "game",
-    title: "별빛 호수: 원주각 슬링샷",
-    href: "/play/g3-u3-2-starlight-slingshot",
+    title: "원주각 팡팡: 별빛 서클 핀볼",
+    href: "/play/g3-u3-2-inscribed-pop",
     awardsXp: true,
     description:
-      "별빛 호수에서 원주각의 성질(동일 호 각도 불변·지름 90° 직각·중심각 2배·내접 180°)로 슬링샷을 조준해 장난꾸러기 슬라임들을 정화하는 캐주얼 아케이드 게임입니다. 학급 배정·활성 시 XP와 랭킹이 쌓여요.",
+      "원주에서 트윈 볼을 쏘아 슬라임을 터뜨리는 원형 핀볼 아케이드 게임입니다. 동일한 호의 원주각 불변 법칙, 탈레스의 90° 직각 샷, 중심각 2배 버스트로 별빛 슬라임을 정화해 보세요! 학급 배정·활성 시 XP와 랭킹이 쌓여요.",
   },
 ];
 
