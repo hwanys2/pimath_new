@@ -68,13 +68,6 @@ export const SUMMARY_LABELS: Record<string, Record<string, string>> = {
     torchesLeft: "남은 횃불",
     timeLeftSec: "남은 시간(초)",
   },
-  "g3-u3-2-inscribed-pop": {
-    roundsCleared: "클리어 라운드",
-    pegsPopped: "터뜨린 슬라임",
-    thalesShots: "탈레스 90° 샷",
-    overchargeHits: "중심각 2배 버스트",
-    maxCombo: "최대 콤보",
-  },
   "g1-u2-2-linear-equation-balance": {
     correctCount: "정답",
     problemCount: "문제 수",
