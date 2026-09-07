@@ -68,6 +68,14 @@ export const SUMMARY_LABELS: Record<string, Record<string, string>> = {
     torchesLeft: "남은 횃불",
     timeLeftSec: "남은 시간(초)",
   },
+  "g3-u3-2-arc-reactor": {
+    wavesCleared: "클리어 웨이브",
+    coresDestroyed: "파괴한 코어",
+    thalesStrikes: "탈레스 90° 타격",
+    overchargeBeams: "중심각 2배 빔",
+    cyclicNovas: "180° 노바 발동",
+    maxCombo: "최대 콤보",
+  },
   "g1-u2-2-linear-equation-balance": {
     correctCount: "정답",
     problemCount: "문제 수",

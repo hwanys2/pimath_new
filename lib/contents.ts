@@ -290,6 +290,16 @@ export const CONTENTS: ContentMeta[] = [
     description:
       "고대 신전에 갇혔다! 방마다 단서를 조사하고 삼각비(길이·높이·넓이)로 장치를 풀어 15분 안에 탈출하는 방탈출 게임입니다. 학급 배정·활성 시 XP와 랭킹이 쌓여요.",
   },
+  {
+    key: "g3-u3-2-arc-reactor",
+    unitId: "g3-3-2",
+    type: "game",
+    title: "아크 리액터: 네온 오비탈",
+    href: "/play/g3-u3-2-arc-reactor",
+    awardsXp: true,
+    description:
+      "원형 입자가속기에서 원주각의 4대 법칙(동일 호 각도 불변·탈레스 90° 직각·중심각 2배·내접 180°)을 광학 무기로 발동해 다크 매터를 분쇄하는 네온 아케이드 액션 게임입니다. 학급 배정·활성 시 XP와 랭킹이 쌓여요.",
+  },
 ];
 
 export function getContent(key: string): ContentMeta | undefined {
