@@ -4,11 +4,13 @@ import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { signOut } from "@/app/auth/actions";
+import { useActor } from "@/components/auth/ActorProvider";
 import type { StudentActor } from "@/lib/auth-types";
 import { resolveAvatar } from "@/lib/progression";
 
 export default function StudentTopBar({ actor }: { actor: StudentActor }) {
   const pathname = usePathname();
+  const { logout } = useActor();
   const avatar = resolveAvatar(actor.level, actor.activeAvatar);
   const onAdventure =
     pathname === "/adventure" || pathname.startsWith("/adventure/");
@@ -71,7 +73,7 @@ export default function StudentTopBar({ actor }: { actor: StudentActor }) {
           <span className="hidden max-w-[8rem] truncate text-sm font-semibold text-cream sm:inline">
             {actor.name}
           </span>
-          <form action={signOut}>
+          <form action={logout}>
             <button
               type="submit"
               className="font-display rounded-xl bg-black/15 px-3 py-2 text-sm text-cream transition hover:bg-black/25"

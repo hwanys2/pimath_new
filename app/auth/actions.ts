@@ -24,6 +24,8 @@ export type AuthState = {
   error?: string;
   message?: string;
   nickname?: string;
+  success?: boolean;
+  next?: string;
 };
 
 function isValidEmail(email: string): boolean {
@@ -80,7 +82,8 @@ export async function signInWithEmail(
 
   await clearStudentSessionCookie();
   await syncForeducatorAccount(supabase, data.user);
-  redirect(safeNextPath(formData.get("next")));
+  revalidatePath("/", "layout");
+  return { success: true, next: safeNextPath(formData.get("next")) };
 }
 
 type StudentAuthRow = {
@@ -128,7 +131,8 @@ async function establishStudentSession(
     sessionToken: student.session_token,
   });
 
-  redirect("/adventure");
+  revalidatePath("/", "layout");
+  return { success: true, next: "/adventure" };
 }
 
 export async function signInAsStudent(
@@ -239,7 +243,8 @@ export async function signUpWithEmail(
   await syncForeducatorAccount(supabase, data.user);
 
   if (data.session) {
-    redirect("/teacher");
+    revalidatePath("/", "layout");
+    return { success: true, next: "/teacher" };
   }
 
   return {
@@ -402,5 +407,6 @@ export async function signOut(): Promise<void> {
   await clearStudentSessionCookie();
   const supabase = await createClient();
   await supabase.auth.signOut();
+  revalidatePath("/", "layout");
   redirect("/");
 }

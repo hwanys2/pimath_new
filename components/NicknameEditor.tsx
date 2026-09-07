@@ -3,6 +3,7 @@
 import { useActionState, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { updateDisplayName, type AuthState } from "@/app/auth/actions";
+import { notifyAuthChange, useActor } from "@/components/auth/ActorProvider";
 
 type Props = {
   name: string;
@@ -12,6 +13,7 @@ const empty: AuthState = {};
 
 export default function NicknameEditor({ name }: Props) {
   const router = useRouter();
+  const { refresh } = useActor();
   const [editing, setEditing] = useState(false);
   const [shown, setShown] = useState(name);
   const [state, formAction, pending] = useActionState(updateDisplayName, empty);
@@ -34,8 +36,10 @@ export default function NicknameEditor({ name }: Props) {
     savedRef.current = state.nickname;
     setShown(state.nickname);
     setEditing(false);
+    notifyAuthChange();
+    void refresh();
     router.refresh();
-  }, [state.nickname, router]);
+  }, [state.nickname, router, refresh]);
 
   if (!editing) {
     return (

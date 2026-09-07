@@ -9,6 +9,7 @@ import { OPEN_CHAT_URL } from "@/lib/site-links";
 import { TOOLS } from "@/lib/tools";
 import { signOut } from "@/app/auth/actions";
 import NicknameEditor from "@/components/NicknameEditor";
+import { useActor } from "@/components/auth/ActorProvider";
 import type { TeacherActor } from "@/lib/auth-types";
 
 function ToolsMenu({ pathname }: { pathname: string }) {
@@ -106,6 +107,7 @@ export default function TopMenuBar({
   actor: TeacherActor | null;
 }) {
   const pathname = usePathname();
+  const { logout } = useActor();
 
   return (
     <header className="px-3 pt-3 sm:px-4 sm:pt-4">
@@ -168,7 +170,7 @@ export default function TopMenuBar({
             </Link>
             <span className="badge-pill hidden md:inline-flex">교사</span>
             <NicknameEditor name={actor.name} />
-            <form action={signOut}>
+            <form action={logout}>
               <button
                 type="submit"
                 className="font-display rounded-xl bg-black/15 px-3 py-2 text-sm text-cream transition hover:bg-black/25"

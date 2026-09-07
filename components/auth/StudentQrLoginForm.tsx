@@ -1,16 +1,30 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import { useActionState, useEffect, useRef } from "react";
 import {
   signInWithStudentQrToken,
   type AuthState,
 } from "@/app/auth/actions";
+import { notifyAuthChange, useActor } from "@/components/auth/ActorProvider";
 
 const initialState: AuthState = {};
 
 export default function StudentQrLoginForm({ token }: { token: string }) {
+  const router = useRouter();
+  const { refresh } = useActor();
+
   const [state, action, pending] = useActionState(
-    signInWithStudentQrToken,
+    async (prevState: AuthState, formData: FormData) => {
+      const res = await signInWithStudentQrToken(prevState, formData);
+      if (res?.success && res.next) {
+        notifyAuthChange();
+        await refresh();
+        router.replace(res.next);
+        router.refresh();
+      }
+      return res;
+    },
     initialState,
   );
   const formRef = useRef<HTMLFormElement>(null);

@@ -1,8 +1,10 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useActionState } from "react";
 import { signInWithEmail, type AuthState } from "@/app/auth/actions";
+import { notifyAuthChange, useActor } from "@/components/auth/ActorProvider";
 
 const inputClass =
   "w-full rounded-xl border-2 border-wood/15 bg-white px-4 py-3 text-foreground outline-none transition placeholder:text-foreground/35 focus:border-sky focus:ring-2 focus:ring-sky/40";
@@ -10,8 +12,20 @@ const inputClass =
 const initialState: AuthState = {};
 
 export default function LoginForm({ next }: { next?: string }) {
+  const router = useRouter();
+  const { refresh } = useActor();
+
   const [state, action, pending] = useActionState(
-    signInWithEmail,
+    async (prevState: AuthState, formData: FormData) => {
+      const res = await signInWithEmail(prevState, formData);
+      if (res?.success && res.next) {
+        notifyAuthChange();
+        await refresh();
+        router.replace(res.next);
+        router.refresh();
+      }
+      return res;
+    },
     initialState,
   );
 
