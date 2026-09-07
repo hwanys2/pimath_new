@@ -498,8 +498,9 @@ export function buildInscribedScene(state: InscribedState): DiagramScene {
     );
   }
 
-  if (state.showDots) {
-    for (const p of state.points) {
+  for (const p of state.points) {
+    const showDot = p.showDot ?? state.showDots;
+    if (showDot) {
       const c = map(polar(state.radius, p.angleDeg));
       cmds.push({ t: "dot", x: c.x, y: c.y, r: style.pointRadius });
     }

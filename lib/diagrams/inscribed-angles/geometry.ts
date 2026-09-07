@@ -24,9 +24,10 @@ import {
   type EdgeDraft,
   type InscribedState,
   type MeasLabel,
+  type PointDisplayMode,
 } from "@/lib/diagrams/inscribed-angles/model";
 
-export type { Vec };
+export type { Vec, PointDisplayMode };
 
 export const CENTER_ID = "O";
 export const T_PLUS = "T+";
@@ -183,10 +184,12 @@ export function movePoint(
   id: string,
   target: Vec,
 ): InscribedState {
-  const deg = angleDegOf(target);
+  const deg = normalizeDeg(Math.round(angleDegOf(target)));
   const pair = state.diameterPair;
+  const modified = [...(state.modifiedPointIds ?? []).filter((x) => x !== id), id];
   return {
     ...state,
+    modifiedPointIds: modified,
     points: state.points.map((p) => {
       if (p.id === id) return { ...p, angleDeg: deg };
       if (pair && (pair[0] === id || pair[1] === id) && (p.id === pair[0] || p.id === pair[1])) {
@@ -197,18 +200,88 @@ export function movePoint(
   };
 }
 
+export function pointDisplayMode(
+  p: CircPoint,
+  globalShowDots = true,
+): PointDisplayMode {
+  const dot = p.showDot !== undefined ? p.showDot : globalShowDots;
+  const name = p.showName !== false;
+  if (dot && name) return "both";
+  if (dot) return "dot";
+  if (name) return "name";
+  return "none";
+}
+
+export function globalPointDisplayMode(state: InscribedState): PointDisplayMode {
+  if (state.points.length === 0) {
+    return state.showDots ? "both" : "none";
+  }
+  const firstMode = pointDisplayMode(state.points[0], state.showDots);
+  const allSame = state.points.every(
+    (p) => pointDisplayMode(p, state.showDots) === firstMode,
+  );
+  if (allSame) return firstMode;
+
+  const hasDots = state.showDots || state.points.some((p) => (p.showDot ?? state.showDots));
+  const hasNames = state.points.some((p) => p.showName !== false);
+  if (hasDots && hasNames) return "both";
+  if (hasDots) return "dot";
+  if (hasNames) return "name";
+  return "none";
+}
+
+export function setAllPointsDisplayMode(
+  state: InscribedState,
+  mode: PointDisplayMode,
+): InscribedState {
+  const showDot = mode === "both" || mode === "dot";
+  const showName = mode === "both" || mode === "name";
+  return {
+    ...state,
+    showDots: showDot,
+    points: state.points.map((p) => ({
+      ...p,
+      showDot,
+      showName,
+    })),
+  };
+}
+
+export function setPointDisplayMode(
+  state: InscribedState,
+  pointId: string,
+  mode: PointDisplayMode,
+): InscribedState {
+  const showDot = mode === "both" || mode === "dot";
+  const showName = mode === "both" || mode === "name";
+  return {
+    ...state,
+    points: state.points.map((p) =>
+      p.id === pointId
+        ? {
+            ...p,
+            showDot,
+            showName,
+          }
+        : p,
+    ),
+  };
+}
+
 export const MAX_POINTS = 8;
 
 export function addPointAt(state: InscribedState, target: Vec): InscribedState | null {
   if (state.points.length >= MAX_POINTS) return null;
   const id = newId("p");
+  const mode = globalPointDisplayMode(state);
   const point: CircPoint = {
     id,
     name: nextPointName(state),
-    angleDeg: angleDegOf(target),
+    angleDeg: normalizeDeg(Math.round(angleDegOf(target))),
     dx: 0,
     dy: 0,
-    showName: true,
+    showName: mode === "both" || mode === "name",
+    showDot: mode === "both" || mode === "dot",
   };
   return { ...state, points: [...state.points, point] };
 }
@@ -435,10 +508,12 @@ export function nudgeMeasureLine(
   label: MeasLabel,
   canvasDx: number,
   canvasDy: number,
-  _along: Vec,
-  outward: Vec,
-  _halfSpan: number,
+  along?: Vec,
+  outward: Vec = { x: 0, y: 1 },
+  halfSpan?: number,
 ): MeasLabel {
+  void along;
+  void halfSpan;
   const perpAmt = canvasDx * outward.x + canvasDy * outward.y;
   return {
     ...label,
@@ -485,6 +560,116 @@ function labelFromParse(
   return { ...prev, mode: "custom", custom: trimmed };
 }
 
+export function applyAngleDegree(
+  state: InscribedState,
+  angleId: string,
+  targetDeg: number,
+): InscribedState {
+  const angle = state.angles.find((a) => a.id === angleId);
+  if (!angle) return state;
+
+  const target = Math.max(1, Math.min(angle.reflex ? 359 : 179, Math.round(targetDeg)));
+
+  // Candidate points on the circumference that could move
+  // Prefer arms over vertex because moving the vertex along the arc doesn't change an inscribed angle
+  const candidateIds = [angle.to, angle.from, angle.vertex].filter((id) =>
+    state.points.some((p) => p.id === id),
+  );
+  if (candidateIds.length === 0) return state;
+
+  const modifiedList = state.modifiedPointIds ?? [];
+  const getScore = (id: string) => modifiedList.indexOf(id);
+
+  const sortedCandidates = [...candidateIds].sort((a, b) => {
+    const scoreA = getScore(a);
+    const scoreB = getScore(b);
+    if (scoreA !== scoreB) return scoreA - scoreB;
+    return candidateIds.indexOf(a) - candidateIds.indexOf(b);
+  });
+
+  let bestCandidateId: string | null = null;
+  let bestTheta: number | null = null;
+  let minDiff = Infinity;
+  let minDistance = Infinity;
+
+  for (const candId of sortedCandidates) {
+    const currentPoint = state.points.find((p) => p.id === candId);
+    if (!currentPoint) continue;
+    const currDeg = currentPoint.angleDeg;
+    const pair = state.diameterPair;
+
+    let candBestTheta: number | null = null;
+    let candBestDiff = Infinity;
+    let candBestDist = Infinity;
+
+    for (let theta = 0; theta < 360; theta += 1) {
+      const testState: InscribedState = {
+        ...state,
+        points: state.points.map((p) => {
+          if (p.id === candId) return { ...p, angleDeg: theta };
+          if (pair && (pair[0] === candId || pair[1] === candId) && (p.id === pair[0] || p.id === pair[1])) {
+            return { ...p, angleDeg: normalizeDeg(theta + 180) };
+          }
+          return p;
+        }),
+      };
+
+      const v = namedPos(testState, angle.vertex);
+      const from = armPos(testState, angle.vertex, angle.from);
+      const to = armPos(testState, angle.vertex, angle.to);
+      if (!v || !from || !to) continue;
+
+      const measured = angleDegAt(v, from, to, angle.reflex);
+      const diff = Math.abs(measured - target);
+      const dist = Math.min((theta - currDeg + 360) % 360, (currDeg - theta + 360) % 360);
+
+      if (diff < candBestDiff - 1e-4) {
+        candBestDiff = diff;
+        candBestDist = dist;
+        candBestTheta = theta;
+      } else if (Math.abs(diff - candBestDiff) < 1e-4 && dist < candBestDist) {
+        candBestDist = dist;
+        candBestTheta = theta;
+      }
+    }
+
+    if (candBestDiff < 1e-4 && candBestTheta != null) {
+      bestCandidateId = candId;
+      bestTheta = candBestTheta;
+      break;
+    }
+
+    if (candBestDiff < minDiff - 1e-4 && candBestTheta != null) {
+      minDiff = candBestDiff;
+      minDistance = candBestDist;
+      bestCandidateId = candId;
+      bestTheta = candBestTheta;
+    } else if (Math.abs(candBestDiff - minDiff) < 1e-4 && candBestDist < minDistance && candBestTheta != null) {
+      minDistance = candBestDist;
+      bestCandidateId = candId;
+      bestTheta = candBestTheta;
+    }
+  }
+
+  if (bestCandidateId == null || bestTheta == null) return state;
+
+  const pair = state.diameterPair;
+  const updatedPoints = state.points.map((p) => {
+    if (p.id === bestCandidateId) return { ...p, angleDeg: bestTheta };
+    if (pair && (pair[0] === bestCandidateId || pair[1] === bestCandidateId) && (p.id === pair[0] || p.id === pair[1])) {
+      return { ...p, angleDeg: normalizeDeg(bestTheta + 180) };
+    }
+    return p;
+  });
+
+  const nextModified = [...modifiedList.filter((x) => x !== bestCandidateId), bestCandidateId];
+  return {
+    ...state,
+    modifiedPointIds: nextModified,
+    points: updatedPoints,
+  };
+}
+
 export function applyEditedLabel(
   state: InscribedState,
   id: string,
@@ -512,6 +697,14 @@ export function applyEditedLabel(
 
   const angle = state.angles.find((a) => a.id === id);
   if (angle) {
+    if (parsed.kind === "number" && parsed.value != null) {
+      const targetDeg = Math.max(1, Math.round(parsed.value));
+      const adjusted = applyAngleDegree(state, id, targetDeg);
+      const nextMode = angle.label.mode === "custom" ? "custom" : "auto";
+      return patchAngle(adjusted, id, {
+        label: { ...angle.label, mode: nextMode, custom: `${targetDeg}°` },
+      });
+    }
     return patchAngle(state, id, {
       label: labelFromParse(parsed, text, angle.label, true),
     });

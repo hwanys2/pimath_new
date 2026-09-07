@@ -1,14 +1,39 @@
 import {
   emptyLabel,
   labelUnknownLetter,
-  resolveAngleText,
   resolveLengthText,
   type DiagramStyle,
   type MeasLabel,
 } from "@/lib/diagrams/polygon/model";
 
 export type { DiagramStyle, MeasLabel };
-export { emptyLabel, labelUnknownLetter, resolveAngleText, resolveLengthText };
+
+export function resolveInscribedAngleText(
+  label: MeasLabel,
+  autoDeg: number,
+  unknownLetter: string,
+): string | null {
+  if (label.mode === "hide") return null;
+  if (label.mode === "x") {
+    return `$${labelUnknownLetter(label, unknownLetter)}$`;
+  }
+  const degInt = Math.max(1, Math.round(autoDeg));
+  if (label.mode === "auto") {
+    return `${degInt}°`;
+  }
+  if (label.mode === "custom") {
+    const t = label.custom.trim();
+    if (!t) return null;
+    const numMatch = t.match(/^(\d+(?:\.\d+)?)\s*°?$/);
+    if (numMatch) {
+      return `${degInt}°`;
+    }
+    return t;
+  }
+  return `${degInt}°`;
+}
+
+export { emptyLabel, labelUnknownLetter, resolveInscribedAngleText as resolveAngleText, resolveLengthText };
 
 export type InscribedKind =
   | "central"
@@ -27,6 +52,8 @@ export const INSCRIBED_KINDS: { id: InscribedKind; label: string }[] = [
   { id: "tangent", label: "접선과 현" },
 ];
 
+export type PointDisplayMode = "both" | "dot" | "name" | "none";
+
 export type CircPoint = {
   id: string;
   name: string;
@@ -34,6 +61,7 @@ export type CircPoint = {
   dx: number;
   dy: number;
   showName: boolean;
+  showDot?: boolean;
 };
 
 export type EdgeDraft = {
@@ -101,6 +129,8 @@ export type InscribedState = {
   unknownLetter: string;
   /** When set, these two circumference points stay opposite (지름). */
   diameterPair: [string, string] | null;
+  /** Track order of modified points to preserve recently modified points when resolving constraints. */
+  modifiedPointIds?: string[];
   points: CircPoint[];
   edges: EdgeDraft[];
   angles: AngleDraft[];
@@ -170,6 +200,7 @@ function pt(
     dx: 0,
     dy: 0,
     showName: true,
+    showDot: true,
     ...patch,
   };
 }
@@ -246,6 +277,7 @@ function baseState(partial: Partial<InscribedState>): InscribedState {
     unit: "cm",
     unknownLetter: "x",
     diameterPair: null,
+    modifiedPointIds: [],
     points: [],
     edges: [],
     angles: [],
@@ -266,13 +298,15 @@ export function normalizeState(state: InscribedState): InscribedState {
     unit: state.unit ?? "cm",
     viewRotationDeg: state.viewRotationDeg ?? 0,
     diameterPair: state.diameterPair ?? null,
+    modifiedPointIds: Array.isArray(state.modifiedPointIds) ? state.modifiedPointIds : [],
     style: { ...DEFAULT_STYLE, ...state.style },
     points: (state.points ?? []).map((p) => ({
       ...p,
-      angleDeg: normalizeDeg(p.angleDeg),
+      angleDeg: normalizeDeg(Math.round(p.angleDeg)),
       dx: p.dx ?? 0,
       dy: p.dy ?? 0,
       showName: p.showName !== false,
+      showDot: p.showDot !== undefined ? p.showDot : (state.showDots ?? true),
     })),
     edges: (state.edges ?? []).map((e) => ({ ...e, show: e.show !== false })),
     angles: (state.angles ?? []).map((a) => ({

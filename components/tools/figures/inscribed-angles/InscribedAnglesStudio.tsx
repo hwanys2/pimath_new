@@ -18,13 +18,18 @@ import {
 } from "@/lib/diagrams/export-image";
 import {
   CENTER_ID,
+  applyEditedLabel,
   connectedIds,
   cycleFill,
   angleFillLabel,
   cycleLabelMode,
   deleteSelected,
+  globalPointDisplayMode,
   hasEdge,
+  pointDisplayMode,
   possibleAngles,
+  setAllPointsDisplayMode,
+  setPointDisplayMode,
   toggleEdge,
   toggleRadius,
   upsertAngle,
@@ -48,7 +53,15 @@ import {
   type InscribedKind,
   type InscribedState,
   type MeasLabel,
+  type PointDisplayMode,
 } from "@/lib/diagrams/inscribed-angles/model";
+
+const POINT_DISPLAY_MODES: { id: PointDisplayMode; label: string }[] = [
+  { id: "both", label: "점과이름" },
+  { id: "dot", label: "점" },
+  { id: "name", label: "이름만" },
+  { id: "none", label: "안보임" },
+];
 import { buildInscribedScene } from "@/lib/diagrams/inscribed-angles/scene";
 import { renderSceneToCanvas, sceneToSvg } from "@/lib/diagrams/render";
 import type { FontFaces } from "@/lib/diagrams/math-label";
@@ -370,23 +383,6 @@ export default function InscribedAnglesStudio() {
                 중심
               </ChipToggle>
               <ChipToggle
-                on={state.showDots}
-                onClick={() => set({ showDots: !state.showDots })}
-              >
-                점
-              </ChipToggle>
-              <ChipToggle
-                on={state.points.some((p) => p.showName)}
-                onClick={() => {
-                  const next = !state.points.some((p) => p.showName);
-                  set({
-                    points: state.points.map((p) => ({ ...p, showName: next })),
-                  });
-                }}
-              >
-                점 이름
-              </ChipToggle>
-              <ChipToggle
                 on={Boolean(state.tangent?.show)}
                 onClick={() => {
                   const at = selPoint?.id ?? state.points[0]?.id;
@@ -442,11 +438,64 @@ export default function InscribedAnglesStudio() {
               </ChipToggle>
             </div>
 
+            <div className="mt-2.5">
+              <p className="text-[11px] font-semibold text-foreground/50">점 표시</p>
+              <div className="mt-1 flex flex-wrap gap-1">
+                {POINT_DISPLAY_MODES.map((m) => {
+                  const curMode = globalPointDisplayMode(state);
+                  return (
+                    <button
+                      key={m.id}
+                      type="button"
+                      onClick={() =>
+                        setState((prev) => setAllPointsDisplayMode(prev, m.id))
+                      }
+                      className={`rounded-lg px-2.5 py-1 text-xs font-semibold transition ${
+                        curMode === m.id
+                          ? "bg-wood text-cream shadow-sm"
+                          : "bg-black/5 text-foreground/60 hover:bg-black/10"
+                      }`}
+                    >
+                      {m.label}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
             {selPoint ? (
               <div className="mt-3 space-y-2">
                 <p className="text-[11px] font-semibold text-foreground/50">
                   점 {selPoint.name} · 두 번 누르면 반지름
                 </p>
+                <div>
+                  <p className="text-[11px] font-semibold text-foreground/50">
+                    점 {selPoint.name} 표시
+                  </p>
+                  <div className="mt-1 flex flex-wrap gap-1">
+                    {POINT_DISPLAY_MODES.map((m) => {
+                      const curMode = pointDisplayMode(selPoint, state.showDots);
+                      return (
+                        <button
+                          key={m.id}
+                          type="button"
+                          onClick={() =>
+                            setState((prev) =>
+                              setPointDisplayMode(prev, selPoint.id, m.id),
+                            )
+                          }
+                          className={`rounded-lg px-2 py-1 text-[11px] font-semibold transition ${
+                            curMode === m.id
+                              ? "bg-wood text-cream shadow-sm"
+                              : "bg-black/5 text-foreground/60 hover:bg-black/10"
+                          }`}
+                        >
+                          {m.label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
                 <div className="flex flex-wrap gap-1.5">
                   <ChipToggle
                     on={hasEdge(state, CENTER_ID, selPoint.id)}
@@ -610,14 +659,7 @@ export default function InscribedAnglesStudio() {
                     }))
                   }
                   onCustom={(custom) =>
-                    setState((prev) => ({
-                      ...prev,
-                      angles: prev.angles.map((a) =>
-                        a.id === selAngle.id
-                          ? { ...a, label: { ...a.label, custom } }
-                          : a,
-                      ),
-                    }))
+                    setState((prev) => applyEditedLabel(prev, selAngle.id, custom))
                   }
                 />
               </div>
@@ -668,14 +710,7 @@ export default function InscribedAnglesStudio() {
                     }))
                   }
                   onCustom={(custom) =>
-                    setState((prev) => ({
-                      ...prev,
-                      arcs: prev.arcs.map((a) =>
-                        a.id === selArc.id
-                          ? { ...a, label: { ...a.label, custom } }
-                          : a,
-                      ),
-                    }))
+                    setState((prev) => applyEditedLabel(prev, selArc.id, custom))
                   }
                 />
               </div>

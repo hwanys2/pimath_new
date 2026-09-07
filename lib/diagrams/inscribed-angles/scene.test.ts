@@ -1,12 +1,20 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { applyEditedLabel, movePoint, toggleRadius } from "./geometry";
+import {
+  applyEditedLabel,
+  globalPointDisplayMode,
+  movePoint,
+  pointDisplayMode,
+  setAllPointsDisplayMode,
+  setPointDisplayMode,
+  toggleRadius,
+} from "./geometry";
 import {
   INSCRIBED_PRESETS,
   cloneState,
   resolveAngleText,
 } from "./model";
-import { buildInscribedScene } from "./scene";
+import { buildInscribedScene, sceneTextPlain } from "./scene";
 
 describe("inscribed angle scenes", () => {
   it("builds every preset without empty geometry", () => {
@@ -130,5 +138,130 @@ describe("inscribed angle scenes", () => {
     );
     assert.ok(reflexArc);
     assert.ok(Math.abs(calcSweepDeg(reflexArc) - 220) < 0.5);
+  });
+
+  it("dynamically updates angle and renders natural numbers without decimals when a point moves", () => {
+    const preset = INSCRIBED_PRESETS.find((p) => p.id === "central-70")!;
+    let state = cloneState(preset.state);
+
+    // Initial central angle label is 70° (natural number)
+    const initialScene = buildInscribedScene(state);
+    const initialText = initialScene.texts.find((t) => t.id === "ang:O:A:B");
+    assert.ok(initialText);
+    assert.equal(sceneTextPlain(initialText), "70°");
+
+    // Move B to a new angle position (e.g. angle around 338° instead of 318°)
+    // (B at 338°, A at 248° -> 338 - 248 = 90°)
+    state = movePoint(state, "B", { x: Math.cos((338 * Math.PI) / 180), y: Math.sin((338 * Math.PI) / 180) });
+    const movedScene = buildInscribedScene(state);
+    const movedText = movedScene.texts.find((t) => t.id === "ang:O:A:B");
+    assert.ok(movedText);
+    assert.equal(sceneTextPlain(movedText), "90°");
+    assert.ok(!sceneTextPlain(movedText).includes("."), "Angle must be a natural integer without decimal");
+  });
+
+  it("updates geometry when angle degree is edited, modifying minimum points", () => {
+    const preset = INSCRIBED_PRESETS.find((p) => p.id === "central-70")!;
+    let state = cloneState(preset.state);
+    const initialA = state.points.find((p) => p.id === "A")!.angleDeg;
+    const initialP = state.points.find((p) => p.id === "P")!.angleDeg;
+
+    // Apply target angle 80° to central angle ang:O:A:B
+    state = applyEditedLabel(state, "ang:O:A:B", "80");
+    const updatedScene = buildInscribedScene(state);
+    const angleText = updatedScene.texts.find((t) => t.id === "ang:O:A:B");
+    assert.ok(angleText);
+    assert.equal(sceneTextPlain(angleText), "80°");
+
+    // Exactly one point should have moved (either A or B, but not both, and not P)
+    const newP = state.points.find((p) => p.id === "P")!.angleDeg;
+    assert.equal(newP, initialP, "Uninvolved vertex P should remain unchanged");
+
+    const newA = state.points.find((p) => p.id === "A")!.angleDeg;
+    const newB = state.points.find((p) => p.id === "B")!.angleDeg;
+    const changedCount = (newA !== initialA ? 1 : 0) + (newB !== 318 ? 1 : 0);
+    assert.equal(changedCount, 1, "Only 1 point should move to achieve the target angle");
+  });
+
+  it("preserves previously modified point when adjusting an angle with multiple candidates", () => {
+    const preset = INSCRIBED_PRESETS.find((p) => p.id === "central-70")!;
+    let state = cloneState(preset.state);
+
+    // User modifies point A first
+    state = movePoint(state, "A", { x: Math.cos((240 * Math.PI) / 180), y: Math.sin((240 * Math.PI) / 180) });
+    assert.equal(state.points.find((p) => p.id === "A")!.angleDeg, 240);
+
+    // Now user sets central angle ang:O:A:B to 80°
+    state = applyEditedLabel(state, "ang:O:A:B", "80");
+
+    // Point A was modified first, so Point A should be preserved! Point B should move instead.
+    assert.equal(
+      state.points.find((p) => p.id === "A")!.angleDeg,
+      240,
+      "Previously modified point A must be preserved",
+    );
+    assert.equal(
+      state.points.find((p) => p.id === "B")!.angleDeg,
+      320,
+      "Point B should be adjusted to achieve 80° (240 + 80 = 320)",
+    );
+  });
+
+  it("supports 4 point display modes: both, dot, name, none (global and per-point)", () => {
+    const preset = INSCRIBED_PRESETS.find((p) => p.id === "central-70")!;
+    let state = cloneState(preset.state);
+
+    // Default is "both" (점과이름)
+    assert.equal(globalPointDisplayMode(state), "both");
+    let scene = buildInscribedScene(state);
+    let dotCmds = scene.cmds.filter((c) => c.t === "dot");
+    let nameTexts = scene.texts.filter((t) => t.id.startsWith("pt:") && t.id.endsWith(":name"));
+    assert.equal(dotCmds.length, 4); // 3 circumference points + 1 center
+    assert.equal(nameTexts.length, 3);
+
+    // 1. 점만 (dot only)
+    state = setAllPointsDisplayMode(state, "dot");
+    assert.equal(globalPointDisplayMode(state), "dot");
+    scene = buildInscribedScene(state);
+    dotCmds = scene.cmds.filter((c) => c.t === "dot");
+    nameTexts = scene.texts.filter((t) => t.id.startsWith("pt:") && t.id.endsWith(":name"));
+    assert.equal(dotCmds.length, 4);
+    assert.equal(nameTexts.length, 0);
+
+    // 2. 이름만 (name only)
+    state = setAllPointsDisplayMode(state, "name");
+    assert.equal(globalPointDisplayMode(state), "name");
+    scene = buildInscribedScene(state);
+    dotCmds = scene.cmds.filter((c) => c.t === "dot");
+    nameTexts = scene.texts.filter((t) => t.id.startsWith("pt:") && t.id.endsWith(":name"));
+    assert.equal(dotCmds.length, 1); // only center dot
+    assert.equal(nameTexts.length, 3);
+
+    // 3. 안보임 (none)
+    state = setAllPointsDisplayMode(state, "none");
+    assert.equal(globalPointDisplayMode(state), "none");
+    scene = buildInscribedScene(state);
+    dotCmds = scene.cmds.filter((c) => c.t === "dot");
+    nameTexts = scene.texts.filter((t) => t.id.startsWith("pt:") && t.id.endsWith(":name"));
+    assert.equal(dotCmds.length, 1); // only center dot
+    assert.equal(nameTexts.length, 0);
+
+    // 4. Per-point display mode override
+    // While global is "none", set Point A to "both" and Point B to "name"
+    state = setPointDisplayMode(state, "A", "both");
+    state = setPointDisplayMode(state, "B", "name");
+    assert.equal(pointDisplayMode(state.points.find((p) => p.id === "A")!), "both");
+    assert.equal(pointDisplayMode(state.points.find((p) => p.id === "B")!), "name");
+    assert.equal(pointDisplayMode(state.points.find((p) => p.id === "P")!), "none");
+
+    scene = buildInscribedScene(state);
+    const aDot = scene.cmds.find((c) => c.t === "dot"); // center and A
+    const aText = scene.texts.find((t) => t.id === "pt:A:name");
+    const bText = scene.texts.find((t) => t.id === "pt:B:name");
+    const pText = scene.texts.find((t) => t.id === "pt:P:name");
+    assert.ok(aDot);
+    assert.ok(aText, "Point A name should be visible");
+    assert.ok(bText, "Point B name should be visible");
+    assert.ok(!pText, "Point P name should be hidden");
   });
 });
