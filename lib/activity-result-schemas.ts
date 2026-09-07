@@ -68,12 +68,11 @@ export const SUMMARY_LABELS: Record<string, Record<string, string>> = {
     torchesLeft: "남은 횃불",
     timeLeftSec: "남은 시간(초)",
   },
-  "g3-u3-2-arc-reactor": {
-    wavesCleared: "클리어 웨이브",
-    coresDestroyed: "파괴한 코어",
-    thalesStrikes: "탈레스 90° 타격",
-    overchargeBeams: "중심각 2배 빔",
-    cyclicNovas: "180° 노바 발동",
+  "g3-u3-2-starlight-slingshot": {
+    chaptersCleared: "클리어 챕터",
+    slimesPurified: "정화한 슬라임",
+    thalesSnaps: "탈레스 90° 정렬",
+    overchargeShots: "중심각 2배 샷",
     maxCombo: "최대 콤보",
   },
   "g1-u2-2-linear-equation-balance": {
