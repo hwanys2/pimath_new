@@ -158,6 +158,16 @@ export const CONTENTS: ContentMeta[] = [
       "분자·분모를 넣으면 소수로 바꾸고, 순환마디 길이와 한국식 순환 표기를 보여 주는 시뮬레이션입니다. 점수는 없어요.",
   },
   {
+    key: "g2-u2-4-slope-alkagi",
+    unitId: "g2-2-4",
+    type: "game",
+    title: "기울기 알까기",
+    href: "/play/g2-u2-4-slope-alkagi",
+    awardsXp: true,
+    description:
+      "일차함수의 기울기와 발사 파워를 조절하여 상대 바둑알을 밀쳐내는 1:1 알까기 게임입니다. 컴퓨터·같은 반·전체 매칭. 학급 배정·활성 시 XP와 랭킹이 쌓여요.",
+  },
+  {
     key: "g2-u3-1-quadrilateral-maker",
     unitId: "g2-3-1",
     type: "game",

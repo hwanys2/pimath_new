@@ -158,6 +158,7 @@ supabase/migrations/
 | 게임 | contentKey | match lib | 컴포넌트 |
 |------|------------|-----------|----------|
 | 순서쌍 오목 | `g1-u2-3-ordered-pair-omok` | `lib/omok-match.ts` | `OrderedPairOmok.tsx` |
+| 기울기 알까기 | `g2-u2-4-slope-alkagi` | `lib/alkagi-match.ts` | `AlkagiGame.tsx` |
 | 사각형 만들기 | `g2-u3-1-quadrilateral-maker` | `lib/quad-match.ts` | `QuadrilateralMaker.tsx` |
 | 정사각형 만들기 | `g3-u1-square-maker` | `lib/sq-match.ts` | `SquareMaker.tsx` |
 

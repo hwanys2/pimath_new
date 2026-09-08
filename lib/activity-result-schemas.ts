@@ -134,10 +134,11 @@ export function summaryLabel(contentKey: string, key: string): string {
 }
 
 /** PvP content keys → pm_teacher_list_pvp_games table arg */
-export const PVP_TABLE_BY_CONTENT: Record<string, "omok" | "quad" | "sq"> = {
+export const PVP_TABLE_BY_CONTENT: Record<string, "omok" | "quad" | "sq" | "alkagi"> = {
   "g1-u2-3-ordered-pair-omok": "omok",
   "g2-u3-1-quadrilateral-maker": "quad",
   "g3-u1-square-maker": "sq",
+  "g2-u2-4-slope-alkagi": "alkagi",
 };
 
 /** Session game content keys → pm_teacher_list_session_players game arg */
