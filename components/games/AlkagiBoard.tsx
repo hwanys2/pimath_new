@@ -17,6 +17,7 @@ type Props = {
   slope: number | null;
   isVertical: boolean;
   disabled?: boolean;
+  showGuideLine?: boolean;
   animFrames?: SimulationFrame[] | null;
   onSelectStone: (stone: AlkagiStone) => void;
   onAimSlopeChange: (slope: number | null, isVertical: boolean) => void;
@@ -48,6 +49,7 @@ export default function AlkagiBoard({
   slope,
   isVertical,
   disabled = false,
+  showGuideLine = true,
   animFrames = null,
   onSelectStone,
   onAimSlopeChange,
@@ -190,9 +192,9 @@ export default function AlkagiBoard({
     }
   }
 
-  // Pointer drag aiming on the board
+  // Pointer drag aiming on the board (only when guide line is enabled)
   const handlePointerDown = (e: React.PointerEvent) => {
-    if (disabled || !selectedStone || turn !== myColor) return;
+    if (disabled || !selectedStone || turn !== myColor || !showGuideLine) return;
     isDraggingAimRef.current = true;
     const pt = fromSvgCoords(e.clientX, e.clientY);
     if (pt) {
@@ -202,7 +204,7 @@ export default function AlkagiBoard({
   };
 
   const handlePointerMove = (e: React.PointerEvent) => {
-    if (!isDraggingAimRef.current || disabled || !selectedStone) return;
+    if (!isDraggingAimRef.current || disabled || !selectedStone || !showGuideLine) return;
     const pt = fromSvgCoords(e.clientX, e.clientY);
     if (pt) {
       const aim = calculateSlopeFromPoints(selectedStone, pt);
@@ -381,8 +383,8 @@ export default function AlkagiBoard({
           y
         </text>
 
-        {/* Slope Trajectory Line passing through selected stone */}
-        {selectedStone && (
+        {/* Slope Trajectory Line passing through selected stone (only on first turn) */}
+        {selectedStone && showGuideLine && (
           <g className="pointer-events-none">
             {/* Clip path inside board */}
             <clipPath id="boardClip">
@@ -442,6 +444,7 @@ export default function AlkagiBoard({
                 }
               }}
             >
+              <title>{`${stone.color === "black" ? "흑돌" : "백돌"} (${Math.round(stone.x * 10) / 10}, ${Math.round(stone.y * 10) / 10})`}</title>
               {/* Selection pulse ring */}
               {isSelected && (
                 <circle

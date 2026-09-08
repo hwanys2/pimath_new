@@ -7,7 +7,6 @@ import AlkagiControls from "./AlkagiControls";
 import AlkagiSlider from "./AlkagiSlider";
 import AlkagiRatingBoard from "./AlkagiRatingBoard";
 import {
-  alkagiClaimResultAction,
   alkagiExpandGlobalAction,
   alkagiFetchRatingRankingAction,
   alkagiFinishWithRatingAction,
@@ -27,7 +26,6 @@ import {
   resolvePvpPollChannel,
   startHybridVisiblePoll,
 } from "@/lib/session-sync";
-import { isDocumentHidden, startVisibleInterval } from "@/lib/visible-interval";
 import type {
   AlkagiOutcome,
   AlkagiPollState,
@@ -36,11 +34,9 @@ import type {
   AlkagiStone,
   AlkagiStoneColor,
 } from "@/lib/alkagi-types";
-import { ALKAGI_TURN_SECONDS } from "@/lib/alkagi-types";
 import {
   chooseAiAlkagiShot,
   createInitialStones,
-  opponentColor,
   simulateAlkagiShot,
   type SimulationFrame,
 } from "@/lib/alkagi-physics";
@@ -81,7 +77,9 @@ export default function AlkagiGame() {
   const [canUseClass, setCanUseClass] = useState(false);
   const [playerName, setPlayerName] = useState<string | null>(null);
   const [queueScope, setQueueScope] = useState<AlkagiQueueScope>("class");
-  const [guestId, setGuestId] = useState("");
+  const [guestId, setGuestId] = useState(() =>
+    typeof window !== "undefined" ? ensureGuestId() : "",
+  );
   const [gameId, setGameId] = useState<string | null>(null);
 
   // Game state
@@ -106,7 +104,9 @@ export default function AlkagiGame() {
   const [ranking, setRanking] = useState<RankingRow[]>([]);
   const [rankingScope, setRankingScope] = useState<RankingScope>("class");
   const [rankingLoading, setRankingLoading] = useState(false);
+  const [moveCount, setMoveCount] = useState(0);
   const [requeueSecondsLeft, setRequeueSecondsLeft] = useState<number | null>(null);
+  const [requeueDeadline, setRequeueDeadline] = useState<number | null>(null);
 
   const endingRef = useRef(false);
   const aiThinkingRef = useRef(false);
@@ -164,8 +164,10 @@ export default function AlkagiGame() {
 
   // Init identity
   useEffect(() => {
-    setGuestId(ensureGuestId());
     void (async () => {
+      const gId = ensureGuestId();
+      setGuestId(gId);
+      guestIdRef.current = gId;
       const ctx = await alkagiLobbyContextAction();
       setCanUseClass(ctx.canUseClass);
       setPlayerName(ctx.playerName);
@@ -186,7 +188,7 @@ export default function AlkagiGame() {
       clearInterval(requeueIntervalRef.current);
       requeueIntervalRef.current = null;
     }
-    setRequeueSecondsLeft(null);
+    setRequeueDeadline(null);
   }, []);
 
   const finishWithOutcome = useCallback(
@@ -200,6 +202,7 @@ export default function AlkagiGame() {
       const runScore = result === "win" ? 300 : result === "draw" ? 150 : 100;
 
       if (modeRef.current === "pvp") {
+        setRequeueDeadline(Date.now() + PVP_REMATCH_SECONDS * 1000);
         const rating = await alkagiFinishWithRatingAction({
           outcome: result,
           runScore,
@@ -231,7 +234,6 @@ export default function AlkagiGame() {
   // Turn timer countdown
   useEffect(() => {
     if (screen !== "playing" || !turnDeadline) {
-      setSecondsLeft(null);
       return;
     }
     const updateTime = () => {
@@ -291,6 +293,7 @@ export default function AlkagiGame() {
         setTurnDeadline(state.turnDeadline);
         if (state.opponentName) setOpponentName(state.opponentName);
         if (state.myColor) setMyColor(state.myColor);
+        setMoveCount(state.moveCount);
 
         snapshotRef.current = {
           gameId: state.gameId,
@@ -354,18 +357,6 @@ export default function AlkagiGame() {
     [stopPoll, pollOnce, applyPollPlaying],
   );
 
-  // Auto-select first alive stone for current turn
-  useEffect(() => {
-    if (!turn) return;
-    const isMine = (mode === "ai" && turn === "black") || (mode === "pvp" && turn === myColor);
-    if (isMine) {
-      const myAlive = stones.filter((s) => s.color === turn && s.alive);
-      if (myAlive.length > 0 && (!selectedStoneId || !myAlive.some((s) => s.id === selectedStoneId))) {
-        setSelectedStoneId(myAlive[0]!.id);
-      }
-    }
-  }, [turn, stones, myColor, mode, selectedStoneId]);
-
   // AI Turn Handling
   useEffect(() => {
     if (mode !== "ai" || screen !== "playing" || turn !== "white" || animating || endingRef.current) {
@@ -423,6 +414,7 @@ export default function AlkagiGame() {
       } else {
         // Pass turn in AI mode
         if (modeRef.current === "ai") {
+          setMoveCount((prev) => prev + 1);
           setTurn((prev) => (prev === "black" ? "white" : "black"));
           setStatusMsg("");
         }
@@ -434,13 +426,19 @@ export default function AlkagiGame() {
   const handleFire = useCallback(
     async (direction: "left" | "right", power: number) => {
       if (animating || endingRef.current) return;
-      if (!selectedStoneId) {
+      const myTurnColor = mode === "ai" ? "black" : myColor;
+      const targetStoneId =
+        selectedStoneId && stones.some((s) => s.id === selectedStoneId && s.alive && s.color === myTurnColor)
+          ? selectedStoneId
+          : stones.find((s) => s.color === myTurnColor && s.alive)?.id ?? null;
+
+      if (!targetStoneId) {
         alert("먼저 판에서 발사할 내 바둑알을 클릭하세요!");
         return;
       }
 
       const shot: AlkagiShot = {
-        stoneId: selectedStoneId,
+        stoneId: targetStoneId,
         slope,
         isVertical,
         direction,
@@ -478,42 +476,45 @@ export default function AlkagiGame() {
         placingRef.current = false;
       }
     },
-    [animating, selectedStoneId, slope, isVertical, mode, stones],
+    [animating, selectedStoneId, slope, isVertical, mode, myColor, stones],
   );
 
   // Matchmaking actions
-  const startMatchmaking = async (scope: AlkagiQueueScope) => {
-    clearRequeueTimer();
-    endingRef.current = false;
-    setMode("pvp");
-    setQueueScope(scope);
-    setScreen("waiting");
+  const startMatchmaking = useCallback(
+    async (scope: AlkagiQueueScope) => {
+      clearRequeueTimer();
+      endingRef.current = false;
+      setMode("pvp");
+      setQueueScope(scope);
+      setScreen("waiting");
 
-    const joined = await alkagiJoinQueueAction({
-      scope,
-      guestId: guestIdRef.current,
-    });
+      const joined = await alkagiJoinQueueAction({
+        scope,
+        guestId: guestIdRef.current,
+      });
 
-    if ("error" in joined) {
-      alert(joined.error);
-      setScreen("lobby");
-      return;
-    }
+      if ("error" in joined) {
+        alert(joined.error);
+        setScreen("lobby");
+        return;
+      }
 
-    notifyPvpJoinResult(CONTENT_KEY, {
-      gameId: joined.gameId,
-      scope: joined.scope,
-      classId: joined.classId,
-    });
+      notifyPvpJoinResult(CONTENT_KEY, {
+        gameId: joined.gameId,
+        scope: joined.scope,
+        classId: joined.classId,
+      });
 
-    if (joined.gameId) {
-      setGameId(joined.gameId);
-      setScreen("playing");
-      startPoll(joined.gameId);
-    } else {
-      startPoll(null);
-    }
-  };
+      if (joined.gameId) {
+        setGameId(joined.gameId);
+        setScreen("playing");
+        startPoll(joined.gameId);
+      } else {
+        startPoll(null);
+      }
+    },
+    [clearRequeueTimer, startPoll],
+  );
 
   const cancelWait = async () => {
     stopPoll();
@@ -539,6 +540,12 @@ export default function AlkagiGame() {
     clearRequeueTimer();
     stopPoll();
     if (mode === "pvp") {
+      if (gameIdRef.current && screen === "playing") {
+        await alkagiForfeitGameAction({
+          gameId: gameIdRef.current,
+          guestId: guestIdRef.current,
+        });
+      }
       await alkagiLeaveQueueAction({ guestId: guestIdRef.current });
     }
     setScreen("lobby");
@@ -546,6 +553,7 @@ export default function AlkagiGame() {
     setStones(createInitialStones());
     setTurn("black");
     setGameId(null);
+    setMoveCount(0);
   };
 
   const startAiGame = () => {
@@ -563,6 +571,7 @@ export default function AlkagiGame() {
     setAnimating(false);
     setOutcome(null);
     endingRef.current = false;
+    setMoveCount(0);
     setScreen("playing");
   };
 
@@ -576,32 +585,59 @@ export default function AlkagiGame() {
     setAnimFrames(null);
     setAnimating(false);
     setGameId(null);
+    setMoveCount(0);
     await startMatchmaking(queueScopeRef.current);
-  }, [clearRequeueTimer]);
+  }, [clearRequeueTimer, startMatchmaking]);
 
   useEffect(() => {
-    if (screen !== "ended" || mode !== "pvp") {
-      clearRequeueTimer();
+    if (screen !== "ended" || mode !== "pvp" || !requeueDeadline) {
       return;
     }
-    setRequeueSecondsLeft(PVP_REMATCH_SECONDS);
-    requeueIntervalRef.current = setInterval(() => {
-      setRequeueSecondsLeft((prev) => {
-        if (prev == null || prev <= 1) {
-          clearRequeueTimer();
-          void triggerPvpRequeue();
-          return 0;
+    const interval = setInterval(() => {
+      const remaining = Math.max(0, Math.ceil((requeueDeadline - Date.now()) / 1000));
+      setRequeueSecondsLeft(remaining);
+      if (remaining <= 0) {
+        if (requeueIntervalRef.current) {
+          clearInterval(requeueIntervalRef.current);
+          requeueIntervalRef.current = null;
         }
-        return prev - 1;
-      });
-    }, 1000);
-    return () => clearRequeueTimer();
-  }, [screen, mode, clearRequeueTimer, triggerPvpRequeue]);
+        void triggerPvpRequeue();
+      }
+    }, 500);
+    requeueIntervalRef.current = interval;
+    return () => {
+      clearInterval(interval);
+      requeueIntervalRef.current = null;
+    };
+  }, [screen, mode, requeueDeadline, triggerPvpRequeue]);
 
-  const selectedStone = stones.find((s) => s.id === selectedStoneId) ?? null;
+  const currentTurnColor = mode === "ai" ? "black" : myColor;
   const isMyTurn =
     (mode === "ai" && turn === "black") ||
     (mode === "pvp" && turn === myColor);
+  const myAliveStones = stones.filter(
+    (s) => s.color === currentTurnColor && s.alive,
+  );
+  const activeSelectedStoneId =
+    selectedStoneId && myAliveStones.some((s) => s.id === selectedStoneId)
+      ? selectedStoneId
+      : isMyTurn && myAliveStones.length > 0
+        ? myAliveStones[0]!.id
+        : selectedStoneId;
+
+  const selectedStone =
+    stones.find((s) => s.id === activeSelectedStoneId) ?? null;
+  const isMyFirstTurn =
+    mode === "ai"
+      ? moveCount === 0
+      : myColor === "black"
+        ? moveCount === 0
+        : moveCount === 1;
+  const showGuideLine = isMyFirstTurn;
+  const displaySecondsLeft =
+    screen === "playing" && turnDeadline ? secondsLeft : null;
+  const displayRequeueSeconds =
+    screen === "ended" && mode === "pvp" ? requeueSecondsLeft : null;
 
   return (
     <div className="mx-auto max-w-5xl space-y-6">
@@ -611,9 +647,16 @@ export default function AlkagiGame() {
           <section className="quest-card overflow-hidden bg-gradient-to-br from-amber-50 via-peach/30 to-gold/20 p-6 sm:p-8">
             <div className="flex flex-wrap items-center justify-between gap-4">
               <div>
-                <span className="rounded-full bg-amber-500/20 px-3 py-1 text-xs font-black text-amber-900 ring-1 ring-amber-500/30">
-                  중2-4 · 일차함수와 그래프
-                </span>
+                <div className="flex items-center gap-2">
+                  <span className="rounded-full bg-amber-500/20 px-3 py-1 text-xs font-black text-amber-900 ring-1 ring-amber-500/30">
+                    중2-4 · 일차함수와 그래프
+                  </span>
+                  {playerName && (
+                    <span className="rounded-full bg-wood/10 px-2.5 py-0.5 text-xs font-bold text-wood">
+                      {playerName}
+                    </span>
+                  )}
+                </div>
                 <h1 className="font-display mt-2 text-3xl text-wood sm:text-4xl">
                   기울기 알까기
                 </h1>
@@ -750,7 +793,11 @@ export default function AlkagiGame() {
             >
               <span className="h-4 w-4 rounded-full bg-slate-900 ring-2 ring-white/50" />
               <span className="text-xs font-bold">
-                {mode === "ai" ? "나 (흑)" : myColor === "black" ? "나 (흑)" : opponentName}
+                {mode === "ai"
+                  ? "나 (흑)"
+                  : myColor === "black"
+                    ? playerName ? `${playerName} (흑)` : "나 (흑)"
+                    : opponentName}
               </span>
               <span className="rounded bg-white/20 px-1.5 py-0.5 text-[10px] font-mono font-black">
                 {stones.filter((s) => s.color === "black" && s.alive).length}개
@@ -768,9 +815,9 @@ export default function AlkagiGame() {
               >
                 {statusMsg || (isMyTurn ? "내 턴!" : "상대방 턴")}
               </span>
-              {secondsLeft != null && (
+              {displaySecondsLeft != null && (
                 <span className="font-mono text-xs font-black tabular-nums text-wood">
-                  ⏱ {secondsLeft}초
+                  ⏱ {displaySecondsLeft}초
                 </span>
               )}
             </div>
@@ -785,7 +832,11 @@ export default function AlkagiGame() {
             >
               <span className="h-4 w-4 rounded-full bg-white ring-2 ring-slate-300" />
               <span className="text-xs font-bold">
-                {mode === "ai" ? "컴퓨터 (백)" : myColor === "white" ? "나 (백)" : opponentName}
+                {mode === "ai"
+                  ? "컴퓨터 (백)"
+                  : myColor === "white"
+                    ? playerName ? `${playerName} (백)` : "나 (백)"
+                    : opponentName}
               </span>
               <span className="rounded bg-black/10 px-1.5 py-0.5 text-[10px] font-mono font-black">
                 {stones.filter((s) => s.color === "white" && s.alive).length}개
@@ -808,12 +859,13 @@ export default function AlkagiGame() {
             <div>
               <AlkagiBoard
                 stones={stones}
-                selectedStoneId={selectedStoneId}
+                selectedStoneId={activeSelectedStoneId}
                 turn={turn}
                 myColor={myColor}
                 slope={slope}
                 isVertical={isVertical}
                 disabled={!isMyTurn || animating}
+                showGuideLine={showGuideLine}
                 animFrames={animFrames}
                 onSelectStone={(s) => setSelectedStoneId(s.id)}
                 onAimSlopeChange={(s, v) => {
@@ -822,9 +874,17 @@ export default function AlkagiGame() {
                 }}
                 onAnimationComplete={handleAnimationComplete}
               />
-              <p className="mt-2 text-center text-[11px] text-wood/60">
-                💡 보드에서 내 바둑알을 클릭한 뒤 원하는 방향을 누르거나 드래그하면 기울기가 자동 조준됩니다.
-              </p>
+              <div className="mt-2.5 text-center">
+                {showGuideLine ? (
+                  <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-100/90 px-3.5 py-1 text-xs font-bold text-amber-900 ring-1 ring-amber-400 shadow-sm animate-pulse">
+                    ✨ 첫 턴 보조선 안내 (다음 턴부터는 보조선 없이 암산으로 조준해요!)
+                  </span>
+                ) : (
+                  <span className="inline-flex items-center gap-1.5 rounded-full bg-wood/10 px-3.5 py-1 text-xs font-bold text-wood/80 ring-1 ring-wood/15">
+                    🎯 실전 모드: 보조선 숨김 (내 돌과 상대 돌 좌표로 기울기 m = Δy/Δx 를 계산하세요!)
+                  </span>
+                )}
+              </div>
             </div>
 
             {/* Right: Controls & Oscillating Slider */}
@@ -884,18 +944,28 @@ export default function AlkagiGame() {
                   <p className="font-mono text-xl font-black text-wood">
                     {totalAfter}점
                   </p>
+                  {practiceOnly && (
+                    <span className="block text-[11px] font-bold text-amber-700">
+                      (연습 게임)
+                    </span>
+                  )}
                 </div>
               </div>
+              {xpMessage && (
+                <p className="mt-2 text-center text-xs font-bold text-amber-800">
+                  {xpMessage}
+                </p>
+              )}
             </div>
           )}
 
           {/* §7 Requeue Countdown & Controls */}
           {mode === "pvp" ? (
             <div className="space-y-3 pt-2">
-              {requeueSecondsLeft != null && (
+              {displayRequeueSeconds != null && (
                 <div className="space-y-1">
                   <p className="text-sm font-black text-amber-800">
-                    {requeueSecondsLeft}초 후 새 상대를 찾아요
+                    {displayRequeueSeconds}초 후 새 상대를 찾아요
                   </p>
                   <p className="text-xs text-foreground/50">
                     직전 상대와는 20초간 다시 매칭되지 않아요
