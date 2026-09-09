@@ -23,12 +23,15 @@ import {
 } from "@/lib/diagrams/export-image";
 import {
   applyEditedLabel,
+  applySegNumeric,
   interiorAngleDeg,
   quadDiagAngleDeg,
   rebuildRightForRightVertex,
   rebuildTriangleFromLegs,
+  resolveSegText,
   segDisplayName,
   segLength,
+  setLengthDisplayText,
   setQuadFamily,
   setRotateDeg,
   setThetaDeg,
@@ -924,7 +927,7 @@ export default function TrigRatiosStudio() {
                 <NumberField
                   label={`${selected.id === "AC" || selected.id === "BD" ? "대각선 " : "선분 "}${selected.id} 길이 값`}
                   value={Number(segLength(state, selSeg).toFixed(1))}
-                  onChange={(n) => setState((prev) => applyEditedLabel(prev, `s:${selected.id}`, String(n)))}
+                  onChange={(n) => setState((prev) => applySegNumeric(prev, selected.id, n))}
                   min={0.5}
                   max={40}
                   step={0.1}
@@ -936,10 +939,20 @@ export default function TrigRatiosStudio() {
                   custom={selSeg.label.custom}
                   unknownLetter={state.unknownLetter}
                   onMode={(mode) =>
-                    setState((prev) => patchSegState(prev, selected.id, { label: { ...selSeg.label, mode } }))
+                    setState((prev) => {
+                      const seg = findSeg(prev, selected.id);
+                      if (!seg) return prev;
+                      let custom = seg.label.custom;
+                      if (mode === "custom" && !custom.trim()) {
+                        custom = resolveSegText(prev, seg) ?? "";
+                      }
+                      return patchSegState(prev, selected.id, {
+                        label: { ...seg.label, mode, custom },
+                      });
+                    })
                   }
                   onCustom={(custom) =>
-                    setState((prev) => applyEditedLabel(prev, `s:${selected.id}`, custom))
+                    setState((prev) => setLengthDisplayText(prev, selected.id, custom))
                   }
                 />
               </div>
@@ -1167,14 +1180,21 @@ function AngleDisplayPanel({
     else setState((prev) => patchAngleState(prev, angId, { fill: next }));
   }
 
-  function setLabelMode(mode: MeasLabel["mode"]) {
-    const next = { ...label, mode };
+  function patchLabel(next: MeasLabel) {
     if (angId === "theta") set({ thetaLabel: next });
     else if (angId === "y") set({ yAngleLabel: next });
     else if (angId === "z") set({ zAngleLabel: next });
     else if (quad) setState((prev) => patchQuadInterior(prev, quadIndex, { interior: next }));
     else if (isQuadDiag) setState((prev) => patchQuadDiagAngle(prev, angId, { label: next }));
     else setState((prev) => patchAngleState(prev, angId, { label: next }));
+  }
+
+  function setLabelMode(mode: MeasLabel["mode"]) {
+    patchLabel({ ...label, mode });
+  }
+
+  function setLabelCustom(custom: string) {
+    patchLabel({ ...label, mode: "custom", custom });
   }
 
   const deg = currentAngleDeg(state, angId);
@@ -1213,7 +1233,7 @@ function AngleDisplayPanel({
         custom={label.custom}
         unknownLetter={state.unknownLetter}
         onMode={setLabelMode}
-        onCustom={(custom) => setState((prev) => applyEditedLabel(prev, labelId, custom))}
+        onCustom={setLabelCustom}
       />
       <p className="text-[11px] leading-snug text-foreground/45">
         크기를 숨기면 호만 남아요. 색을 끄면 검정 호만 그려요.

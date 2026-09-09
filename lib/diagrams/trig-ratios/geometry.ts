@@ -21,9 +21,8 @@ import {
   type Vec,
 } from "@/lib/diagrams/polygon/model";
 import {
+  exactRadicalLabel,
   formatHypotenuseLabel,
-  formatRadicalLength,
-  simplifySqrtInt,
 } from "@/lib/diagrams/pythagorean/radical";
 import {
   altitudeFootId,
@@ -585,28 +584,7 @@ export function toggleSeg(state: TrigRatiosState, id: string): TrigRatiosState {
 }
 
 function formatComputedLength(length: number, unit: string): string {
-  const radical = exactRadicalLength(length, unit);
-  return radical ?? formatMeasure(length, unit);
-}
-
-function exactRadicalLength(length: number, unit: string): string | null {
-  if (!(length > 0) || !Number.isFinite(length)) return null;
-  const sq = length * length;
-  const intSq = Math.round(sq);
-  if (intSq > 0 && Math.abs(sq - intSq) < 1e-3) {
-    const { coeff, radicand } = simplifySqrtInt(intSq);
-    if (coeff > 0 && radicand > 1) return formatRadicalLength(coeff, radicand, unit);
-  }
-  for (let rad = 2; rad <= 15; rad += 1) {
-    const q = length / Math.sqrt(rad);
-    const coeff = Math.round(q);
-    if (coeff < 1) continue;
-    if (Math.abs(q - coeff) < 1e-3) {
-      const { coeff: c, radicand } = simplifySqrtInt(coeff * coeff * rad);
-      if (c > 0 && radicand > 1) return formatRadicalLength(c, radicand, unit);
-    }
-  }
-  return null;
+  return exactRadicalLabel(length, unit) ?? formatMeasure(length, unit);
 }
 
 function formatRightSegComputed(state: TrigRatiosState, seg: SegMark, length: number): string {
@@ -653,8 +631,6 @@ export function resolveAngleLabel(
   if (label.mode === "hide") return null;
   if (label.mode === "custom") {
     const text = label.custom.trim();
-    const parsed = parseAngleInput(text);
-    if (parsed.kind === "number") return `${Math.round(deg * 10) / 10}°`;
     return text ? normalizeSqrtLabel(text) : `${Math.round(deg * 10) / 10}°`;
   }
   if (label.mode === "x") return `$${labelUnknownLetter(label, state.unknownLetter)}$`;
@@ -670,8 +646,6 @@ export function resolveUnitAngleLabel(
   if (label.mode === "x") return `$${labelUnknownLetter(label, state.unknownLetter)}$`;
   if (label.mode === "custom") {
     const text = label.custom.trim();
-    const parsed = parseAngleInput(text);
-    if (parsed.kind === "number") return formatThetaLabel(deg);
     return text ? normalizeSqrtLabel(text) : formatThetaLabel(deg);
   }
   return formatThetaLabel(deg);
@@ -1174,6 +1148,22 @@ function tanIsLeftOverRight(state: TrigRatiosState, angId: string): boolean {
   return Math.abs(tan - left / right) <= Math.abs(tan - right / left);
 }
 
+/** 길이 표시 '직접': 글씨만 바꾸고 도형은 그대로 둔다. */
+export function setLengthDisplayText(
+  state: TrigRatiosState,
+  segId: string,
+  text: string,
+): TrigRatiosState {
+  const prev =
+    state.kind === "quad-area"
+      ? segId === "AC" || segId === "BD"
+        ? state.quadDiagEdges?.[segId]?.length
+        : state.quadEdges[["AB", "BC", "CD", "DA"].indexOf(segId)]?.length
+      : findSeg(state, segId)?.label;
+  if (!prev) return state;
+  return patchShownLength(state, segId, { ...prev, mode: "custom", custom: text });
+}
+
 function patchShownLength(
   state: TrigRatiosState,
   segId: string,
@@ -1331,7 +1321,7 @@ export function applyEditedLabel(
   return state;
 }
 
-function applySegNumeric(state: TrigRatiosState, segId: string, value: number): TrigRatiosState {
+export function applySegNumeric(state: TrigRatiosState, segId: string, value: number): TrigRatiosState {
   const target = clamp(value, 0.4, 40);
   if (state.kind === "quad-area") {
     if (segId === "AC" || segId === "BD") {

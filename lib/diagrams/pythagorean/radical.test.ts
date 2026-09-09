@@ -3,6 +3,7 @@ import { describe, it } from "node:test";
 import { normalizeSqrtLabel, parseMathRuns } from "@/lib/diagrams/math-label";
 import { resolveSegText } from "./geometry";
 import {
+  exactRadicalLabel,
   formatHypotenuseLabel,
   formatRadicalLength,
   simplifySqrtInt,
@@ -57,5 +58,19 @@ describe("pythagorean radical", () => {
 describe("formatRadicalLength", () => {
   it("omits radical when perfect square", () => {
     assert.equal(formatRadicalLength(5, 1, "cm"), "5 cm");
+  });
+
+  it("formats a√b / c", () => {
+    assert.equal(formatRadicalLength(10, 3, "cm", 3), "$\\frac{10\\sqrt{3}}{3}$ cm");
+  });
+});
+
+describe("exactRadicalLabel", () => {
+  it("matches 30-60-90 sides and integer multiples of √n", () => {
+    assert.equal(exactRadicalLabel(10 / Math.sqrt(3), "cm"), "$\\frac{10\\sqrt{3}}{3}$ cm");
+    assert.equal(exactRadicalLabel(20 / Math.sqrt(3), "cm"), "$\\frac{20\\sqrt{3}}{3}$ cm");
+    assert.equal(exactRadicalLabel(2 * Math.sqrt(3), "cm"), "$2\\sqrt{3}$ cm");
+    assert.equal(exactRadicalLabel(Math.sqrt(3), "cm"), "$\\sqrt{3}$ cm");
+    assert.equal(exactRadicalLabel(5.8, "cm"), null);
   });
 });

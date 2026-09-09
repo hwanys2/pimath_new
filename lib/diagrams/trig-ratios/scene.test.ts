@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
   applyEditedLabel,
+  applySegNumeric,
   draggableIds,
   findSeg,
   hitTestTrig,
@@ -18,6 +19,7 @@ import {
   quadDiagonalIntersection,
   quadDiagAngleDeg,
   segLength,
+  setLengthDisplayText,
   setQuadFamily,
   setRotateDeg,
   trianglePoints,
@@ -519,7 +521,7 @@ describe("trig-ratios scene", () => {
     almost(segLength(next, findSeg(next, "AB")!), (5 / 3) * Math.sqrt(3), 1e-3);
     assert.equal(resolveSegText(next, findSeg(next, "BC")!), "5");
     const abText = resolveSegText(next, findSeg(next, "AB")!);
-    assert.equal(abText, "2.89 cm");
+    assert.equal(abText, "$\\frac{5\\sqrt{3}}{3}$ cm");
   });
 
   it("keeps unknown length letters after a numeric side edit", () => {
@@ -539,6 +541,43 @@ describe("trig-ratios scene", () => {
     almost(segLength(next, findSeg(next, "BC")!), 3, 1e-4);
     assert.equal(resolveSegText(next, findSeg(next, "AB")!), "5 cm");
     assert.equal(resolveSegText(next, findSeg(next, "BC")!), "3 cm");
+  });
+
+  it("직접 length text only changes the label, not the triangle", () => {
+    const start = rebuildTriangleFromLegs(
+      normalizeState(cloneState(TRIG_PRESETS.find((p) => p.id === "right-306090")!.state)),
+      10,
+      10 / Math.sqrt(3),
+    );
+    const ac0 = segLength(start, findSeg(start, "AC")!);
+    const angB0 = interiorAngleDeg([start.A, start.B, start.C], 1);
+    const next = setLengthDisplayText(start, "AC", "5.7");
+    almost(segLength(next, findSeg(next, "AC")!), ac0, 1e-6);
+    almost(interiorAngleDeg([next.A, next.B, next.C], 1), angB0, 1e-6);
+    assert.equal(findSeg(next, "AC")!.label.mode, "custom");
+    assert.equal(resolveSegText(next, findSeg(next, "AC")!), "5.7");
+    const fromValue = applySegNumeric(next, "AC", 8);
+    almost(segLength(fromValue, findSeg(fromValue, "AC")!), 8, 0.2);
+    assert.equal(resolveSegText(fromValue, findSeg(fromValue, "AC")!), "5.7");
+  });
+
+  it("shows 30-60-90 sides as simplified radicals, not decimals", () => {
+    const start = rebuildTriangleFromLegs(
+      normalizeState(cloneState(TRIG_PRESETS.find((p) => p.id === "right-306090")!.state)),
+      10,
+      10 / Math.sqrt(3),
+    );
+    const shown = {
+      ...start,
+      segs: start.segs.map((s) => ({
+        ...s,
+        show: true,
+        label: { ...s.label, mode: "auto" as const, custom: "" },
+      })),
+    };
+    assert.equal(resolveSegText(shown, findSeg(shown, "BC")!), "10 cm");
+    assert.equal(resolveSegText(shown, findSeg(shown, "AC")!), "$\\frac{10\\sqrt{3}}{3}$ cm");
+    assert.equal(resolveSegText(shown, findSeg(shown, "AB")!), "$\\frac{20\\sqrt{3}}{3}$ cm");
   });
 
   it("shows the √3·3 hypotenuse as 2√3, not a decimal", () => {
