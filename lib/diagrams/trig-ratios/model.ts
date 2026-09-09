@@ -45,12 +45,17 @@ export type NameMark = {
 
 export type PointDisplay = "names" | "dots" | "hidden";
 
+export type SegLineStyle = "solid" | "dashed" | "hidden";
+
 export type SegMark = {
   id: string;
   a: string;
   b: string;
   show: boolean;
   label: MeasLabel;
+  lineStyle?: SegLineStyle;
+  dashed?: boolean;
+  hidden?: boolean;
 };
 
 export type AngleMark = {
@@ -126,6 +131,7 @@ export type TrigRatiosState = {
   thetaFill: AngleFill;
   yAngleFill: AngleFill;
   zAngleFill: AngleFill;
+  unitSegs: SegMark[];
 
   /** triangle area */
   triA: Vec;
@@ -299,6 +305,9 @@ function seg(a: string, b: string, show = false, label?: MeasLabel): SegMark {
     b,
     show,
     label: label ?? emptyLabel("auto"),
+    lineStyle: "solid",
+    dashed: false,
+    hidden: false,
   };
 }
 
@@ -346,6 +355,16 @@ function defaultRightNames(): Record<string, NameMark> {
 
 function defaultRightSegs(): SegMark[] {
   return [seg("A", "B"), seg("B", "C"), seg("A", "C")];
+}
+
+export function defaultUnitSegs(): SegMark[] {
+  return [
+    seg("A", "B"),
+    seg("C", "D"),
+    seg("O", "B"),
+    seg("B", "D"),
+    seg("O", "A"),
+  ];
 }
 
 function defaultRightAngles(): AngleMark[] {
@@ -467,9 +486,20 @@ function mergeSegs(base: SegMark[], prev?: SegMark[]): SegMark[] {
   return base.map((b) => {
     const p = map.get(b.id);
     if (!p) return b;
+    const lineStyle: SegLineStyle =
+      p.lineStyle === "dashed" || p.lineStyle === "hidden"
+        ? p.lineStyle
+        : p.dashed
+          ? "dashed"
+          : p.hidden
+            ? "hidden"
+            : b.lineStyle ?? "solid";
     return {
       ...b,
       show: p.show === true,
+      lineStyle,
+      dashed: lineStyle === "dashed",
+      hidden: lineStyle === "hidden",
       label: { ...emptyLabel("auto"), ...p.label },
     };
   });
@@ -602,6 +632,7 @@ function baseDefaults(kind: TrigKind): TrigRatiosState {
     thetaFill: "none",
     yAngleFill: "none",
     zAngleFill: "none",
+    unitSegs: defaultUnitSegs(),
     triA: { x: -2.8, y: 0 },
     triB: { x: 3.2, y: 0 },
     triC: { x: 0.4, y: 3.6 },
@@ -704,6 +735,7 @@ export function normalizeState(
     thetaFill: parseAngleFill(state.thetaFill),
     yAngleFill: parseAngleFill(state.yAngleFill),
     zAngleFill: parseAngleFill(state.zAngleFill),
+    unitSegs: mergeSegs(defaultUnitSegs(), state.unitSegs),
     triA: state.triA ?? { x: -2.8, y: 0 },
     triB: state.triB ?? { x: 3.2, y: 0 },
     triC: state.triC ?? { x: 0.4, y: 3.6 },
@@ -1446,8 +1478,13 @@ export function findSeg(state: TrigRatiosState, id: string): SegMark | undefined
       };
     }
   }
+  const rev = id.length === 2 ? `${id[1]}${id[0]}` : "";
+  if (state.kind === "unit-circle") {
+    const pool = state.unitSegs ?? defaultUnitSegs();
+    return pool.find((s) => s.id === id || (rev && s.id === rev));
+  }
   const pool = state.kind === "triangle-area" ? state.triSegs : state.segs;
-  return pool.find((s) => s.id === id);
+  return pool.find((s) => s.id === id || (rev && s.id === rev));
 }
 
 export function patchSegState(
@@ -1492,10 +1529,35 @@ export function patchSegState(
       };
     }
   }
+
+  const rev = id.length === 2 ? `${id[1]}${id[0]}` : "";
+  const normalizedPatch: Partial<SegMark> = { ...patch };
+  if (patch.lineStyle) {
+    normalizedPatch.dashed = patch.lineStyle === "dashed";
+    normalizedPatch.hidden = patch.lineStyle === "hidden";
+  } else if (patch.dashed !== undefined) {
+    normalizedPatch.lineStyle = patch.dashed ? "dashed" : "solid";
+    normalizedPatch.hidden = false;
+  } else if (patch.hidden !== undefined) {
+    normalizedPatch.lineStyle = patch.hidden ? "hidden" : "solid";
+    normalizedPatch.dashed = false;
+  }
+
+  if (state.kind === "unit-circle") {
+    const pool = state.unitSegs ?? defaultUnitSegs();
+    return {
+      ...state,
+      unitSegs: pool.map((s) =>
+        s.id === id || (rev && s.id === rev) ? { ...s, ...normalizedPatch } : s,
+      ),
+    };
+  }
   const key = state.kind === "triangle-area" ? "triSegs" : "segs";
   return {
     ...state,
-    [key]: state[key].map((s) => (s.id === id ? { ...s, ...patch } : s)),
+    [key]: state[key].map((s) =>
+      s.id === id || (rev && s.id === rev) ? { ...s, ...normalizedPatch } : s,
+    ),
   };
 }
 

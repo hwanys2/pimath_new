@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import {
   angleIdFromSceneId,
   applyEditedLabel,
+  cycleUnitSeg,
   dimResizeCursor,
   draggableIds,
   figureStrokes,
@@ -95,8 +96,6 @@ export default function TrigRatiosCanvas({
   stateRef.current = state;
   selectedRef.current = selected;
 
-  const segs =
-    state.kind === "triangle-area" ? state.triSegs : state.segs;
 
   const paint = useCallback(() => {
     const canvas = canvasRef.current;
@@ -158,7 +157,12 @@ export default function TrigRatiosCanvas({
     if (!scene) return null;
     const p = scenePoint(e);
     const current = stateRef.current;
-    const pool = current.kind === "triangle-area" ? current.triSegs : current.segs;
+    const pool =
+      current.kind === "triangle-area"
+        ? current.triSegs
+        : current.kind === "unit-circle"
+          ? current.unitSegs
+          : current.segs;
     return hitTestTrig(
       scene.layout.canvas,
       scene.texts,
@@ -227,7 +231,11 @@ export default function TrigRatiosCanvas({
           }
           if (hit?.kind === "seg") {
             onSelect({ t: "seg", id: hit.id });
-            setState((prev) => toggleSeg(prev, hit.id), true);
+            if (state.kind === "unit-circle") {
+              setState((prev) => cycleUnitSeg(prev, hit.id), true);
+            } else {
+              setState((prev) => toggleSeg(prev, hit.id), true);
+            }
             return;
           }
           onSelect(null);

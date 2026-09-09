@@ -250,15 +250,18 @@ export function figureStrokes(state: TrigRatiosState): [string, string][] {
       ];
     case "unit-circle": {
       const strokes: [string, string][] = [
-        ["O", "A"],
         ["A", "B"],
-        ["O", "B"],
         ["C", "D"],
-        ["O", "C"],
-        ["O", "D"],
+        ["O", "B"],
+        ["B", "D"],
+        ["O", "A"],
       ];
       const pts = unitCirclePoints(state);
-      return strokes.filter(([a, b]) => pts[a] && pts[b]);
+      return strokes.filter(([a, b]) => {
+        if (!pts[a] || !pts[b]) return false;
+        const s = findSeg(state, `${a}${b}`) ?? findSeg(state, `${b}${a}`);
+        return s?.lineStyle !== "hidden" && !s?.hidden;
+      });
     }
     case "triangle-area": {
       const segs: [string, string][] = [
@@ -581,6 +584,17 @@ export function toggleSeg(state: TrigRatiosState, id: string): TrigRatiosState {
   const seg = findSeg(state, id);
   if (!seg) return state;
   return patchSegState(state, id, { show: !seg.show });
+}
+
+export function cycleUnitSeg(state: TrigRatiosState, id: string): TrigRatiosState {
+  const seg = findSeg(state, id);
+  const isDashed = seg?.lineStyle === "dashed" || seg?.dashed === true;
+  const nextStyle = isDashed ? "solid" : "dashed";
+  return patchSegState(state, id, {
+    lineStyle: nextStyle,
+    dashed: nextStyle === "dashed",
+    hidden: false,
+  });
 }
 
 function formatComputedLength(length: number, unit: string): string {

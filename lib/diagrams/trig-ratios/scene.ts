@@ -25,10 +25,12 @@ import {
 } from "./geometry";
 import {
   altitudeFootId,
+  findSeg,
   type AltitudeColor,
   type AngleFill,
   type FaceFill,
   type QuadDiagColor,
+  type SegMark,
   type TrigRatiosState,
 } from "./model";
 
@@ -635,10 +637,80 @@ function paintUnitCircle(
     width: style.lineWidth,
   });
 
-  cmds.push({ t: "line", x1: O.x, y1: O.y, x2: D.x, y2: D.y, stroke: INK, width: style.lineWidth });
-  cmds.push({ t: "line", x1: O.x, y1: O.y, x2: B.x, y2: B.y, stroke: INK, width: style.lineWidth });
-  cmds.push({ t: "line", x1: A.x, y1: A.y, x2: B.x, y2: B.y, stroke: INK, width: style.lineWidth });
-  cmds.push({ t: "line", x1: C.x, y1: C.y, x2: D.x, y2: D.y, stroke: INK, width: style.lineWidth });
+  const segOB = findSeg(state, "OB");
+  const segBD = findSeg(state, "BD");
+  const segAB = findSeg(state, "AB");
+  const segCD = findSeg(state, "CD");
+  const segOA = findSeg(state, "OA");
+
+  const isDashed = (s?: SegMark) => s?.lineStyle === "dashed" || s?.dashed === true;
+  const isVisible = (s?: SegMark) => (s ? s.lineStyle !== "hidden" && !s.hidden : true);
+
+  if (isVisible(segOB)) {
+    cmds.push({
+      t: "line",
+      x1: O.x,
+      y1: O.y,
+      x2: B.x,
+      y2: B.y,
+      stroke: INK,
+      width: style.lineWidth,
+      dashed: isDashed(segOB),
+      id: "s:OB",
+    });
+  }
+  if (isVisible(segBD)) {
+    cmds.push({
+      t: "line",
+      x1: B.x,
+      y1: B.y,
+      x2: D.x,
+      y2: D.y,
+      stroke: INK,
+      width: style.lineWidth,
+      dashed: isDashed(segBD),
+      id: "s:BD",
+    });
+  }
+  if (isVisible(segAB)) {
+    cmds.push({
+      t: "line",
+      x1: A.x,
+      y1: A.y,
+      x2: B.x,
+      y2: B.y,
+      stroke: INK,
+      width: style.lineWidth,
+      dashed: isDashed(segAB),
+      id: "s:AB",
+    });
+  }
+  if (isVisible(segCD)) {
+    cmds.push({
+      t: "line",
+      x1: C.x,
+      y1: C.y,
+      x2: D.x,
+      y2: D.y,
+      stroke: INK,
+      width: style.lineWidth,
+      dashed: isDashed(segCD),
+      id: "s:CD",
+    });
+  }
+  if (!state.showAxes && isVisible(segOA)) {
+    cmds.push({
+      t: "line",
+      x1: O.x,
+      y1: O.y,
+      x2: A.x,
+      y2: A.y,
+      stroke: INK,
+      width: style.lineWidth,
+      dashed: isDashed(segOA),
+      id: "s:OA",
+    });
+  }
 
   if (state.showYProjections) {
     cmds.push({
@@ -664,8 +736,8 @@ function paintUnitCircle(
   }
 
   if (state.showUnitRightAngles) {
-    if (isNearRightAngle(angleDeg(O, A, B))) drawRightAngle(cmds, A, O, B);
-    if (isNearRightAngle(angleDeg(O, C, D))) drawRightAngle(cmds, C, O, D);
+    if (isVisible(segAB) && isNearRightAngle(angleDeg(O, A, B))) drawRightAngle(cmds, A, O, B);
+    if (isVisible(segCD) && isNearRightAngle(angleDeg(O, C, D))) drawRightAngle(cmds, C, O, D);
   }
 
   if (state.showRadiusLabel) {

@@ -187,6 +187,16 @@ export default function TrigRatiosStudio() {
   function deleteSelected() {
     if (!selected) return;
     if (selected.t === "seg") {
+      if (state.kind === "unit-circle") {
+        setState((prev) =>
+          patchSegState(prev, selected.id, {
+            lineStyle: "hidden",
+            hidden: true,
+            dashed: false,
+          }),
+        );
+        return;
+      }
       setState((prev) => patchSegState(prev, selected.id, { show: false }));
       return;
     }
@@ -922,39 +932,116 @@ export default function TrigRatiosStudio() {
               </div>
             ) : null}
 
+            {state.kind === "unit-circle" ? (
+              <div className="mt-2 flex flex-wrap gap-1">
+                {state.unitSegs.map((s) => {
+                  const isDashed = s.lineStyle === "dashed" || s.dashed === true;
+                  const isHidden = s.lineStyle === "hidden" || s.hidden === true;
+                  const isSelected =
+                    selected?.t === "seg" &&
+                    (selected.id === s.id ||
+                      (selected.id.length === 2 &&
+                        `${selected.id[1]}${selected.id[0]}` === s.id));
+                  return (
+                    <ChipToggle
+                      key={s.id}
+                      on={isSelected || isDashed}
+                      onClick={() => {
+                        if (isSelected) {
+                          const nextStyle = isDashed ? "solid" : "dashed";
+                          setState((prev) =>
+                            patchSegState(prev, s.id, {
+                              lineStyle: nextStyle,
+                              dashed: nextStyle === "dashed",
+                              hidden: false,
+                            }),
+                          );
+                        } else {
+                          setSelected({ t: "seg", id: s.id });
+                        }
+                      }}
+                    >
+                      {s.id === "CD" ? "선분 CD" : `선분 ${s.id}`}
+                      {isDashed ? " (점선)" : isHidden ? " (숨김)" : ""}
+                    </ChipToggle>
+                  );
+                })}
+              </div>
+            ) : null}
+
             {selected?.t === "seg" && selSeg ? (
               <div className="mt-3 space-y-2">
-                <NumberField
-                  label={`${selected.id === "AC" || selected.id === "BD" ? "대각선 " : "선분 "}${selected.id} 길이 값`}
-                  value={Number(segLength(state, selSeg).toFixed(1))}
-                  onChange={(n) => setState((prev) => applySegNumeric(prev, selected.id, n))}
-                  min={0.5}
-                  max={40}
-                  step={0.1}
-                  suffix={state.unit}
-                />
-                <LabelModeRow
-                  title="길이"
-                  mode={selSeg.label.mode}
-                  custom={selSeg.label.custom}
-                  unknownLetter={state.unknownLetter}
-                  onMode={(mode) =>
-                    setState((prev) => {
-                      const seg = findSeg(prev, selected.id);
-                      if (!seg) return prev;
-                      let custom = seg.label.custom;
-                      if (mode === "custom" && !custom.trim()) {
-                        custom = resolveSegText(prev, seg) ?? "";
+                {state.kind === "unit-circle" ? (
+                  <>
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-semibold text-foreground/70">
+                        {selected.id === "CD" || selected.id === "DC"
+                          ? "선분 CD (DC)"
+                          : `선분 ${selected.id}`}
+                      </span>
+                      <span className="text-[11px] text-foreground/45">
+                        길이 {segLength(state, selSeg).toFixed(state.axisPrecision)}
+                      </span>
+                    </div>
+                    <div className="space-y-1.5">
+                      <p className="text-[11px] font-semibold text-foreground/50">선 모양</p>
+                      <Segmented
+                        value={
+                          selSeg.lineStyle ??
+                          (selSeg.dashed ? "dashed" : selSeg.hidden ? "hidden" : "solid")
+                        }
+                        onChange={(lineStyle) => {
+                          setState((prev) =>
+                            patchSegState(prev, selected.id, {
+                              lineStyle,
+                              dashed: lineStyle === "dashed",
+                              hidden: lineStyle === "hidden",
+                            }),
+                          );
+                        }}
+                        options={[
+                          { id: "solid", label: "실선" },
+                          { id: "dashed", label: "점선" },
+                          { id: "hidden", label: "안보임" },
+                        ]}
+                      />
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <NumberField
+                      label={`${selected.id === "AC" || selected.id === "BD" ? "대각선 " : "선분 "}${selected.id} 길이 값`}
+                      value={Number(segLength(state, selSeg).toFixed(1))}
+                      onChange={(n) => setState((prev) => applySegNumeric(prev, selected.id, n))}
+                      min={0.5}
+                      max={40}
+                      step={0.1}
+                      suffix={state.unit}
+                    />
+                    <LabelModeRow
+                      title="길이"
+                      mode={selSeg.label.mode}
+                      custom={selSeg.label.custom}
+                      unknownLetter={state.unknownLetter}
+                      onMode={(mode) =>
+                        setState((prev) => {
+                          const seg = findSeg(prev, selected.id);
+                          if (!seg) return prev;
+                          let custom = seg.label.custom;
+                          if (mode === "custom" && !custom.trim()) {
+                            custom = resolveSegText(prev, seg) ?? "";
+                          }
+                          return patchSegState(prev, selected.id, {
+                            label: { ...seg.label, mode, custom },
+                          });
+                        })
                       }
-                      return patchSegState(prev, selected.id, {
-                        label: { ...seg.label, mode, custom },
-                      });
-                    })
-                  }
-                  onCustom={(custom) =>
-                    setState((prev) => setLengthDisplayText(prev, selected.id, custom))
-                  }
-                />
+                      onCustom={(custom) =>
+                        setState((prev) => setLengthDisplayText(prev, selected.id, custom))
+                      }
+                    />
+                  </>
+                )}
               </div>
             ) : null}
 

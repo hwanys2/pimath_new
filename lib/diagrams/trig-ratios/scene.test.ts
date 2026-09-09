@@ -3,6 +3,7 @@ import { describe, it } from "node:test";
 import {
   applyEditedLabel,
   applySegNumeric,
+  cycleUnitSeg,
   draggableIds,
   findSeg,
   hitTestTrig,
@@ -32,6 +33,7 @@ import {
   findAngle,
   normalizeState,
   patchQuadDiagAngle,
+  patchSegState,
   readPointMark,
   snapRotateDeg,
 } from "./model";
@@ -1105,5 +1107,124 @@ describe("trig-ratios scene", () => {
     const edgeAB = withSideCm.quadEdges[0]!;
     assert.equal(edgeAB.length.mode, "custom");
     assert.equal(edgeAB.length.custom, "6cm");
+  });
+
+  it("unit circle initializes default segments with AB, CD, OB, BD, OA", () => {
+    const state = normalizeState({ kind: "unit-circle" });
+    assert.ok(Array.isArray(state.unitSegs));
+    assert.deepEqual(
+      state.unitSegs.map((s) => s.id),
+      ["AB", "CD", "OB", "BD", "OA"],
+    );
+    for (const s of state.unitSegs) {
+      assert.equal(s.lineStyle ?? "solid", "solid");
+      assert.equal(s.dashed, false);
+      assert.equal(s.hidden, false);
+    }
+  });
+
+  it("can display unit circle segments AB and CD/DC as dashed lines", () => {
+    const start = normalizeState({ kind: "unit-circle" });
+    // Initially solid
+    const sceneSolid = buildTrigScene(start);
+    const lineAB0 = sceneSolid.cmds.find((c) => c.t === "line" && c.id === "s:AB");
+    const lineCD0 = sceneSolid.cmds.find((c) => c.t === "line" && c.id === "s:CD");
+    assert.ok(lineAB0 && lineAB0.t === "line");
+    assert.ok(lineCD0 && lineCD0.t === "line");
+    assert.equal(lineAB0.dashed, false);
+    assert.equal(lineCD0.dashed, false);
+
+    // Make AB dashed
+    const withDashedAB = patchSegState(start, "AB", { lineStyle: "dashed" });
+    assert.equal(findSeg(withDashedAB, "AB")?.lineStyle, "dashed");
+    assert.equal(findSeg(withDashedAB, "AB")?.dashed, true);
+
+    const sceneDashedAB = buildTrigScene(withDashedAB);
+    const lineABDashed = sceneDashedAB.cmds.find((c) => c.t === "line" && c.id === "s:AB");
+    assert.ok(lineABDashed && lineABDashed.t === "line");
+    assert.equal(lineABDashed.dashed, true);
+
+    // Reverse lookup test: patch with "DC" modifies "CD"
+    const withDashedCD = patchSegState(withDashedAB, "DC", { lineStyle: "dashed" });
+    assert.equal(findSeg(withDashedCD, "CD")?.lineStyle, "dashed");
+    assert.equal(findSeg(withDashedCD, "DC")?.lineStyle, "dashed");
+    assert.equal(findSeg(withDashedCD, "CD")?.dashed, true);
+
+    const sceneBothDashed = buildTrigScene(withDashedCD);
+    const lineCDDashed = sceneBothDashed.cmds.find((c) => c.t === "line" && c.id === "s:CD");
+    assert.ok(lineCDDashed && lineCDDashed.t === "line");
+    assert.equal(lineCDDashed.dashed, true);
+  });
+
+  it("cycleUnitSeg toggles segment between solid and dashed", () => {
+    const start = normalizeState({ kind: "unit-circle" });
+    assert.equal(findSeg(start, "AB")?.dashed, false);
+
+    const dashed = cycleUnitSeg(start, "AB");
+    assert.equal(findSeg(dashed, "AB")?.lineStyle, "dashed");
+    assert.equal(findSeg(dashed, "AB")?.dashed, true);
+
+    const backToSolid = cycleUnitSeg(dashed, "AB");
+    assert.equal(findSeg(backToSolid, "AB")?.lineStyle, "solid");
+    assert.equal(findSeg(backToSolid, "AB")?.dashed, false);
+  });
+
+  it("hiding segment CD removes it and its right angle square from unit circle scene", () => {
+    const start = normalizeState({ kind: "unit-circle" });
+    const hidden = patchSegState(start, "CD", { lineStyle: "hidden" });
+    const scene = buildTrigScene(hidden);
+
+    // Line s:CD should not be rendered
+    assert.ok(!scene.cmds.some((c) => c.t === "line" && c.id === "s:CD"));
+    // Line s:AB should still be rendered
+    assert.ok(scene.cmds.some((c) => c.t === "line" && c.id === "s:AB"));
+
+    // Right angle at C should be omitted when CD is hidden
+    const c = scene.layout.canvas.C!;
+    const marks = scene.cmds.filter((cmd) => cmd.t === "rightAngle");
+    for (const mark of marks) {
+      assert.ok(Math.hypot(mark.x - c.x, mark.y - c.y) > 5, "no right angle at C");
+    }
+  });
+
+  it("hits unit circle segments on canvas click", () => {
+    const state = normalizeState({ kind: "unit-circle" });
+    const scene = buildTrigScene(state);
+    const A = scene.layout.canvas.A!;
+    const B = scene.layout.canvas.B!;
+    const C = scene.layout.canvas.C!;
+    const D = scene.layout.canvas.D!;
+
+    // Midpoint of AB
+    const midAB = { x: (A.x + B.x) / 2, y: (A.y + B.y) / 2 };
+    const hitAB = hitTestTrig(
+      scene.layout.canvas,
+      scene.texts,
+      scene.cmds,
+      figureStrokes(state),
+      state.unitSegs,
+      midAB.x,
+      midAB.y,
+      1,
+      draggableIds(state),
+    );
+    assert.equal(hitAB?.kind, "seg");
+    assert.equal(hitAB && "id" in hitAB ? hitAB.id : "", "AB");
+
+    // Midpoint of CD
+    const midCD = { x: (C.x + D.x) / 2, y: (C.y + D.y) / 2 };
+    const hitCD = hitTestTrig(
+      scene.layout.canvas,
+      scene.texts,
+      scene.cmds,
+      figureStrokes(state),
+      state.unitSegs,
+      midCD.x,
+      midCD.y,
+      1,
+      draggableIds(state),
+    );
+    assert.equal(hitCD?.kind, "seg");
+    assert.equal(hitCD && "id" in hitCD ? hitCD.id : "", "CD");
   });
 });
