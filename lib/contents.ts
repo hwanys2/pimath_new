@@ -300,6 +300,16 @@ export const CONTENTS: ContentMeta[] = [
     description:
       "고대 신전에 갇혔다! 방마다 단서를 조사하고 삼각비(길이·높이·넓이)로 장치를 풀어 15분 안에 탈출하는 방탈출 게임입니다. 학급 배정·활성 시 XP와 랭킹이 쌓여요.",
   },
+  {
+    key: "g3-u3-2-starlight-seal",
+    unitId: "g3-3-2",
+    type: "game",
+    title: "결계 수리공 별빛: 현과 접선",
+    href: "/play/g3-u3-2-starlight-seal",
+    awardsXp: true,
+    description:
+      "무너진 마법진을 고치세요. 현·접선 성질로 값을 계산해 입력하면 도형이 그려져 검증됩니다. 12개 봉인. 학급 배정·활성 시 XP와 랭킹이 쌓여요.",
+  },
 ];
 
 export function getContent(key: string): ContentMeta | undefined {

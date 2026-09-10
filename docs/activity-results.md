@@ -127,4 +127,5 @@ await submitActivity({
 | 2026-08-25 | 세션 재준비 시 미집계 종료 버그 수정 · 결과 복구 RPC · 종료 전 점수 저장 |
 | 2026-08-31 | 교사 게임 대시보드 링크 · [`game-dashboard.md`](game-dashboard.md) |
 | 2026-08-26 | `g3-u3-1-shadow-temple` 솔로 방탈출 게임 기록 · SUMMARY_LABELS · 상세 렌더러 |
+| 2026-09-10 | `g3-u3-2-starlight-seal` 현·접선 결계 게임 기록 · SUMMARY_LABELS · 상세 렌더러 |
 

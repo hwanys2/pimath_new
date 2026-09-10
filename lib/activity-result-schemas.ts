@@ -68,6 +68,13 @@ export const SUMMARY_LABELS: Record<string, Record<string, string>> = {
     torchesLeft: "남은 횃불",
     timeLeftSec: "남은 시간(초)",
   },
+  "g3-u3-2-starlight-seal": {
+    sealsCleared: "봉인 완료",
+    totalSeals: "전체 봉인",
+    wrongAttempts: "오답 시도",
+    energyLeft: "남은 에너지",
+    restored: "결계 복구",
+  },
   "g1-u2-2-linear-equation-balance": {
     correctCount: "정답",
     problemCount: "문제 수",
