@@ -50,6 +50,7 @@
               ├─ 이차함수 그래프 → /tools/figures/g3-quadratic-function
               ├─ 원의 현 → /tools/figures/g3-circle-chords
               ├─ 원주각 → /tools/figures/g3-inscribed-angles
+              ├─ 원과 접선 → /tools/figures/g3-circle-tangents
               ├─ 삼각비 → /tools/figures/g3-trig-ratios
               ├─ 상자수염 그림 → /tools/figures/g3-boxplot
               └─ 산점도 → /tools/figures/g3-scatter
@@ -228,6 +229,18 @@ components/tools/figures/DiagramToolShell.tsx  ← 공통 뼈대. 손대지 않�
 - 각은 분홍·파랑·초록·회색 채움, 큰 각(180° 초과), 직각 네모. 호 길이는 원 밖 설명선. 접선·변 연장.
 - 프리셋: 중심각 70°·원주각 x, 같은 호 30° x y, 지름 90°, 호 2 cm, 내접사각형 a·c·외각, 접선과 현 40° 등.
 - 스튜디오는 §5.1 **3열**: 그림 아래 종류 | 표시·보기(회전) | 빠른 그림·그림 스타일(기본 펼침).
+
+### 원과 접선 (`g3-circle-tangents`)
+
+중3 `3.2 원의 성질`에서 나오는 접선 길이·내접원 시험 그림.
+
+- 그림 종류: **한 점에서 두 접선**, **삼각형 내접원**, **접선사각형**, **세 접선 삼각형**.
+- 두 접선: 외부점 P·접점 A·B. OA/OB/OP·직각·반지름/접선 등호 빗금·접현 AB·∠P/∠A 칩. P를 끌어 거리·방향, 빈 곳을 끌면 통째 회전.
+- 삼각형 내접원·세 접선 삼각형: 꼭짓점 A·B·C를 끌면 내심(또는 A 대측 방심)·접점이 따라옴. 변·접선 조각에 설명선.
+- 접선사각형: 접점 각도로 원을 감싼 사각형. Pitot(대변 합)이 유지됨. AP·BQ·CR·SD 등 조각 길이.
+- 길이 글자와 설명선(점선 호)은 각각 드래그. 글자를 눌러 숫자·`$x$`·직접 입력.
+- 프리셋: 두 접선 12·x, 반지름 6·OP 10, 직각·등호 빗금, 접현·50°·x, 내접원 10·14·8, 접선사각형 4·6·5·x, 세 접선 8·5·6.
+- 스튜디오는 §5.1 **3열**: 그림 아래 종류 | 표시·길이 목록·보기 | 빠른 그림·그림 스타일(기본 펼침). PNG는 `cropCanvasToInk`.
 
 ### 삼각비 (`g3-trig-ratios`)
 
@@ -486,6 +499,7 @@ components/tools/figures/DiagramToolShell.tsx  ← 공통 뼈대. 손대지 않�
 | `g3-quadratic-function` | 중3 | 이차함수 그래프 | ready |
 | `g3-circle-chords` | 중3 | 원의 현 | ready |
 | `g3-inscribed-angles` | 중3 | 원주각 | ready |
+| `g3-circle-tangents` | 중3 | 원과 접선 | ready |
 | `g3-trig-ratios` | 중3 | 삼각비 | ready |
 | `g3-boxplot` | 중3 | 상자수염 그림 | ready |
 | `g3-scatter` | 중3 | 산점도 | ready |
@@ -613,3 +627,4 @@ components/tools/figures/DiagramToolShell.tsx  ← 공통 뼈대. 손대지 않�
 | 2026-09-10 | 원의 현: 길이 글자와 보조선(점선 설명선)을 각각 따로 드래그 조작 가능. |
 | 2026-09-10 | 원의 현: 점 표시 4단 모드(점과이름/점만/이름만/안보임) 및 개별 점(O, A, B, M) 순환 토글, 선분 클릭 시 길이 토글 연동. |
 | 2026-09-10 | 원의 현: 빠른 그림을 3열로 이동하여 3열 스튜디오 배치 통일, PNG/SVG 저장 시 여백 밀착 크롭(cropCanvasToInk). |
+| 2026-09-10 | 중3 원과 접선 (`g3-circle-tangents`). 한 점에서 두 접선·삼각형 내접원·접선사각형·세 접선 삼각형, PNG. |

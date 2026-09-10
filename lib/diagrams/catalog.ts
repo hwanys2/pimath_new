@@ -253,6 +253,17 @@ export const DIAGRAM_TOOLS: DiagramToolMeta[] = [
     status: "ready",
   },
   {
+    id: "g3-circle-tangents",
+    grade: 3,
+    title: "원과 접선",
+    description:
+      "한 점에서 두 접선·내접원·접선사각형·세 접선 삼각형 문제 그림을 시험지처럼 그리고 PNG로 저장해요.",
+    unitHint: "3.2 원의 성질",
+    emoji: "⊙",
+    href: "/tools/figures/g3-circle-tangents",
+    status: "ready",
+  },
+  {
     id: "g3-trig-ratios",
     grade: 3,
     title: "삼각비",

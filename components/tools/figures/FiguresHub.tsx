@@ -117,6 +117,8 @@ function ToolCard({ tool }: { tool: DiagramToolMeta }) {
         >
           {tool.id === "g3-circle-chords" ? (
             <ChordThumb />
+          ) : tool.id === "g3-circle-tangents" ? (
+            <TangentsThumb />
           ) : tool.id === "g3-sqrt-number-line" ? (
             <SqrtThumb />
           ) : tool.id === "g1-number-line" ? (
@@ -184,6 +186,20 @@ function ChordThumb() {
       <line x1="24" y1="24" x2="24" y2="17" stroke="#6b4423" strokeWidth="1.2" />
       <line x1="24" y1="24" x2="24" y2="32" stroke="#6b4423" strokeWidth="1.2" />
       <circle cx="24" cy="24" r="1.6" fill="#6b4423" />
+    </svg>
+  );
+}
+
+function TangentsThumb() {
+  return (
+    <svg viewBox="0 0 48 48" className="h-10 w-10" aria-hidden>
+      <circle cx="30" cy="24" r="12" fill="none" stroke="#6b4423" strokeWidth="1.7" />
+      <line x1="6" y1="24" x2="24" y2="12" stroke="#6b4423" strokeWidth="1.5" />
+      <line x1="6" y1="24" x2="24" y2="36" stroke="#6b4423" strokeWidth="1.5" />
+      <circle cx="6" cy="24" r="1.5" fill="#6b4423" />
+      <circle cx="30" cy="24" r="1.5" fill="#6b4423" />
+      <circle cx="22" cy="14.5" r="1.3" fill="#6b4423" />
+      <circle cx="22" cy="33.5" r="1.3" fill="#6b4423" />
     </svg>
   );
 }
