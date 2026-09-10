@@ -22,6 +22,8 @@ import {
   unitCirclePoints,
   worldQuadPoints,
   worldRightTriangle,
+  calcTrigRatio,
+  trigTableLayout,
 } from "./geometry";
 import {
   altitudeFootId,
@@ -331,6 +333,9 @@ function dimArc(
 }
 
 function mathBBox(state: TrigRatiosState): { min: Vec; max: Vec } {
+  if (state.kind === "table") {
+    return { min: { x: -3, y: -3 }, max: { x: 3, y: 3 } };
+  }
   let pts: Vec[] = [];
   if (state.kind === "right") {
     const t = worldRightTriangle(state);
@@ -1154,6 +1159,236 @@ function edgeLength(points: Vec[], i: number): number {
   return len(sub(b, a));
 }
 
+function headerRoundedPoints(x: number, y: number, w: number, h: number, r: number): Vec[] {
+  const pts: Vec[] = [];
+  pts.push({ x, y: y + h });
+  pts.push({ x, y: y + r });
+  const steps = 6;
+  for (let i = 0; i <= steps; i++) {
+    const a = Math.PI + (Math.PI / 2) * (i / steps);
+    pts.push({ x: x + r + r * Math.cos(a), y: y + r + r * Math.sin(a) });
+  }
+  pts.push({ x: x + w - r, y });
+  for (let i = 0; i <= steps; i++) {
+    const a = -Math.PI / 2 + (Math.PI / 2) * (i / steps);
+    pts.push({ x: x + w - r + r * Math.cos(a), y: y + r + r * Math.sin(a) });
+  }
+  pts.push({ x: x + w, y: y + h });
+  return pts;
+}
+
+type TableThemeColors = {
+  headerBg: string;
+  borderColor: string;
+  gridColor: string;
+  headerTextColor: string;
+  cellTextColor: string;
+  rowBg: string;
+};
+
+function tableThemeColors(theme: TrigRatiosState["tableTheme"]): TableThemeColors {
+  switch (theme) {
+    case "mono":
+      return {
+        headerBg: "#e5e7eb",
+        borderColor: "#111111",
+        gridColor: "#d1d5db",
+        headerTextColor: "#111111",
+        cellTextColor: "#111111",
+        rowBg: "#ffffff",
+      };
+    case "blue":
+      return {
+        headerBg: "#93c5fd",
+        borderColor: "#2563eb",
+        gridColor: "#bfdbfe",
+        headerTextColor: "#0f172a",
+        cellTextColor: "#111111",
+        rowBg: "#ffffff",
+      };
+    case "green":
+      return {
+        headerBg: "#86efac",
+        borderColor: "#16a34a",
+        gridColor: "#bbf7d0",
+        headerTextColor: "#052e16",
+        cellTextColor: "#111111",
+        rowBg: "#ffffff",
+      };
+    case "orange":
+    default:
+      return {
+        headerBg: "#f6a828",
+        borderColor: "#ea8a20",
+        gridColor: "#fde68a",
+        headerTextColor: "#111111",
+        cellTextColor: "#111111",
+        rowBg: "#ffffff",
+      };
+  }
+}
+
+function paintTrigTable(
+  state: TrigRatiosState,
+  cmds: SceneCmd[],
+  texts: SceneText[],
+): void {
+  const layout = trigTableLayout(state);
+  const theme = tableThemeColors(state.tableTheme);
+  const radius = 12;
+
+  // 1. 전체 테이블 배경
+  cmds.push({
+    t: "roundRect",
+    x: layout.x,
+    y: layout.y,
+    w: layout.w,
+    h: layout.h,
+    r: radius,
+    fill: theme.rowBg,
+  });
+
+  // 2. 상단 헤더 배경 채우기
+  cmds.push({
+    t: "polygon",
+    points: headerRoundedPoints(layout.x, layout.y, layout.w, layout.headerH, radius),
+    fill: theme.headerBg,
+  });
+
+  // 3. 열 세로 구분선 (3개)
+  for (let i = 1; i < 4; i++) {
+    const colX = layout.colXs[i];
+    cmds.push({
+      t: "line",
+      x1: colX,
+      y1: layout.y,
+      x2: colX,
+      y2: layout.y + layout.h,
+      stroke: theme.borderColor,
+      width: 1.5,
+    });
+  }
+
+  // 4. 헤더 아래 가로 구분선
+  cmds.push({
+    t: "line",
+    x1: layout.x,
+    y1: layout.y + layout.headerH,
+    x2: layout.x + layout.w,
+    y2: layout.y + layout.headerH,
+    stroke: theme.borderColor,
+    width: 2,
+  });
+
+  // 5. (선택적) 데이터 행 가로 구분선
+  if (state.tableShowRowDividers) {
+    for (let r = 1; r < state.tableRows.length; r++) {
+      const rowY = layout.y + layout.headerH + r * layout.rowH;
+      cmds.push({
+        t: "line",
+        x1: layout.x,
+        y1: rowY,
+        x2: layout.x + layout.w,
+        y2: rowY,
+        stroke: theme.gridColor,
+        width: 1,
+      });
+    }
+  }
+
+  // 6. 외곽 테두리
+  cmds.push({
+    t: "roundRect",
+    x: layout.x,
+    y: layout.y,
+    w: layout.w,
+    h: layout.h,
+    r: radius,
+    stroke: theme.borderColor,
+    width: 2.5,
+  });
+
+  // 7. 헤더 텍스트
+  const headerLabels: [string, string, string, string] =
+    state.tableHeaderMode === "short"
+      ? ["각도", "sin", "cos", "tan"]
+      : ["각도", "사인(sin)", "코사인(cos)", "탄젠트(tan)"];
+
+  const headerFontSize = Math.max(state.style.fontSize - 1, 15);
+  const headerY = layout.y + layout.headerH / 2;
+
+  headerLabels.forEach((label, i) => {
+    const centerX = layout.colXs[i] + layout.colWidths[i] / 2;
+    pushText(texts, cmds, {
+      id: `th:${i}`,
+      x: centerX,
+      y: headerY,
+      runs: parseMathRuns(label),
+      size: headerFontSize,
+      anchor: "middle",
+      fill: theme.headerTextColor,
+    });
+  });
+
+  // 8. 데이터 행 텍스트
+  const dataFontSize = Math.max(state.style.fontSize, 17);
+  state.tableRows.forEach((row, rowIndex) => {
+    const centerY = layout.y + layout.headerH + (rowIndex + 0.5) * layout.rowH;
+
+    // 각도
+    if (row.showAngle) {
+      pushText(texts, cmds, {
+        id: `td:${row.id}:deg`,
+        x: layout.colXs[0] + layout.colWidths[0] / 2,
+        y: centerY,
+        runs: parseMathRuns(`${row.deg}°`),
+        size: dataFontSize,
+        anchor: "middle",
+        fill: theme.cellTextColor,
+      });
+    }
+
+    // sin
+    if (row.showSin) {
+      pushText(texts, cmds, {
+        id: `td:${row.id}:sin`,
+        x: layout.colXs[1] + layout.colWidths[1] / 2,
+        y: centerY,
+        runs: parseMathRuns(calcTrigRatio(row.deg, "sin")),
+        size: dataFontSize,
+        anchor: "middle",
+        fill: theme.cellTextColor,
+      });
+    }
+
+    // cos
+    if (row.showCos) {
+      pushText(texts, cmds, {
+        id: `td:${row.id}:cos`,
+        x: layout.colXs[2] + layout.colWidths[2] / 2,
+        y: centerY,
+        runs: parseMathRuns(calcTrigRatio(row.deg, "cos")),
+        size: dataFontSize,
+        anchor: "middle",
+        fill: theme.cellTextColor,
+      });
+    }
+
+    // tan
+    if (row.showTan) {
+      pushText(texts, cmds, {
+        id: `td:${row.id}:tan`,
+        x: layout.colXs[3] + layout.colWidths[3] / 2,
+        y: centerY,
+        runs: parseMathRuns(calcTrigRatio(row.deg, "tan")),
+        size: dataFontSize,
+        anchor: "middle",
+        fill: theme.cellTextColor,
+      });
+    }
+  });
+}
+
 export function buildTrigScene(state: TrigRatiosState): TrigScene {
   const layout = getSceneLayout(state);
   const cmds: SceneCmd[] = [];
@@ -1172,9 +1407,14 @@ export function buildTrigScene(state: TrigRatiosState): TrigScene {
     case "quad-area":
       paintQuadArea(state, layout, cmds, texts);
       break;
+    case "table":
+      paintTrigTable(state, cmds, texts);
+      break;
   }
 
-  paintNames(state, layout.canvas, cmds, texts);
+  if (state.kind !== "table") {
+    paintNames(state, layout.canvas, cmds, texts);
+  }
 
   return {
     width: SCENE_WIDTH,

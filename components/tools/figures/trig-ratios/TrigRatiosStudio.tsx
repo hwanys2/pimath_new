@@ -64,10 +64,16 @@ import {
   setAllPointDisplay,
   toggleAltitude,
   withKind,
+  TRIG_TABLE_THEMES,
+  addTableRow,
+  removeTableRow,
+  setAllTableCellsVisibility,
+  setTableColumnVisibility,
+  setTableRowsDegs,
+  updateTableRowDeg,
   type AltitudeVertex,
   type AngleFill,
   type MeasLabel,
-  type QuadDiagColor,
   type TrigRatiosState,
 } from "@/lib/diagrams/trig-ratios/model";
 import { buildTrigScene } from "@/lib/diagrams/trig-ratios/scene";
@@ -290,7 +296,7 @@ export default function TrigRatiosStudio() {
           </p>
           <h1 className="font-display mt-1 text-3xl text-wood-dark sm:text-4xl">삼각비</h1>
           <p className="mt-1 max-w-2xl text-sm text-foreground/65">
-            직각삼각형·단위원·삼각형·사각형의 넓이 문제 그림을 시험지처럼 그리고 PNG로
+            직각삼각형·단위원·삼각형·사각형의 넓이·삼각비의 표 문제 그림을 시험지처럼 그리고 PNG로
             저장해요.
           </p>
         </div>
@@ -470,12 +476,224 @@ export default function TrigRatiosStudio() {
                 />
               </div>
             ) : null}
+
+            {state.kind === "table" ? (
+              <div className="mt-3 space-y-3">
+                <div className="flex items-center justify-between">
+                  <p className="text-xs font-semibold text-foreground/70">
+                    행별 각도 설정 ({state.tableRows.length}행)
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => setState((prev) => addTableRow(prev))}
+                    disabled={state.tableRows.length >= 8}
+                    className="rounded-lg bg-wood/10 px-2.5 py-1 text-xs font-semibold text-wood-dark hover:bg-wood/20 disabled:opacity-40"
+                  >
+                    + 행 추가
+                  </button>
+                </div>
+
+                <div className="space-y-2">
+                  {state.tableRows.map((row, idx) => (
+                    <div
+                      key={row.id}
+                      className="flex items-center gap-2 rounded-xl bg-black/[0.03] p-2"
+                    >
+                      <span className="w-5 text-center text-xs font-semibold text-foreground/45">
+                        {idx + 1}
+                      </span>
+                      <div className="flex-1">
+                        <NumberField
+                          label={`각도`}
+                          value={row.deg}
+                          onChange={(deg) =>
+                            setState((prev) => updateTableRowDeg(prev, row.id, deg))
+                          }
+                          min={0}
+                          max={90}
+                          step={1}
+                          suffix="°"
+                        />
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setState((prev) => removeTableRow(prev, row.id))}
+                        disabled={state.tableRows.length <= 1}
+                        className="mt-4 rounded-lg p-1.5 text-xs text-foreground/40 hover:bg-rose-50 hover:text-rose-600 disabled:opacity-20"
+                        title="이 행 삭제"
+                      >
+                        ✕
+                      </button>
+                    </div>
+                  ))}
+                </div>
+
+                <div className="space-y-1.5 pt-1">
+                  <p className="text-[11px] font-semibold text-foreground/50">빠른 각도 설정</p>
+                  <div className="flex flex-wrap gap-1">
+                    <button
+                      type="button"
+                      onClick={() => setState((prev) => setTableRowsDegs(prev, [34, 35, 36]))}
+                      className="rounded-lg bg-black/5 px-2 py-1 text-[11px] font-semibold text-foreground/70 hover:bg-black/10"
+                    >
+                      34°~36°
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setState((prev) => setTableRowsDegs(prev, [32, 43, 54]))}
+                      className="rounded-lg bg-black/5 px-2 py-1 text-[11px] font-semibold text-foreground/70 hover:bg-black/10"
+                    >
+                      32°·43°·54°
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setState((prev) => setTableRowsDegs(prev, [30, 45, 60]))}
+                      className="rounded-lg bg-black/5 px-2 py-1 text-[11px] font-semibold text-foreground/70 hover:bg-black/10"
+                    >
+                      30°·45°·60°
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const base = state.tableRows[0]?.deg ?? 30;
+                        setState((prev) => setTableRowsDegs(prev, [base, base + 1, base + 2]));
+                      }}
+                      className="rounded-lg bg-black/5 px-2 py-1 text-[11px] font-semibold text-foreground/70 hover:bg-black/10"
+                    >
+                      1°씩 증가
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ) : null}
           </section>
         </div>
 
-        <div className="space-y-4">
-          <section className="rounded-2xl border-2 border-wood/10 bg-white/80 p-3.5">
-            <h2 className="font-display text-sm text-wood-dark">표시</h2>
+        {state.kind === "table" ? (
+          <div className="space-y-4">
+            <section className="rounded-2xl border-2 border-wood/10 bg-white/80 p-3.5">
+              <h2 className="font-display text-sm text-wood-dark">칸 표시 제어</h2>
+              <div className="mt-2 rounded-xl bg-amber-500/10 p-2.5 text-xs text-wood-dark">
+                💡 <strong>그림 위의 숫자 칸을 클릭</strong>하면 값이 켜지거나 꺼져요. 원하는 칸만 남겨 시험 문제를 만들 수 있어요.
+              </div>
+              <div className="mt-3 flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => setState((prev) => setAllTableCellsVisibility(prev, true))}
+                  className="flex-1 rounded-xl bg-wood/10 py-2 text-xs font-semibold text-wood-dark hover:bg-wood/20"
+                >
+                  전체 보이기
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setState((prev) => setAllTableCellsVisibility(prev, false))}
+                  className="flex-1 rounded-xl bg-black/5 py-2 text-xs font-semibold text-foreground/70 hover:bg-black/10"
+                >
+                  전체 가리기
+                </button>
+              </div>
+
+              <div className="mt-3 space-y-1.5">
+                <p className="text-xs font-semibold text-foreground/60">열 단위 일괄 토글</p>
+                <div className="grid grid-cols-2 gap-1.5">
+                  <ChipToggle
+                    on={state.tableRows.every((r) => r.showAngle)}
+                    onClick={() => {
+                      const allOn = state.tableRows.every((r) => r.showAngle);
+                      setState((prev) => setTableColumnVisibility(prev, "deg", !allOn));
+                    }}
+                  >
+                    각도 열
+                  </ChipToggle>
+                  <ChipToggle
+                    on={state.tableRows.every((r) => r.showSin)}
+                    onClick={() => {
+                      const allOn = state.tableRows.every((r) => r.showSin);
+                      setState((prev) => setTableColumnVisibility(prev, "sin", !allOn));
+                    }}
+                  >
+                    사인(sin) 열
+                  </ChipToggle>
+                  <ChipToggle
+                    on={state.tableRows.every((r) => r.showCos)}
+                    onClick={() => {
+                      const allOn = state.tableRows.every((r) => r.showCos);
+                      setState((prev) => setTableColumnVisibility(prev, "cos", !allOn));
+                    }}
+                  >
+                    코사인(cos) 열
+                  </ChipToggle>
+                  <ChipToggle
+                    on={state.tableRows.every((r) => r.showTan)}
+                    onClick={() => {
+                      const allOn = state.tableRows.every((r) => r.showTan);
+                      setState((prev) => setTableColumnVisibility(prev, "tan", !allOn));
+                    }}
+                  >
+                    탄젠트(tan) 열
+                  </ChipToggle>
+                </div>
+              </div>
+            </section>
+
+            <section className="rounded-2xl border-2 border-wood/10 bg-white/80 p-3.5">
+              <h2 className="font-display text-sm text-wood-dark">표 스타일</h2>
+
+              <div className="mt-3 space-y-2">
+                <p className="text-xs font-semibold text-foreground/60">색상 테마</p>
+                <div className="grid grid-cols-2 gap-1.5">
+                  {TRIG_TABLE_THEMES.map((theme) => (
+                    <button
+                      key={theme.id}
+                      type="button"
+                      onClick={() => set({ tableTheme: theme.id })}
+                      className={`flex items-center gap-2 rounded-xl px-2.5 py-2 text-left text-xs font-semibold ${
+                        state.tableTheme === theme.id
+                          ? "bg-wood text-cream"
+                          : "bg-black/5 text-foreground/70 hover:bg-black/10"
+                      }`}
+                    >
+                      <span
+                        className="inline-block h-3.5 w-3.5 rounded-full border border-black/20"
+                        style={{ backgroundColor: theme.color }}
+                      />
+                      {theme.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="mt-3 space-y-2">
+                <p className="text-xs font-semibold text-foreground/60">헤더 표기</p>
+                <Segmented
+                  value={state.tableHeaderMode}
+                  onChange={(v) =>
+                    set({ tableHeaderMode: v as TrigRatiosState["tableHeaderMode"] })
+                  }
+                  options={[
+                    { id: "full", label: "사인(sin)" },
+                    { id: "short", label: "sin" },
+                  ]}
+                />
+              </div>
+
+              <div className="mt-3 space-y-2">
+                <p className="text-xs font-semibold text-foreground/60">행 구분선</p>
+                <Segmented
+                  value={state.tableShowRowDividers ? "show" : "hide"}
+                  onChange={(v) => set({ tableShowRowDividers: v === "show" })}
+                  options={[
+                    { id: "hide", label: "없음 (여백)" },
+                    { id: "show", label: "있음 (가로선)" },
+                  ]}
+                />
+              </div>
+            </section>
+          </div>
+        ) : (
+          <div className="space-y-4">
+            <section className="rounded-2xl border-2 border-wood/10 bg-white/80 p-3.5">
+              <h2 className="font-display text-sm text-wood-dark">표시</h2>
             <div className="mt-2 flex flex-wrap gap-1.5">
               <ChipToggle
                 on={figurePointIds(state).every((id) => readPointMark(state, id).showName)}
@@ -1099,6 +1317,7 @@ export default function TrigRatiosStudio() {
             </section>
           )}
         </div>
+        )}
 
         <div className="space-y-4">
           <section className="rounded-2xl border-2 border-wood/10 bg-white/80 p-3.5">
@@ -1144,16 +1363,18 @@ export default function TrigRatiosStudio() {
                 max={64}
                 step={1}
               />
-              <SliderField
-                label="점 이름"
-                value={state.style.pointLabelSize}
-                onChange={(pointLabelSize) =>
-                  set({ style: { ...state.style, pointLabelSize } })
-                }
-                min={14}
-                max={72}
-                step={1}
-              />
+              {state.kind !== "table" && (
+                <SliderField
+                  label="점 이름"
+                  value={state.style.pointLabelSize}
+                  onChange={(pointLabelSize) =>
+                    set({ style: { ...state.style, pointLabelSize } })
+                  }
+                  min={14}
+                  max={72}
+                  step={1}
+                />
+              )}
               <SliderField
                 label="PNG 배율"
                 value={state.style.exportScale}
@@ -1162,19 +1383,21 @@ export default function TrigRatiosStudio() {
                 max={4}
                 step={0.5}
               />
-              <div className="grid grid-cols-2 gap-2">
-                <TextField
-                  label="단위"
-                  value={state.unit}
-                  onChange={(unit) => set({ unit })}
-                  placeholder="cm"
-                />
-                <TextField
-                  label="미지수"
-                  value={state.unknownLetter}
-                  onChange={(unknownLetter) => set({ unknownLetter })}
-                />
-              </div>
+              {state.kind !== "table" && (
+                <div className="grid grid-cols-2 gap-2">
+                  <TextField
+                    label="단위"
+                    value={state.unit}
+                    onChange={(unit) => set({ unit })}
+                    placeholder="cm"
+                  />
+                  <TextField
+                    label="미지수"
+                    value={state.unknownLetter}
+                    onChange={(unknownLetter) => set({ unknownLetter })}
+                  />
+                </div>
+              )}
             </div>
           </details>
         </div>

@@ -14,7 +14,7 @@ import {
 export type { DiagramStyle, MeasLabel, Vec };
 export { emptyLabel, DEFAULT_STYLE };
 
-export type TrigKind = "right" | "unit-circle" | "triangle-area" | "quad-area";
+export type TrigKind = "right" | "unit-circle" | "triangle-area" | "quad-area" | "table";
 
 export type AngleFill = "none" | "pink" | "blue" | "green" | "gray";
 
@@ -28,11 +28,40 @@ export type QuadFamily = "general" | "parallelogram";
 
 export type AltitudeVertex = "A" | "B" | "C";
 
+export type TrigTableTheme = "orange" | "mono" | "blue" | "green";
+
+export type TrigTableHeaderMode = "full" | "short";
+
+export type TrigTableRow = {
+  id: string;
+  deg: number;
+  showAngle: boolean;
+  showSin: boolean;
+  showCos: boolean;
+  showTan: boolean;
+};
+
+export const TRIG_TABLE_THEMES: { id: TrigTableTheme; label: string; color: string }[] = [
+  { id: "orange", label: "교과서 주황", color: "#f59e0b" },
+  { id: "mono", label: "시험지 흑백", color: "#111111" },
+  { id: "blue", label: "교과서 파랑", color: "#3b82f6" },
+  { id: "green", label: "교과서 연두", color: "#22c55e" },
+];
+
+export function defaultTrigTableRows(): TrigTableRow[] {
+  return [
+    { id: "row-34", deg: 34, showAngle: true, showSin: true, showCos: true, showTan: true },
+    { id: "row-35", deg: 35, showAngle: true, showSin: true, showCos: true, showTan: true },
+    { id: "row-36", deg: 36, showAngle: true, showSin: true, showCos: true, showTan: true },
+  ];
+}
+
 export const TRIG_KINDS: { id: TrigKind; label: string }[] = [
   { id: "right", label: "직각삼각형" },
   { id: "unit-circle", label: "단위원" },
   { id: "triangle-area", label: "삼각형의 넓이" },
   { id: "quad-area", label: "사각형의 넓이" },
+  { id: "table", label: "삼각비의 표" },
 ];
 
 export type NameMark = {
@@ -166,6 +195,12 @@ export type TrigRatiosState = {
   quadDiagColorBD?: QuadDiagColor;
   quadDiagAngles: AngleMark[];
   quadDiagEdges: Record<"AC" | "BD", TriEdgeMark>;
+
+  /** table */
+  tableRows: TrigTableRow[];
+  tableTheme: TrigTableTheme;
+  tableHeaderMode: TrigTableHeaderMode;
+  tableShowRowDividers: boolean;
 };
 
 export type TrigPreset = {
@@ -217,6 +252,33 @@ export function parseQuadDiagColor(value: unknown): QuadDiagColor {
     return value;
   }
   return "pink";
+}
+
+export function parseTableTheme(value: unknown): TrigTableTheme {
+  if (value === "mono" || value === "blue" || value === "green") {
+    return value;
+  }
+  return "orange";
+}
+
+export function normalizeTableRows(raw: unknown): TrigTableRow[] {
+  if (!Array.isArray(raw) || raw.length === 0) {
+    return defaultTrigTableRows();
+  }
+  return raw.map((r, i) => {
+    const item = typeof r === "object" && r !== null ? (r as Partial<TrigTableRow>) : {};
+    const id = typeof item.id === "string" && item.id.trim() ? item.id : `row-${i + 1}`;
+    const degNum = typeof item.deg === "number" && !Number.isNaN(item.deg) ? item.deg : 30 + i * 5;
+    const deg = clamp(Math.round(degNum * 10) / 10, 0, 90);
+    return {
+      id,
+      deg,
+      showAngle: item.showAngle !== false,
+      showSin: item.showSin !== false,
+      showCos: item.showCos !== false,
+      showTan: item.showTan !== false,
+    };
+  });
 }
 
 export const QUAD_DIAG_COLOR_CHIPS: { id: QuadDiagColor; label: string }[] = [
@@ -663,6 +725,10 @@ function baseDefaults(kind: TrigKind): TrigRatiosState {
     quadDiagColorBD: "pink",
     quadDiagAngles: defaultQuadDiagAngles(),
     quadDiagEdges: defaultQuadDiagEdges(),
+    tableRows: defaultTrigTableRows(),
+    tableTheme: "orange",
+    tableHeaderMode: "full",
+    tableShowRowDividers: false,
   };
 }
 
@@ -792,6 +858,10 @@ export function normalizeState(
       : parseQuadDiagColor(state.quadDiagColor),
     quadDiagAngles: mergeAngles(defaultQuadDiagAngles(), state.quadDiagAngles),
     quadDiagEdges: mergeQuadDiagEdges(defaultQuadDiagEdges(), state.quadDiagEdges),
+    tableRows: normalizeTableRows(state.tableRows),
+    tableTheme: parseTableTheme(state.tableTheme),
+    tableHeaderMode: state.tableHeaderMode === "short" ? "short" : "full",
+    tableShowRowDividers: state.tableShowRowDividers === true,
     showVertexNames: state.showVertexNames !== false,
     showDots: state.showDots !== false,
     unit: state.unit?.trim() ? state.unit : "cm",
@@ -1198,6 +1268,46 @@ const quadDiag = withQuadEdge(
   customLen("$4\\sqrt{6}$ cm"),
 );
 
+const table34to36Hidden = build("table", {
+  tableRows: [
+    { id: "row-34", deg: 34, showAngle: true, showSin: true, showCos: true, showTan: true },
+    { id: "row-35", deg: 35, showAngle: true, showSin: false, showCos: true, showTan: true },
+    { id: "row-36", deg: 36, showAngle: true, showSin: true, showCos: true, showTan: true },
+  ],
+  tableTheme: "orange",
+  tableHeaderMode: "full",
+});
+
+const table34to36Full = build("table", {
+  tableRows: [
+    { id: "row-34", deg: 34, showAngle: true, showSin: true, showCos: true, showTan: true },
+    { id: "row-35", deg: 35, showAngle: true, showSin: true, showCos: true, showTan: true },
+    { id: "row-36", deg: 36, showAngle: true, showSin: true, showCos: true, showTan: true },
+  ],
+  tableTheme: "orange",
+  tableHeaderMode: "full",
+});
+
+const tableSeparated = build("table", {
+  tableRows: [
+    { id: "row-32", deg: 32, showAngle: true, showSin: true, showCos: false, showTan: false },
+    { id: "row-43", deg: 43, showAngle: true, showSin: false, showCos: true, showTan: false },
+    { id: "row-54", deg: 54, showAngle: true, showSin: false, showCos: false, showTan: true },
+  ],
+  tableTheme: "orange",
+  tableHeaderMode: "full",
+});
+
+const tableSpecial = build("table", {
+  tableRows: [
+    { id: "row-30", deg: 30, showAngle: true, showSin: true, showCos: true, showTan: true },
+    { id: "row-45", deg: 45, showAngle: true, showSin: true, showCos: true, showTan: true },
+    { id: "row-60", deg: 60, showAngle: true, showSin: true, showCos: true, showTan: true },
+  ],
+  tableTheme: "orange",
+  tableHeaderMode: "full",
+});
+
 export const TRIG_PRESETS: TrigPreset[] = [
   { id: "right-sqrt3", title: "√3·3", hint: "직각 B", state: rightSqrt3 },
   { id: "right-46", title: "4·6", hint: "빗변 아래", state: rightHyp46 },
@@ -1215,9 +1325,118 @@ export const TRIG_PRESETS: TrigPreset[] = [
   { id: "quad-60150", title: "60°·150°", hint: "사각형", state: quad60150 },
   { id: "quad-para", title: "평행사변형", hint: "60°·120°", state: quadPara },
   { id: "quad-diag", title: "대각선 BD", hint: "분홍", state: quadDiag },
+  { id: "table-default", title: "표 (34°~36°)", hint: "sin 35° 빈칸", state: table34to36Hidden },
+  { id: "table-full", title: "표 (전체 값)", hint: "34°·35°·36°", state: table34to36Full },
+  { id: "table-separated", title: "떨어진 각도", hint: "32°·43°·54°", state: tableSeparated },
+  { id: "table-special", title: "특수각", hint: "30°·45°·60°", state: tableSpecial },
 ];
 
 export const DEFAULT_TRIG_STATE: TrigRatiosState = TRIG_PRESETS[0]!.state;
+
+export function toggleTableCell(
+  state: TrigRatiosState,
+  rowId: string,
+  col: "deg" | "sin" | "cos" | "tan",
+): TrigRatiosState {
+  return {
+    ...state,
+    tableRows: state.tableRows.map((r) => {
+      if (r.id !== rowId) return r;
+      if (col === "deg") return { ...r, showAngle: !r.showAngle };
+      if (col === "sin") return { ...r, showSin: !r.showSin };
+      if (col === "cos") return { ...r, showCos: !r.showCos };
+      return { ...r, showTan: !r.showTan };
+    }),
+  };
+}
+
+export function setAllTableCellsVisibility(
+  state: TrigRatiosState,
+  show: boolean,
+): TrigRatiosState {
+  return {
+    ...state,
+    tableRows: state.tableRows.map((r) => ({
+      ...r,
+      showAngle: true,
+      showSin: show,
+      showCos: show,
+      showTan: show,
+    })),
+  };
+}
+
+export function setTableColumnVisibility(
+  state: TrigRatiosState,
+  col: "deg" | "sin" | "cos" | "tan",
+  show: boolean,
+): TrigRatiosState {
+  return {
+    ...state,
+    tableRows: state.tableRows.map((r) => {
+      if (col === "deg") return { ...r, showAngle: show };
+      if (col === "sin") return { ...r, showSin: show };
+      if (col === "cos") return { ...r, showCos: show };
+      return { ...r, showTan: show };
+    }),
+  };
+}
+
+export function addTableRow(state: TrigRatiosState, deg?: number): TrigRatiosState {
+  if (state.tableRows.length >= 8) return state;
+  const lastDeg = state.tableRows.length > 0 ? state.tableRows[state.tableRows.length - 1]!.deg : 30;
+  const nextDeg = typeof deg === "number" ? deg : Math.min(lastDeg + 1, 90);
+  const newRow: TrigTableRow = {
+    id: `row-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+    deg: nextDeg,
+    showAngle: true,
+    showSin: true,
+    showCos: true,
+    showTan: true,
+  };
+  return {
+    ...state,
+    tableRows: [...state.tableRows, newRow],
+  };
+}
+
+export function removeTableRow(state: TrigRatiosState, id: string): TrigRatiosState {
+  if (state.tableRows.length <= 1) return state;
+  return {
+    ...state,
+    tableRows: state.tableRows.filter((r) => r.id !== id),
+  };
+}
+
+export function updateTableRowDeg(
+  state: TrigRatiosState,
+  id: string,
+  deg: number,
+): TrigRatiosState {
+  const safeDeg = clamp(Math.round(deg * 10) / 10, 0, 90);
+  return {
+    ...state,
+    tableRows: state.tableRows.map((r) => (r.id === id ? { ...r, deg: safeDeg } : r)),
+  };
+}
+
+export function setTableRowsDegs(
+  state: TrigRatiosState,
+  degs: number[],
+): TrigRatiosState {
+  const tableRows = degs.slice(0, 8).map((d, i) => ({
+    id: `row-${i + 1}-${Math.round(d)}`,
+    deg: clamp(Math.round(d * 10) / 10, 0, 90),
+    showAngle: true,
+    showSin: true,
+    showCos: true,
+    showTan: true,
+  }));
+  return {
+    ...state,
+    tableRows,
+  };
+}
 
 export function withKind(prev: TrigRatiosState, kind: TrigKind): TrigRatiosState {
   const template = TRIG_PRESETS.find((p) => p.state.kind === kind)?.state ?? build(kind);

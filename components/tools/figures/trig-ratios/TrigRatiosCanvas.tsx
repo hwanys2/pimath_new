@@ -13,10 +13,13 @@ import {
   movePoint,
   nudgeLabel,
   toggleSeg,
+  hitTestTrigTableCell,
+  trigTableLayout,
   type TrigHit,
   type TrigSelection,
+  type TrigTableCellHit,
 } from "@/lib/diagrams/trig-ratios/geometry";
-import type { TrigRatiosState } from "@/lib/diagrams/trig-ratios/model";
+import { toggleTableCell, type TrigRatiosState } from "@/lib/diagrams/trig-ratios/model";
 import { paintDiagramScene } from "@/lib/diagrams/render";
 import {
   buildTrigScene,
@@ -95,7 +98,7 @@ export default function TrigRatiosCanvas({
   editRef.current = edit;
   stateRef.current = state;
   selectedRef.current = selected;
-
+  const [hoverCell, setHoverCell] = useState<TrigTableCellHit | null>(null);
 
   const paint = useCallback(() => {
     const canvas = canvasRef.current;
@@ -110,7 +113,20 @@ export default function TrigRatiosCanvas({
     if (!ctx) return;
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     paintDiagramScene(ctx, scene, fonts, current.style.lineWidth);
-  }, [fonts]);
+
+    if (current.kind === "table" && hoverCell) {
+      ctx.save();
+      ctx.fillStyle = "rgba(0, 0, 0, 0.05)";
+      ctx.strokeStyle = "rgba(0, 0, 0, 0.25)";
+      ctx.lineWidth = 1.5;
+      const r = hoverCell.rect;
+      ctx.beginPath();
+      ctx.rect(r.x, r.y, r.w, r.h);
+      ctx.fill();
+      ctx.stroke();
+      ctx.restore();
+    }
+  }, [fonts, hoverCell]);
 
   useEffect(() => {
     let cancelled = false;
@@ -199,8 +215,16 @@ export default function TrigRatiosCanvas({
         style={{ aspectRatio: `${SCENE_WIDTH} / ${SCENE_HEIGHT}` }}
         onPointerDown={(e) => {
           if (editRef.current) commitEdit(editRef.current.value);
-          const hit = hitAt(e);
           const p = scenePoint(e);
+          if (state.kind === "table") {
+            const layout = trigTableLayout(state);
+            const cell = hitTestTrigTableCell(layout, p.x, p.y);
+            if (cell) {
+              setState((prev) => toggleTableCell(prev, cell.rowId, cell.col), true);
+            }
+            return;
+          }
+          const hit = hitAt(e);
           if (hit?.kind === "label") {
             const angId = angleIdFromSceneId(hit.id);
             if (angId) onSelect({ t: "ang", id: angId });
@@ -241,8 +265,15 @@ export default function TrigRatiosCanvas({
           onSelect(null);
         }}
         onPointerMove={(e) => {
-          const drag = dragRef.current;
           const p = scenePoint(e);
+          if (state.kind === "table") {
+            const layout = trigTableLayout(state);
+            const cell = hitTestTrigTableCell(layout, p.x, p.y);
+            setHoverCell(cell);
+            setCursor(cell ? "pointer" : "default");
+            return;
+          }
+          const drag = dragRef.current;
           if (drag) {
             const dx = p.x - drag.x;
             const dy = p.y - drag.y;
@@ -293,6 +324,9 @@ export default function TrigRatiosCanvas({
           e.currentTarget.releasePointerCapture(e.pointerId);
         }}
         onPointerLeave={() => {
+          if (state.kind === "table") {
+            setHoverCell(null);
+          }
           if (!dragRef.current) setCursor("default");
         }}
         onDoubleClick={(e) => {

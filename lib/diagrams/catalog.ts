@@ -257,7 +257,7 @@ export const DIAGRAM_TOOLS: DiagramToolMeta[] = [
     grade: 3,
     title: "삼각비",
     description:
-      "직각삼각형·단위원·삼각형·사각형의 넓이 문제 그림을 시험지처럼 그리고 PNG로 저장해요.",
+      "직각삼각형·단위원·삼각형·사각형의 넓이·삼각비의 표 문제 그림을 시험지처럼 그리고 PNG로 저장해요.",
     unitHint: "3.1 삼각비",
     emoji: "△",
     href: "/tools/figures/g3-trig-ratios",

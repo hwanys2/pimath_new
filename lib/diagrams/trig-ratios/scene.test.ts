@@ -24,6 +24,9 @@ import {
   setQuadFamily,
   setRotateDeg,
   trianglePoints,
+  calcTrigRatio,
+  trigTableLayout,
+  hitTestTrigTableCell,
 } from "./geometry";
 import {
   TRIG_PRESETS,
@@ -36,6 +39,13 @@ import {
   patchSegState,
   readPointMark,
   snapRotateDeg,
+  toggleTableCell,
+  setAllTableCellsVisibility,
+  setTableColumnVisibility,
+  addTableRow,
+  removeTableRow,
+  updateTableRowDeg,
+  setTableRowsDegs,
 } from "./model";
 import { buildTrigScene } from "./scene";
 import { sceneInkBox } from "@/lib/diagrams/render";
@@ -1226,5 +1236,140 @@ describe("trig-ratios scene", () => {
     );
     assert.equal(hitCD?.kind, "seg");
     assert.equal(hitCD && "id" in hitCD ? hitCD.id : "", "CD");
+  });
+
+  it("calculates accurate 4-decimal trig ratios matching textbook tables", () => {
+    // 34°
+    assert.equal(calcTrigRatio(34, "sin"), "0.5592");
+    assert.equal(calcTrigRatio(34, "cos"), "0.8290");
+    assert.equal(calcTrigRatio(34, "tan"), "0.6745");
+
+    // 35°
+    assert.equal(calcTrigRatio(35, "sin"), "0.5736");
+    assert.equal(calcTrigRatio(35, "cos"), "0.8192");
+    assert.equal(calcTrigRatio(35, "tan"), "0.7002");
+
+    // 36°
+    assert.equal(calcTrigRatio(36, "sin"), "0.5878");
+    assert.equal(calcTrigRatio(36, "cos"), "0.8090");
+    assert.equal(calcTrigRatio(36, "tan"), "0.7265");
+
+    // Boundary angles
+    assert.equal(calcTrigRatio(0, "sin"), "0.0000");
+    assert.equal(calcTrigRatio(0, "cos"), "1.0000");
+    assert.equal(calcTrigRatio(0, "tan"), "0.0000");
+    assert.equal(calcTrigRatio(90, "sin"), "1.0000");
+    assert.equal(calcTrigRatio(90, "cos"), "0.0000");
+    assert.equal(calcTrigRatio(90, "tan"), "—");
+  });
+
+  it("builds table scene and hides deselected cells", () => {
+    const state = normalizeState({
+      kind: "table",
+      tableRows: [
+        { id: "r1", deg: 34, showAngle: true, showSin: true, showCos: true, showTan: true },
+        { id: "r2", deg: 35, showAngle: true, showSin: false, showCos: true, showTan: true }, // hidden sin
+      ],
+      tableTheme: "orange",
+    });
+
+    const scene = buildTrigScene(state);
+    assert.equal(scene.width, 520);
+    assert.equal(scene.height, 520);
+
+    const sin34Text = scene.texts.find((t) => t.id === "td:r1:sin");
+    assert.ok(sin34Text);
+    assert.equal(sin34Text.runs[0]?.text, "0.5592");
+
+    // r2 sin is hidden
+    const sin35Text = scene.texts.find((t) => t.id === "td:r2:sin");
+    assert.equal(sin35Text, undefined);
+
+    // r2 cos is shown
+    const cos35Text = scene.texts.find((t) => t.id === "td:r2:cos");
+    assert.ok(cos35Text);
+    assert.equal(cos35Text.runs[0]?.text, "0.8192");
+  });
+
+  it("toggles table cells and whole columns", () => {
+    let state = normalizeState({
+      kind: "table",
+      tableRows: [
+        { id: "r1", deg: 32, showAngle: true, showSin: true, showCos: true, showTan: true },
+      ],
+    });
+
+    // Toggle single cell
+    state = toggleTableCell(state, "r1", "sin");
+    assert.equal(state.tableRows[0]?.showSin, false);
+    state = toggleTableCell(state, "r1", "sin");
+    assert.equal(state.tableRows[0]?.showSin, true);
+
+    // Hide all
+    state = setAllTableCellsVisibility(state, false);
+    assert.equal(state.tableRows[0]?.showSin, false);
+    assert.equal(state.tableRows[0]?.showCos, false);
+    assert.equal(state.tableRows[0]?.showTan, false);
+
+    // Show all
+    state = setAllTableCellsVisibility(state, true);
+    assert.equal(state.tableRows[0]?.showSin, true);
+    assert.equal(state.tableRows[0]?.showCos, true);
+    assert.equal(state.tableRows[0]?.showTan, true);
+
+    // Column toggle
+    state = setTableColumnVisibility(state, "cos", false);
+    assert.equal(state.tableRows[0]?.showCos, false);
+  });
+
+  it("hits table cells accurately by coordinate", () => {
+    const state = normalizeState({
+      kind: "table",
+      tableRows: [
+        { id: "row-1", deg: 34, showAngle: true, showSin: true, showCos: true, showTan: true },
+        { id: "row-2", deg: 35, showAngle: true, showSin: true, showCos: true, showTan: true },
+      ],
+    });
+
+    const layout = trigTableLayout(state);
+    assert.equal(layout.cells.length, 8);
+
+    // Check hit on sin cell of row-1
+    const r1SinCell = layout.cells.find((c) => c.rowId === "row-1" && c.col === "sin");
+    assert.ok(r1SinCell);
+    const hit = hitTestTrigTableCell(
+      layout,
+      r1SinCell.rect.x + r1SinCell.rect.w / 2,
+      r1SinCell.rect.y + r1SinCell.rect.h / 2,
+    );
+    assert.ok(hit);
+    assert.equal(hit.rowId, "row-1");
+    assert.equal(hit.col, "sin");
+  });
+
+  it("supports adding, removing, and updating table row degrees", () => {
+    let state = normalizeState({
+      kind: "table",
+      tableRows: [
+        { id: "r1", deg: 30, showAngle: true, showSin: true, showCos: true, showTan: true },
+      ],
+    });
+
+    state = addTableRow(state, 45);
+    assert.equal(state.tableRows.length, 2);
+    assert.equal(state.tableRows[1]?.deg, 45);
+
+    state = updateTableRowDeg(state, "r1", 32);
+    assert.equal(state.tableRows[0]?.deg, 32);
+
+    state = removeTableRow(state, "r1");
+    assert.equal(state.tableRows.length, 1);
+    assert.equal(state.tableRows[0]?.deg, 45);
+
+    state = setTableRowsDegs(state, [32, 43, 54]);
+    assert.equal(state.tableRows.length, 3);
+    assert.equal(state.tableRows[0]?.deg, 32);
+    assert.equal(state.tableRows[1]?.deg, 43);
+    assert.equal(state.tableRows[2]?.deg, 54);
   });
 });

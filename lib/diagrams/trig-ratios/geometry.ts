@@ -2648,4 +2648,106 @@ export function extensionPoint(from: Vec, to: Vec, ext: number): Vec {
   return add(to, mul(dir, ext));
 }
 
+export function calcTrigRatio(deg: number, fn: "sin" | "cos" | "tan"): string {
+  const rad = (deg * Math.PI) / 180;
+  if (fn === "sin") {
+    if (deg <= 0) return "0.0000";
+    if (deg >= 90) return "1.0000";
+    return Math.sin(rad).toFixed(4);
+  }
+  if (fn === "cos") {
+    if (deg <= 0) return "1.0000";
+    if (deg >= 90) return "0.0000";
+    return Math.cos(rad).toFixed(4);
+  }
+  if (deg <= 0) return "0.0000";
+  if (deg >= 90) return "—";
+  return Math.tan(rad).toFixed(4);
+}
+
+export type TrigTableCellHit = {
+  rowId: string;
+  col: "deg" | "sin" | "cos" | "tan";
+  rect: { x: number; y: number; w: number; h: number };
+};
+
+export type TrigTableLayout = {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+  headerH: number;
+  rowH: number;
+  colWidths: [number, number, number, number];
+  colXs: [number, number, number, number];
+  cells: TrigTableCellHit[];
+};
+
+export function trigTableLayout(state: TrigRatiosState): TrigTableLayout {
+  const rows = state.tableRows ?? [];
+  const numRows = Math.max(rows.length, 1);
+  const headerH = 42;
+  const rowH = 38;
+  const totalH = headerH + numRows * rowH;
+  const colWidths: [number, number, number, number] = [88, 120, 120, 120];
+  const totalW = colWidths.reduce((a, b) => a + b, 0); // 448
+  const x = Math.round((520 - totalW) / 2); // 36
+  const y = Math.max(20, Math.round((520 - totalH) / 2));
+
+  const colXs: [number, number, number, number] = [
+    x,
+    x + colWidths[0],
+    x + colWidths[0] + colWidths[1],
+    x + colWidths[0] + colWidths[1] + colWidths[2],
+  ];
+
+  const cells: TrigTableCellHit[] = [];
+  rows.forEach((row, rowIndex) => {
+    const rowY = y + headerH + rowIndex * rowH;
+    const cols: ("deg" | "sin" | "cos" | "tan")[] = ["deg", "sin", "cos", "tan"];
+    cols.forEach((col, colIndex) => {
+      cells.push({
+        rowId: row.id,
+        col,
+        rect: {
+          x: colXs[colIndex],
+          y: rowY,
+          w: colWidths[colIndex],
+          h: rowH,
+        },
+      });
+    });
+  });
+
+  return {
+    x,
+    y,
+    w: totalW,
+    h: totalH,
+    headerH,
+    rowH,
+    colWidths,
+    colXs,
+    cells,
+  };
+}
+
+export function hitTestTrigTableCell(
+  layout: TrigTableLayout,
+  x: number,
+  y: number,
+): TrigTableCellHit | null {
+  for (const cell of layout.cells) {
+    if (
+      x >= cell.rect.x &&
+      x <= cell.rect.x + cell.rect.w &&
+      y >= cell.rect.y &&
+      y <= cell.rect.y + cell.rect.h
+    ) {
+      return cell;
+    }
+  }
+  return null;
+}
+
 export { findSeg, patchSegState };
