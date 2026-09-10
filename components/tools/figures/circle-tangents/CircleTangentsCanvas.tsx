@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import {
   applyEditedLabel,
   findLength,
+  lengthEndpoints,
   moveExternalPoint,
   moveQuadTouch,
   moveTriangleVertex,
@@ -11,6 +12,7 @@ import {
   nudgeMeasureLine,
   nudgePointLabel,
   patchLength,
+  toggleLength,
   type TangentsSelection,
 } from "@/lib/diagrams/circle-tangents/geometry";
 import type { CircleTangentsState } from "@/lib/diagrams/circle-tangents/model";
@@ -18,6 +20,7 @@ import {
   buildTangentsScene,
   canvasToMath,
   hitTestFigure,
+  mathToCanvas,
   measureFrame,
   SCENE_HEIGHT,
   SCENE_WIDTH,
@@ -107,7 +110,7 @@ export default function CircleTangentsCanvas({
     if (!ctx) return;
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     paintDiagramScene(ctx, scene, fonts, current.style.lineWidth);
-    paintOverlays(ctx, scene, selectedRef.current, hoverRef.current);
+    paintOverlays(ctx, current, scene, selectedRef.current, hoverRef.current);
   }, [fonts]);
 
   useEffect(() => {
@@ -234,15 +237,7 @@ export default function CircleTangentsCanvas({
 
           if (hit.kind === "seg") {
             onSelect({ t: "length", id: hit.id });
-            setState((prev) => {
-              const cur = findLength(prev, hit.id);
-              if (!cur) return prev;
-              const isCurrentlySelected =
-                selectedRef.current?.t === "length" &&
-                selectedRef.current.id === hit.id;
-              const nextShow = isCurrentlySelected ? !cur.show : true;
-              return patchLength(prev, hit.id, { show: nextShow });
-            }, true);
+            setState((prev) => toggleLength(prev, hit.id), true);
             paint();
             return;
           }
@@ -402,6 +397,7 @@ export default function CircleTangentsCanvas({
 
 function paintOverlays(
   ctx: CanvasRenderingContext2D,
+  state: CircleTangentsState,
   scene: DiagramScene,
   selected: TangentsSelection | null,
   hover: FigureHit | null,
@@ -417,4 +413,27 @@ function paintOverlays(
   };
   if (selected?.t === "point") mark(selected.id, "#c45c26");
   if (hover?.kind === "point") mark(hover.id, "#7a9bb8");
+
+  const drawSegOverlay = (id: string, color: string, width: number) => {
+    const ends = lengthEndpoints(state, id);
+    if (!ends) return;
+    const c1 = mathToCanvas(ends[0], scene.layout);
+    const c2 = mathToCanvas(ends[1], scene.layout);
+    ctx.save();
+    ctx.beginPath();
+    ctx.strokeStyle = color;
+    ctx.lineWidth = width;
+    ctx.lineCap = "round";
+    ctx.moveTo(c1.x, c1.y);
+    ctx.lineTo(c2.x, c2.y);
+    ctx.stroke();
+    ctx.restore();
+  };
+
+  if (hover?.kind === "seg" && !(selected?.t === "length" && selected.id === hover.id)) {
+    drawSegOverlay(hover.id, "rgba(70, 130, 180, 0.45)", 4);
+  }
+  if (selected?.t === "length") {
+    drawSegOverlay(selected.id, "rgba(196, 92, 38, 0.5)", 4);
+  }
 }

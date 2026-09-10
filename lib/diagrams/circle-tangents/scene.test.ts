@@ -10,9 +10,12 @@ import {
   deriveThree,
   deriveTri,
   deriveTwo,
+  isLengthPinned,
+  lengthEndpoints,
   nudgeMeasureLabel,
   nudgeMeasureLine,
   tangentLengths,
+  toggleLength,
 } from "@/lib/diagrams/circle-tangents/geometry";
 import {
   DEFAULT_TANGENTS_STATE,
@@ -23,6 +26,7 @@ import {
 import {
   buildTangentsScene,
   hitTestFigure,
+  mathToCanvas,
   measureFrame,
 } from "@/lib/diagrams/circle-tangents/scene";
 
@@ -280,4 +284,112 @@ describe("circle-tangents numeric reshape", () => {
     assert.equal(hit!.kind, "seg");
     assert.equal(hit!.id, "PA");
   });
+
+  it("strictly preserves already pinned lengths when sequentially editing tangential-quad", () => {
+    // Default quad preset: AP=4 (pinned), BQ=6 (pinned), CR=5 (pinned), DS=x (unpinned)
+    const s0 = withKind(DEFAULT_TANGENTS_STATE, "tangential-quad");
+    assert.ok(isLengthPinned(s0, "AP"));
+    assert.ok(isLengthPinned(s0, "BQ"));
+    assert.ok(isLengthPinned(s0, "CR"));
+    assert.ok(!isLengthPinned(s0, "DS"));
+
+    // 1. Change AP to 5
+    const s1 = applyLengthNumeric(s0, "AP", 5.0);
+    const d1 = deriveQuad(s1);
+    assert.ok(d1);
+    assert.ok(Math.abs(d1!.tA - 5.0) < 1e-2);
+    // BQ (tB=6) and CR (tC=5) MUST NOT CHANGE!
+    assert.ok(Math.abs(d1!.tB - 6.0) < 1e-2);
+    assert.ok(Math.abs(d1!.tC - 5.0) < 1e-2);
+
+    // 2. Change BQ to 7
+    const s2 = applyLengthNumeric(s1, "BQ", 7.0);
+    const d2 = deriveQuad(s2);
+    assert.ok(d2);
+    assert.ok(Math.abs(d2!.tB - 7.0) < 1e-2);
+    // AP (tA=5) and CR (tC=5) MUST NOT CHANGE!
+    assert.ok(Math.abs(d2!.tA - 5.0) < 1e-2);
+    assert.ok(Math.abs(d2!.tC - 5.0) < 1e-2);
+
+    // 3. Change CR to 8
+    const s3 = applyLengthNumeric(s2, "CR", 8.0);
+    const d3 = deriveQuad(s3);
+    assert.ok(d3);
+    assert.ok(Math.abs(d3!.tC - 8.0) < 1e-2);
+    // AP (tA=5) and BQ (tB=7) MUST NOT CHANGE!
+    assert.ok(Math.abs(d3!.tA - 5.0) < 1e-2);
+    assert.ok(Math.abs(d3!.tB - 7.0) < 1e-2);
+  });
+
+  it("keeps pinned AB side unchanged when adjusting BC side with unpinned CA in incircle-triangle", () => {
+    const s0 = withKind(DEFAULT_TANGENTS_STATE, "incircle-triangle");
+    // Default tri has AB=10 cm, BC=14 cm, CA=8 cm
+    // Mark CA as unknown 'x'
+    const s1 = {
+      ...s0,
+      tri: {
+        ...s0.tri,
+        sides: {
+          ...s0.tri.sides,
+          CA: { ...s0.tri.sides.CA, show: true, label: { ...s0.tri.sides.CA.label, mode: "x" as const } },
+        },
+      },
+    };
+    assert.ok(isLengthPinned(s1, "AB"));
+    assert.ok(!isLengthPinned(s1, "CA"));
+
+    const d1 = deriveTri(s1);
+    assert.ok(d1);
+    const abBefore = Math.hypot(d1!.A.x - d1!.B.x, d1!.A.y - d1!.B.y);
+
+    // Adjust BC from 14 to 12
+    const s2 = applyLengthNumeric(s1, "BC", 12.0);
+    const d2 = deriveTri(s2);
+    assert.ok(d2);
+    const abAfter = Math.hypot(d2!.A.x - d2!.B.x, d2!.A.y - d2!.B.y);
+    const bcAfter = Math.hypot(d2!.B.x - d2!.C.x, d2!.B.y - d2!.C.y);
+
+    // BC must become 12
+    assert.ok(Math.abs(bcAfter - 12.0) < 1e-2);
+    // AB MUST REMAIN STRICTLY UNCHANGED!
+    assert.ok(Math.abs(abAfter - abBefore) < 1e-3);
+  });
+
+  it("toggles length visibility on and off with toggleLength", () => {
+    const s0 = DEFAULT_TANGENTS_STATE;
+    assert.equal(s0.two.lengths.PA.show, true);
+    const s1 = toggleLength(s0, "PA");
+    assert.equal(s1.two.lengths.PA.show, false);
+    const s2 = toggleLength(s1, "PA");
+    assert.equal(s2.two.lengths.PA.show, true);
+  });
+
+  it("detects sub-segment clicks in incircle-triangle and tangential-quad via hitTestFigure", () => {
+    // 1. incircle-triangle: test click on AP midpoint
+    const sTri = withKind(DEFAULT_TANGENTS_STATE, "incircle-triangle");
+    const sceneTri = buildTangentsScene(sTri);
+    const endsTri = lengthEndpoints(sTri, "AP");
+    assert.ok(endsTri);
+    const c1Tri = mathToCanvas(endsTri![0], sceneTri.layout);
+    const c2Tri = mathToCanvas(endsTri![1], sceneTri.layout);
+    const midTri = { x: (c1Tri.x + c2Tri.x) / 2, y: (c1Tri.y + c2Tri.y) / 2 };
+    const hitTri = hitTestFigure(sTri, sceneTri, midTri.x, midTri.y);
+    assert.ok(hitTri);
+    assert.equal(hitTri!.kind, "seg");
+    assert.equal(hitTri!.id, "AP");
+
+    // 2. tangential-quad: test click on AP midpoint
+    const sQuad = withKind(DEFAULT_TANGENTS_STATE, "tangential-quad");
+    const sceneQuad = buildTangentsScene(sQuad);
+    const endsQuad = lengthEndpoints(sQuad, "AP");
+    assert.ok(endsQuad);
+    const c1Quad = mathToCanvas(endsQuad![0], sceneQuad.layout);
+    const c2Quad = mathToCanvas(endsQuad![1], sceneQuad.layout);
+    const midQuad = { x: (c1Quad.x + c2Quad.x) / 2, y: (c1Quad.y + c2Quad.y) / 2 };
+    const hitQuad = hitTestFigure(sQuad, sceneQuad, midQuad.x, midQuad.y);
+    assert.ok(hitQuad);
+    assert.equal(hitQuad!.kind, "seg");
+    assert.equal(hitQuad!.id, "AP");
+  });
 });
+

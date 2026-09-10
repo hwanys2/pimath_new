@@ -15,6 +15,7 @@ import {
   lengthEndpoints,
   lengthText,
   pointPos,
+  selectableSegIds,
   type DerivedQuad,
   type DerivedThree,
   type DerivedTri,
@@ -139,8 +140,8 @@ function sagittaArc(
 }
 
 function angleOnArc(ang: number, a0: number, a1: number, ccw: boolean): boolean {
-  if (ccw) return ccwSpan(a0, ang) <= ccwSpan(a0, a1) + 1e-6;
-  return ccwSpan(a1, ang) <= ccwSpan(a1, a0) + 1e-6;
+  if (ccw) return ccwSpan(a1, ang) <= ccwSpan(a1, a0) + 1e-6;
+  return ccwSpan(a0, ang) <= ccwSpan(a0, a1) + 1e-6;
 }
 
 function distToArc(
@@ -816,12 +817,26 @@ export function hitTestFigure(
     if (len(sub(p, c)) < 14 * s) return { kind: "point", id };
   }
 
-  for (const cmd of scene.cmds) {
-    if (cmd.t === "line" && cmd.id && !cmd.id.endsWith(":line")) {
-      const d = distToSeg(p, { x: cmd.x1, y: cmd.y1 }, { x: cmd.x2, y: cmd.y2 });
-      if (d < 10 * s) return { kind: "seg", id: cmd.id };
+  const segIds = selectableSegIds(state);
+  let bestSeg: { id: string; d: number; len: number } | null = null;
+  for (const id of segIds) {
+    const ends = lengthEndpoints(state, id);
+    if (!ends) continue;
+    const c1 = mathToCanvas(ends[0], scene.layout);
+    const c2 = mathToCanvas(ends[1], scene.layout);
+    const d = distToSeg(p, c1, c2);
+    const segLen = len(sub(c2, c1));
+    if (d < 14 * s) {
+      if (!bestSeg) {
+        bestSeg = { id, d, len: segLen };
+      } else if (d < bestSeg.d - 3) {
+        bestSeg = { id, d, len: segLen };
+      } else if (Math.abs(d - bestSeg.d) <= 3 && segLen < bestSeg.len) {
+        bestSeg = { id, d, len: segLen };
+      }
     }
   }
+  if (bestSeg) return { kind: "seg", id: bestSeg.id };
 
   return null;
 }

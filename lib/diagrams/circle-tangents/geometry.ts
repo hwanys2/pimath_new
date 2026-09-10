@@ -641,6 +641,77 @@ export function nudgeMeasureLine(
   return patchLength(state, id, { label });
 }
 
+export function pinnedLengthValue(
+  state: CircleTangentsState,
+  id: string,
+  fallback: number,
+): number {
+  const mark = findLength(state, id);
+  if (!mark || !mark.show || mark.label.mode === "x") return fallback;
+  if (mark.label.custom) {
+    const p = parseMeasureInput(mark.label.custom);
+    if (p.kind === "number" && p.value != null && p.value > 0) {
+      return p.value;
+    }
+  }
+  return fallback;
+}
+
+export function isLengthPinned(
+  state: CircleTangentsState,
+  id: string,
+): boolean {
+  const mark = findLength(state, id);
+  if (!mark || !mark.show) return false;
+  return mark.label.mode !== "x";
+}
+
+export function toggleLength(
+  state: CircleTangentsState,
+  id: string,
+): CircleTangentsState {
+  const mark = findLength(state, id);
+  if (!mark) return state;
+  return patchLength(state, id, { show: !mark.show });
+}
+
+export function selectableSegIds(state: CircleTangentsState): string[] {
+  if (state.kind === "two-tangents") {
+    const list = ["PA", "PB"];
+    if (state.two.showChordAB) list.push("AB");
+    if (state.two.showOA) list.push("OA");
+    if (state.two.showOB) list.push("OB");
+    if (state.two.showOP) list.push("OP");
+    return list;
+  }
+  if (state.kind === "incircle-triangle") {
+    return ["AP", "BP", "BQ", "CQ", "CR", "AR", "AB", "BC", "CA"];
+  }
+  if (state.kind === "tangential-quad") {
+    return ["AP", "BP", "BQ", "CQ", "CR", "DR", "DS", "AS"];
+  }
+  if (state.kind === "three-tangents") {
+    return ["AD", "AF", "BE", "CE", "BC", "AB", "AC"];
+  }
+  return [];
+}
+
+function finalizeNumericLength(
+  next: CircleTangentsState,
+  cleanId: string,
+  value: number,
+): CircleTangentsState {
+  const norm = normalizeState(next);
+  const mark = findLength(norm, cleanId);
+  if (mark && mark.label.mode === "custom") {
+    const unitSuffix = norm.unit ? ` ${norm.unit}` : "";
+    return patchLength(norm, cleanId, {
+      label: { ...mark.label, custom: `${value}${unitSuffix}` },
+    });
+  }
+  return norm;
+}
+
 export function applyLengthNumeric(
   state: CircleTangentsState,
   id: string,
@@ -654,31 +725,50 @@ export function applyLengthNumeric(
     const d = state.two.opDist;
     const curL = Math.sqrt(Math.max(0, d * d - r * r));
 
+    const isPinRadius = isLengthPinned(state, "OA") || isLengthPinned(state, "OB");
+    const isPinTangent = isLengthPinned(state, "PA") || isLengthPinned(state, "PB");
+    const isPinOP = isLengthPinned(state, "OP");
+
     if (cleanId === "PA" || cleanId === "PB") {
       const targetL = Math.max(0.2, Math.min(60, value));
+      if (isPinOP && !isPinRadius) {
+        const nextR = Math.max(0.5, Math.min(d - 0.2, Math.sqrt(Math.max(0.25, d * d - targetL * targetL))));
+        return finalizeNumericLength({ ...state, radius: nextR }, cleanId, targetL);
+      }
       const nextD = Math.sqrt(targetL * targetL + r * r);
-      return normalizeState({
+      return finalizeNumericLength({
         ...state,
         two: { ...state.two, opDist: nextD },
-      });
+      }, cleanId, targetL);
     }
 
     if (cleanId === "OA" || cleanId === "OB") {
       const targetR = Math.max(0.2, Math.min(40, value));
+      if (isPinOP && !isPinTangent) {
+        return finalizeNumericLength({ ...state, radius: targetR }, cleanId, targetR);
+      }
       const nextD = Math.sqrt(curL * curL + targetR * targetR);
-      return normalizeState({
+      return finalizeNumericLength({
         ...state,
         radius: targetR,
         two: { ...state.two, opDist: nextD },
-      });
+      }, cleanId, targetR);
     }
 
     if (cleanId === "OP") {
       const nextD = Math.max(r + 0.2, Math.min(80, value));
-      return normalizeState({
+      if (isPinTangent && !isPinRadius) {
+        const nextR = Math.sqrt(Math.max(0.25, nextD * nextD - curL * curL));
+        return finalizeNumericLength({
+          ...state,
+          radius: nextR,
+          two: { ...state.two, opDist: nextD },
+        }, cleanId, nextD);
+      }
+      return finalizeNumericLength({
         ...state,
         two: { ...state.two, opDist: nextD },
-      });
+      }, cleanId, nextD);
     }
 
     if (cleanId === "AB") {
@@ -686,10 +776,10 @@ export function applyLengthNumeric(
       const ratio = targetW / (2 * r);
       const denom = Math.sqrt(Math.max(0.001, 1 - ratio * ratio));
       const nextD = r / denom;
-      return normalizeState({
+      return finalizeNumericLength({
         ...state,
         two: { ...state.two, opDist: nextD },
-      });
+      }, cleanId, targetW);
     }
   }
 
@@ -697,43 +787,90 @@ export function applyLengthNumeric(
     const d = deriveTri(state);
     if (!d) return state;
 
-    let a = len(sub(d.B, d.C)); // BC
-    let b = len(sub(d.C, d.A)); // CA
-    let c = len(sub(d.A, d.B)); // AB
-    let tA = d.tA; // AP, AR
-    let tB = d.tB; // BP, BQ
-    let tC = d.tC; // CQ, CR
+    let tA = pinnedLengthValue(state, "AP", pinnedLengthValue(state, "AR", d.tA));
+    let tB = pinnedLengthValue(state, "BP", pinnedLengthValue(state, "BQ", d.tB));
+    let tC = pinnedLengthValue(state, "CQ", pinnedLengthValue(state, "CR", d.tC));
+
+    const isPinAB = isLengthPinned(state, "AB");
+    const isPinBC = isLengthPinned(state, "BC");
+    const isPinCA = isLengthPinned(state, "CA");
 
     if (cleanId === "AP" || cleanId === "AR") {
       tA = Math.max(0.2, Math.min(50, value));
-      a = tB + tC;
-      b = tC + tA;
-      c = tA + tB;
     } else if (cleanId === "BP" || cleanId === "BQ") {
       tB = Math.max(0.2, Math.min(50, value));
-      a = tB + tC;
-      b = tC + tA;
-      c = tA + tB;
     } else if (cleanId === "CQ" || cleanId === "CR") {
       tC = Math.max(0.2, Math.min(50, value));
-      a = tB + tC;
-      b = tC + tA;
-      c = tA + tB;
     } else if (cleanId === "BC") {
-      const minA = Math.abs(b - c) + 0.3;
-      const maxA = b + c - 0.3;
-      a = Math.max(minA, Math.min(maxA, value));
-    } else if (cleanId === "CA") {
-      const minB = Math.abs(a - c) + 0.3;
-      const maxB = a + c - 0.3;
-      b = Math.max(minB, Math.min(maxB, value));
+      const targetA = Math.max(0.5, Math.min(60, value));
+      if (isPinAB && !isPinCA) {
+        tC = Math.max(0.2, targetA - tB);
+      } else if (isPinCA && !isPinAB) {
+        tB = Math.max(0.2, targetA - tC);
+      } else if (isPinAB && isPinCA) {
+        const c = tA + tB;
+        const b = tC + tA;
+        const minA = Math.abs(b - c) + 0.3;
+        const maxA = b + c - 0.3;
+        const clampedA = Math.max(minA, Math.min(maxA, targetA));
+        tA = (b + c - clampedA) / 2;
+        tB = (clampedA + c - b) / 2;
+        tC = (clampedA + b - c) / 2;
+      } else {
+        const sumBC = tB + tC;
+        const ratio = targetA / (sumBC || 1);
+        tB = Math.max(0.2, tB * ratio);
+        tC = Math.max(0.2, tC * ratio);
+      }
     } else if (cleanId === "AB") {
-      const minC = Math.abs(a - b) + 0.3;
-      const maxC = a + b - 0.3;
-      c = Math.max(minC, Math.min(maxC, value));
+      const targetC = Math.max(0.5, Math.min(60, value));
+      if (isPinBC && !isPinCA) {
+        tA = Math.max(0.2, targetC - tB);
+      } else if (isPinCA && !isPinBC) {
+        tB = Math.max(0.2, targetC - tA);
+      } else if (isPinBC && isPinCA) {
+        const a = tB + tC;
+        const b = tC + tA;
+        const minC = Math.abs(a - b) + 0.3;
+        const maxC = a + b - 0.3;
+        const clampedC = Math.max(minC, Math.min(maxC, targetC));
+        tA = (b + clampedC - a) / 2;
+        tB = (a + clampedC - b) / 2;
+        tC = (a + b - clampedC) / 2;
+      } else {
+        const sumAB = tA + tB;
+        const ratio = targetC / (sumAB || 1);
+        tA = Math.max(0.2, tA * ratio);
+        tB = Math.max(0.2, tB * ratio);
+      }
+    } else if (cleanId === "CA") {
+      const targetB = Math.max(0.5, Math.min(60, value));
+      if (isPinBC && !isPinAB) {
+        tA = Math.max(0.2, targetB - tC);
+      } else if (isPinAB && !isPinBC) {
+        tC = Math.max(0.2, targetB - tA);
+      } else if (isPinBC && isPinAB) {
+        const a = tB + tC;
+        const c = tA + tB;
+        const minB = Math.abs(a - c) + 0.3;
+        const maxB = a + c - 0.3;
+        const clampedB = Math.max(minB, Math.min(maxB, targetB));
+        tA = (clampedB + c - a) / 2;
+        tB = (a + c - clampedB) / 2;
+        tC = (a + clampedB - c) / 2;
+      } else {
+        const sumCA = tC + tA;
+        const ratio = targetB / (sumCA || 1);
+        tC = Math.max(0.2, tC * ratio);
+        tA = Math.max(0.2, tA * ratio);
+      }
     } else {
       return state;
     }
+
+    const a = tB + tC;
+    const b = tC + tA;
+    const c = tA + tB;
 
     const x = (c * c + a * a - b * b) / (2 * a);
     const y = Math.sqrt(Math.max(0.1, c * c - x * x));
@@ -741,61 +878,110 @@ export function applyLengthNumeric(
     const B: Vec = { x: -a / 2 - centroidX, y: -y / 3 };
     const C: Vec = { x: a / 2 - centroidX, y: -y / 3 };
     const A: Vec = { x: x - a / 2 - centroidX, y: (2 * y) / 3 };
-    return normalizeState({
+    return finalizeNumericLength({
       ...state,
       tri: { ...state.tri, verts: [A, B, C] },
-    });
+    }, cleanId, value);
   }
 
   if (state.kind === "tangential-quad") {
     const d = deriveQuad(state);
     if (!d) return state;
-    const r = state.radius;
-    const degs = [...state.quad.touchDeg].sort((a, b) => a - b) as [
-      number,
-      number,
-      number,
-      number,
-    ];
-    const normSpan = (diff: number) => {
-      let s = diff % 360;
-      if (s <= 0) s += 360;
-      return s;
-    };
-    let spans = [
-      normSpan(degs[1] - degs[0]),
-      normSpan(degs[2] - degs[1]),
-      normSpan(degs[3] - degs[2]),
-      normSpan(degs[0] - degs[3]),
-    ];
+    let r = state.radius;
 
     let targetIdx = -1;
     if (cleanId === "BP" || cleanId === "BQ") targetIdx = 0;
     else if (cleanId === "CQ" || cleanId === "CR") targetIdx = 1;
     else if (cleanId === "DR" || cleanId === "DS") targetIdx = 2;
     else if (cleanId === "AP" || cleanId === "AS") targetIdx = 3;
+    if (targetIdx < 0) return state;
 
-    if (targetIdx >= 0) {
-      const targetSpan = Math.max(15, Math.min(160, 2 * Math.atan(value / r) * (180 / Math.PI)));
-      const otherTotal = spans.reduce((sum, s, i) => (i === targetIdx ? sum : sum + s), 0);
-      const rem = 360 - targetSpan;
-      if (otherTotal > 1e-4 && rem > 0) {
-        const scale = rem / otherTotal;
-        spans = spans.map((s, i) => (i === targetIdx ? targetSpan : Math.max(10, s * scale)));
-        const total = spans.reduce((sum, s) => sum + s, 0);
-        spans = spans.map((s) => (s / total) * 360);
-      }
-      const newDegs: [number, number, number, number] = [
-        degs[0],
-        (degs[0] + spans[0]) % 360,
-        (degs[0] + spans[0] + spans[1]) % 360,
-        (degs[0] + spans[0] + spans[1] + spans[2]) % 360,
-      ];
-      return normalizeState({
-        ...state,
-        quad: { ...state.quad, touchDeg: newDegs },
-      });
+    const curT = [
+      pinnedLengthValue(state, "BP", pinnedLengthValue(state, "BQ", d.tB)),
+      pinnedLengthValue(state, "CQ", pinnedLengthValue(state, "CR", d.tC)),
+      pinnedLengthValue(state, "DR", pinnedLengthValue(state, "DS", d.tD)),
+      pinnedLengthValue(state, "AP", pinnedLengthValue(state, "AS", d.tA)),
+    ];
+    const isPinned = [
+      targetIdx !== 0 && (isLengthPinned(state, "BP") || isLengthPinned(state, "BQ")),
+      targetIdx !== 1 && (isLengthPinned(state, "CQ") || isLengthPinned(state, "CR")),
+      targetIdx !== 2 && (isLengthPinned(state, "DR") || isLengthPinned(state, "DS")),
+      targetIdx !== 3 && (isLengthPinned(state, "AP") || isLengthPinned(state, "AS")),
+    ];
+
+    const targetT = [...curT];
+    targetT[targetIdx] = Math.max(0.2, Math.min(50, value));
+
+    const unpinned: number[] = [];
+    for (let i = 0; i < 4; i++) {
+      if (i !== targetIdx && !isPinned[i]) unpinned.push(i);
     }
+    if (unpinned.length === 0) {
+      const oppIdx = (targetIdx + 2) % 4;
+      unpinned.push(oppIdx);
+      isPinned[oppIdx] = false;
+    }
+
+    const fixed = [0, 1, 2, 3].filter((i) => !unpinned.includes(i));
+    const sumFixedAngles = (testR: number) => {
+      let sum = 0;
+      for (const idx of fixed) {
+        sum += 2 * Math.atan(targetT[idx]! / testR) * (180 / Math.PI);
+      }
+      return sum;
+    };
+
+    let fixedSum = sumFixedAngles(r);
+    const maxAllowedFixedSum = 360 - 15 * unpinned.length;
+    if (fixedSum >= maxAllowedFixedSum || fixedSum <= 60) {
+      const targetFixedSum = Math.min(maxAllowedFixedSum - 10, Math.max(100, 360 * (fixed.length / (fixed.length + 1))));
+      let low = 0.5;
+      let high = 100;
+      for (let iter = 0; iter < 30; iter++) {
+        const mid = (low + high) / 2;
+        if (sumFixedAngles(mid) > targetFixedSum) {
+          low = mid;
+        } else {
+          high = mid;
+        }
+      }
+      r = (low + high) / 2;
+      fixedSum = sumFixedAngles(r);
+    }
+
+    const remAngle = Math.max(10 * unpinned.length, 360 - fixedSum);
+    const prevUnpinnedSpans = unpinned.map(
+      (idx) => 2 * Math.atan(curT[idx]! / state.radius) * (180 / Math.PI),
+    );
+    const totalPrevUnpinned = prevUnpinnedSpans.reduce((a, b) => a + b, 0) || 1;
+
+    const spans = [0, 0, 0, 0];
+    for (const idx of fixed) {
+      spans[idx] = 2 * Math.atan(targetT[idx]! / r) * (180 / Math.PI);
+    }
+    for (let k = 0; k < unpinned.length; k++) {
+      const idx = unpinned[k]!;
+      spans[idx] = remAngle * (prevUnpinnedSpans[k]! / totalPrevUnpinned);
+    }
+
+    const degs = [...state.quad.touchDeg].sort((a, b) => a - b) as [
+      number,
+      number,
+      number,
+      number,
+    ];
+    const newDegs: [number, number, number, number] = [
+      degs[0],
+      (degs[0] + spans[0]) % 360,
+      (degs[0] + spans[0] + spans[1]) % 360,
+      (degs[0] + spans[0] + spans[1] + spans[2]) % 360,
+    ];
+
+    return finalizeNumericLength({
+      ...state,
+      radius: r,
+      quad: { ...state.quad, touchDeg: newDegs },
+    }, cleanId, value);
   }
 
   if (state.kind === "three-tangents") {
@@ -805,31 +991,70 @@ export function applyLengthNumeric(
     let a = len(sub(d.B, d.C)); // BC
     let b = len(sub(d.A, d.C)); // AC
     let c = len(sub(d.A, d.B)); // AB
-    const s = (a + b + c) / 2;
+
+    const isPinA = isLengthPinned(state, "BC");
+    const isPinB = isLengthPinned(state, "AC");
+    const isPinC = isLengthPinned(state, "AB");
 
     if (cleanId === "BC") {
-      const minA = Math.abs(b - c) + 0.3;
-      const maxA = b + c - 0.3;
-      a = Math.max(minA, Math.min(maxA, value));
+      const targetA = Math.max(0.5, Math.min(50, value));
+      if (isPinC && !isPinB) {
+        a = targetA;
+        b = Math.max(0.5, Math.abs(a - c) + 0.5);
+      } else if (isPinB && !isPinC) {
+        a = targetA;
+        c = Math.max(0.5, Math.abs(a - b) + 0.5);
+      } else {
+        const minA = Math.abs(b - c) + 0.3;
+        const maxA = b + c - 0.3;
+        a = Math.max(minA, Math.min(maxA, targetA));
+      }
     } else if (cleanId === "AC") {
-      const minB = Math.abs(a - c) + 0.3;
-      const maxB = a + c - 0.3;
-      b = Math.max(minB, Math.min(maxB, value));
+      const targetB = Math.max(0.5, Math.min(50, value));
+      if (isPinC && !isPinA) {
+        b = targetB;
+        a = Math.max(0.5, Math.abs(b - c) + 0.5);
+      } else if (isPinA && !isPinC) {
+        b = targetB;
+        c = Math.max(0.5, Math.abs(a - b) + 0.5);
+      } else {
+        const minB = Math.abs(a - c) + 0.3;
+        const maxB = a + c - 0.3;
+        b = Math.max(minB, Math.min(maxB, targetB));
+      }
     } else if (cleanId === "AB") {
-      const minC = Math.abs(a - b) + 0.3;
-      const maxC = a + b - 0.3;
-      c = Math.max(minC, Math.min(maxC, value));
+      const targetC = Math.max(0.5, Math.min(50, value));
+      if (isPinB && !isPinA) {
+        c = targetC;
+        a = Math.max(0.5, Math.abs(b - c) + 0.5);
+      } else if (isPinA && !isPinB) {
+        c = targetC;
+        b = Math.max(0.5, Math.abs(a - c) + 0.5);
+      } else {
+        const minC = Math.abs(a - b) + 0.3;
+        const maxC = a + b - 0.3;
+        c = Math.max(minC, Math.min(maxC, targetC));
+      }
     } else if (cleanId === "AD" || cleanId === "AF") {
-      const factor = Math.max(0.2, Math.min(5, value / s));
-      a *= factor;
-      b *= factor;
-      c *= factor;
-    } else if (cleanId === "BE") {
-      const targetC = a + b - 2 * value;
-      c = Math.max(Math.abs(a - b) + 0.3, Math.min(a + b - 0.3, targetC));
-    } else if (cleanId === "CE") {
-      const targetB = a + c - 2 * value;
-      b = Math.max(Math.abs(a - c) + 0.3, Math.min(a + c - 0.3, targetB));
+      const s = (a + b + c) / 2;
+      const targetS = Math.max(a + 0.5, value);
+      if (isPinA) {
+        const targetSumBC = 2 * targetS - a;
+        if (isPinC && !isPinB) {
+          b = Math.max(0.5, targetSumBC - c);
+        } else if (isPinB && !isPinC) {
+          c = Math.max(0.5, targetSumBC - b);
+        } else {
+          const ratio = targetSumBC / ((b + c) || 1);
+          b *= ratio;
+          c *= ratio;
+        }
+      } else {
+        const factor = Math.max(0.2, Math.min(5, targetS / s));
+        a *= factor;
+        b *= factor;
+        c *= factor;
+      }
     } else {
       return state;
     }
@@ -839,10 +1064,10 @@ export function applyLengthNumeric(
     const B: Vec = { x: -1.2, y: a / 2 };
     const C: Vec = { x: -1.2, y: -a / 2 };
     const A: Vec = { x: -1.2 - h, y: -a / 2 + y_proj };
-    return normalizeState({
+    return finalizeNumericLength({
       ...state,
       three: { ...state.three, verts: [A, B, C] },
-    });
+    }, cleanId, value);
   }
 
   return state;

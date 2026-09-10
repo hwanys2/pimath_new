@@ -156,8 +156,8 @@ function ccwSpan(from: number, to: number): number {
 }
 
 function angleOnArc(ang: number, a0: number, a1: number, ccw: boolean): boolean {
-  if (ccw) return ccwSpan(a0, ang) <= ccwSpan(a0, a1) + 1e-6;
-  return ccwSpan(a1, ang) <= ccwSpan(a1, a0) + 1e-6;
+  if (ccw) return ccwSpan(a1, ang) <= ccwSpan(a1, a0) + 1e-6;
+  return ccwSpan(a0, ang) <= ccwSpan(a0, a1) + 1e-6;
 }
 
 /** Circular arc through A,B with signed sagitta on the `u` side of AB. */
