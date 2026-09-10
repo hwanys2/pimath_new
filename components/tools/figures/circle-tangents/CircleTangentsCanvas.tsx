@@ -3,6 +3,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   applyEditedLabel,
+  cycleLength,
+  cycleNamedPoint,
   findLength,
   lengthEndpoints,
   moveExternalPoint,
@@ -11,8 +13,6 @@ import {
   nudgeMeasureLabel,
   nudgeMeasureLine,
   nudgePointLabel,
-  patchLength,
-  toggleLength,
   type TangentsSelection,
 } from "@/lib/diagrams/circle-tangents/geometry";
 import type { CircleTangentsState } from "@/lib/diagrams/circle-tangents/model";
@@ -36,8 +36,7 @@ const MOVE_PX = 5;
 type Drag =
   | { t: "label"; id: string; x: number; y: number; moved: boolean }
   | { t: "dimLine"; id: string; x: number; y: number; moved: boolean }
-  | { t: "point"; id: string; moved: boolean }
-  | { t: "view"; lastX: number; lastY: number };
+  | { t: "point"; id: string; x: number; y: number; moved: boolean };
 
 export type TangentsSetter = (
   updater: CircleTangentsState | ((prev: CircleTangentsState) => CircleTangentsState),
@@ -229,15 +228,13 @@ export default function CircleTangentsCanvas({
 
           if (!hit) {
             onSelect(null);
-            dragRef.current = { t: "view", lastX: p.x, lastY: p.y };
-            e.currentTarget.setPointerCapture(e.pointerId);
             paint();
             return;
           }
 
           if (hit.kind === "seg") {
             onSelect({ t: "length", id: hit.id });
-            setState((prev) => toggleLength(prev, hit.id), true);
+            setState((prev) => cycleLength(prev, hit.id), true);
             paint();
             return;
           }
@@ -257,7 +254,13 @@ export default function CircleTangentsCanvas({
             return;
           }
           if (hit.kind === "point") {
-            dragRef.current = { t: "point", id: hit.id, moved: false };
+            dragRef.current = {
+              t: "point",
+              id: hit.id,
+              x: p.x,
+              y: p.y,
+              moved: false,
+            };
             e.currentTarget.setPointerCapture(e.pointerId);
             paint();
           }
@@ -278,19 +281,6 @@ export default function CircleTangentsCanvas({
             return;
           }
           if (!scene) return;
-
-          if (drag.t === "view") {
-            const dx = p.x - drag.lastX;
-            setState(
-              (prev) => ({
-                ...prev,
-                viewRotationDeg: prev.viewRotationDeg + dx * 0.35,
-              }),
-              false,
-            );
-            dragRef.current = { t: "view", lastX: p.x, lastY: p.y };
-            return;
-          }
 
           if (drag.t === "label" || drag.t === "dimLine") {
             const dx = p.x - drag.x;
@@ -336,7 +326,9 @@ export default function CircleTangentsCanvas({
           }
 
           if (drag.t === "point") {
-            drag.moved = true;
+            const dist = Math.hypot(p.x - drag.x, p.y - drag.y);
+            if (!drag.moved && dist < MOVE_PX) return;
+            dragRef.current = { ...drag, moved: true };
             const math = canvasToMath(p, scene.layout);
             dragPoint(drag.id, math);
           }
@@ -345,6 +337,17 @@ export default function CircleTangentsCanvas({
           const drag = dragRef.current;
           dragRef.current = null;
           if (!drag) return;
+          if (drag.t === "point" && !drag.moved) {
+            setState((prev) => cycleNamedPoint(prev, drag.id), true);
+            onSelect({ t: "point", id: drag.id });
+            paint();
+            try {
+              e.currentTarget.releasePointerCapture(e.pointerId);
+            } catch {
+              /* ignore */
+            }
+            return;
+          }
           if (
             (drag.t === "label" || drag.t === "dimLine") &&
             !drag.moved &&

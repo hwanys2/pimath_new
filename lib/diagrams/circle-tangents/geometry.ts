@@ -1,5 +1,6 @@
 import { add, len, mul, norm, parseMeasureInput, sub } from "@/lib/diagrams/polygon/geometry";
 import {
+  cyclePointMode,
   emptyLabel,
   normalizeState,
   resolveAngleText,
@@ -673,6 +674,91 @@ export function toggleLength(
   const mark = findLength(state, id);
   if (!mark) return state;
   return patchLength(state, id, { show: !mark.show });
+}
+
+/** Cycle length display: 숨김 → 숫자 → 문자 → 숨김 (직접 입력은 누르면 숨김). */
+export function cycleLength(
+  state: CircleTangentsState,
+  id: string,
+): CircleTangentsState {
+  const mark = findLength(state, id);
+  if (!mark) return state;
+  if (!mark.show || mark.label.mode === "hide") {
+    return patchLength(state, id, {
+      show: true,
+      label: { ...mark.label, mode: "auto" },
+    });
+  }
+  if (mark.label.mode === "auto") {
+    return patchLength(state, id, {
+      show: true,
+      label: { ...mark.label, mode: "x" },
+    });
+  }
+  return patchLength(state, id, {
+    show: false,
+    label: { ...mark.label, mode: "auto" },
+  });
+}
+
+export function figurePointIds(state: CircleTangentsState): string[] {
+  if (state.kind === "two-tangents") return ["O", "P", "A", "B"];
+  if (state.kind === "incircle-triangle") {
+    return ["A", "B", "C", "O", "P", "Q", "R"];
+  }
+  if (state.kind === "tangential-quad") {
+    return ["A", "B", "C", "D", "O", "P", "Q", "R", "S"];
+  }
+  return ["A", "B", "C", "O", "D", "E", "F"];
+}
+
+export function lengthIdsForKind(state: CircleTangentsState): string[] {
+  if (state.kind === "two-tangents") {
+    return Object.keys(state.two.lengths);
+  }
+  if (state.kind === "incircle-triangle") {
+    return [...Object.keys(state.tri.sides), ...Object.keys(state.tri.segs)];
+  }
+  if (state.kind === "tangential-quad") {
+    return Object.keys(state.quad.segs);
+  }
+  return Object.keys(state.three.lengths);
+}
+
+export function cycleNamedPoint(
+  state: CircleTangentsState,
+  id: string,
+): CircleTangentsState {
+  const cur = namedPointOf(state, id);
+  if (!cur) return state;
+  const nextMode = cyclePointMode(cur.mode);
+  let next = setNamedPoint(state, id, { mode: nextMode });
+  // Turning a touch point visible should reveal touch-point layer.
+  if (nextMode !== "none") {
+    if (next.kind === "incircle-triangle" && ["P", "Q", "R"].includes(id)) {
+      next = normalizeState({
+        ...next,
+        tri: { ...next.tri, showTouchPoints: true },
+      });
+    } else if (
+      next.kind === "tangential-quad" &&
+      ["P", "Q", "R", "S"].includes(id)
+    ) {
+      next = normalizeState({
+        ...next,
+        quad: { ...next.quad, showTouchPoints: true },
+      });
+    } else if (
+      next.kind === "three-tangents" &&
+      ["D", "E", "F"].includes(id)
+    ) {
+      next = normalizeState({
+        ...next,
+        three: { ...next.three, showTouchPoints: true },
+      });
+    }
+  }
+  return next;
 }
 
 export function selectableSegIds(state: CircleTangentsState): string[] {

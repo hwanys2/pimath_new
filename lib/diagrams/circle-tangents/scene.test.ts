@@ -16,6 +16,8 @@ import {
   nudgeMeasureLine,
   tangentLengths,
   toggleLength,
+  cycleLength,
+  findLength,
 } from "@/lib/diagrams/circle-tangents/geometry";
 import {
   DEFAULT_TANGENTS_STATE,
@@ -362,6 +364,18 @@ describe("circle-tangents numeric reshape", () => {
     assert.equal(s1.two.lengths.PA.show, false);
     const s2 = toggleLength(s1, "PA");
     assert.equal(s2.two.lengths.PA.show, true);
+  });
+
+  it("cycles length display with cycleLength", () => {
+    const s0 = normalizeState(DEFAULT_TANGENTS_STATE);
+    const s1 = cycleLength(s0, "PA");
+    assert.equal(findLength(s1, "PA")?.show, true);
+    assert.equal(findLength(s1, "PA")?.label.mode, "x");
+    const s2 = cycleLength(s1, "PA");
+    assert.equal(findLength(s2, "PA")?.show, false);
+    const s3 = cycleLength(s2, "PA");
+    assert.equal(findLength(s3, "PA")?.show, true);
+    assert.equal(findLength(s3, "PA")?.label.mode, "auto");
   });
 
   it("detects sub-segment clicks in incircle-triangle and tangential-quad via hitTestFigure", () => {

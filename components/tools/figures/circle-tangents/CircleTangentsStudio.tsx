@@ -23,8 +23,12 @@ import {
   applyEditedLabel,
   autoAngleValue,
   autoLengthValue,
+  cycleLength,
+  cycleNamedPoint,
+  figurePointIds,
   findAngle,
   findLength,
+  lengthIdsForKind,
   namedPointOf,
   patchAngle,
   patchLength,
@@ -38,12 +42,14 @@ import {
   TANGENT_KINDS,
   TANGENT_PRESETS,
   cloneState,
-  cyclePointMode,
   emptyLabel,
+  lengthModeTitle,
   normalizeState,
+  pointModeTitle,
   withKind,
   type AngleFill,
   type CircleTangentsState,
+  type PointDisplayMode,
   type TangentKind,
 } from "@/lib/diagrams/circle-tangents/model";
 import { buildTangentsScene } from "@/lib/diagrams/circle-tangents/scene";
@@ -225,6 +231,7 @@ export default function CircleTangentsStudio() {
   const selAngle =
     selected?.t === "angle" ? findAngle(state, selected.id) : null;
 
+  const pointIds = figurePointIds(state);
   const lengthList = lengthIdsForKind(state);
 
   return (
@@ -322,15 +329,15 @@ export default function CircleTangentsStudio() {
             </div>
             {state.kind === "two-tangents" ? (
               <p className="mt-2 text-[11px] leading-snug text-foreground/55">
-                점 P를 끌어 거리·방향을 바꿉니다. 빈 곳을 끌면 통째로 회전합니다.
+                점 P를 끌어 거리·방향을 바꿉니다. 회전은 오른쪽 「보기」 슬라이더로만 바꿉니다.
               </p>
             ) : state.kind === "tangential-quad" ? (
               <p className="mt-2 text-[11px] leading-snug text-foreground/55">
-                접점 P·Q·R·S를 원 둘레에서 끌어 모양을 바꿉니다.
+                접점 P·Q·R·S를 원 둘레에서 끌어 모양을 바꿉니다. 회전은 「보기」 슬라이더로만.
               </p>
             ) : (
               <p className="mt-2 text-[11px] leading-snug text-foreground/55">
-                꼭짓점 A·B·C를 끌어 삼각형을 맞춥니다. 접점과 중심은 따라옵니다.
+                꼭짓점 A·B·C를 끌어 삼각형을 맞춥니다. 회전은 「보기」 슬라이더로만.
               </p>
             )}
           </section>
@@ -477,58 +484,134 @@ export default function CircleTangentsStudio() {
             </div>
 
             <div className="mt-3">
-              <p className="mb-1.5 text-[11px] font-semibold text-foreground/55">점</p>
-              <div className="flex flex-wrap gap-1.5">
+              <p className="mb-1 text-[11px] font-semibold text-foreground/55">점</p>
+              <div className="mb-1.5 flex flex-wrap gap-1">
                 {POINT_DISPLAY_MODES.map((m) => (
-                  <ChipToggle
+                  <button
                     key={m.id}
-                    on={false}
+                    type="button"
                     onClick={() =>
                       setState((prev) => setAllPointModes(prev, m.id))
                     }
+                    className="rounded-lg bg-black/5 px-2.5 py-1 text-[11px] font-semibold text-foreground/60 hover:bg-black/10"
                   >
                     {m.label}
-                  </ChipToggle>
+                  </button>
                 ))}
+              </div>
+              <p className="mb-1 text-[11px] leading-snug text-foreground/45">
+                점 버튼을 누르면 점과이름 → 점만 → 이름만 → 안보임. 그림 위 점을 짧게
+                눌러도 같습니다.
+              </p>
+              <div className="flex flex-wrap gap-1">
+                {pointIds.map((id) => {
+                  const mark = namedPointOf(state, id);
+                  const mode: PointDisplayMode = mark?.mode ?? "both";
+                  const label = mark?.name?.trim() || id;
+                  return (
+                    <button
+                      key={id}
+                      type="button"
+                      onClick={() => {
+                        setState((prev) => cycleNamedPoint(prev, id));
+                        setSelected({ t: "point", id });
+                      }}
+                      className={`min-w-[1.6rem] rounded-full px-2 py-0.5 text-[11px] font-semibold transition ${
+                        mode === "both"
+                          ? "bg-wood text-cream shadow-sm"
+                          : mode === "dot"
+                            ? "bg-gold text-[#6b4a00] shadow-sm"
+                            : mode === "name"
+                              ? "bg-wood/20 text-wood-dark"
+                              : "bg-black/8 text-foreground/35 line-through"
+                      }`}
+                      title={`점 ${label}: ${pointModeTitle(mode)} (누르면 변경)`}
+                    >
+                      {label}
+                    </button>
+                  );
+                })}
               </div>
             </div>
 
             {selPoint && selected?.t === "point" ? (
               <div className="mt-3 rounded-xl bg-black/[0.03] p-2.5">
                 <p className="text-[11px] font-semibold text-foreground/55">
-                  점 {selected.id}
+                  점 {selPoint.name || selected.id}
                 </p>
                 <div className="mt-1.5 flex flex-wrap gap-1.5">
                   {POINT_DISPLAY_MODES.map((m) => (
-                    <ChipToggle
+                    <button
                       key={m.id}
-                      on={selPoint.mode === m.id}
+                      type="button"
                       onClick={() =>
                         setState((prev) =>
                           setNamedPoint(prev, selected.id, { mode: m.id }),
                         )
                       }
+                      className={`rounded-lg px-2.5 py-1 text-[11px] font-semibold transition ${
+                        selPoint.mode === m.id
+                          ? "bg-wood text-cream shadow-sm"
+                          : "bg-black/5 text-foreground/60 hover:bg-black/10"
+                      }`}
                     >
                       {m.label}
-                    </ChipToggle>
+                    </button>
                   ))}
-                  <ChipToggle
-                    on={false}
+                  <button
+                    type="button"
                     onClick={() =>
-                      setState((prev) => {
-                        const cur = namedPointOf(prev, selected.id);
-                        if (!cur) return prev;
-                        return setNamedPoint(prev, selected.id, {
-                          mode: cyclePointMode(cur.mode),
-                        });
-                      })
+                      setState((prev) => cycleNamedPoint(prev, selected.id))
                     }
+                    className="rounded-lg border border-sky-300/80 bg-sky-50 px-2.5 py-1 text-[11px] font-semibold text-sky-800"
                   >
                     순환
-                  </ChipToggle>
+                  </button>
                 </div>
               </div>
             ) : null}
+
+            <div className="mt-3">
+              <p className="mb-1 text-[11px] font-semibold text-foreground/55">
+                선분 길이
+              </p>
+              <p className="mb-1 text-[11px] leading-snug text-foreground/45">
+                선분 버튼을 누르면 숨김 → 숫자 → 문자($x$) 순으로 바뀝니다. 그림 위
+                선분을 눌러도 같습니다.
+              </p>
+              <div className="flex flex-wrap gap-1">
+                {lengthList.map((id) => {
+                  const mark = findLength(state, id);
+                  if (!mark) return null;
+                  const title = lengthModeTitle(mark.show, mark.label.mode);
+                  const on = mark.show && mark.label.mode !== "hide";
+                  const isX = on && mark.label.mode === "x";
+                  const isCustom = on && mark.label.mode === "custom";
+                  return (
+                    <button
+                      key={id}
+                      type="button"
+                      onClick={() => {
+                        setState((prev) => cycleLength(prev, id));
+                        setSelected({ t: "length", id });
+                      }}
+                      className={`min-w-[1.8rem] rounded-full px-2 py-0.5 text-[11px] font-semibold transition ${
+                        isX
+                          ? "bg-gold text-[#6b4a00] shadow-sm"
+                          : isCustom
+                            ? "bg-wood/20 text-wood-dark"
+                            : on
+                              ? "bg-wood text-cream shadow-sm"
+                              : "bg-black/8 text-foreground/35 line-through"
+                      }`}
+                      title={`선분 ${id}: ${title} (누르면 변경)`}
+                    >
+                      {id}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
 
             {selLength && selected?.t === "length" ? (
               <div className="mt-3 rounded-xl bg-black/[0.03] p-2.5">
@@ -663,37 +746,6 @@ export default function CircleTangentsStudio() {
                 </div>
               </div>
             ) : null}
-
-            <div className="mt-3">
-              <p className="mb-1.5 text-[11px] font-semibold text-foreground/55">
-                길이 목록
-              </p>
-              <div className="flex max-h-40 flex-col gap-1 overflow-y-auto">
-                {lengthList.map((id) => {
-                  const mark = findLength(state, id);
-                  if (!mark) return null;
-                  return (
-                    <button
-                      key={id}
-                      type="button"
-                      onClick={() => {
-                        setState((prev) =>
-                          patchLength(prev, id, { show: !mark.show }),
-                        );
-                        setSelected({ t: "length", id });
-                      }}
-                      className={`rounded-lg px-2 py-1 text-left text-xs font-semibold ${
-                        mark.show
-                          ? "bg-wood/10 text-wood-dark"
-                          : "bg-black/5 text-foreground/50"
-                      }`}
-                    >
-                      {id} {mark.show ? "표시" : "숨김"}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
           </section>
 
           <section className="rounded-2xl border-2 border-wood/10 bg-white/80 p-3.5">
@@ -796,17 +848,4 @@ export default function CircleTangentsStudio() {
       </div>
     </div>
   );
-}
-
-function lengthIdsForKind(state: CircleTangentsState): string[] {
-  if (state.kind === "two-tangents") {
-    return Object.keys(state.two.lengths);
-  }
-  if (state.kind === "incircle-triangle") {
-    return [...Object.keys(state.tri.sides), ...Object.keys(state.tri.segs)];
-  }
-  if (state.kind === "tangential-quad") {
-    return Object.keys(state.quad.segs);
-  }
-  return Object.keys(state.three.lengths);
 }

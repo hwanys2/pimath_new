@@ -547,3 +547,20 @@ export function cyclePointMode(mode: PointDisplayMode): PointDisplayMode {
   const i = order.indexOf(mode);
   return order[(i + 1) % order.length]!;
 }
+
+export function pointModeTitle(mode: PointDisplayMode): string {
+  if (mode === "both") return "점과이름";
+  if (mode === "dot") return "점만";
+  if (mode === "name") return "이름만";
+  return "안보임";
+}
+
+export function lengthModeTitle(
+  show: boolean,
+  mode: MeasLabel["mode"],
+): string {
+  if (!show || mode === "hide") return "숨김";
+  if (mode === "x") return "문자";
+  if (mode === "custom") return "직접";
+  return "숫자";
+}
