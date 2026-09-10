@@ -1,4 +1,4 @@
-import { add, len, mul, norm, sub } from "@/lib/diagrams/polygon/geometry";
+import { add, len, mul, norm, parseMeasureInput, sub } from "@/lib/diagrams/polygon/geometry";
 import {
   emptyLabel,
   normalizeState,
@@ -514,6 +514,23 @@ export function angleDeg(vertex: Vec, from: Vec, to: Vec): number {
   return (Math.acos(Math.min(1, Math.max(-1, c))) * 180) / Math.PI;
 }
 
+export function autoAngleValue(
+  state: CircleTangentsState,
+  id: string,
+): number | null {
+  if (state.kind !== "two-tangents") return null;
+  const d = deriveTwo(state);
+  if (!d) return null;
+  const cleanId = cleanMeasureId(id);
+  if (cleanId === "angP" || cleanId === "P") {
+    return angleDeg(d.P, d.A, d.B);
+  }
+  if (cleanId === "angA" || cleanId === "A") {
+    return angleDeg(d.A, d.P, d.B);
+  }
+  return null;
+}
+
 export function moveExternalPoint(
   state: CircleTangentsState,
   math: Vec,
@@ -624,6 +641,246 @@ export function nudgeMeasureLine(
   return patchLength(state, id, { label });
 }
 
+export function applyLengthNumeric(
+  state: CircleTangentsState,
+  id: string,
+  value: number,
+): CircleTangentsState {
+  const cleanId = cleanMeasureId(id);
+  if (!Number.isFinite(value) || value <= 0) return state;
+
+  if (state.kind === "two-tangents") {
+    const r = state.radius;
+    const d = state.two.opDist;
+    const curL = Math.sqrt(Math.max(0, d * d - r * r));
+
+    if (cleanId === "PA" || cleanId === "PB") {
+      const targetL = Math.max(0.2, Math.min(60, value));
+      const nextD = Math.sqrt(targetL * targetL + r * r);
+      return normalizeState({
+        ...state,
+        two: { ...state.two, opDist: nextD },
+      });
+    }
+
+    if (cleanId === "OA" || cleanId === "OB") {
+      const targetR = Math.max(0.2, Math.min(40, value));
+      const nextD = Math.sqrt(curL * curL + targetR * targetR);
+      return normalizeState({
+        ...state,
+        radius: targetR,
+        two: { ...state.two, opDist: nextD },
+      });
+    }
+
+    if (cleanId === "OP") {
+      const nextD = Math.max(r + 0.2, Math.min(80, value));
+      return normalizeState({
+        ...state,
+        two: { ...state.two, opDist: nextD },
+      });
+    }
+
+    if (cleanId === "AB") {
+      const targetW = Math.max(0.2, Math.min(2 * r - 0.1, value));
+      const ratio = targetW / (2 * r);
+      const denom = Math.sqrt(Math.max(0.001, 1 - ratio * ratio));
+      const nextD = r / denom;
+      return normalizeState({
+        ...state,
+        two: { ...state.two, opDist: nextD },
+      });
+    }
+  }
+
+  if (state.kind === "incircle-triangle") {
+    const d = deriveTri(state);
+    if (!d) return state;
+
+    let a = len(sub(d.B, d.C)); // BC
+    let b = len(sub(d.C, d.A)); // CA
+    let c = len(sub(d.A, d.B)); // AB
+    let tA = d.tA; // AP, AR
+    let tB = d.tB; // BP, BQ
+    let tC = d.tC; // CQ, CR
+
+    if (cleanId === "AP" || cleanId === "AR") {
+      tA = Math.max(0.2, Math.min(50, value));
+      a = tB + tC;
+      b = tC + tA;
+      c = tA + tB;
+    } else if (cleanId === "BP" || cleanId === "BQ") {
+      tB = Math.max(0.2, Math.min(50, value));
+      a = tB + tC;
+      b = tC + tA;
+      c = tA + tB;
+    } else if (cleanId === "CQ" || cleanId === "CR") {
+      tC = Math.max(0.2, Math.min(50, value));
+      a = tB + tC;
+      b = tC + tA;
+      c = tA + tB;
+    } else if (cleanId === "BC") {
+      const minA = Math.abs(b - c) + 0.3;
+      const maxA = b + c - 0.3;
+      a = Math.max(minA, Math.min(maxA, value));
+    } else if (cleanId === "CA") {
+      const minB = Math.abs(a - c) + 0.3;
+      const maxB = a + c - 0.3;
+      b = Math.max(minB, Math.min(maxB, value));
+    } else if (cleanId === "AB") {
+      const minC = Math.abs(a - b) + 0.3;
+      const maxC = a + b - 0.3;
+      c = Math.max(minC, Math.min(maxC, value));
+    } else {
+      return state;
+    }
+
+    const x = (c * c + a * a - b * b) / (2 * a);
+    const y = Math.sqrt(Math.max(0.1, c * c - x * x));
+    const centroidX = (x - a / 2) / 3;
+    const B: Vec = { x: -a / 2 - centroidX, y: -y / 3 };
+    const C: Vec = { x: a / 2 - centroidX, y: -y / 3 };
+    const A: Vec = { x: x - a / 2 - centroidX, y: (2 * y) / 3 };
+    return normalizeState({
+      ...state,
+      tri: { ...state.tri, verts: [A, B, C] },
+    });
+  }
+
+  if (state.kind === "tangential-quad") {
+    const d = deriveQuad(state);
+    if (!d) return state;
+    const r = state.radius;
+    const degs = [...state.quad.touchDeg].sort((a, b) => a - b) as [
+      number,
+      number,
+      number,
+      number,
+    ];
+    const normSpan = (diff: number) => {
+      let s = diff % 360;
+      if (s <= 0) s += 360;
+      return s;
+    };
+    let spans = [
+      normSpan(degs[1] - degs[0]),
+      normSpan(degs[2] - degs[1]),
+      normSpan(degs[3] - degs[2]),
+      normSpan(degs[0] - degs[3]),
+    ];
+
+    let targetIdx = -1;
+    if (cleanId === "BP" || cleanId === "BQ") targetIdx = 0;
+    else if (cleanId === "CQ" || cleanId === "CR") targetIdx = 1;
+    else if (cleanId === "DR" || cleanId === "DS") targetIdx = 2;
+    else if (cleanId === "AP" || cleanId === "AS") targetIdx = 3;
+
+    if (targetIdx >= 0) {
+      const targetSpan = Math.max(15, Math.min(160, 2 * Math.atan(value / r) * (180 / Math.PI)));
+      const otherTotal = spans.reduce((sum, s, i) => (i === targetIdx ? sum : sum + s), 0);
+      const rem = 360 - targetSpan;
+      if (otherTotal > 1e-4 && rem > 0) {
+        const scale = rem / otherTotal;
+        spans = spans.map((s, i) => (i === targetIdx ? targetSpan : Math.max(10, s * scale)));
+        const total = spans.reduce((sum, s) => sum + s, 0);
+        spans = spans.map((s) => (s / total) * 360);
+      }
+      const newDegs: [number, number, number, number] = [
+        degs[0],
+        (degs[0] + spans[0]) % 360,
+        (degs[0] + spans[0] + spans[1]) % 360,
+        (degs[0] + spans[0] + spans[1] + spans[2]) % 360,
+      ];
+      return normalizeState({
+        ...state,
+        quad: { ...state.quad, touchDeg: newDegs },
+      });
+    }
+  }
+
+  if (state.kind === "three-tangents") {
+    const d = deriveThree(state);
+    if (!d) return state;
+
+    let a = len(sub(d.B, d.C)); // BC
+    let b = len(sub(d.A, d.C)); // AC
+    let c = len(sub(d.A, d.B)); // AB
+    const s = (a + b + c) / 2;
+
+    if (cleanId === "BC") {
+      const minA = Math.abs(b - c) + 0.3;
+      const maxA = b + c - 0.3;
+      a = Math.max(minA, Math.min(maxA, value));
+    } else if (cleanId === "AC") {
+      const minB = Math.abs(a - c) + 0.3;
+      const maxB = a + c - 0.3;
+      b = Math.max(minB, Math.min(maxB, value));
+    } else if (cleanId === "AB") {
+      const minC = Math.abs(a - b) + 0.3;
+      const maxC = a + b - 0.3;
+      c = Math.max(minC, Math.min(maxC, value));
+    } else if (cleanId === "AD" || cleanId === "AF") {
+      const factor = Math.max(0.2, Math.min(5, value / s));
+      a *= factor;
+      b *= factor;
+      c *= factor;
+    } else if (cleanId === "BE") {
+      const targetC = a + b - 2 * value;
+      c = Math.max(Math.abs(a - b) + 0.3, Math.min(a + b - 0.3, targetC));
+    } else if (cleanId === "CE") {
+      const targetB = a + c - 2 * value;
+      b = Math.max(Math.abs(a - c) + 0.3, Math.min(a + c - 0.3, targetB));
+    } else {
+      return state;
+    }
+
+    const y_proj = (c * c - b * b + a * a) / (2 * a);
+    const h = Math.sqrt(Math.max(0.1, c * c - y_proj * y_proj));
+    const B: Vec = { x: -1.2, y: a / 2 };
+    const C: Vec = { x: -1.2, y: -a / 2 };
+    const A: Vec = { x: -1.2 - h, y: -a / 2 + y_proj };
+    return normalizeState({
+      ...state,
+      three: { ...state.three, verts: [A, B, C] },
+    });
+  }
+
+  return state;
+}
+
+export function applyAngleNumeric(
+  state: CircleTangentsState,
+  id: string,
+  value: number,
+): CircleTangentsState {
+  if (state.kind !== "two-tangents") return state;
+  const cleanId = cleanMeasureId(id);
+  const r = state.radius;
+
+  if (cleanId === "angP" || cleanId === "P") {
+    const deg = Math.max(5, Math.min(170, value));
+    const halfRad = (deg / 2) * (Math.PI / 180);
+    const nextD = r / Math.sin(halfRad);
+    return normalizeState({
+      ...state,
+      two: { ...state.two, opDist: nextD },
+    });
+  }
+
+  if (cleanId === "angA" || cleanId === "A") {
+    const deg = Math.max(5, Math.min(85, value));
+    const angP_deg = 180 - 2 * deg;
+    const halfRad = (angP_deg / 2) * (Math.PI / 180);
+    const nextD = r / Math.sin(halfRad);
+    return normalizeState({
+      ...state,
+      two: { ...state.two, opDist: nextD },
+    });
+  }
+
+  return state;
+}
+
 export function applyEditedLabel(
   state: CircleTangentsState,
   id: string,
@@ -634,25 +891,56 @@ export function applyEditedLabel(
     const pid = id.slice(3);
     return setNamedPoint(state, pid, { name: text || namedPointOf(state, pid)?.name || pid });
   }
-  if (id.startsWith("ang")) {
-    const which = id.includes("P") ? "P" : "A";
+
+  const cleanId = cleanMeasureId(id);
+  if (cleanId === "angP" || cleanId === "P" || cleanId === "angA" || cleanId === "A") {
+    const which = cleanId.includes("P") ? "P" : "A";
     const mark = state.two.angles[which];
     if (!mark) return state;
+
     if (!text || text === "x" || text === "$x$") {
       return patchAngle(state, which, { label: { ...emptyLabel("x"), custom: "x" } });
     }
+
+    const numMatch = /^([0-9]+(?:\.[0-9]+)?)\s*°?$/.exec(text);
+    if (numMatch) {
+      const num = Number(numMatch[1]);
+      const next = applyAngleNumeric(state, which, num);
+      const custom = text.includes("°") ? text : `${text}°`;
+      const mode =
+        mark.label.mode === "auto" || mark.label.mode === "x"
+          ? mark.label.mode
+          : "custom";
+      return patchAngle(next, which, {
+        label: { ...mark.label, mode, custom },
+      });
+    }
+
     return patchAngle(state, which, {
       label: { ...emptyLabel("custom"), custom: text.includes("°") ? text : `${text}°` },
     });
   }
-  const mark = findLength(state, id);
+
+  const mark = findLength(state, cleanId);
   if (!mark) return state;
+
   if (!text || text === "x" || text === "$x$") {
-    return patchLength(state, id, { show: true, label: { ...emptyLabel("x"), custom: "x" } });
+    return patchLength(state, cleanId, { show: true, label: { ...emptyLabel("x"), custom: "x" } });
   }
-  return patchLength(state, id, {
+
+  const parsed = parseMeasureInput(text);
+  let next = state;
+  if (parsed.kind === "number" && parsed.value != null && parsed.value > 0) {
+    next = applyLengthNumeric(next, cleanId, parsed.value);
+  }
+
+  const mode =
+    mark.label.mode === "auto" || mark.label.mode === "x"
+      ? mark.label.mode
+      : "custom";
+  return patchLength(next, cleanId, {
     show: true,
-    label: { ...emptyLabel("custom"), custom: text },
+    label: { ...mark.label, mode, custom: text },
   });
 }
 

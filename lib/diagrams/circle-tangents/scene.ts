@@ -484,8 +484,8 @@ function buildTwo(state: CircleTangentsState, d: DerivedTwo): DiagramScene {
 
   const aExt = map(extendBeyond(d.P, d.A, t.extendPast * d.r));
   const bExt = map(extendBeyond(d.P, d.B, t.extendPast * d.r));
-  cmds.push({ t: "line", x1: cP.x, y1: cP.y, x2: aExt.x, y2: aExt.y });
-  cmds.push({ t: "line", x1: cP.x, y1: cP.y, x2: bExt.x, y2: bExt.y });
+  cmds.push({ t: "line", x1: cP.x, y1: cP.y, x2: aExt.x, y2: aExt.y, id: "PA" });
+  cmds.push({ t: "line", x1: cP.x, y1: cP.y, x2: bExt.x, y2: bExt.y, id: "PB" });
 
   if (t.showChordAB) {
     cmds.push({ t: "line", x1: cA.x, y1: cA.y, x2: cB.x, y2: cB.y, id: "AB" });
@@ -600,9 +600,9 @@ function buildTri(state: CircleTangentsState, d: DerivedTri): DiagramScene {
   const cO = map(d.O);
   const visualR = layout.scale * d.r;
 
-  cmds.push({ t: "line", x1: cA.x, y1: cA.y, x2: cB.x, y2: cB.y });
-  cmds.push({ t: "line", x1: cB.x, y1: cB.y, x2: cC.x, y2: cC.y });
-  cmds.push({ t: "line", x1: cC.x, y1: cC.y, x2: cA.x, y2: cA.y });
+  cmds.push({ t: "line", x1: cA.x, y1: cA.y, x2: cB.x, y2: cB.y, id: "AB" });
+  cmds.push({ t: "line", x1: cB.x, y1: cB.y, x2: cC.x, y2: cC.y, id: "BC" });
+  cmds.push({ t: "line", x1: cC.x, y1: cC.y, x2: cA.x, y2: cA.y, id: "CA" });
   cmds.push({ t: "circle", x: cO.x, y: cO.y, r: visualR });
 
   const centroid = mul(add(add(d.A, d.B), d.C), 1 / 3);
@@ -704,9 +704,9 @@ function buildThree(state: CircleTangentsState, d: DerivedThree): DiagramScene {
   const cF = map(d.F);
   const visualR = layout.scale * d.r;
 
-  cmds.push({ t: "line", x1: cA.x, y1: cA.y, x2: cD.x, y2: cD.y });
-  cmds.push({ t: "line", x1: cA.x, y1: cA.y, x2: cF.x, y2: cF.y });
-  cmds.push({ t: "line", x1: cB.x, y1: cB.y, x2: cC.x, y2: cC.y });
+  cmds.push({ t: "line", x1: cA.x, y1: cA.y, x2: cD.x, y2: cD.y, id: "AD" });
+  cmds.push({ t: "line", x1: cA.x, y1: cA.y, x2: cF.x, y2: cF.y, id: "AF" });
+  cmds.push({ t: "line", x1: cB.x, y1: cB.y, x2: cC.x, y2: cC.y, id: "BC" });
   cmds.push({ t: "circle", x: cO.x, y: cO.y, r: visualR });
 
   const mid = mul(add(add(d.A, d.B), d.C), 1 / 3);
@@ -767,7 +767,8 @@ export function buildTangentsScene(state: CircleTangentsState): DiagramScene {
 export type FigureHit =
   | { kind: "label"; id: string }
   | { kind: "dimLine"; id: string }
-  | { kind: "point"; id: string };
+  | { kind: "point"; id: string }
+  | { kind: "seg"; id: string };
 
 function distToSeg(p: Vec, a: Vec, b: Vec): number {
   const ab = sub(b, a);
@@ -813,6 +814,13 @@ export function hitTestFigure(
     if (!math) continue;
     const c = mathToCanvas(math, scene.layout);
     if (len(sub(p, c)) < 14 * s) return { kind: "point", id };
+  }
+
+  for (const cmd of scene.cmds) {
+    if (cmd.t === "line" && cmd.id && !cmd.id.endsWith(":line")) {
+      const d = distToSeg(p, { x: cmd.x1, y: cmd.y1 }, { x: cmd.x2, y: cmd.y2 });
+      if (d < 10 * s) return { kind: "seg", id: cmd.id };
+    }
   }
 
   return null;

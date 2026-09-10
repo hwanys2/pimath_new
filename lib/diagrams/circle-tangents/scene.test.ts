@@ -1,6 +1,11 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
+  applyAngleNumeric,
+  applyEditedLabel,
+  applyLengthNumeric,
+  autoAngleValue,
+  autoLengthValue,
   deriveQuad,
   deriveThree,
   deriveTri,
@@ -15,7 +20,11 @@ import {
   normalizeState,
   withKind,
 } from "@/lib/diagrams/circle-tangents/model";
-import { buildTangentsScene, measureFrame } from "@/lib/diagrams/circle-tangents/scene";
+import {
+  buildTangentsScene,
+  hitTestFigure,
+  measureFrame,
+} from "@/lib/diagrams/circle-tangents/scene";
 
 describe("circle-tangents geometry", () => {
   it("derives equal tangents from an external point", () => {
@@ -183,5 +192,92 @@ describe("circle-tangents scene", () => {
     assert.ok(frameAng);
     assert.deepEqual(frameAng!.along, { x: 1, y: 0 });
     assert.deepEqual(frameAng!.outward, { x: 0, y: 1 });
+  });
+});
+
+describe("circle-tangents numeric reshape", () => {
+  it("reshapes two-tangents length PA while preserving radius r", () => {
+    const s0 = DEFAULT_TANGENTS_STATE; // r = 6, opDist = 10, PA = 8
+    const s1 = applyLengthNumeric(s0, "PA", 12);
+    assert.equal(s1.radius, 6);
+    const d1 = deriveTwo(s1);
+    assert.ok(d1);
+    assert.ok(Math.abs(d1!.tangentLen - 12) < 1e-4);
+    assert.ok(Math.abs(d1!.opDist - Math.sqrt(12 * 12 + 6 * 6)) < 1e-4);
+  });
+
+  it("reshapes two-tangents radius OA while preserving tangent length", () => {
+    const s0 = DEFAULT_TANGENTS_STATE; // r = 6, opDist = 10, PA = 8
+    const s1 = applyLengthNumeric(s0, "OA", 8);
+    assert.equal(s1.radius, 8);
+    const d1 = deriveTwo(s1);
+    assert.ok(d1);
+    // tangent length should be preserved at 8, so opDist = sqrt(8^2 + 8^2)
+    assert.ok(Math.abs(d1!.tangentLen - 8) < 1e-4);
+    assert.ok(Math.abs(d1!.opDist - Math.sqrt(8 * 8 + 8 * 8)) < 1e-4);
+  });
+
+  it("reshapes two-tangents angle angP while preserving radius r", () => {
+    const s0 = DEFAULT_TANGENTS_STATE; // r = 6
+    const s1 = applyAngleNumeric(s0, "angP", 60);
+    assert.equal(s1.radius, 6);
+    const d1 = deriveTwo(s1);
+    assert.ok(d1);
+    // sin(30 deg) = 0.5, opDist = 6 / 0.5 = 12
+    assert.ok(Math.abs(d1!.opDist - 12) < 1e-4);
+    const ang = autoAngleValue(s1, "angP");
+    assert.ok(ang && Math.abs(ang - 60) < 1e-3);
+  });
+
+  it("reshapes incircle-triangle tangent piece while preserving other pieces", () => {
+    const s0 = withKind(DEFAULT_TANGENTS_STATE, "incircle-triangle");
+    const d0 = deriveTri(s0);
+    assert.ok(d0);
+    const origTB = d0!.tB;
+    const origTC = d0!.tC;
+
+    // Change AP (which is tA) to 4.5
+    const s1 = applyLengthNumeric(s0, "AP", 4.5);
+    const d1 = deriveTri(s1);
+    assert.ok(d1);
+    assert.ok(Math.abs(d1!.tA - 4.5) < 1e-4);
+    assert.ok(Math.abs(d1!.tB - origTB) < 1e-4);
+    assert.ok(Math.abs(d1!.tC - origTC) < 1e-4);
+  });
+
+  it("reshapes tangential-quad tangent pieces and preserves tangency condition", () => {
+    const s0 = withKind(DEFAULT_TANGENTS_STATE, "tangential-quad");
+    const s1 = applyLengthNumeric(s0, "AP", 5.0);
+    const d1 = deriveQuad(s1);
+    assert.ok(d1);
+    assert.ok(Math.abs(d1!.tA - 5.0) < 1e-2);
+    // AB + CD = AD + BC must still hold for tangential quad
+    const ab = Math.hypot(d1!.A.x - d1!.B.x, d1!.A.y - d1!.B.y);
+    const cd = Math.hypot(d1!.C.x - d1!.D.x, d1!.C.y - d1!.D.y);
+    const ad = Math.hypot(d1!.A.x - d1!.D.x, d1!.A.y - d1!.D.y);
+    const bc = Math.hypot(d1!.B.x - d1!.C.x, d1!.B.y - d1!.C.y);
+    assert.ok(Math.abs(ab + cd - (ad + bc)) < 1e-3);
+  });
+
+  it("applies edited label with numeric strings across kinds", () => {
+    const s0 = DEFAULT_TANGENTS_STATE;
+    const s1 = applyEditedLabel(s0, "PA", "15 cm");
+    const d1 = deriveTwo(s1);
+    assert.ok(d1);
+    assert.ok(Math.abs(d1!.tangentLen - 15) < 1e-4);
+  });
+
+  it("hits a segment line command with hitTestFigure", () => {
+    const state = DEFAULT_TANGENTS_STATE;
+    const scene = buildTangentsScene(state);
+    const paLine = scene.cmds.find((c) => c.t === "line" && c.id === "PA");
+    assert.ok(paLine && paLine.t === "line");
+    if (!paLine || paLine.t !== "line") return;
+    const midX = (paLine.x1 + paLine.x2) / 2;
+    const midY = (paLine.y1 + paLine.y2) / 2;
+    const hit = hitTestFigure(state, scene, midX, midY, 1);
+    assert.ok(hit);
+    assert.equal(hit!.kind, "seg");
+    assert.equal(hit!.id, "PA");
   });
 });

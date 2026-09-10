@@ -6,6 +6,7 @@ import { useCallback, useMemo, useState, useSyncExternalStore } from "react";
 import {
   ChipToggle,
   LabelModeRow,
+  NumberField,
   SliderField,
 } from "@/components/tools/figures/controls";
 import CircleTangentsCanvas, {
@@ -19,6 +20,9 @@ import {
   EXPORT_INK_PAD,
 } from "@/lib/diagrams/export-image";
 import {
+  applyEditedLabel,
+  autoAngleValue,
+  autoLengthValue,
   findAngle,
   findLength,
   namedPointOf,
@@ -531,25 +535,53 @@ export default function CircleTangentsStudio() {
                 <p className="mb-1.5 text-[11px] font-semibold text-foreground/55">
                   길이 {selected.id}
                 </p>
+                {autoLengthValue(state, selected.id) != null ? (
+                  <div className="mb-2">
+                    <NumberField
+                      label={`${selected.id} 길이 값`}
+                      value={Number(autoLengthValue(state, selected.id)!.toFixed(1))}
+                      onChange={(n) =>
+                        setState((prev) =>
+                          applyEditedLabel(
+                            prev,
+                            selected.id,
+                            prev.unit ? `${n} ${prev.unit}` : String(n),
+                          ),
+                        )
+                      }
+                      min={0.5}
+                      max={40}
+                      step={0.1}
+                      suffix={state.unit}
+                    />
+                  </div>
+                ) : null}
                 <LabelModeRow
                   title="길이"
                   mode={selLength.label.mode}
                   custom={selLength.label.custom}
                   unknownLetter={state.unknownLetter}
                   onMode={(mode) =>
-                    setState((prev) =>
-                      patchLength(prev, selected.id, {
+                    setState((prev) => {
+                      const lenMark = findLength(prev, selected.id);
+                      if (!lenMark) return prev;
+                      let custom = lenMark.label.custom;
+                      if (mode === "custom" && !custom.trim()) {
+                        const auto = autoLengthValue(prev, selected.id);
+                        custom =
+                          auto != null
+                            ? `${Number(auto.toFixed(1))}${prev.unit}`
+                            : "";
+                      }
+                      return patchLength(prev, selected.id, {
                         show: mode !== "hide",
-                        label: { ...selLength.label, mode },
-                      }),
-                    )
+                        label: { ...lenMark.label, mode, custom },
+                      });
+                    })
                   }
                   onCustom={(custom) =>
                     setState((prev) =>
-                      patchLength(prev, selected.id, {
-                        show: true,
-                        label: { ...emptyLabel("custom"), custom },
-                      }),
+                      applyEditedLabel(prev, selected.id, custom),
                     )
                   }
                 />
@@ -572,23 +604,45 @@ export default function CircleTangentsStudio() {
                 <p className="mb-1.5 text-[11px] font-semibold text-foreground/55">
                   각 {selected.id}
                 </p>
+                {autoAngleValue(state, selected.id) != null ? (
+                  <div className="mb-2">
+                    <NumberField
+                      label={`${selected.id} 각도 값`}
+                      value={Number(autoAngleValue(state, selected.id)!.toFixed(1))}
+                      onChange={(n) =>
+                        setState((prev) =>
+                          applyEditedLabel(prev, selected.id, `${n}°`),
+                        )
+                      }
+                      min={10}
+                      max={170}
+                      step={1}
+                      suffix="°"
+                    />
+                  </div>
+                ) : null}
                 <LabelModeRow
                   title="각"
                   mode={selAngle.label.mode}
                   custom={selAngle.label.custom}
                   unknownLetter={state.unknownLetter}
                   onMode={(mode) =>
-                    setState((prev) =>
-                      patchAngle(prev, selected.id, {
-                        label: { ...selAngle.label, mode },
-                      }),
-                    )
+                    setState((prev) => {
+                      const angMark = findAngle(prev, selected.id);
+                      if (!angMark) return prev;
+                      let custom = angMark.label.custom;
+                      if (mode === "custom" && !custom.trim()) {
+                        const auto = autoAngleValue(prev, selected.id);
+                        custom = auto != null ? `${Math.round(auto)}°` : "";
+                      }
+                      return patchAngle(prev, selected.id, {
+                        label: { ...angMark.label, mode, custom },
+                      });
+                    })
                   }
                   onCustom={(custom) =>
                     setState((prev) =>
-                      patchAngle(prev, selected.id, {
-                        label: { ...emptyLabel("custom"), custom },
-                      }),
+                      applyEditedLabel(prev, selected.id, custom),
                     )
                   }
                 />

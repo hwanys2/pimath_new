@@ -3,12 +3,14 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   applyEditedLabel,
+  findLength,
   moveExternalPoint,
   moveQuadTouch,
   moveTriangleVertex,
   nudgeMeasureLabel,
   nudgeMeasureLine,
   nudgePointLabel,
+  patchLength,
   type TangentsSelection,
 } from "@/lib/diagrams/circle-tangents/geometry";
 import type { CircleTangentsState } from "@/lib/diagrams/circle-tangents/model";
@@ -52,6 +54,16 @@ function sameHit(a: FigureHit | null, b: FigureHit | null): boolean {
   if (a === b) return true;
   if (!a || !b) return false;
   return a.kind === b.kind && a.id === b.id;
+}
+
+function cursorForHit(hit: FigureHit | null, dragging: boolean): string {
+  if (dragging) return "grabbing";
+  if (!hit) return "default";
+  if (hit.kind === "point") return "grab";
+  if (hit.kind === "label") return "text";
+  if (hit.kind === "dimLine") return "move";
+  if (hit.kind === "seg") return "pointer";
+  return "default";
 }
 
 export default function CircleTangentsCanvas({
@@ -155,6 +167,7 @@ export default function CircleTangentsCanvas({
       return { t: "length", id: hit.id };
     }
     if (hit.kind === "dimLine") return { t: "length", id: hit.id };
+    if (hit.kind === "seg") return { t: "length", id: hit.id };
     return null;
   }
 
@@ -219,6 +232,21 @@ export default function CircleTangentsCanvas({
             return;
           }
 
+          if (hit.kind === "seg") {
+            onSelect({ t: "length", id: hit.id });
+            setState((prev) => {
+              const cur = findLength(prev, hit.id);
+              if (!cur) return prev;
+              const isCurrentlySelected =
+                selectedRef.current?.t === "length" &&
+                selectedRef.current.id === hit.id;
+              const nextShow = isCurrentlySelected ? !cur.show : true;
+              return patchLength(prev, hit.id, { show: nextShow });
+            }, true);
+            paint();
+            return;
+          }
+
           onSelect(selectionFromHit(hit));
 
           if (hit.kind === "label") {
@@ -243,8 +271,11 @@ export default function CircleTangentsCanvas({
           const drag = dragRef.current;
           const p = scenePoint(e);
           const scene = sceneRef.current;
+          const hit = hitAt(e);
+          if (canvasRef.current) {
+            canvasRef.current.style.cursor = cursorForHit(hit, Boolean(drag));
+          }
           if (!drag) {
-            const hit = hitAt(e);
             if (!sameHit(hoverRef.current, hit)) {
               hoverRef.current = hit;
               paint();
