@@ -388,7 +388,11 @@ export default function CircleChordsCanvas({
                   false,
                 );
               } else {
-                setState((prev) => nudgeById(prev, drag.id, dx, dy), false);
+                setState(
+                  (prev) =>
+                    nudgeById(prev, drag.id, dx, dy, drag.t === "dimLine"),
+                  false,
+                );
               }
             }
             return;

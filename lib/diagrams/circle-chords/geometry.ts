@@ -407,6 +407,7 @@ export function nudgeById(
   id: string,
   dx: number,
   dy: number,
+  lineOnly = false,
 ): CircleChordsState {
   if (id === "center-name") {
     return {
@@ -442,6 +443,15 @@ export function nudgeById(
       ]);
       if (!labelKeys.has(key)) return c;
       const label = c[key as "chordLabel"] as MeasLabel;
+      if (lineOnly) {
+        return {
+          ...c,
+          [key]: {
+            ...label,
+            lineDy: clampNum((label.lineDy ?? 0) + dy, -160, 160),
+          },
+        };
+      }
       return { ...c, [key]: { ...label, dx: label.dx + dx, dy: label.dy + dy } };
     }),
   };
