@@ -44,14 +44,14 @@
 도구 (/tools) 
   └─ 문제 그림 그리기 (/tools/figures)
         ├─ 중1 카드들 → /tools/figures/g1-number-line , /tools/figures/g1-coordinate-plane , /tools/figures/g1-polygon , /tools/figures/g1-circle-sectors , /tools/figures/g1-solid-sketch , /tools/figures/g1-histogram
-        ├─ 중2 카드들 → /tools/figures/g2-repeating-decimal , /tools/figures/g2-linear-inequality , /tools/figures/g2-linear-function , /tools/figures/g2-triangle-centers , /tools/figures/g2-isosceles-triangle , /tools/figures/g2-similar-solids , /tools/figures/g2-quadrilaterals , /tools/figures/g2-similar-figures , /tools/figures/g2-similar-triangles , /tools/figures/g2-counting-probability , /tools/figures/g2-pythagorean
+        ├─ 중2 카드들 → /tools/figures/g2-repeating-decimal , /tools/figures/g2-linear-inequality , /tools/figures/g2-linear-function , /tools/figures/g2-isosceles-triangle , /tools/figures/g2-triangle-centers , /tools/figures/g2-quadrilaterals , /tools/figures/g2-similar-triangles , /tools/figures/g2-similar-solids , /tools/figures/g2-pythagorean , /tools/figures/g2-similar-figures , /tools/figures/g2-counting-probability
         └─ 중3 카드들
               ├─ 제곱근 수직선 → /tools/figures/g3-sqrt-number-line
               ├─ 이차함수 그래프 → /tools/figures/g3-quadratic-function
+              ├─ 삼각비 → /tools/figures/g3-trig-ratios
               ├─ 원의 현 → /tools/figures/g3-circle-chords
               ├─ 원주각 → /tools/figures/g3-inscribed-angles
               ├─ 원과 접선 → /tools/figures/g3-circle-tangents
-              ├─ 삼각비 → /tools/figures/g3-trig-ratios
               ├─ 상자수염 그림 → /tools/figures/g3-boxplot
               └─ 산점도 → /tools/figures/g3-scatter
 ```
@@ -59,6 +59,7 @@
 - 학년 id는 콘텐츠와 같다: `1 | 2 | 3` ([`lib/grades.ts`](../lib/grades.ts)).
 - 도구 id는 **불변 슬러그**. 권장: `g{학년}-{slug}`  
   예) `g3-circle-chords`, `g3-inscribed-angles`, `g3-circle-tangents`, `g2-similar-triangles`
+- 허브 카드 순서는 [`lib/diagrams/catalog.ts`](../lib/diagrams/catalog.ts) 배열 순서다. **학년 안에서는 `unitHint` 단원 순**으로 둔다.
 - 허브·navbar 등록은 카탈로그만 수정하면 된다. 콘텐츠 시스템(`lib/contents.ts`)·XP·학급 배정과는 **무관**하다. 수업 도구다.
 
 새 도구를 만들 때 파일 위치:
@@ -490,17 +491,17 @@ components/tools/figures/DiagramToolShell.tsx  ← 공통 뼈대. 손대지 않�
 | `g2-isosceles-triangle` | 중2 | 이등변삼각형 | ready |
 | `g2-triangle-centers` | 중2 | 외심과 내심 | ready |
 | `g2-quadrilaterals` | 중2 | 사각형의 성질 | ready |
-| `g2-similar-figures` | 중2 | 평면도형의 닮음 | ready |
 | `g2-similar-triangles` | 중2 | 삼각형의 닮음 | ready |
-| `g2-pythagorean` | 중2 | 피타고라스의 정리 | ready |
 | `g2-similar-solids` | 중2 | 입체도형의 닮음 | ready |
+| `g2-pythagorean` | 중2 | 피타고라스의 정리 | ready |
+| `g2-similar-figures` | 중2 | 평면도형의 닮음 | ready |
 | `g2-counting-probability` | 중2 | 경우의 수와 확률 | ready |
 | `g3-sqrt-number-line` | 중3 | 제곱근 수직선 | ready |
 | `g3-quadratic-function` | 중3 | 이차함수 그래프 | ready |
+| `g3-trig-ratios` | 중3 | 삼각비 | ready |
 | `g3-circle-chords` | 중3 | 원의 현 | ready |
 | `g3-inscribed-angles` | 중3 | 원주각 | ready |
 | `g3-circle-tangents` | 중3 | 원과 접선 | ready |
-| `g3-trig-ratios` | 중3 | 삼각비 | ready |
 | `g3-boxplot` | 중3 | 상자수염 그림 | ready |
 | `g3-scatter` | 중3 | 산점도 | ready |
 
@@ -628,3 +629,4 @@ components/tools/figures/DiagramToolShell.tsx  ← 공통 뼈대. 손대지 않�
 | 2026-09-10 | 원의 현: 점 표시 4단 모드(점과이름/점만/이름만/안보임) 및 개별 점(O, A, B, M) 순환 토글, 선분 클릭 시 길이 토글 연동. |
 | 2026-09-10 | 원의 현: 빠른 그림을 3열로 이동하여 3열 스튜디오 배치 통일, PNG/SVG 저장 시 여백 밀착 크롭(cropCanvasToInk). |
 | 2026-09-10 | 중3 원과 접선 (`g3-circle-tangents`). 한 점에서 두 접선·삼각형 내접원·접선사각형·세 접선 삼각형, PNG. |
+| 2026-09-10 | 문제 그림 허브 카드를 `unitHint` 단원 순으로 재정렬(중1 부채꼴↔겨냥도, 중2 닮음·피타고라스, 중3 삼각비↔원). |

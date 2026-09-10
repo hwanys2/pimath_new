@@ -17,6 +17,7 @@ export type DiagramToolMeta = {
 /**
  * 문제 그림 도구 카탈로그.
  * 허브 카드와 /tools/figures/[toolId] 연결의 단일 출처.
+ * 배열 순서가 곧 허브 카드 순서이며, 학년 안에서는 unitHint 단원 순을 따른다.
  * 추가 방법: docs/problem-diagram-tools.md
  * 페이지는 항상 DiagramToolShell(스튜디오 + 공통 의견)을 쓴다.
  */
@@ -55,17 +56,6 @@ export const DIAGRAM_TOOLS: DiagramToolMeta[] = [
     status: "ready",
   },
   {
-    id: "g1-solid-sketch",
-    grade: 1,
-    title: "겨냥도",
-    description:
-      "각기둥·각뿔·뿔대·원기둥·원뿔·구·반구와 같은 반지름 조합·정다면체를 겨냥도로 그리고, 점 이름과 길이를 붙여 PNG로 저장해요.",
-    unitHint: "3.4 입체도형의 성질",
-    emoji: "◇",
-    href: "/tools/figures/g1-solid-sketch",
-    status: "ready",
-  },
-  {
     id: "g1-circle-sectors",
     grade: 1,
     title: "원과 부채꼴",
@@ -74,6 +64,17 @@ export const DIAGRAM_TOOLS: DiagramToolMeta[] = [
     unitHint: "3.3 평면도형의 성질",
     emoji: "◕",
     href: "/tools/figures/g1-circle-sectors",
+    status: "ready",
+  },
+  {
+    id: "g1-solid-sketch",
+    grade: 1,
+    title: "겨냥도",
+    description:
+      "각기둥·각뿔·뿔대·원기둥·원뿔·구·반구와 같은 반지름 조합·정다면체를 겨냥도로 그리고, 점 이름과 길이를 붙여 PNG로 저장해요.",
+    unitHint: "3.4 입체도형의 성질",
+    emoji: "◇",
+    href: "/tools/figures/g1-solid-sketch",
     status: "ready",
   },
   {
@@ -154,17 +155,6 @@ export const DIAGRAM_TOOLS: DiagramToolMeta[] = [
     status: "ready",
   },
   {
-    id: "g2-similar-figures",
-    grade: 2,
-    title: "평면도형의 닮음",
-    description:
-      "한 도형을 그리면 닮음비에 맞춰 짝이 그려집니다. 오른쪽은 회전·대칭하고, 변·각을 붙여 PNG로 저장해요.",
-    unitHint: "4.1 평면도형의 닮음",
-    emoji: "∽",
-    href: "/tools/figures/g2-similar-figures",
-    status: "ready",
-  },
-  {
     id: "g2-similar-triangles",
     grade: 2,
     title: "삼각형의 닮음",
@@ -195,6 +185,17 @@ export const DIAGRAM_TOOLS: DiagramToolMeta[] = [
     unitHint: "3.3 피타고라스의 정리",
     emoji: "△",
     href: "/tools/figures/g2-pythagorean",
+    status: "ready",
+  },
+  {
+    id: "g2-similar-figures",
+    grade: 2,
+    title: "평면도형의 닮음",
+    description:
+      "한 도형을 그리면 닮음비에 맞춰 짝이 그려집니다. 오른쪽은 회전·대칭하고, 변·각을 붙여 PNG로 저장해요.",
+    unitHint: "4.1 평면도형의 닮음",
+    emoji: "∽",
+    href: "/tools/figures/g2-similar-figures",
     status: "ready",
   },
   {
@@ -231,6 +232,17 @@ export const DIAGRAM_TOOLS: DiagramToolMeta[] = [
     status: "ready",
   },
   {
+    id: "g3-trig-ratios",
+    grade: 3,
+    title: "삼각비",
+    description:
+      "직각삼각형·단위원·삼각형·사각형의 넓이·삼각비의 표 문제 그림을 시험지처럼 그리고 PNG로 저장해요.",
+    unitHint: "3.1 삼각비",
+    emoji: "△",
+    href: "/tools/figures/g3-trig-ratios",
+    status: "ready",
+  },
+  {
     id: "g3-circle-chords",
     grade: 3,
     title: "원의 현",
@@ -261,17 +273,6 @@ export const DIAGRAM_TOOLS: DiagramToolMeta[] = [
     unitHint: "3.2 원의 성질",
     emoji: "⊙",
     href: "/tools/figures/g3-circle-tangents",
-    status: "ready",
-  },
-  {
-    id: "g3-trig-ratios",
-    grade: 3,
-    title: "삼각비",
-    description:
-      "직각삼각형·단위원·삼각형·사각형의 넓이·삼각비의 표 문제 그림을 시험지처럼 그리고 PNG로 저장해요.",
-    unitHint: "3.1 삼각비",
-    emoji: "△",
-    href: "/tools/figures/g3-trig-ratios",
     status: "ready",
   },
   {

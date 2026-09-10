@@ -111,6 +111,7 @@ await submitGameRun({ contentKey: "g1-u1-1-prime-hunt", score });
 | **전체 기록** | `all` | 한 학생이 1·2·3등을 모두 차지할 수 있음 (판마다 행) |
 
 - RPC: `pm_list_game_ranking(session, content_key, scope, mode)`
+- 동점: `score DESC, created_at ASC` — 같은 점수면 **그 점수에 먼저 도달한** 기록이 위. 스키마 추가 없이 `pm_game_runs.created_at`으로 이미 처리한다. (`best`는 학생별 최고점 중 가장 이른 행을 고른 뒤 같은 규칙으로 순위.)
 - 이름 마스킹: **다른 학교** 학생은 글자 하나 `*` (`홍길동` → `홍*동`). 본인·같은 학급·같은 선생님·같은 실제 학교(`pm_teacher_schools`)는 실명.
 - UI: 1차 탭(월드/학교/학급) + 2차 토글(개인 최고/전체 기록). 탑3 포디움 + 리스트.
 - 교사 게임 대시보드: 학급·학교·전체 보드를 한 화면에. RPC `pm_teacher_list_game_ranking`.
