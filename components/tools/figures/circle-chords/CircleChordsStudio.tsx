@@ -8,10 +8,17 @@ import CircleChordsCanvas, {
 } from "@/components/tools/figures/circle-chords/CircleChordsCanvas";
 import {
   ChipToggle,
+  LabelModeRow,
+  NumberField,
   Segmented,
   SliderField,
 } from "@/components/tools/figures/circle-chords/controls";
-import { cycleLabelMode, mapChord, toggleRadius } from "@/lib/diagrams/circle-chords/geometry";
+import {
+  cycleLabelMode,
+  mapChord,
+  toggleRadius,
+  type ChordSegKey,
+} from "@/lib/diagrams/circle-chords/geometry";
 import {
   chordEndPointMode,
   chordMidpointMode,
@@ -27,6 +34,7 @@ import {
   POINT_DISPLAY_MODES,
   setAllPointsMode,
   stateCenterMode,
+  withChordMidpointMode,
   withChordPointMode,
   withSnappedChords,
   type CircleChordsState,
@@ -46,7 +54,7 @@ import {
   downloadBlob,
   EXPORT_INK_PAD,
 } from "@/lib/diagrams/export-image";
-import type { FontFaces } from "@/lib/diagrams/math-label";
+import { formatNiceNumber, type FontFaces } from "@/lib/diagrams/math-label";
 
 const STORAGE_KEY = "pm-diagram-g3-circle-chords-v2";
 
@@ -160,6 +168,7 @@ export default function CircleChordsStudio() {
   const [selectedId, setSelectedId] = useState<string | null>(
     () => state.chords[0]?.id ?? null,
   );
+  const [selectedSeg, setSelectedSeg] = useState<ChordSegKey>("chord");
   const fonts = useMemo(() => fontsFromNext(), []);
   const selected =
     state.chords.find((c) => c.id === selectedId) ?? state.chords[0] ?? null;
@@ -190,7 +199,196 @@ export default function CircleChordsStudio() {
       chords: prev.chords.filter((c) => c.id !== id),
     }));
     setSelectedId(remaining[0]?.id ?? null);
+    setSelectedSeg("chord");
   }, [selected, state.chords, setState]);
+
+  const activeSegInfo = useMemo(() => {
+    if (!selected) return null;
+    const center = state.centerName || "O";
+    const start = selected.startName || "A";
+    const end = selected.endName || "B";
+    const mid = selected.midName || "M";
+
+    switch (selectedSeg) {
+      case "chord":
+        return {
+          key: "chord" as const,
+          name: `현 ${start}${end}`,
+          value: selected.length,
+          min: 0.5,
+          max: Number((state.radius * 2 * 0.995).toFixed(1)),
+          step: 0.5,
+          label: selected.chordLabel,
+          onValueChange: (val: number) => {
+            patchSelected({ lock: "length", length: val });
+          },
+          onLabelChange: (label: MeasLabel) => {
+            patchSelected({ chordLabel: label });
+          },
+        };
+      case "dist":
+        return {
+          key: "dist" as const,
+          name: `중심 거리 ${center}${mid}`,
+          value: selected.distance,
+          min: 0,
+          max: Number((state.radius * 0.995).toFixed(1)),
+          step: 0.5,
+          label: selected.distLabel,
+          onValueChange: (val: number) => {
+            patchSelected({ lock: "distance", distance: val });
+          },
+          onLabelChange: (label: MeasLabel) => {
+            patchSelected({ distLabel: label });
+          },
+        };
+      case "radiusStart":
+        return {
+          key: "radiusStart" as const,
+          name: `반지름 ${center}${start}`,
+          value: state.radius,
+          min: 1,
+          max: 40,
+          step: 0.5,
+          label: selected.radiusStartLabel,
+          onValueChange: (val: number) => {
+            setState((prev) => withSnappedChords({ ...prev, radius: val }));
+          },
+          onLabelChange: (label: MeasLabel) => {
+            patchSelected({ radiusStartLabel: label });
+          },
+        };
+      case "radiusEnd":
+        return {
+          key: "radiusEnd" as const,
+          name: `반지름 ${center}${end}`,
+          value: state.radius,
+          min: 1,
+          max: 40,
+          step: 0.5,
+          label: selected.radiusEndLabel,
+          onValueChange: (val: number) => {
+            setState((prev) => withSnappedChords({ ...prev, radius: val }));
+          },
+          onLabelChange: (label: MeasLabel) => {
+            patchSelected({ radiusEndLabel: label });
+          },
+        };
+      case "half":
+        return {
+          key: "half" as const,
+          name: `반 길이 ${mid}${end}`,
+          value: Number((selected.length / 2).toFixed(2)),
+          min: 0.2,
+          max: Number((state.radius * 0.995).toFixed(1)),
+          step: 0.5,
+          label: selected.halfLabel,
+          onValueChange: (val: number) => {
+            patchSelected({ lock: "length", length: val * 2 });
+          },
+          onLabelChange: (label: MeasLabel) => {
+            patchSelected({ halfLabel: label });
+          },
+        };
+    }
+  }, [
+    selected,
+    selectedSeg,
+    state.centerName,
+    state.radius,
+    patchSelected,
+    setState,
+  ]);
+
+  const segChips = useMemo(() => {
+    if (!selected) return [];
+    const center = state.centerName || "O";
+    const start = selected.startName || "A";
+    const end = selected.endName || "B";
+    const mid = selected.midName || "M";
+
+    return [
+      {
+        key: "chord" as ChordSegKey,
+        label: `현 ${start}${end}`,
+        labelMode: selected.chordLabel.mode,
+        onSelect: () => setSelectedSeg("chord"),
+        onToggleLength: () =>
+          patchSelected({
+            chordLabel: {
+              ...selected.chordLabel,
+              mode: selected.chordLabel.mode === "hide" ? "auto" : "hide",
+            },
+          }),
+      },
+      {
+        key: "dist" as ChordSegKey,
+        label: `거리 ${center}${mid}`,
+        labelMode: selected.distLabel.mode,
+        onSelect: () => {
+          setSelectedSeg("dist");
+          if (!selected.showPerp) patchSelected({ showPerp: true });
+        },
+        onToggleLength: () => {
+          const nextMode = selected.distLabel.mode === "hide" ? "auto" : "hide";
+          patchSelected({
+            showPerp: true,
+            distLabel: { ...selected.distLabel, mode: nextMode },
+          });
+        },
+      },
+      {
+        key: "radiusStart" as ChordSegKey,
+        label: `반지름 ${center}${start}`,
+        labelMode: selected.radiusStartLabel.mode,
+        onSelect: () => {
+          setSelectedSeg("radiusStart");
+          if (!selected.showRadiusStart) patchSelected({ showRadiusStart: true });
+        },
+        onToggleLength: () => {
+          const nextMode =
+            selected.radiusStartLabel.mode === "hide" ? "auto" : "hide";
+          patchSelected({
+            showRadiusStart: true,
+            radiusStartLabel: { ...selected.radiusStartLabel, mode: nextMode },
+          });
+        },
+      },
+      {
+        key: "radiusEnd" as ChordSegKey,
+        label: `반지름 ${center}${end}`,
+        labelMode: selected.radiusEndLabel.mode,
+        onSelect: () => {
+          setSelectedSeg("radiusEnd");
+          if (!selected.showRadiusEnd) patchSelected({ showRadiusEnd: true });
+        },
+        onToggleLength: () => {
+          const nextMode =
+            selected.radiusEndLabel.mode === "hide" ? "auto" : "hide";
+          patchSelected({
+            showRadiusEnd: true,
+            radiusEndLabel: { ...selected.radiusEndLabel, mode: nextMode },
+          });
+        },
+      },
+      {
+        key: "half" as ChordSegKey,
+        label: `반 길이 ${mid}${end}`,
+        labelMode: selected.halfLabel.mode,
+        onSelect: () => {
+          setSelectedSeg("half");
+          if (!selected.showHalf) patchSelected({ showHalf: true });
+        },
+        onToggleLength: () => {
+          const nextMode = selected.halfLabel.mode === "hide" ? "auto" : "hide";
+          patchSelected({
+            showHalf: true,
+            halfLabel: { ...selected.halfLabel, mode: nextMode },
+          });
+        },
+      },
+    ];
+  }, [selected, state.centerName, patchSelected]);
 
   async function exportPng() {
     await document.fonts.ready;
@@ -306,9 +504,13 @@ export default function CircleChordsStudio() {
             fonts={fonts}
             tool={tool}
             selectedId={selected?.id ?? null}
+            selectedSeg={selectedSeg}
             setState={setState}
             persist={persistCachedState}
-            onSelect={setSelectedId}
+            onSelect={(id, segKey) => {
+              setSelectedId(id);
+              if (segKey) setSelectedSeg(segKey);
+            }}
             onToolChange={setTool}
             onDeleteSelected={deleteSelected}
           />
@@ -460,161 +662,203 @@ export default function CircleChordsStudio() {
             {selected ? (
               <>
                 <div className="mt-2.5 flex flex-wrap gap-1.5">
-                <ChipToggle
-                  on={selected.showRadiusStart}
-                  onClick={() =>
-                    patchSelected(toggleRadius(selected, "start"))
-                  }
-                >
-                  {state.centerName || "O"}
-                  {selected.startName}
-                </ChipToggle>
-                {selected.showRadiusStart ? (
                   <ChipToggle
-                    on={selected.radiusStartLabel.mode !== "hide"}
+                    on={selected.showPerp}
+                    onClick={() => patchSelected({ showPerp: !selected.showPerp })}
+                  >
+                    수선
+                  </ChipToggle>
+                  <ChipToggle
+                    on={selected.showRightAngle}
+                    onClick={() =>
+                      patchSelected({ showRightAngle: !selected.showRightAngle })
+                    }
+                  >
+                    직각
+                  </ChipToggle>
+                  <ChipToggle
+                    on={selected.showMidpoint}
+                    onClick={() =>
+                      patchSelected({ showMidpoint: !selected.showMidpoint })
+                    }
+                  >
+                    중점
+                  </ChipToggle>
+                  <ChipToggle
+                    on={selected.showHalf}
+                    onClick={() => patchSelected({ showHalf: !selected.showHalf })}
+                  >
+                    반
+                  </ChipToggle>
+                  <ChipToggle
+                    on={selected.equalTicks > 0}
                     onClick={() =>
                       patchSelected({
-                        radiusStartLabel: cycleLabelMode(
-                          selected.radiusStartLabel,
-                        ),
+                        equalTicks: selected.equalTicks === 0 ? 1 : 0,
                       })
                     }
                   >
-                    {state.centerName || "O"}
-                    {selected.startName} 길이
-                    {labelModeHint(selected.radiusStartLabel, state.unknownLetter)}
+                    빗금
                   </ChipToggle>
-                ) : null}
-                <ChipToggle
-                  on={selected.showRadiusEnd}
-                  onClick={() => patchSelected(toggleRadius(selected, "end"))}
-                >
-                  {state.centerName || "O"}
-                  {selected.endName}
-                </ChipToggle>
-                {selected.showRadiusEnd ? (
                   <ChipToggle
-                    on={selected.radiusEndLabel.mode !== "hide"}
+                    on={selected.showRadiusStart}
                     onClick={() =>
-                      patchSelected({
-                        radiusEndLabel: cycleLabelMode(selected.radiusEndLabel),
-                      })
+                      patchSelected(toggleRadius(selected, "start"))
                     }
                   >
-                    {state.centerName || "O"}
-                    {selected.endName} 길이
-                    {labelModeHint(selected.radiusEndLabel, state.unknownLetter)}
+                    {state.centerName || "O"}{selected.startName} 반지름
                   </ChipToggle>
-                ) : null}
-                <ChipToggle
-                  on={selected.showPerp}
-                  onClick={() => patchSelected({ showPerp: !selected.showPerp })}
-                >
-                  수선
-                </ChipToggle>
-                <ChipToggle
-                  on={selected.showRightAngle}
-                  onClick={() =>
-                    patchSelected({ showRightAngle: !selected.showRightAngle })
-                  }
-                >
-                  직각
-                </ChipToggle>
-                <ChipToggle
-                  on={selected.showMidpoint}
-                  onClick={() =>
-                    patchSelected({ showMidpoint: !selected.showMidpoint })
-                  }
-                >
-                  중점
-                </ChipToggle>
-                <ChipToggle
-                  on={selected.showHalf}
-                  onClick={() => {
-                    const on = !selected.showHalf;
-                    patchSelected({
-                      showHalf: on,
-                      halfLabel:
-                        on && selected.halfLabel.mode === "hide"
-                          ? { ...selected.halfLabel, mode: "auto" }
-                          : selected.halfLabel,
-                    });
-                  }}
-                >
-                  반
-                </ChipToggle>
-                <ChipToggle
-                  on={selected.equalTicks > 0}
-                  onClick={() =>
-                    patchSelected({
-                      equalTicks: selected.equalTicks === 0 ? 1 : 0,
-                    })
-                  }
-                >
-                  빗금
-                </ChipToggle>
-                <ChipToggle
-                  on={selected.chordLabel.mode !== "hide"}
-                  onClick={() =>
-                    patchSelected({
-                      chordLabel: cycleLabelMode(selected.chordLabel),
-                    })
-                  }
-                >
-                  길이{labelModeHint(selected.chordLabel, state.unknownLetter)}
-                </ChipToggle>
-                <ChipToggle
-                  on={selected.distLabel.mode !== "hide"}
-                  onClick={() =>
-                    patchSelected({
-                      distLabel: cycleLabelMode(selected.distLabel),
-                    })
-                  }
-                >
-                  거리{labelModeHint(selected.distLabel, state.unknownLetter)}
-                </ChipToggle>
-                {selected.showHalf ? (
                   <ChipToggle
-                    on={selected.halfLabel.mode !== "hide"}
-                    onClick={() =>
-                      patchSelected({
-                        halfLabel: cycleLabelMode(selected.halfLabel),
-                      })
-                    }
+                    on={selected.showRadiusEnd}
+                    onClick={() => patchSelected(toggleRadius(selected, "end"))}
                   >
-                    반 길이
-                    {labelModeHint(selected.halfLabel, state.unknownLetter)}
+                    {state.centerName || "O"}{selected.endName} 반지름
                   </ChipToggle>
-                ) : null}
-              </div>
-
-              <div className="mt-2.5">
-                <p className="text-[11px] font-semibold text-foreground/50">
-                  {selected.startName}{selected.endName} 양 끝점 표시
-                </p>
-                <div className="mt-1 flex flex-wrap gap-1">
-                  {POINT_DISPLAY_MODES.map((m) => {
-                    const cur = chordPointMode(selected);
-                    return (
-                      <button
-                        key={m.id}
-                        type="button"
-                        onClick={() =>
-                          patchSelected(withChordPointMode(selected, m.id))
-                        }
-                        className={`rounded-lg px-2 py-1 text-[11px] font-semibold transition ${
-                          cur === m.id
-                            ? "bg-wood text-cream shadow-sm"
-                            : "bg-black/5 text-foreground/60 hover:bg-black/10"
-                        }`}
-                      >
-                        {m.label}
-                      </button>
-                    );
-                  })}
                 </div>
-              </div>
-            </>
+
+                <div className="mt-3">
+                  <p className="text-[11px] font-semibold text-foreground/50">
+                    선분 선택 (길이 조작)
+                  </p>
+                  <div className="mt-1 flex flex-wrap gap-1">
+                    {segChips.map((chip) => {
+                      const isSelected = selectedSeg === chip.key;
+                      const hasLength = chip.labelMode !== "hide";
+                      return (
+                        <button
+                          key={chip.key}
+                          type="button"
+                          onClick={() => {
+                            if (isSelected) {
+                              chip.onToggleLength();
+                            } else {
+                              chip.onSelect();
+                            }
+                          }}
+                          className={`rounded-lg px-2.5 py-1 text-xs font-semibold transition ${
+                            isSelected
+                              ? "bg-wood text-cream shadow-sm"
+                              : hasLength
+                                ? "bg-wood/15 text-wood-dark"
+                                : "bg-black/5 text-foreground/60 hover:bg-black/10"
+                          }`}
+                          title={
+                            hasLength
+                              ? "길이 표시 중 (누르면 숨김/선택)"
+                              : "누르면 선택 및 표시"
+                          }
+                        >
+                          {chip.label}
+                          {hasLength ? " ✓" : ""}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {activeSegInfo ? (
+                  <div className="mt-2.5 space-y-2 rounded-xl border border-wood/15 bg-wood/5 p-3">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-semibold text-wood-dark">
+                        {activeSegInfo.name}
+                      </span>
+                      <span className="text-[11px] tabular-nums text-foreground/50">
+                        실제 길이: {formatNiceNumber(activeSegInfo.value)} {state.unit}
+                      </span>
+                    </div>
+                    <NumberField
+                      label={`${activeSegInfo.name} 길이 값`}
+                      value={Number(activeSegInfo.value.toFixed(1))}
+                      onChange={activeSegInfo.onValueChange}
+                      min={activeSegInfo.min}
+                      max={activeSegInfo.max}
+                      step={activeSegInfo.step}
+                      suffix={state.unit}
+                    />
+                    <LabelModeRow
+                      title="길이"
+                      mode={activeSegInfo.label.mode}
+                      custom={activeSegInfo.label.custom}
+                      unknownLetter={state.unknownLetter}
+                      onMode={(mode) => {
+                        let custom = activeSegInfo.label.custom;
+                        if (mode === "custom" && !custom.trim()) {
+                          custom = `${formatNiceNumber(activeSegInfo.value)} ${state.unit}`.trim();
+                        } else if (mode === "x" && !custom.trim()) {
+                          custom = state.unknownLetter || "x";
+                        }
+                        activeSegInfo.onLabelChange({
+                          ...activeSegInfo.label,
+                          mode,
+                          custom,
+                        });
+                      }}
+                      onCustom={(custom) => {
+                        activeSegInfo.onLabelChange({
+                          ...activeSegInfo.label,
+                          custom,
+                        });
+                      }}
+                    />
+                  </div>
+                ) : null}
+
+                <div className="mt-3">
+                  <p className="text-[11px] font-semibold text-foreground/50">
+                    {selected.startName}{selected.endName} 양 끝점 표시
+                  </p>
+                  <div className="mt-1 flex flex-wrap gap-1">
+                    {POINT_DISPLAY_MODES.map((m) => {
+                      const cur = chordPointMode(selected);
+                      return (
+                        <button
+                          key={m.id}
+                          type="button"
+                          onClick={() =>
+                            patchSelected(withChordPointMode(selected, m.id))
+                          }
+                          className={`rounded-lg px-2 py-1 text-[11px] font-semibold transition ${
+                            cur === m.id
+                              ? "bg-wood text-cream shadow-sm"
+                              : "bg-black/5 text-foreground/60 hover:bg-black/10"
+                          }`}
+                        >
+                          {m.label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {selected.showMidpoint ? (
+                  <div className="mt-2.5">
+                    <p className="text-[11px] font-semibold text-foreground/50">
+                      중점 {selected.midName || "M"} 표시
+                    </p>
+                    <div className="mt-1 flex flex-wrap gap-1">
+                      {POINT_DISPLAY_MODES.map((m) => {
+                        const cur = chordMidpointMode(selected);
+                        return (
+                          <button
+                            key={m.id}
+                            type="button"
+                            onClick={() =>
+                              patchSelected(withChordMidpointMode(selected, m.id))
+                            }
+                            className={`rounded-lg px-2 py-1 text-[11px] font-semibold transition ${
+                              cur === m.id
+                                ? "bg-wood text-cream shadow-sm"
+                                : "bg-black/5 text-foreground/60 hover:bg-black/10"
+                            }`}
+                          >
+                            {m.label}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ) : null}
+              </>
           ) : (
             <p className="mt-2 text-xs text-foreground/50">
               원 둘레를 끌어 현을 그리세요.

@@ -17,6 +17,7 @@ import {
   rotateChordToPoint,
   toggleChordSegmentLength,
   toggleRadius,
+  type ChordSegKey,
 } from "@/lib/diagrams/circle-chords/geometry";
 import type { CircleChordsState } from "@/lib/diagrams/circle-chords/model";
 import { paintCircleChordsScene } from "@/lib/diagrams/circle-chords/render";
@@ -73,9 +74,10 @@ type Props = {
   fonts: FontFaces;
   tool: Tool;
   selectedId: string | null;
+  selectedSeg?: ChordSegKey | null;
   setState: CircleChordsSetter;
   persist: () => void;
-  onSelect: (id: string | null) => void;
+  onSelect: (id: string | null, segKey?: ChordSegKey) => void;
   onToolChange: (tool: Tool) => void;
   onDeleteSelected: () => void;
 };
@@ -85,6 +87,7 @@ export default function CircleChordsCanvas({
   fonts,
   tool,
   selectedId,
+  selectedSeg,
   setState,
   persist,
   onSelect,
@@ -111,6 +114,8 @@ export default function CircleChordsCanvas({
   stateRef.current = state;
   toolRef.current = tool;
   selectedRef.current = selectedId;
+  const selectedSegRef = useRef(selectedSeg);
+  selectedSegRef.current = selectedSeg;
 
   const paint = useCallback(() => {
     const canvas = canvasRef.current;
@@ -130,6 +135,7 @@ export default function CircleChordsCanvas({
       scene,
       current,
       selectedRef.current,
+      selectedSegRef.current,
       hoverRef.current,
       dragRef.current,
       pendingDrawRef.current,
@@ -145,7 +151,7 @@ export default function CircleChordsCanvas({
     return () => {
       cancelled = true;
     };
-  }, [paint, state, selectedId]);
+  }, [paint, state, selectedId, selectedSeg]);
 
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
@@ -224,7 +230,7 @@ export default function CircleChordsCanvas({
       if (prev.chords.length >= 4) return prev;
       return { ...prev, chords: [...prev.chords, chord] };
     }, true);
-    onSelect(chord.id);
+    onSelect(chord.id, "chord");
     onToolChange("select");
     pendingDrawRef.current = null;
     return true;
@@ -289,8 +295,11 @@ export default function CircleChordsCanvas({
             };
             setCursor("grabbing");
             e.currentTarget.setPointerCapture(e.pointerId);
-            const chordId = chordIdFromLabel(hit.id);
-            if (chordId) onSelect(chordId);
+            const parsed = parseMeasureId(hit.id);
+            if (parsed) {
+              const segKey = segKeyFromMeasureKey(parsed.key);
+              onSelect(parsed.chordId, segKey);
+            }
             return;
           }
 
@@ -304,13 +313,16 @@ export default function CircleChordsCanvas({
             };
             setCursor("grabbing");
             e.currentTarget.setPointerCapture(e.pointerId);
-            const chordId = chordIdFromLabel(hit.id);
-            if (chordId) onSelect(chordId);
+            const parsed = parseMeasureId(hit.id);
+            if (parsed) {
+              const segKey = segKeyFromMeasureKey(parsed.key);
+              onSelect(parsed.chordId, segKey);
+            }
             return;
           }
 
           if (hit.kind === "seg") {
-            onSelect(hit.chordId);
+            onSelect(hit.chordId, hit.segKey);
             setState(
               (prev) => toggleChordSegmentLength(prev, hit.chordId, hit.segKey),
               true,
@@ -345,7 +357,7 @@ export default function CircleChordsCanvas({
           }
 
           if (hit.kind === "chord") {
-            onSelect(hit.chordId);
+            onSelect(hit.chordId, "chord");
             dragRef.current =
               hit.t < 0.28
                 ? {
@@ -676,6 +688,15 @@ function chordIdFromLabel(id: string): string | null {
   return parseMeasureId(id)?.chordId ?? null;
 }
 
+function segKeyFromMeasureKey(key: string): ChordSegKey | undefined {
+  if (key === "chordLabel") return "chord";
+  if (key === "distLabel") return "dist";
+  if (key === "halfLabel") return "half";
+  if (key === "radiusStartLabel") return "radiusStart";
+  if (key === "radiusEndLabel") return "radiusEnd";
+  return undefined;
+}
+
 function cursorForHit(hit: FigureHit | null, tool: Tool): string {
   if (tool === "draw") return "crosshair";
   if (!hit) return "default";
@@ -741,6 +762,7 @@ function paintOverlays(
   scene: DiagramScene,
   state: CircleChordsState,
   selectedId: string | null,
+  selectedSeg: ChordSegKey | null | undefined,
   hover: FigureHit | null,
   drag: Drag | null,
   pending: { x: number; y: number } | null,
@@ -750,14 +772,49 @@ function paintOverlays(
     const { A, B, M } = chordMath(chord, state.radius);
     const cA = mathToCanvas(A, scene.layout);
     const cB = mathToCanvas(B, scene.layout);
-    const selected = chord.id === selectedId;
-    if (selected) {
-      ctx.strokeStyle = "rgba(196, 130, 58, 0.85)";
-      ctx.lineWidth = 2.2;
+    const cM = mathToCanvas(M, scene.layout);
+    const cO = scene.layout.origin;
+    const isChordSelected = chord.id === selectedId;
+
+    if (isChordSelected) {
+      const isSegChord = !selectedSeg || selectedSeg === "chord";
+      ctx.save();
+      ctx.strokeStyle = isSegChord
+        ? "rgba(196, 130, 58, 0.95)"
+        : "rgba(196, 130, 58, 0.45)";
+      ctx.lineWidth = isSegChord ? 2.8 : 1.8;
       ctx.beginPath();
       ctx.moveTo(cA.x, cA.y);
       ctx.lineTo(cB.x, cB.y);
       ctx.stroke();
+
+      if (selectedSeg && selectedSeg !== "chord") {
+        let p1: { x: number; y: number } | null = null;
+        let p2: { x: number; y: number } | null = null;
+        if (selectedSeg === "dist" && chord.showPerp) {
+          p1 = cO;
+          p2 = cM;
+        } else if (selectedSeg === "radiusStart" && chord.showRadiusStart) {
+          p1 = cO;
+          p2 = cA;
+        } else if (selectedSeg === "radiusEnd" && chord.showRadiusEnd) {
+          p1 = cO;
+          p2 = cB;
+        } else if (selectedSeg === "half" && chord.showHalf) {
+          p1 = cM;
+          p2 = cB;
+        }
+        if (p1 && p2) {
+          ctx.strokeStyle = "rgba(196, 130, 58, 0.95)";
+          ctx.lineWidth = 3.2;
+          ctx.lineCap = "round";
+          ctx.beginPath();
+          ctx.moveTo(p1.x, p1.y);
+          ctx.lineTo(p2.x, p2.y);
+          ctx.stroke();
+        }
+      }
+      ctx.restore();
     }
     const handles: { p: { x: number; y: number }; which: "start" | "end" | "mid" }[] =
       [
@@ -765,14 +822,14 @@ function paintOverlays(
         { p: cB, which: "end" },
       ];
     if (chord.showMidpoint) {
-      handles.push({ p: mathToCanvas(M, scene.layout), which: "mid" });
+      handles.push({ p: cM, which: "mid" });
     }
     for (const handle of handles) {
       const hovered =
         hover?.kind === "point" &&
         hover.chordId === chord.id &&
         hover.which === handle.which;
-      paintHandle(ctx, handle.p, selected, hovered);
+      paintHandle(ctx, handle.p, isChordSelected, hovered);
     }
   }
 
