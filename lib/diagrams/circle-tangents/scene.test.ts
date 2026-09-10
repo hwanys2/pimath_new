@@ -5,6 +5,8 @@ import {
   deriveThree,
   deriveTri,
   deriveTwo,
+  nudgeMeasureLabel,
+  nudgeMeasureLine,
   tangentLengths,
 } from "@/lib/diagrams/circle-tangents/geometry";
 import {
@@ -13,7 +15,7 @@ import {
   normalizeState,
   withKind,
 } from "@/lib/diagrams/circle-tangents/model";
-import { buildTangentsScene } from "@/lib/diagrams/circle-tangents/scene";
+import { buildTangentsScene, measureFrame } from "@/lib/diagrams/circle-tangents/scene";
 
 describe("circle-tangents geometry", () => {
   it("derives equal tangents from an external point", () => {
@@ -84,5 +86,102 @@ describe("circle-tangents scene", () => {
     assert.ok(circle.y - circle.r >= margin);
     assert.ok(circle.x + circle.r <= scene.width - margin);
     assert.ok(circle.y + circle.r <= scene.height - margin);
+  });
+
+  it("computes an orthonormal measureFrame for segment and handles :line suffix", () => {
+    const state = DEFAULT_TANGENTS_STATE;
+    const scene = buildTangentsScene(state);
+    const frame = measureFrame(state, scene, "PA");
+    assert.ok(frame);
+    // along and outward must be unit vectors
+    const lenAlong = Math.hypot(frame!.along.x, frame!.along.y);
+    const lenOut = Math.hypot(frame!.outward.x, frame!.outward.y);
+    assert.ok(Math.abs(lenAlong - 1) < 1e-6);
+    assert.ok(Math.abs(lenOut - 1) < 1e-6);
+    // along and outward must be perpendicular (dot product = 0)
+    const dot = frame!.along.x * frame!.outward.x + frame!.along.y * frame!.outward.y;
+    assert.ok(Math.abs(dot) < 1e-6);
+
+    // :line suffix produces same frame
+    const lineFrame = measureFrame(state, scene, "PA:line");
+    assert.deepEqual(frame, lineFrame);
+  });
+
+  it("projects cursor displacement accurately onto segment frame", () => {
+    const state = DEFAULT_TANGENTS_STATE;
+    const scene = buildTangentsScene(state);
+    const frame = measureFrame(state, scene, "PA");
+    assert.ok(frame);
+
+    // If we move 10 pixels strictly along `along`, dx should increase by 10
+    const nudgedAlong = nudgeMeasureLabel(
+      state,
+      "PA",
+      frame!.along.x * 10,
+      frame!.along.y * 10,
+      frame!.along,
+      frame!.outward,
+      frame!.halfSpan,
+    );
+    assert.ok(Math.abs(nudgedAlong.two.lengths.PA.label.dx - 10) < 1e-4);
+    assert.ok(Math.abs(nudgedAlong.two.lengths.PA.label.dy - 0) < 1e-4);
+
+    // If we move 15 pixels strictly along `outward`, dy should increase by 15
+    const nudgedOut = nudgeMeasureLabel(
+      state,
+      "PA",
+      frame!.outward.x * 15,
+      frame!.outward.y * 15,
+      frame!.along,
+      frame!.outward,
+      frame!.halfSpan,
+    );
+    assert.ok(Math.abs(nudgedOut.two.lengths.PA.label.dx - 0) < 1e-4);
+    assert.ok(Math.abs(nudgedOut.two.lengths.PA.label.dy - 15) < 1e-4);
+
+    // Dim line nudge adjusts lineDy along outward
+    const nudgedLine = nudgeMeasureLine(
+      state,
+      "PA:line",
+      frame!.outward.x * 12,
+      frame!.outward.y * 12,
+      frame!.along,
+      frame!.outward,
+    );
+    assert.ok(Math.abs((nudgedLine.two.lengths.PA.label.lineDy ?? 0) - 12) < 1e-4);
+  });
+
+  it("handles view rotation correctly in measureFrame", () => {
+    const state0 = DEFAULT_TANGENTS_STATE;
+    const stateRot = { ...DEFAULT_TANGENTS_STATE, viewRotationDeg: 90 };
+    const scene0 = buildTangentsScene(state0);
+    const sceneRot = buildTangentsScene(stateRot);
+
+    const frame0 = measureFrame(state0, scene0, "PA");
+    const frameRot = measureFrame(stateRot, sceneRot, "PA");
+    assert.ok(frame0 && frameRot);
+
+    // Rotated frame must also be orthonormal
+    const dotRot = frameRot!.along.x * frameRot!.outward.x + frameRot!.along.y * frameRot!.outward.y;
+    assert.ok(Math.abs(dotRot) < 1e-6);
+
+    // Projection of any canvas delta (e.g. [5, -3]) back to along/outward reconstructs the vector
+    const testDx = 5;
+    const testDy = -3;
+    const alongAmt = testDx * frameRot!.along.x + testDy * frameRot!.along.y;
+    const perpAmt = testDx * frameRot!.outward.x + testDy * frameRot!.outward.y;
+    const reconstructedX = frameRot!.along.x * alongAmt + frameRot!.outward.x * perpAmt;
+    const reconstructedY = frameRot!.along.y * alongAmt + frameRot!.outward.y * perpAmt;
+    assert.ok(Math.abs(reconstructedX - testDx) < 1e-6);
+    assert.ok(Math.abs(reconstructedY - testDy) < 1e-6);
+  });
+
+  it("returns screen identity frame for angle labels", () => {
+    const state = DEFAULT_TANGENTS_STATE;
+    const scene = buildTangentsScene(state);
+    const frameAng = measureFrame(state, scene, "angP");
+    assert.ok(frameAng);
+    assert.deepEqual(frameAng!.along, { x: 1, y: 0 });
+    assert.deepEqual(frameAng!.outward, { x: 0, y: 1 });
   });
 });

@@ -346,24 +346,29 @@ export function setNamedPoint(
   return normalizeState(next);
 }
 
+function cleanMeasureId(id: string): string {
+  return id.endsWith(":line") ? id.slice(0, -5) : id;
+}
+
 export function findLength(
   state: CircleTangentsState,
   id: string,
 ): LengthMark | null {
+  const cleanId = cleanMeasureId(id);
   if (state.kind === "two-tangents") {
-    return state.two.lengths[id as keyof typeof state.two.lengths] ?? null;
+    return state.two.lengths[cleanId as keyof typeof state.two.lengths] ?? null;
   }
   if (state.kind === "incircle-triangle") {
     return (
-      state.tri.sides[id as keyof typeof state.tri.sides] ??
-      state.tri.segs[id as keyof typeof state.tri.segs] ??
+      state.tri.sides[cleanId as keyof typeof state.tri.sides] ??
+      state.tri.segs[cleanId as keyof typeof state.tri.segs] ??
       null
     );
   }
   if (state.kind === "tangential-quad") {
-    return state.quad.segs[id as keyof typeof state.quad.segs] ?? null;
+    return state.quad.segs[cleanId as keyof typeof state.quad.segs] ?? null;
   }
-  return state.three.lengths[id as keyof typeof state.three.lengths] ?? null;
+  return state.three.lengths[cleanId as keyof typeof state.three.lengths] ?? null;
 }
 
 export function patchLength(
@@ -371,6 +376,7 @@ export function patchLength(
   id: string,
   patch: Partial<LengthMark>,
 ): CircleTangentsState {
+  const cleanId = cleanMeasureId(id);
   const next = structuredClone(state);
   const apply = (mark: LengthMark | undefined) => {
     if (!mark) return;
@@ -378,14 +384,14 @@ export function patchLength(
     if (patch.label) mark.label = { ...mark.label, ...patch.label };
   };
   if (next.kind === "two-tangents") {
-    apply(next.two.lengths[id as keyof typeof next.two.lengths]);
+    apply(next.two.lengths[cleanId as keyof typeof next.two.lengths]);
   } else if (next.kind === "incircle-triangle") {
-    apply(next.tri.sides[id as keyof typeof next.tri.sides]);
-    apply(next.tri.segs[id as keyof typeof next.tri.segs]);
+    apply(next.tri.sides[cleanId as keyof typeof next.tri.sides]);
+    apply(next.tri.segs[cleanId as keyof typeof next.tri.segs]);
   } else if (next.kind === "tangential-quad") {
-    apply(next.quad.segs[id as keyof typeof next.quad.segs]);
+    apply(next.quad.segs[cleanId as keyof typeof next.quad.segs]);
   } else {
-    apply(next.three.lengths[id as keyof typeof next.three.lengths]);
+    apply(next.three.lengths[cleanId as keyof typeof next.three.lengths]);
   }
   return normalizeState(next);
 }
@@ -395,8 +401,9 @@ export function findAngle(
   id: string,
 ): AngleMark | null {
   if (state.kind !== "two-tangents") return null;
-  if (id === "angP" || id === "P") return state.two.angles.P;
-  if (id === "angA" || id === "A") return state.two.angles.A;
+  const cleanId = cleanMeasureId(id);
+  if (cleanId === "angP" || cleanId === "P") return state.two.angles.P;
+  if (cleanId === "angA" || cleanId === "A") return state.two.angles.A;
   return null;
 }
 
@@ -406,8 +413,14 @@ export function patchAngle(
   patch: Partial<AngleMark>,
 ): CircleTangentsState {
   if (state.kind !== "two-tangents") return state;
+  const cleanId = cleanMeasureId(id);
   const next = structuredClone(state);
-  const key = id === "angP" || id === "P" ? "P" : id === "angA" || id === "A" ? "A" : null;
+  const key =
+    cleanId === "angP" || cleanId === "P"
+      ? "P"
+      : cleanId === "angA" || cleanId === "A"
+        ? "A"
+        : null;
   if (!key) return state;
   next.two.angles[key] = {
     ...next.two.angles[key],
@@ -555,18 +568,34 @@ export function nudgePointLabel(
   return setNamedPoint(state, id, { dx: np.dx + dx, dy: np.dy + dy });
 }
 
+function clampNum(v: number, min: number, max: number): number {
+  return Math.max(min, Math.min(max, v));
+}
+
 export function nudgeMeasureLabel(
   state: CircleTangentsState,
   id: string,
   dx: number,
   dy: number,
+  along?: Vec,
+  outward?: Vec,
+  halfSpan?: number,
 ): CircleTangentsState {
   const mark = findLength(state, id) ?? findAngle(state, id);
   if (!mark) return state;
+
+  let deltaX = dx;
+  let deltaY = dy;
+  if (along && outward) {
+    deltaX = dx * along.x + dy * along.y;
+    deltaY = dx * outward.x + dy * outward.y;
+  }
+
+  const maxAlong = halfSpan !== undefined ? Math.max(halfSpan - 18, 4) : 160;
   const label = {
     ...mark.label,
-    dx: mark.label.dx + dx,
-    dy: mark.label.dy + dy,
+    dx: clampNum(mark.label.dx + deltaX, -maxAlong, maxAlong),
+    dy: clampNum(mark.label.dy + deltaY, -160, 160),
   };
   if (findLength(state, id)) return patchLength(state, id, { label });
   return patchAngle(state, id, { label });
@@ -577,13 +606,20 @@ export function nudgeMeasureLine(
   id: string,
   dx: number,
   dy: number,
+  _along?: Vec,
+  outward?: Vec,
 ): CircleTangentsState {
   const mark = findLength(state, id);
   if (!mark) return state;
+
+  let perpAmt = dy;
+  if (outward) {
+    perpAmt = dx * outward.x + dy * outward.y;
+  }
+
   const label = {
     ...mark.label,
-    lineDx: (mark.label.lineDx ?? 0) + dx,
-    lineDy: (mark.label.lineDy ?? 0) + dy,
+    lineDy: clampNum((mark.label.lineDy ?? 0) + perpAmt, -160, 160),
   };
   return patchLength(state, id, { label });
 }

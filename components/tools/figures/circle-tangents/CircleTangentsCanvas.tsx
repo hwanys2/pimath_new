@@ -16,6 +16,7 @@ import {
   buildTangentsScene,
   canvasToMath,
   hitTestFigure,
+  measureFrame,
   SCENE_HEIGHT,
   SCENE_WIDTH,
   sceneTextPlain,
@@ -275,11 +276,36 @@ export default function CircleTangentsCanvas({
               setState((prev) => nudgePointLabel(prev, id, dx, dy), false);
               return;
             }
+            const current = stateRef.current;
+            const frame = scene ? measureFrame(current, scene, id) : null;
             if (drag.t === "dimLine") {
-              setState((prev) => nudgeMeasureLine(prev, id, dx, -dy), false);
+              setState(
+                (prev) =>
+                  nudgeMeasureLine(
+                    prev,
+                    id,
+                    dx,
+                    dy,
+                    frame?.along,
+                    frame?.outward,
+                  ),
+                false,
+              );
               return;
             }
-            setState((prev) => nudgeMeasureLabel(prev, id, dx, -dy), false);
+            setState(
+              (prev) =>
+                nudgeMeasureLabel(
+                  prev,
+                  id,
+                  dx,
+                  dy,
+                  frame?.along,
+                  frame?.outward,
+                  frame?.halfSpan,
+                ),
+              false,
+            );
             return;
           }
 

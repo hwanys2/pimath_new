@@ -138,6 +138,32 @@ function sagittaArc(
   return { C, r, a0, a1, ccw: !sOnIncreasing };
 }
 
+function angleOnArc(ang: number, a0: number, a1: number, ccw: boolean): boolean {
+  if (ccw) return ccwSpan(a0, ang) <= ccwSpan(a0, a1) + 1e-6;
+  return ccwSpan(a1, ang) <= ccwSpan(a1, a0) + 1e-6;
+}
+
+function distToArc(
+  p: Vec,
+  cx: number,
+  cy: number,
+  r: number,
+  a0: number,
+  a1: number,
+  ccw: boolean,
+): number {
+  const ang = Math.atan2(p.y - cy, p.x - cx);
+  if (angleOnArc(ang, a0, a1, ccw)) {
+    return Math.abs(Math.hypot(p.x - cx, p.y - cy) - r);
+  }
+  const p0 = { x: cx + r * Math.cos(a0), y: cy + r * Math.sin(a0) };
+  const p1 = { x: cx + r * Math.cos(a1), y: cy + r * Math.sin(a1) };
+  return Math.min(
+    Math.hypot(p.x - p0.x, p.y - p0.y),
+    Math.hypot(p.x - p1.x, p.y - p1.y),
+  );
+}
+
 function dimArc(
   cmds: SceneCmd[],
   texts: SceneText[],
@@ -404,7 +430,7 @@ function pushLength(
   cmds: SceneCmd[],
   texts: SceneText[],
   id: string,
-  outward: Vec,
+  canvasOutward: Vec,
   map: (p: Vec) => Vec,
 ): void {
   const ends = lengthEndpoints(state, id);
@@ -424,7 +450,7 @@ function pushLength(
     texts,
     map(ends[0]),
     map(ends[1]),
-    { x: outward.x, y: -outward.y },
+    canvasOutward,
     state.style.dimOffset,
     label,
     id,
@@ -541,9 +567,9 @@ function buildTwo(state: CircleTangentsState, d: DerivedTwo): DiagramScene {
   for (const id of Object.keys(t.lengths)) {
     const ends = lengthEndpoints(state, id);
     if (!ends) continue;
-    const mid = mul(add(ends[0], ends[1]), 0.5);
-    const outward = sub(mid, d.O);
-    pushLength(state, cmds, texts, id, outward, map);
+    const cMid = mul(add(map(ends[0]), map(ends[1])), 0.5);
+    const canvasOutward = sub(cMid, cO);
+    pushLength(state, cmds, texts, id, canvasOutward, map);
   }
 
   if (state.showCenter) {
@@ -580,11 +606,12 @@ function buildTri(state: CircleTangentsState, d: DerivedTri): DiagramScene {
   cmds.push({ t: "circle", x: cO.x, y: cO.y, r: visualR });
 
   const centroid = mul(add(add(d.A, d.B), d.C), 1 / 3);
+  const cCentroid = map(centroid);
   for (const id of ["AB", "BC", "CA", "AP", "BP", "BQ", "CQ", "CR", "AR"]) {
     const ends = lengthEndpoints(state, id);
     if (!ends) continue;
-    const mid = mul(add(ends[0], ends[1]), 0.5);
-    pushLength(state, cmds, texts, id, sub(mid, centroid), map);
+    const cMid = mul(add(map(ends[0]), map(ends[1])), 0.5);
+    pushLength(state, cmds, texts, id, sub(cMid, cCentroid), map);
   }
 
   if (state.showCenter) {
@@ -630,11 +657,12 @@ function buildQuad(state: CircleTangentsState, d: DerivedQuad): DiagramScene {
   cmds.push({ t: "circle", x: cO.x, y: cO.y, r: visualR });
 
   const mid = mul(add(add(d.A, d.B), add(d.C, d.D)), 0.25);
+  const cMidCenter = map(mid);
   for (const id of Object.keys(state.quad.segs)) {
     const ends = lengthEndpoints(state, id);
     if (!ends) continue;
-    const m = mul(add(ends[0], ends[1]), 0.5);
-    pushLength(state, cmds, texts, id, sub(m, mid), map);
+    const cm = mul(add(map(ends[0]), map(ends[1])), 0.5);
+    pushLength(state, cmds, texts, id, sub(cm, cMidCenter), map);
   }
 
   if (state.showCenter) {
@@ -682,11 +710,12 @@ function buildThree(state: CircleTangentsState, d: DerivedThree): DiagramScene {
   cmds.push({ t: "circle", x: cO.x, y: cO.y, r: visualR });
 
   const mid = mul(add(add(d.A, d.B), d.C), 1 / 3);
+  const cMidCenter = map(mid);
   for (const id of Object.keys(state.three.lengths)) {
     const ends = lengthEndpoints(state, id);
     if (!ends) continue;
-    const m = mul(add(ends[0], ends[1]), 0.5);
-    pushLength(state, cmds, texts, id, sub(m, mid), map);
+    const cm = mul(add(map(ends[0]), map(ends[1])), 0.5);
+    pushLength(state, cmds, texts, id, sub(cm, cMidCenter), map);
   }
 
   if (state.showCenter) {
@@ -769,14 +798,13 @@ export function hitTestFigure(
   }
 
   for (const cmd of scene.cmds) {
-    if (cmd.t === "arc" && cmd.id && cmd.dashed) {
-      // approximate with chord endpoints via id only — skip detailed arc hit
+    if (cmd.t === "arc" && cmd.id?.endsWith(":line") && cmd.dashed) {
+      const d = distToArc(p, cmd.cx, cmd.cy, cmd.r, cmd.a0, cmd.a1, cmd.ccw);
+      if (d < 10 * s) return { kind: "dimLine", id: measureTargetId(cmd.id) };
     }
-    if ((cmd.t === "line" || cmd.t === "arc") && cmd.id?.endsWith(":line") && cmd.dashed) {
-      if (cmd.t === "line") {
-        const d = distToSeg(p, { x: cmd.x1, y: cmd.y1 }, { x: cmd.x2, y: cmd.y2 });
-        if (d < 10 * s) return { kind: "dimLine", id: measureTargetId(cmd.id) };
-      }
+    if (cmd.t === "line" && cmd.id?.endsWith(":line") && cmd.dashed) {
+      const d = distToSeg(p, { x: cmd.x1, y: cmd.y1 }, { x: cmd.x2, y: cmd.y2 });
+      if (d < 10 * s) return { kind: "dimLine", id: measureTargetId(cmd.id) };
     }
   }
 
@@ -798,4 +826,58 @@ export function pointCanvasPos(
   const math = pointPos(state, id);
   if (!math) return null;
   return mathToCanvas(math, scene.layout);
+}
+
+export function measureFrame(
+  state: CircleTangentsState,
+  scene: DiagramScene,
+  id: string,
+): { along: Vec; outward: Vec; halfSpan: number } | null {
+  const cleanId = id.endsWith(":line") ? id.slice(0, -5) : id;
+  const layout = scene.layout;
+  const map = (q: Vec) => mathToCanvas(q, layout);
+
+  // Angle mark
+  if (cleanId === "angP" || cleanId === "P" || cleanId === "angA" || cleanId === "A") {
+    return { along: { x: 1, y: 0 }, outward: { x: 0, y: 1 }, halfSpan: 40 };
+  }
+
+  // Length mark
+  const ends = lengthEndpoints(state, cleanId);
+  if (!ends) return null;
+
+  const cA = map(ends[0]);
+  const cB = map(ends[1]);
+  const cMid = mul(add(cA, cB), 0.5);
+
+  let cCenter: Vec | null = null;
+  if (state.kind === "two-tangents") {
+    const d = deriveTwo(state);
+    if (d) cCenter = map(d.O);
+  } else if (state.kind === "incircle-triangle") {
+    const d = deriveTri(state);
+    if (d) {
+      const centroid = mul(add(add(d.A, d.B), d.C), 1 / 3);
+      cCenter = map(centroid);
+    }
+  } else if (state.kind === "tangential-quad") {
+    const d = deriveQuad(state);
+    if (d) {
+      const mid = mul(add(add(d.A, d.B), add(d.C, d.D)), 0.25);
+      cCenter = map(mid);
+    }
+  } else if (state.kind === "three-tangents") {
+    const d = deriveThree(state);
+    if (d) {
+      const mid = mul(add(add(d.A, d.B), d.C), 1 / 3);
+      cCenter = map(mid);
+    }
+  }
+
+  const canvasOutward = cCenter ? sub(cMid, cCenter) : { x: 0, y: -1 };
+  const along = norm(sub(cB, cA));
+  const u = perpToward(along, canvasOutward);
+  const halfSpan = len(sub(cB, cA)) / 2;
+
+  return { along, outward: u, halfSpan };
 }
