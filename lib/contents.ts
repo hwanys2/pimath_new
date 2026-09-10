@@ -304,11 +304,11 @@ export const CONTENTS: ContentMeta[] = [
     key: "g3-u3-2-starlight-seal",
     unitId: "g3-3-2",
     type: "game",
-    title: "결계 수리공 별빛: 현과 접선",
+    title: "현·접선 거리 챌린지",
     href: "/play/g3-u3-2-starlight-seal",
     awardsXp: true,
     description:
-      "무너진 마법진을 고치세요. 현·접선 성질로 값을 계산해 입력하면 도형이 그려져 검증됩니다. 12개 봉인. 학급 배정·활성 시 XP와 랭킹이 쌓여요.",
+      "현을 드래그해 목표 길이에 맞추고, 점 P를 끌어 접선 길이를 잠그는 직관형 게임. 가까울수록 길다! 학급 배정·활성 시 XP와 랭킹이 쌓여요.",
   },
 ];
 

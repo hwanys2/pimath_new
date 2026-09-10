@@ -7,9 +7,9 @@ import TeacherAssignSlot from "@/components/content/TeacherAssignSlot";
 const CONTENT_KEY = "g3-u3-2-starlight-seal";
 
 export const metadata: Metadata = {
-  title: "결계 수리공 별빛: 현과 접선 | 수학하는 즐거움",
+  title: "현·접선 거리 챌린지 | 수학하는 즐거움",
   description:
-    "무너진 마법진을 고치세요. 현·접선 성질로 값을 계산해 12개 봉인을 잠그는 게임. 중3 3.2 원의 성질. 학급 배정 시 XP와 랭킹이 쌓입니다.",
+    "현을 드래그해 목표 길이에 맞추고, 점 P를 끌어 접선 길이를 잠그는 게임. 중3 3.2 원의 성질. 학급 배정 시 XP와 랭킹이 쌓입니다.",
 };
 
 export default async function StarlightSealPage() {

@@ -128,4 +128,5 @@ await submitActivity({
 | 2026-08-31 | 교사 게임 대시보드 링크 · [`game-dashboard.md`](game-dashboard.md) |
 | 2026-08-26 | `g3-u3-1-shadow-temple` 솔로 방탈출 게임 기록 · SUMMARY_LABELS · 상세 렌더러 |
 | 2026-09-10 | `g3-u3-2-starlight-seal` 현·접선 결계 게임 기록 · SUMMARY_LABELS · 상세 렌더러 |
+| 2026-09-10 | `g3-u3-2-starlight-seal` 거리 챌린지(드래그)로 개편 · 결과 라벨 갱신 |
 
