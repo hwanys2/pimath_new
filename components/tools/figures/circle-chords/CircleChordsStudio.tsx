@@ -42,7 +42,9 @@ import {
 import {
   canvasToPngBlob,
   copyPngToClipboard,
+  cropCanvasToInk,
   downloadBlob,
+  EXPORT_INK_PAD,
 } from "@/lib/diagrams/export-image";
 import type { FontFaces } from "@/lib/diagrams/math-label";
 
@@ -199,7 +201,11 @@ export default function CircleChordsStudio() {
       state.style.lineWidth,
       state.style.exportScale,
     );
-    const blob = await canvasToPngBlob(canvas);
+    const cropped = cropCanvasToInk(
+      canvas,
+      EXPORT_INK_PAD * state.style.exportScale,
+    );
+    const blob = await canvasToPngBlob(cropped);
     downloadBlob(blob, "원의 현.png");
     setStatus("PNG를 저장했어요.");
   }
@@ -213,14 +219,18 @@ export default function CircleChordsStudio() {
       state.style.lineWidth,
       state.style.exportScale,
     );
-    const blob = await canvasToPngBlob(canvas);
+    const cropped = cropCanvasToInk(
+      canvas,
+      EXPORT_INK_PAD * state.style.exportScale,
+    );
+    const blob = await canvasToPngBlob(cropped);
     await copyPngToClipboard(blob);
     setStatus("클립보드에 그림을 복사했어요. 한글·워드에 붙여넣기 하세요.");
   }
 
   function exportSvg() {
     const scene = buildCircleChordsScene(state);
-    const svg = sceneToSvg(scene, fonts, state.style.lineWidth);
+    const svg = sceneToSvg(scene, fonts, state.style.lineWidth, EXPORT_INK_PAD);
     downloadBlob(
       new Blob([svg], { type: "image/svg+xml;charset=utf-8" }),
       "원의 현.svg",
@@ -313,27 +323,6 @@ export default function CircleChordsStudio() {
               현 그리기
             </ChipToggle>
           </div>
-
-          <section className="rounded-2xl border-2 border-wood/10 bg-white/80 p-3.5">
-            <h2 className="font-display text-sm text-wood-dark">빠른 그림</h2>
-            <div className="mt-2 grid grid-cols-2 gap-1.5">
-              {CIRCLE_CHORD_PRESETS.map((preset) => (
-                <button
-                  key={preset.id}
-                  type="button"
-                  onClick={() => {
-                    const next = cloneState(preset.state);
-                    setState(next);
-                    setSelectedId(next.chords[0]?.id ?? null);
-                    setTool("select");
-                  }}
-                  className="rounded-xl bg-black/5 px-2.5 py-2 text-left text-xs font-semibold text-foreground/70 hover:bg-black/10"
-                >
-                  {preset.title}
-                </button>
-              ))}
-            </div>
-          </section>
 
           <section className="rounded-2xl border-2 border-wood/10 bg-white/80 p-3.5">
             <h2 className="font-display text-sm text-wood-dark">점 표시</h2>
@@ -741,100 +730,128 @@ export default function CircleChordsStudio() {
           </section>
         </div>
 
-        <section className="rounded-2xl border-2 border-wood/10 bg-white/80 p-3.5">
-          <h2 className="font-display text-sm text-wood-dark">그림 스타일</h2>
-          <div className="mt-3 space-y-3">
-            <SliderField
-              label="길이 글자"
-              value={state.style.fontSize}
-              onChange={(fontSize) =>
-                set({ style: { ...state.style, fontSize } })
-              }
-              min={14}
-              max={56}
-              step={1}
-            />
-            <SliderField
-              label="점 이름"
-              value={state.style.pointLabelSize}
-              onChange={(pointLabelSize) =>
-                set({ style: { ...state.style, pointLabelSize } })
-              }
-              min={14}
-              max={64}
-              step={1}
-            />
-            <SliderField
-              label="선 굵기"
-              value={state.style.lineWidth}
-              onChange={(lineWidth) =>
-                set({ style: { ...state.style, lineWidth } })
-              }
-              min={1}
-              max={3.5}
-              step={0.1}
-              display={state.style.lineWidth.toFixed(1)}
-            />
-            <SliderField
-              label="설명선 기본 간격"
-              value={state.style.dimOffset}
-              onChange={(dimOffset) =>
-                set({ style: { ...state.style, dimOffset } })
-              }
-              min={10}
-              max={80}
-              step={1}
-            />
-            <SliderField
-              label="직각 표시 크기"
-              value={state.style.rightAngleSize}
-              onChange={(rightAngleSize) =>
-                set({ style: { ...state.style, rightAngleSize } })
-              }
-              min={6}
-              max={20}
-              step={1}
-            />
-            <SliderField
-              label="여백"
-              value={state.style.padding}
-              onChange={(padding) =>
-                set({ style: { ...state.style, padding } })
-              }
-              min={36}
-              max={90}
-              step={2}
-            />
-            <SliderField
-              label="아래 문구 크기"
-              value={state.style.captionSize}
-              onChange={(captionSize) =>
-                set({ style: { ...state.style, captionSize } })
-              }
-              min={14}
-              max={48}
-              step={1}
-            />
-            <div>
-              <p className="mb-1 text-xs font-semibold text-foreground/60">
-                저장 해상도
-              </p>
-              <Segmented
-                value={String(state.style.exportScale)}
-                onChange={(v) =>
-                  set({
-                    style: { ...state.style, exportScale: Number(v) },
-                  })
-                }
-                options={[
-                  { id: "2", label: "2×" },
-                  { id: "3", label: "3×" },
-                  { id: "4", label: "4×" },
-                ]}
-              />
+        <div className="space-y-4">
+          <section className="rounded-2xl border-2 border-wood/10 bg-white/80 p-3.5">
+            <h2 className="font-display text-sm text-wood-dark">빠른 그림</h2>
+            <div className="mt-2 grid grid-cols-2 gap-1.5">
+              {CIRCLE_CHORD_PRESETS.map((preset) => (
+                <button
+                  key={preset.id}
+                  type="button"
+                  onClick={() => {
+                    const next = cloneState(preset.state);
+                    setState(next);
+                    setSelectedId(next.chords[0]?.id ?? null);
+                    setTool("select");
+                  }}
+                  className="rounded-xl bg-black/5 px-2.5 py-2 text-left text-xs font-semibold text-foreground/70 hover:bg-black/10"
+                >
+                  {preset.title}
+                  <span className="mt-0.5 block font-normal text-foreground/45">
+                    {preset.hint}
+                  </span>
+                </button>
+              ))}
             </div>
-          </div>
-        </section>
+          </section>
+
+          <details open className="rounded-2xl border-2 border-wood/10 bg-white/80 p-3.5">
+            <summary className="font-display cursor-pointer text-sm text-wood-dark">
+              그림 스타일
+            </summary>
+            <div className="mt-3 space-y-3">
+              <SliderField
+                label="길이 글자"
+                value={state.style.fontSize}
+                onChange={(fontSize) =>
+                  set({ style: { ...state.style, fontSize } })
+                }
+                min={14}
+                max={56}
+                step={1}
+              />
+              <SliderField
+                label="점 이름"
+                value={state.style.pointLabelSize}
+                onChange={(pointLabelSize) =>
+                  set({ style: { ...state.style, pointLabelSize } })
+                }
+                min={14}
+                max={64}
+                step={1}
+              />
+              <SliderField
+                label="선 굵기"
+                value={state.style.lineWidth}
+                onChange={(lineWidth) =>
+                  set({ style: { ...state.style, lineWidth } })
+                }
+                min={1}
+                max={3.5}
+                step={0.1}
+                display={state.style.lineWidth.toFixed(1)}
+              />
+              <SliderField
+                label="설명선 기본 간격"
+                value={state.style.dimOffset}
+                onChange={(dimOffset) =>
+                  set({ style: { ...state.style, dimOffset } })
+                }
+                min={10}
+                max={80}
+                step={1}
+              />
+              <SliderField
+                label="직각 표시 크기"
+                value={state.style.rightAngleSize}
+                onChange={(rightAngleSize) =>
+                  set({ style: { ...state.style, rightAngleSize } })
+                }
+                min={6}
+                max={20}
+                step={1}
+              />
+              <SliderField
+                label="여백"
+                value={state.style.padding}
+                onChange={(padding) =>
+                  set({ style: { ...state.style, padding } })
+                }
+                min={36}
+                max={90}
+                step={2}
+              />
+              <SliderField
+                label="아래 문구 크기"
+                value={state.style.captionSize}
+                onChange={(captionSize) =>
+                  set({ style: { ...state.style, captionSize } })
+                }
+                min={14}
+                max={48}
+                step={1}
+              />
+              <div>
+                <p className="mb-1 text-xs font-semibold text-foreground/60">
+                  저장 해상도
+                </p>
+                <Segmented
+                  value={String(state.style.exportScale)}
+                  onChange={(v) =>
+                    set({
+                      style: { ...state.style, exportScale: Number(v) },
+                    })
+                  }
+                  options={[
+                    { id: "2", label: "2×" },
+                    { id: "3", label: "3×" },
+                    { id: "4", label: "4×" },
+                  ]}
+                />
+              </div>
+            </div>
+          </details>
+        </div>
       </div>
     </div>
   );
