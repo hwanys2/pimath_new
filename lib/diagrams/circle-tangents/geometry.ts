@@ -367,7 +367,12 @@ export function findLength(
     );
   }
   if (state.kind === "tangential-quad") {
-    return state.quad.segs[cleanId as keyof typeof state.quad.segs] ?? null;
+    const key = cleanId === "DA" ? "AD" : cleanId;
+    return (
+      state.quad.sides?.[key as keyof typeof state.quad.sides] ??
+      state.quad.segs[key as keyof typeof state.quad.segs] ??
+      null
+    );
   }
   return state.three.lengths[cleanId as keyof typeof state.three.lengths] ?? null;
 }
@@ -390,7 +395,9 @@ export function patchLength(
     apply(next.tri.sides[cleanId as keyof typeof next.tri.sides]);
     apply(next.tri.segs[cleanId as keyof typeof next.tri.segs]);
   } else if (next.kind === "tangential-quad") {
-    apply(next.quad.segs[cleanId as keyof typeof next.quad.segs]);
+    const key = cleanId === "DA" ? "AD" : cleanId;
+    apply(next.quad.sides?.[key as keyof typeof next.quad.sides]);
+    apply(next.quad.segs[key as keyof typeof next.quad.segs]);
   } else {
     apply(next.three.lengths[cleanId as keyof typeof next.three.lengths]);
   }
@@ -460,6 +467,10 @@ export function autoLengthValue(
   if (state.kind === "tangential-quad") {
     const d = deriveQuad(state);
     if (!d) return null;
+    if (id === "AB") return len(sub(d.A, d.B));
+    if (id === "BC") return len(sub(d.B, d.C));
+    if (id === "CD") return len(sub(d.C, d.D));
+    if (id === "AD" || id === "DA") return len(sub(d.A, d.D));
     if (id === "AP" || id === "AS") return d.tA;
     if (id === "BP" || id === "BQ") return d.tB;
     if (id === "CQ" || id === "CR") return d.tC;
@@ -720,7 +731,10 @@ export function lengthIdsForKind(state: CircleTangentsState): string[] {
     return [...Object.keys(state.tri.sides), ...Object.keys(state.tri.segs)];
   }
   if (state.kind === "tangential-quad") {
-    return Object.keys(state.quad.segs);
+    return [
+      ...Object.keys(state.quad.sides ?? {}),
+      ...Object.keys(state.quad.segs),
+    ];
   }
   return Object.keys(state.three.lengths);
 }
@@ -771,10 +785,18 @@ export function selectableSegIds(state: CircleTangentsState): string[] {
     return list;
   }
   if (state.kind === "incircle-triangle") {
-    return ["AP", "BP", "BQ", "CQ", "CR", "AR", "AB", "BC", "CA"];
+    const list = ["AB", "BC", "CA"];
+    if (state.tri.showTouchPoints) {
+      list.push("AP", "BP", "BQ", "CQ", "CR", "AR");
+    }
+    return list;
   }
   if (state.kind === "tangential-quad") {
-    return ["AP", "BP", "BQ", "CQ", "CR", "DR", "DS", "AS"];
+    const list = ["AB", "BC", "CD", "AD"];
+    if (state.quad.showTouchPoints) {
+      list.push("AP", "BP", "BQ", "CQ", "CR", "DR", "DS", "AS");
+    }
+    return list;
   }
   if (state.kind === "three-tangents") {
     return ["AD", "AF", "BE", "CE", "BC", "AB", "AC"];
@@ -975,12 +997,22 @@ export function applyLengthNumeric(
     if (!d) return state;
     let r = state.radius;
 
+    const sidePairs: Record<string, [number, number]> = {
+      AB: [3, 0],
+      BC: [0, 1],
+      CD: [1, 2],
+      AD: [2, 3],
+      DA: [2, 3],
+    };
+    const isSide = cleanId in sidePairs;
+
     let targetIdx = -1;
     if (cleanId === "BP" || cleanId === "BQ") targetIdx = 0;
     else if (cleanId === "CQ" || cleanId === "CR") targetIdx = 1;
     else if (cleanId === "DR" || cleanId === "DS") targetIdx = 2;
     else if (cleanId === "AP" || cleanId === "AS") targetIdx = 3;
-    if (targetIdx < 0) return state;
+
+    if (targetIdx < 0 && !isSide) return state;
 
     const curT = [
       pinnedLengthValue(state, "BP", pinnedLengthValue(state, "BQ", d.tB)),
@@ -988,24 +1020,95 @@ export function applyLengthNumeric(
       pinnedLengthValue(state, "DR", pinnedLengthValue(state, "DS", d.tD)),
       pinnedLengthValue(state, "AP", pinnedLengthValue(state, "AS", d.tA)),
     ];
-    const isPinned = [
-      targetIdx !== 0 && (isLengthPinned(state, "BP") || isLengthPinned(state, "BQ")),
-      targetIdx !== 1 && (isLengthPinned(state, "CQ") || isLengthPinned(state, "CR")),
-      targetIdx !== 2 && (isLengthPinned(state, "DR") || isLengthPinned(state, "DS")),
-      targetIdx !== 3 && (isLengthPinned(state, "AP") || isLengthPinned(state, "AS")),
-    ];
 
     const targetT = [...curT];
-    targetT[targetIdx] = Math.max(0.2, Math.min(50, value));
+    const isPinned = [false, false, false, false];
+
+    if (isSide) {
+      const [idx1, idx2] = sidePairs[cleanId]!;
+      const targetL = Math.max(0.4, Math.min(80, value));
+
+      const pin1 =
+        isLengthPinned(state, idx1 === 0 ? "BP" : idx1 === 1 ? "CQ" : idx1 === 2 ? "DR" : "AP") ||
+        isLengthPinned(state, idx1 === 0 ? "BQ" : idx1 === 1 ? "CR" : idx1 === 2 ? "DS" : "AS");
+      const pin2 =
+        isLengthPinned(state, idx2 === 0 ? "BP" : idx2 === 1 ? "CQ" : idx2 === 2 ? "DR" : "AP") ||
+        isLengthPinned(state, idx2 === 0 ? "BQ" : idx2 === 1 ? "CR" : idx2 === 2 ? "DS" : "AS");
+
+      if (pin1 && !pin2) {
+        targetT[idx2] = Math.max(0.2, targetL - targetT[idx1]!);
+      } else if (pin2 && !pin1) {
+        targetT[idx1] = Math.max(0.2, targetL - targetT[idx2]!);
+      } else {
+        const sidePrev =
+          cleanId === "BC"
+            ? "AB"
+            : cleanId === "CD"
+              ? "BC"
+              : cleanId === "AD" || cleanId === "DA"
+                ? "CD"
+                : "AD";
+        const sideNext =
+          cleanId === "BC"
+            ? "CD"
+            : cleanId === "CD"
+              ? "AD"
+              : cleanId === "AD" || cleanId === "DA"
+                ? "AB"
+                : "BC";
+        const pinSidePrev = isLengthPinned(state, sidePrev);
+        const pinSideNext = isLengthPinned(state, sideNext);
+
+        if (pinSidePrev && !pinSideNext) {
+          targetT[idx2] = Math.max(0.2, targetL - targetT[idx1]!);
+        } else if (pinSideNext && !pinSidePrev) {
+          targetT[idx1] = Math.max(0.2, targetL - targetT[idx2]!);
+        } else {
+          const sum = targetT[idx1]! + targetT[idx2]! || 1;
+          const ratio = targetL / sum;
+          targetT[idx1] = Math.max(0.2, targetT[idx1]! * ratio);
+          targetT[idx2] = Math.max(0.2, targetL - targetT[idx1]!);
+        }
+      }
+      isPinned[idx1] = true;
+      isPinned[idx2] = true;
+
+      const otherIndices = [0, 1, 2, 3].filter((i) => i !== idx1 && i !== idx2);
+      for (const oi of otherIndices) {
+        const p =
+          isLengthPinned(state, oi === 0 ? "BP" : oi === 1 ? "CQ" : oi === 2 ? "DR" : "AP") ||
+          isLengthPinned(state, oi === 0 ? "BQ" : oi === 1 ? "CR" : oi === 2 ? "DS" : "AS");
+        if (p) isPinned[oi] = true;
+      }
+    } else {
+      targetT[targetIdx] = Math.max(0.2, Math.min(50, value));
+      isPinned[0] = targetIdx !== 0 && (isLengthPinned(state, "BP") || isLengthPinned(state, "BQ"));
+      isPinned[1] = targetIdx !== 1 && (isLengthPinned(state, "CQ") || isLengthPinned(state, "CR"));
+      isPinned[2] = targetIdx !== 2 && (isLengthPinned(state, "DR") || isLengthPinned(state, "DS"));
+      isPinned[3] = targetIdx !== 3 && (isLengthPinned(state, "AP") || isLengthPinned(state, "AS"));
+    }
 
     const unpinned: number[] = [];
     for (let i = 0; i < 4; i++) {
-      if (i !== targetIdx && !isPinned[i]) unpinned.push(i);
+      if (isSide) {
+        const [idx1, idx2] = sidePairs[cleanId]!;
+        if (i !== idx1 && i !== idx2 && !isPinned[i]) unpinned.push(i);
+      } else {
+        if (i !== targetIdx && !isPinned[i]) unpinned.push(i);
+      }
     }
     if (unpinned.length === 0) {
-      const oppIdx = (targetIdx + 2) % 4;
-      unpinned.push(oppIdx);
-      isPinned[oppIdx] = false;
+      const freeIdx = isSide
+        ? cleanId === "BC"
+          ? 3
+          : cleanId === "AB"
+            ? 2
+            : cleanId === "CD"
+              ? 0
+              : 1
+        : (targetIdx + 2) % 4;
+      unpinned.push(freeIdx);
+      isPinned[freeIdx] = false;
     }
 
     const fixed = [0, 1, 2, 3].filter((i) => !unpinned.includes(i));
@@ -1311,6 +1414,10 @@ export function lengthEndpoints(
   if (state.kind === "tangential-quad") {
     const d = deriveQuad(state);
     if (!d) return null;
+    if (id === "AB") return [d.A, d.B];
+    if (id === "BC") return [d.B, d.C];
+    if (id === "CD") return [d.C, d.D];
+    if (id === "AD" || id === "DA") return [d.A, d.D];
     if (id === "AP") return [d.A, d.P];
     if (id === "BP") return [d.B, d.P];
     if (id === "BQ") return [d.B, d.Q];

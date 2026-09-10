@@ -157,6 +157,12 @@ export type QuadDraft = {
     R: NamedPoint;
     S: NamedPoint;
   };
+  sides: {
+    AB: LengthMark;
+    BC: LengthMark;
+    CD: LengthMark;
+    AD: LengthMark;
+  };
   segs: {
     AP: LengthMark;
     BP: LengthMark;
@@ -320,6 +326,12 @@ function defaultQuad(): QuadDraft {
       R: np("R"),
       S: np("S"),
     },
+    sides: {
+      AB: lenMark("AB", false),
+      BC: lenMark("BC", false),
+      CD: lenMark("CD", false),
+      AD: lenMark("AD", false),
+    },
     segs: {
       AP: lenMark("AP", true, "custom", "4 cm"),
       BP: lenMark("BP", false),
@@ -392,6 +404,7 @@ export function normalizeState(state: CircleTangentsState): CircleTangentsState 
   tri.segs = { ...defaultTri().segs, ...state.tri?.segs };
   const quad = { ...defaultQuad(), ...state.quad };
   quad.points = { ...defaultQuad().points, ...state.quad?.points };
+  quad.sides = { ...defaultQuad().sides, ...state.quad?.sides };
   quad.segs = { ...defaultQuad().segs, ...state.quad?.segs };
   const three = { ...defaultThree(), ...state.three };
   three.points = { ...defaultThree().points, ...state.three?.points };
@@ -530,6 +543,34 @@ export const TANGENT_PRESETS: TangentPreset[] = [
     state: base("tangential-quad", {
       radius: 4.5,
       quad: defaultQuad(),
+    }),
+  },
+  {
+    id: "quad-sides-10-11-9-x",
+    title: "접선사각형 대변 10·11·9·x",
+    hint: "AB+CD = AD+BC",
+    state: base("tangential-quad", {
+      radius: 4.53,
+      quad: {
+        ...defaultQuad(),
+        showTouchPoints: false,
+        sides: {
+          AB: lenMark("AB", true, "custom", "10 cm"),
+          BC: lenMark("BC", true, "custom", "11 cm"),
+          CD: lenMark("CD", true, "custom", "9 cm"),
+          AD: lenMark("AD", true, "x"),
+        },
+        segs: {
+          AP: lenMark("AP", false),
+          BP: lenMark("BP", false),
+          BQ: lenMark("BQ", false),
+          CQ: lenMark("CQ", false),
+          CR: lenMark("CR", false),
+          DR: lenMark("DR", false),
+          DS: lenMark("DS", false),
+          AS: lenMark("AS", false),
+        },
+      },
     }),
   },
   {

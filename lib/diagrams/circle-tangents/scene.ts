@@ -12,6 +12,7 @@ import {
   deriveThree,
   deriveTri,
   deriveTwo,
+  findLength,
   lengthEndpoints,
   lengthText,
   pointPos,
@@ -435,15 +436,7 @@ function pushLength(
   map: (p: Vec) => Vec,
 ): void {
   const ends = lengthEndpoints(state, id);
-  const mark =
-    state.kind === "two-tangents"
-      ? state.two.lengths[id as keyof typeof state.two.lengths]
-      : state.kind === "incircle-triangle"
-        ? state.tri.sides[id as keyof typeof state.tri.sides] ??
-          state.tri.segs[id as keyof typeof state.tri.segs]
-        : state.kind === "tangential-quad"
-          ? state.quad.segs[id as keyof typeof state.quad.segs]
-          : state.three.lengths[id as keyof typeof state.three.lengths];
+  const mark = findLength(state, id);
   if (!ends || !mark?.show) return;
   const label = lengthText(state, id);
   dimArc(
@@ -651,15 +644,28 @@ function buildQuad(state: CircleTangentsState, d: DerivedQuad): DiagramScene {
   const cO = map(d.O);
   const visualR = layout.scale * d.r;
 
-  cmds.push({ t: "line", x1: cA.x, y1: cA.y, x2: cB.x, y2: cB.y });
-  cmds.push({ t: "line", x1: cB.x, y1: cB.y, x2: cC.x, y2: cC.y });
-  cmds.push({ t: "line", x1: cC.x, y1: cC.y, x2: cD.x, y2: cD.y });
-  cmds.push({ t: "line", x1: cD.x, y1: cD.y, x2: cA.x, y2: cA.y });
+  cmds.push({ t: "line", x1: cA.x, y1: cA.y, x2: cB.x, y2: cB.y, id: "AB" });
+  cmds.push({ t: "line", x1: cB.x, y1: cB.y, x2: cC.x, y2: cC.y, id: "BC" });
+  cmds.push({ t: "line", x1: cC.x, y1: cC.y, x2: cD.x, y2: cD.y, id: "CD" });
+  cmds.push({ t: "line", x1: cD.x, y1: cD.y, x2: cA.x, y2: cA.y, id: "AD" });
   cmds.push({ t: "circle", x: cO.x, y: cO.y, r: visualR });
 
   const mid = mul(add(add(d.A, d.B), add(d.C, d.D)), 0.25);
   const cMidCenter = map(mid);
-  for (const id of Object.keys(state.quad.segs)) {
+  for (const id of [
+    "AB",
+    "BC",
+    "CD",
+    "AD",
+    "AP",
+    "BP",
+    "BQ",
+    "CQ",
+    "CR",
+    "DR",
+    "DS",
+    "AS",
+  ]) {
     const ends = lengthEndpoints(state, id);
     if (!ends) continue;
     const cm = mul(add(map(ends[0]), map(ends[1])), 0.5);
@@ -827,12 +833,20 @@ export function hitTestFigure(
     const d = distToSeg(p, c1, c2);
     const segLen = len(sub(c2, c1));
     if (d < 14 * s) {
+      const isShown = findLength(state, id)?.show ?? false;
+      const bestShown = bestSeg ? (findLength(state, bestSeg.id)?.show ?? false) : false;
       if (!bestSeg) {
         bestSeg = { id, d, len: segLen };
       } else if (d < bestSeg.d - 3) {
         bestSeg = { id, d, len: segLen };
-      } else if (Math.abs(d - bestSeg.d) <= 3 && segLen < bestSeg.len) {
-        bestSeg = { id, d, len: segLen };
+      } else if (Math.abs(d - bestSeg.d) <= 3) {
+        if (isShown && !bestShown) {
+          bestSeg = { id, d, len: segLen };
+        } else if (!isShown && bestShown) {
+          // keep bestSeg
+        } else if (segLen < bestSeg.len) {
+          bestSeg = { id, d, len: segLen };
+        }
       }
     }
   }

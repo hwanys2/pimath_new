@@ -379,20 +379,32 @@ describe("circle-tangents numeric reshape", () => {
   });
 
   it("detects sub-segment clicks in incircle-triangle and tangential-quad via hitTestFigure", () => {
-    // 1. incircle-triangle: test click on AP midpoint
-    const sTri = withKind(DEFAULT_TANGENTS_STATE, "incircle-triangle");
-    const sceneTri = buildTangentsScene(sTri);
-    const endsTri = lengthEndpoints(sTri, "AP");
-    assert.ok(endsTri);
-    const c1Tri = mathToCanvas(endsTri![0], sceneTri.layout);
-    const c2Tri = mathToCanvas(endsTri![1], sceneTri.layout);
-    const midTri = { x: (c1Tri.x + c2Tri.x) / 2, y: (c1Tri.y + c2Tri.y) / 2 };
-    const hitTri = hitTestFigure(sTri, sceneTri, midTri.x, midTri.y);
-    assert.ok(hitTri);
-    assert.equal(hitTri!.kind, "seg");
-    assert.equal(hitTri!.id, "AP");
+    // 1. incircle-triangle: with AB shown by default, click detects shown full side AB
+    const sTriDefault = withKind(DEFAULT_TANGENTS_STATE, "incircle-triangle");
+    const sceneTriDefault = buildTangentsScene(sTriDefault);
+    const endsTriAB = lengthEndpoints(sTriDefault, "AB");
+    assert.ok(endsTriAB);
+    const c1AB = mathToCanvas(endsTriAB![0], sceneTriDefault.layout);
+    const c2AB = mathToCanvas(endsTriAB![1], sceneTriDefault.layout);
+    const pAB = { x: c1AB.x * 0.75 + c2AB.x * 0.25, y: c1AB.y * 0.75 + c2AB.y * 0.25 };
+    const hitAB = hitTestFigure(sTriDefault, sceneTriDefault, pAB.x, pAB.y);
+    assert.ok(hitAB);
+    assert.equal(hitAB!.kind, "seg");
+    assert.equal(hitAB!.id, "AB");
 
-    // 2. tangential-quad: test click on AP midpoint
+    // With AP shown and AB hidden, click detects AP
+    const sTriAP = toggleLength(toggleLength(sTriDefault, "AB"), "AP");
+    const sceneTriAP = buildTangentsScene(sTriAP);
+    const endsTriAP = lengthEndpoints(sTriAP, "AP");
+    const c1AP = mathToCanvas(endsTriAP![0], sceneTriAP.layout);
+    const c2AP = mathToCanvas(endsTriAP![1], sceneTriAP.layout);
+    const midAP = { x: (c1AP.x + c2AP.x) / 2, y: (c1AP.y + c2AP.y) / 2 };
+    const hitAP = hitTestFigure(sTriAP, sceneTriAP, midAP.x, midAP.y);
+    assert.ok(hitAP);
+    assert.equal(hitAP!.kind, "seg");
+    assert.equal(hitAP!.id, "AP");
+
+    // 2. tangential-quad: test click on AP midpoint (AP shown by default)
     const sQuad = withKind(DEFAULT_TANGENTS_STATE, "tangential-quad");
     const sceneQuad = buildTangentsScene(sQuad);
     const endsQuad = lengthEndpoints(sQuad, "AP");
@@ -404,6 +416,52 @@ describe("circle-tangents numeric reshape", () => {
     assert.ok(hitQuad);
     assert.equal(hitQuad!.kind, "seg");
     assert.equal(hitQuad!.id, "AP");
+
+    // 3. tangential-quad: with AD shown and DS off, click along AD detects full side AD
+    const sQuadAD = toggleLength(toggleLength(sQuad, "DS"), "AD");
+    const sceneQuadAD = buildTangentsScene(sQuadAD);
+    const endsQuadAD = lengthEndpoints(sQuadAD, "AD");
+    assert.ok(endsQuadAD);
+    const c1AD = mathToCanvas(endsQuadAD![0], sceneQuadAD.layout);
+    const c2AD = mathToCanvas(endsQuadAD![1], sceneQuadAD.layout);
+    const pAD = { x: c1AD.x * 0.8 + c2AD.x * 0.2, y: c1AD.y * 0.8 + c2AD.y * 0.2 };
+    const hitAD = hitTestFigure(sQuadAD, sceneQuadAD, pAD.x, pAD.y);
+    assert.ok(hitAD);
+    assert.equal(hitAD!.id, "AD");
+    assert.equal(hitAD!.kind, "seg");
+  });
+
+  it("supports displaying and adjusting full side lengths AD and BC in tangential-quad", () => {
+    const s0 = withKind(DEFAULT_TANGENTS_STATE, "tangential-quad");
+    assert.equal(findLength(s0, "AD")?.show, false);
+    assert.equal(findLength(s0, "BC")?.show, false);
+
+    // Toggle AD and BC to shown
+    const s1 = toggleLength(s0, "AD");
+    assert.equal(findLength(s1, "AD")?.show, true);
+    const s2 = toggleLength(s1, "BC");
+    assert.equal(findLength(s2, "BC")?.show, true);
+
+    // Adjust side BC to 11
+    const s3 = applyLengthNumeric(s2, "BC", 11.0);
+    const d3 = deriveQuad(s3);
+    assert.ok(d3);
+    const bcLen = Math.hypot(d3!.B.x - d3!.C.x, d3!.B.y - d3!.C.y);
+    assert.ok(Math.abs(bcLen - 11.0) < 1e-2);
+
+    // Adjust side AD to 8
+    const s4 = applyLengthNumeric(s3, "AD", 8.0);
+    const d4 = deriveQuad(s4);
+    assert.ok(d4);
+    const adLen = Math.hypot(d4!.A.x - d4!.D.x, d4!.A.y - d4!.D.y);
+    assert.ok(Math.abs(adLen - 8.0) < 1e-2);
+
+    // Pitot theorem AB + CD = AD + BC must hold
+    const ab = Math.hypot(d4!.A.x - d4!.B.x, d4!.A.y - d4!.B.y);
+    const cd = Math.hypot(d4!.C.x - d4!.D.x, d4!.C.y - d4!.D.y);
+    const ad = Math.hypot(d4!.A.x - d4!.D.x, d4!.A.y - d4!.D.y);
+    const bc = Math.hypot(d4!.B.x - d4!.C.x, d4!.B.y - d4!.C.y);
+    assert.ok(Math.abs(ab + cd - (ad + bc)) < 1e-3);
   });
 });
 

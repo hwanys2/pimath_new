@@ -579,8 +579,8 @@ export default function CircleTangentsStudio() {
                 선분 버튼을 누르면 숨김 → 숫자 → 문자($x$) 순으로 바뀝니다. 그림 위
                 선분을 눌러도 같습니다.
               </p>
-              <div className="flex flex-wrap gap-1">
-                {lengthList.map((id) => {
+              {(() => {
+                const renderChip = (id: string) => {
                   const mark = findLength(state, id);
                   if (!mark) return null;
                   const title = lengthModeTitle(mark.show, mark.label.mode);
@@ -609,8 +609,52 @@ export default function CircleTangentsStudio() {
                       {id}
                     </button>
                   );
-                })}
-              </div>
+                };
+
+                if (state.kind === "tangential-quad") {
+                  return (
+                    <div className="space-y-1.5">
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-[10px] font-semibold text-foreground/45">변:</span>
+                        <div className="flex flex-wrap gap-1">
+                          {["AB", "BC", "CD", "AD"].map(renderChip)}
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-[10px] font-semibold text-foreground/45">접선:</span>
+                        <div className="flex flex-wrap gap-1">
+                          {["AP", "BP", "BQ", "CQ", "CR", "DR", "DS", "AS"].map(renderChip)}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                }
+
+                if (state.kind === "incircle-triangle") {
+                  return (
+                    <div className="space-y-1.5">
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-[10px] font-semibold text-foreground/45">변:</span>
+                        <div className="flex flex-wrap gap-1">
+                          {["AB", "BC", "CA"].map(renderChip)}
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-[10px] font-semibold text-foreground/45">접선:</span>
+                        <div className="flex flex-wrap gap-1">
+                          {["AP", "BP", "BQ", "CQ", "CR", "AR"].map(renderChip)}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                }
+
+                return (
+                  <div className="flex flex-wrap gap-1">
+                    {lengthList.map(renderChip)}
+                  </div>
+                );
+              })()}
             </div>
 
             {selLength && selected?.t === "length" ? (
