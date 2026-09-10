@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
-  applyEditedLabel,
+  applyEditedLabelDetailed,
   cycleLength,
   cycleNamedPoint,
   findLength,
@@ -50,6 +50,7 @@ type Props = {
   setState: TangentsSetter;
   persist: () => void;
   onSelect: (sel: TangentsSelection | null) => void;
+  onStatus?: (message: string) => void;
 };
 
 function sameHit(a: FigureHit | null, b: FigureHit | null): boolean {
@@ -75,6 +76,7 @@ export default function CircleTangentsCanvas({
   setState,
   persist,
   onSelect,
+  onStatus,
 }: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const sceneRef = useRef<DiagramScene | null>(null);
@@ -179,7 +181,17 @@ export default function CircleTangentsCanvas({
     const value = next ?? current.value;
     editRef.current = null;
     setEdit(null);
-    setState((prev) => applyEditedLabel(prev, current.id, value), true);
+    setState((prev) => {
+      const result = applyEditedLabelDetailed(prev, current.id, value);
+      if (!result.ok) {
+        onStatus?.(
+          result.message ?? "고정된 길이로는 그런 그림이 존재하지 않아요.",
+        );
+        return prev;
+      }
+      onStatus?.("");
+      return result.state;
+    }, true);
   }
 
   function dragPoint(id: string, math: { x: number; y: number }) {

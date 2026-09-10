@@ -366,7 +366,7 @@ function defaultThree(): ThreeTangentsDraft {
       AD: lenMark("AD", true, "custom", "8 cm"),
       AF: lenMark("AF", false),
       AB: lenMark("AB", true, "custom", "5 cm"),
-      AC: lenMark("AC", true, "custom", "6 cm"),
+      AC: lenMark("AC", false),
       BC: lenMark("BC", false),
       BE: lenMark("BE", false),
       CE: lenMark("CE", false),

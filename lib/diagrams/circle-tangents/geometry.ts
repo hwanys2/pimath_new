@@ -811,72 +811,286 @@ function finalizeNumericLength(
 ): CircleTangentsState {
   const norm = normalizeState(next);
   const mark = findLength(norm, cleanId);
-  if (mark && mark.label.mode === "custom") {
-    const unitSuffix = norm.unit ? ` ${norm.unit}` : "";
-    return patchLength(norm, cleanId, {
-      label: { ...mark.label, custom: `${value}${unitSuffix}` },
+  const unitSuffix = norm.unit ? ` ${norm.unit}` : "";
+  // Always pin the edited length as custom so later edits cannot drift the label.
+  return patchLength(norm, cleanId, {
+    show: true,
+    label: {
+      ...(mark?.label ?? emptyLabel("custom")),
+      mode: "custom",
+      custom: `${Number(value.toFixed(4)).toString().replace(/\.?0+$/, "")}${unitSuffix}`.replace(
+        /(\.\d*?)0+ /,
+        "$1 ",
+      ),
+    },
+  });
+}
+
+/** Freeze currently shown numeric (auto) lengths as custom, so later edits keep them. */
+export function freezeVisibleAutoLengths(
+  state: CircleTangentsState,
+  exceptId?: string,
+): CircleTangentsState {
+  const except = exceptId ? cleanMeasureId(exceptId) : null;
+  let next = state;
+  for (const id of lengthIdsForKind(state)) {
+    if (except && id === except) continue;
+    if (except && ((except === "AD" && id === "AF") || (except === "AF" && id === "AD"))) {
+      continue;
+    }
+    if (
+      except &&
+      (except === "PA" || except === "PB") &&
+      (id === "PA" || id === "PB")
+    ) {
+      continue;
+    }
+    if (
+      except &&
+      (except === "OA" || except === "OB") &&
+      (id === "OA" || id === "OB")
+    ) {
+      continue;
+    }
+    const mark = findLength(next, id);
+    if (!mark?.show || mark.label.mode !== "auto") continue;
+    const auto = autoLengthValue(next, id);
+    if (auto == null || !(auto > 0)) continue;
+    const unitSuffix = next.unit ? ` ${next.unit}` : "";
+    next = patchLength(next, id, {
+      label: {
+        ...mark.label,
+        mode: "custom",
+        custom: `${Number(auto.toFixed(2))}${unitSuffix}`,
+      },
     });
   }
-  return norm;
+  return next;
 }
+
+function placeTriangleSides(
+  a: number,
+  b: number,
+  c: number,
+): [Vec, Vec, Vec] | null {
+  if (!(a > 0.05 && b > 0.05 && c > 0.05)) return null;
+  if (a + b <= c + 1e-6 || b + c <= a + 1e-6 || c + a <= b + 1e-6) return null;
+  // Foot of A on BC is at distance yProj from B toward C.
+  const yProj = (c * c - b * b + a * a) / (2 * a);
+  const h2 = c * c - yProj * yProj;
+  if (h2 < 1e-8) return null;
+  const h = Math.sqrt(h2);
+  const B: Vec = { x: -1.2, y: a / 2 };
+  const C: Vec = { x: -1.2, y: -a / 2 };
+  const A: Vec = { x: -1.2 - h, y: a / 2 - yProj };
+  return [A, B, C];
+}
+
+function solveThreeTangentSides(input: {
+  a: number | null;
+  b: number | null;
+  c: number | null;
+  s: number | null;
+  curA: number;
+  curB: number;
+  curC: number;
+}): { a: number; b: number; c: number } | null {
+  let a = input.a;
+  let b = input.b;
+  let c = input.c;
+  let s = input.s;
+  const { curA, curB, curC } = input;
+
+  for (let i = 0; i < 6; i += 1) {
+    if (s != null && a != null && b != null && c == null) c = 2 * s - a - b;
+    if (s != null && a != null && c != null && b == null) b = 2 * s - a - c;
+    if (s != null && b != null && c != null && a == null) a = 2 * s - b - c;
+    if (a != null && b != null && c != null && s == null) s = (a + b + c) / 2;
+  }
+
+  if (a == null && b == null && c == null && s != null) {
+    const curS = (curA + curB + curC) / 2;
+    if (curS < 1e-6) return null;
+    const f = s / curS;
+    a = curA * f;
+    b = curB * f;
+    c = curC * f;
+  } else if (s != null) {
+    const known = [a, b, c];
+    const knownCount = known.filter((v) => v != null).length;
+    if (knownCount === 1) {
+      const rem = 2 * s - (a ?? b ?? c)!;
+      if (rem <= 0.1) return null;
+      if (a != null) {
+        const sum = curB + curC || 1;
+        b = rem * (curB / sum);
+        c = rem * (curC / sum);
+      } else if (b != null) {
+        const sum = curA + curC || 1;
+        a = rem * (curA / sum);
+        c = rem * (curC / sum);
+      } else {
+        const sum = curA + curB || 1;
+        a = rem * (curA / sum);
+        b = rem * (curB / sum);
+      }
+    } else if (knownCount === 0) {
+      return null;
+    }
+  } else {
+    if (a == null) a = curA;
+    if (b == null) b = curB;
+    if (c == null) c = curC;
+  }
+
+  if (a == null || b == null || c == null) return null;
+  if (!(a > 0.05 && b > 0.05 && c > 0.05)) return null;
+  if (a + b <= c + 1e-6 || b + c <= a + 1e-6 || c + a <= b + 1e-6) return null;
+  if (input.s != null) {
+    const s2 = (a + b + c) / 2;
+    if (Math.abs(s2 - input.s) > 0.05) return null;
+  }
+  return { a, b, c };
+}
+
+export type LengthApplyResult = {
+  ok: boolean;
+  state: CircleTangentsState;
+  message?: string;
+};
 
 export function applyLengthNumeric(
   state: CircleTangentsState,
   id: string,
   value: number,
 ): CircleTangentsState {
-  const cleanId = cleanMeasureId(id);
-  if (!Number.isFinite(value) || value <= 0) return state;
+  return applyLengthNumericDetailed(state, id, value).state;
+}
 
-  if (state.kind === "two-tangents") {
-    const r = state.radius;
-    const d = state.two.opDist;
+export function applyLengthNumericDetailed(
+  state: CircleTangentsState,
+  id: string,
+  value: number,
+): LengthApplyResult {
+  const cleanId = cleanMeasureId(id);
+  if (!Number.isFinite(value) || value <= 0) {
+    return { ok: false, state, message: "길이는 양수여야 해요." };
+  }
+
+  const frozen = freezeVisibleAutoLengths(state, cleanId);
+
+  if (frozen.kind === "two-tangents") {
+    const r = frozen.radius;
+    const d = frozen.two.opDist;
     const curL = Math.sqrt(Math.max(0, d * d - r * r));
 
-    const isPinRadius = isLengthPinned(state, "OA") || isLengthPinned(state, "OB");
-    const isPinTangent = isLengthPinned(state, "PA") || isLengthPinned(state, "PB");
-    const isPinOP = isLengthPinned(state, "OP");
+    const isPinRadius = isLengthPinned(frozen, "OA") || isLengthPinned(frozen, "OB");
+    const isPinTangent = isLengthPinned(frozen, "PA") || isLengthPinned(frozen, "PB");
+    const isPinOP = isLengthPinned(frozen, "OP");
 
     if (cleanId === "PA" || cleanId === "PB") {
       const targetL = Math.max(0.2, Math.min(60, value));
       if (isPinOP && !isPinRadius) {
-        const nextR = Math.max(0.5, Math.min(d - 0.2, Math.sqrt(Math.max(0.25, d * d - targetL * targetL))));
-        return finalizeNumericLength({ ...state, radius: nextR }, cleanId, targetL);
+        const nextR = Math.max(
+          0.5,
+          Math.min(d - 0.2, Math.sqrt(Math.max(0.25, d * d - targetL * targetL))),
+        );
+        if (!(nextR < d - 0.05)) {
+          return {
+            ok: false,
+            state,
+            message: "지금 고정된 OP로는 그 접선 길이를 만들 수 없어요.",
+          };
+        }
+        return {
+          ok: true,
+          state: finalizeNumericLength(
+            { ...frozen, radius: nextR },
+            cleanId,
+            targetL,
+          ),
+        };
+      }
+      if (isPinRadius && isPinOP) {
+        const need = Math.sqrt(Math.max(0, d * d - r * r));
+        if (Math.abs(need - targetL) > 0.05) {
+          return {
+            ok: false,
+            state,
+            message: "반지름과 OP가 고정된 상태에서는 그 접선 길이가 불가해요.",
+          };
+        }
       }
       const nextD = Math.sqrt(targetL * targetL + r * r);
-      return finalizeNumericLength({
-        ...state,
-        two: { ...state.two, opDist: nextD },
-      }, cleanId, targetL);
+      return {
+        ok: true,
+        state: finalizeNumericLength(
+          { ...frozen, two: { ...frozen.two, opDist: nextD } },
+          cleanId,
+          targetL,
+        ),
+      };
     }
 
     if (cleanId === "OA" || cleanId === "OB") {
       const targetR = Math.max(0.2, Math.min(40, value));
+      if (isPinOP && targetR >= d - 0.05) {
+        return {
+          ok: false,
+          state,
+          message: "고정된 OP보다 큰 반지름은 불가해요.",
+        };
+      }
       if (isPinOP && !isPinTangent) {
-        return finalizeNumericLength({ ...state, radius: targetR }, cleanId, targetR);
+        return {
+          ok: true,
+          state: finalizeNumericLength(
+            { ...frozen, radius: targetR },
+            cleanId,
+            targetR,
+          ),
+        };
       }
       const nextD = Math.sqrt(curL * curL + targetR * targetR);
-      return finalizeNumericLength({
-        ...state,
-        radius: targetR,
-        two: { ...state.two, opDist: nextD },
-      }, cleanId, targetR);
+      return {
+        ok: true,
+        state: finalizeNumericLength(
+          {
+            ...frozen,
+            radius: targetR,
+            two: { ...frozen.two, opDist: nextD },
+          },
+          cleanId,
+          targetR,
+        ),
+      };
     }
 
     if (cleanId === "OP") {
       const nextD = Math.max(r + 0.2, Math.min(80, value));
       if (isPinTangent && !isPinRadius) {
         const nextR = Math.sqrt(Math.max(0.25, nextD * nextD - curL * curL));
-        return finalizeNumericLength({
-          ...state,
-          radius: nextR,
-          two: { ...state.two, opDist: nextD },
-        }, cleanId, nextD);
+        return {
+          ok: true,
+          state: finalizeNumericLength(
+            {
+              ...frozen,
+              radius: nextR,
+              two: { ...frozen.two, opDist: nextD },
+            },
+            cleanId,
+            nextD,
+          ),
+        };
       }
-      return finalizeNumericLength({
-        ...state,
-        two: { ...state.two, opDist: nextD },
-      }, cleanId, nextD);
+      return {
+        ok: true,
+        state: finalizeNumericLength(
+          { ...frozen, two: { ...frozen.two, opDist: nextD } },
+          cleanId,
+          nextD,
+        ),
+      };
     }
 
     if (cleanId === "AB") {
@@ -884,383 +1098,481 @@ export function applyLengthNumeric(
       const ratio = targetW / (2 * r);
       const denom = Math.sqrt(Math.max(0.001, 1 - ratio * ratio));
       const nextD = r / denom;
-      return finalizeNumericLength({
-        ...state,
-        two: { ...state.two, opDist: nextD },
-      }, cleanId, targetW);
+      return {
+        ok: true,
+        state: finalizeNumericLength(
+          { ...frozen, two: { ...frozen.two, opDist: nextD } },
+          cleanId,
+          targetW,
+        ),
+      };
     }
   }
 
-  if (state.kind === "incircle-triangle") {
-    const d = deriveTri(state);
-    if (!d) return state;
-
-    let tA = pinnedLengthValue(state, "AP", pinnedLengthValue(state, "AR", d.tA));
-    let tB = pinnedLengthValue(state, "BP", pinnedLengthValue(state, "BQ", d.tB));
-    let tC = pinnedLengthValue(state, "CQ", pinnedLengthValue(state, "CR", d.tC));
-
-    const isPinAB = isLengthPinned(state, "AB");
-    const isPinBC = isLengthPinned(state, "BC");
-    const isPinCA = isLengthPinned(state, "CA");
-
-    if (cleanId === "AP" || cleanId === "AR") {
-      tA = Math.max(0.2, Math.min(50, value));
-    } else if (cleanId === "BP" || cleanId === "BQ") {
-      tB = Math.max(0.2, Math.min(50, value));
-    } else if (cleanId === "CQ" || cleanId === "CR") {
-      tC = Math.max(0.2, Math.min(50, value));
-    } else if (cleanId === "BC") {
-      const targetA = Math.max(0.5, Math.min(60, value));
-      if (isPinAB && !isPinCA) {
-        tC = Math.max(0.2, targetA - tB);
-      } else if (isPinCA && !isPinAB) {
-        tB = Math.max(0.2, targetA - tC);
-      } else if (isPinAB && isPinCA) {
-        const c = tA + tB;
-        const b = tC + tA;
-        const minA = Math.abs(b - c) + 0.3;
-        const maxA = b + c - 0.3;
-        const clampedA = Math.max(minA, Math.min(maxA, targetA));
-        tA = (b + c - clampedA) / 2;
-        tB = (clampedA + c - b) / 2;
-        tC = (clampedA + b - c) / 2;
-      } else {
-        const sumBC = tB + tC;
-        const ratio = targetA / (sumBC || 1);
-        tB = Math.max(0.2, tB * ratio);
-        tC = Math.max(0.2, tC * ratio);
-      }
-    } else if (cleanId === "AB") {
-      const targetC = Math.max(0.5, Math.min(60, value));
-      if (isPinBC && !isPinCA) {
-        tA = Math.max(0.2, targetC - tB);
-      } else if (isPinCA && !isPinBC) {
-        tB = Math.max(0.2, targetC - tA);
-      } else if (isPinBC && isPinCA) {
-        const a = tB + tC;
-        const b = tC + tA;
-        const minC = Math.abs(a - b) + 0.3;
-        const maxC = a + b - 0.3;
-        const clampedC = Math.max(minC, Math.min(maxC, targetC));
-        tA = (b + clampedC - a) / 2;
-        tB = (a + clampedC - b) / 2;
-        tC = (a + b - clampedC) / 2;
-      } else {
-        const sumAB = tA + tB;
-        const ratio = targetC / (sumAB || 1);
-        tA = Math.max(0.2, tA * ratio);
-        tB = Math.max(0.2, tB * ratio);
-      }
-    } else if (cleanId === "CA") {
-      const targetB = Math.max(0.5, Math.min(60, value));
-      if (isPinBC && !isPinAB) {
-        tA = Math.max(0.2, targetB - tC);
-      } else if (isPinAB && !isPinBC) {
-        tC = Math.max(0.2, targetB - tA);
-      } else if (isPinBC && isPinAB) {
-        const a = tB + tC;
-        const c = tA + tB;
-        const minB = Math.abs(a - c) + 0.3;
-        const maxB = a + c - 0.3;
-        const clampedB = Math.max(minB, Math.min(maxB, targetB));
-        tA = (clampedB + c - a) / 2;
-        tB = (a + c - clampedB) / 2;
-        tC = (a + clampedB - c) / 2;
-      } else {
-        const sumCA = tC + tA;
-        const ratio = targetB / (sumCA || 1);
-        tC = Math.max(0.2, tC * ratio);
-        tA = Math.max(0.2, tA * ratio);
-      }
-    } else {
-      return state;
-    }
-
-    const a = tB + tC;
-    const b = tC + tA;
-    const c = tA + tB;
-
-    const x = (c * c + a * a - b * b) / (2 * a);
-    const y = Math.sqrt(Math.max(0.1, c * c - x * x));
-    const centroidX = (x - a / 2) / 3;
-    const B: Vec = { x: -a / 2 - centroidX, y: -y / 3 };
-    const C: Vec = { x: a / 2 - centroidX, y: -y / 3 };
-    const A: Vec = { x: x - a / 2 - centroidX, y: (2 * y) / 3 };
-    return finalizeNumericLength({
-      ...state,
-      tri: { ...state.tri, verts: [A, B, C] },
-    }, cleanId, value);
+  if (frozen.kind === "incircle-triangle") {
+    const result = applyIncircleTriangleLength(frozen, cleanId, value);
+    return result;
   }
 
-  if (state.kind === "tangential-quad") {
-    const d = deriveQuad(state);
-    if (!d) return state;
-    let r = state.radius;
+  if (frozen.kind === "tangential-quad") {
+    const result = applyTangentialQuadLength(frozen, cleanId, value);
+    return result;
+  }
 
-    const sidePairs: Record<string, [number, number]> = {
-      AB: [3, 0],
-      BC: [0, 1],
-      CD: [1, 2],
-      AD: [2, 3],
-      DA: [2, 3],
-    };
-    const isSide = cleanId in sidePairs;
+  if (frozen.kind === "three-tangents") {
+    return applyThreeTangentsLength(frozen, cleanId, value);
+  }
 
-    let targetIdx = -1;
-    if (cleanId === "BP" || cleanId === "BQ") targetIdx = 0;
-    else if (cleanId === "CQ" || cleanId === "CR") targetIdx = 1;
-    else if (cleanId === "DR" || cleanId === "DS") targetIdx = 2;
-    else if (cleanId === "AP" || cleanId === "AS") targetIdx = 3;
 
-    if (targetIdx < 0 && !isSide) return state;
+  return { ok: false, state, message: "이 길이는 숫자로 맞출 수 없어요." };
+}
 
-    const curT = [
-      pinnedLengthValue(state, "BP", pinnedLengthValue(state, "BQ", d.tB)),
-      pinnedLengthValue(state, "CQ", pinnedLengthValue(state, "CR", d.tC)),
-      pinnedLengthValue(state, "DR", pinnedLengthValue(state, "DS", d.tD)),
-      pinnedLengthValue(state, "AP", pinnedLengthValue(state, "AS", d.tA)),
-    ];
+function applyIncircleTriangleLength(
+  state: CircleTangentsState,
+  cleanId: string,
+  value: number,
+): LengthApplyResult {
+  const d = deriveTri(state);
+  if (!d) {
+    return { ok: false, state, message: "삼각형을 만들 수 없어요." };
+  }
 
-    const targetT = [...curT];
-    const isPinned = [false, false, false, false];
+  let tA = pinnedLengthValue(state, "AP", pinnedLengthValue(state, "AR", d.tA));
+  let tB = pinnedLengthValue(state, "BP", pinnedLengthValue(state, "BQ", d.tB));
+  let tC = pinnedLengthValue(state, "CQ", pinnedLengthValue(state, "CR", d.tC));
 
-    if (isSide) {
-      const [idx1, idx2] = sidePairs[cleanId]!;
-      const targetL = Math.max(0.4, Math.min(80, value));
+  const isPinAB = isLengthPinned(state, "AB");
+  const isPinBC = isLengthPinned(state, "BC");
+  const isPinCA = isLengthPinned(state, "CA");
 
-      const pin1 =
-        isLengthPinned(state, idx1 === 0 ? "BP" : idx1 === 1 ? "CQ" : idx1 === 2 ? "DR" : "AP") ||
-        isLengthPinned(state, idx1 === 0 ? "BQ" : idx1 === 1 ? "CR" : idx1 === 2 ? "DS" : "AS");
-      const pin2 =
-        isLengthPinned(state, idx2 === 0 ? "BP" : idx2 === 1 ? "CQ" : idx2 === 2 ? "DR" : "AP") ||
-        isLengthPinned(state, idx2 === 0 ? "BQ" : idx2 === 1 ? "CR" : idx2 === 2 ? "DS" : "AS");
-
-      if (pin1 && !pin2) {
-        targetT[idx2] = Math.max(0.2, targetL - targetT[idx1]!);
-      } else if (pin2 && !pin1) {
-        targetT[idx1] = Math.max(0.2, targetL - targetT[idx2]!);
-      } else {
-        const sidePrev =
-          cleanId === "BC"
-            ? "AB"
-            : cleanId === "CD"
-              ? "BC"
-              : cleanId === "AD" || cleanId === "DA"
-                ? "CD"
-                : "AD";
-        const sideNext =
-          cleanId === "BC"
-            ? "CD"
-            : cleanId === "CD"
-              ? "AD"
-              : cleanId === "AD" || cleanId === "DA"
-                ? "AB"
-                : "BC";
-        const pinSidePrev = isLengthPinned(state, sidePrev);
-        const pinSideNext = isLengthPinned(state, sideNext);
-
-        if (pinSidePrev && !pinSideNext) {
-          targetT[idx2] = Math.max(0.2, targetL - targetT[idx1]!);
-        } else if (pinSideNext && !pinSidePrev) {
-          targetT[idx1] = Math.max(0.2, targetL - targetT[idx2]!);
-        } else {
-          const sum = targetT[idx1]! + targetT[idx2]! || 1;
-          const ratio = targetL / sum;
-          targetT[idx1] = Math.max(0.2, targetT[idx1]! * ratio);
-          targetT[idx2] = Math.max(0.2, targetL - targetT[idx1]!);
-        }
+  if (cleanId === "AP" || cleanId === "AR") {
+    tA = Math.max(0.2, Math.min(50, value));
+  } else if (cleanId === "BP" || cleanId === "BQ") {
+    tB = Math.max(0.2, Math.min(50, value));
+  } else if (cleanId === "CQ" || cleanId === "CR") {
+    tC = Math.max(0.2, Math.min(50, value));
+  } else if (cleanId === "BC") {
+    const targetA = Math.max(0.5, Math.min(60, value));
+    if (isPinAB && !isPinCA) {
+      tC = Math.max(0.2, targetA - tB);
+    } else if (isPinCA && !isPinAB) {
+      tB = Math.max(0.2, targetA - tC);
+    } else if (isPinAB && isPinCA) {
+      const c = tA + tB;
+      const b = tC + tA;
+      const minA = Math.abs(b - c) + 0.3;
+      const maxA = b + c - 0.3;
+      if (targetA < minA - 1e-6 || targetA > maxA + 1e-6) {
+        return {
+          ok: false,
+          state,
+          message: "고정된 AB·CA로는 그 BC 길이가 불가해요.",
+        };
       }
-      isPinned[idx1] = true;
-      isPinned[idx2] = true;
-
-      const otherIndices = [0, 1, 2, 3].filter((i) => i !== idx1 && i !== idx2);
-      for (const oi of otherIndices) {
-        const p =
-          isLengthPinned(state, oi === 0 ? "BP" : oi === 1 ? "CQ" : oi === 2 ? "DR" : "AP") ||
-          isLengthPinned(state, oi === 0 ? "BQ" : oi === 1 ? "CR" : oi === 2 ? "DS" : "AS");
-        if (p) isPinned[oi] = true;
-      }
+      const clampedA = Math.max(minA, Math.min(maxA, targetA));
+      tA = (b + c - clampedA) / 2;
+      tB = (clampedA + c - b) / 2;
+      tC = (clampedA + b - c) / 2;
     } else {
-      targetT[targetIdx] = Math.max(0.2, Math.min(50, value));
-      isPinned[0] = targetIdx !== 0 && (isLengthPinned(state, "BP") || isLengthPinned(state, "BQ"));
-      isPinned[1] = targetIdx !== 1 && (isLengthPinned(state, "CQ") || isLengthPinned(state, "CR"));
-      isPinned[2] = targetIdx !== 2 && (isLengthPinned(state, "DR") || isLengthPinned(state, "DS"));
-      isPinned[3] = targetIdx !== 3 && (isLengthPinned(state, "AP") || isLengthPinned(state, "AS"));
+      const sumBC = tB + tC;
+      const ratio = targetA / (sumBC || 1);
+      tB = Math.max(0.2, tB * ratio);
+      tC = Math.max(0.2, tC * ratio);
     }
-
-    const unpinned: number[] = [];
-    for (let i = 0; i < 4; i++) {
-      if (isSide) {
-        const [idx1, idx2] = sidePairs[cleanId]!;
-        if (i !== idx1 && i !== idx2 && !isPinned[i]) unpinned.push(i);
-      } else {
-        if (i !== targetIdx && !isPinned[i]) unpinned.push(i);
+  } else if (cleanId === "AB") {
+    const targetC = Math.max(0.5, Math.min(60, value));
+    if (isPinBC && !isPinCA) {
+      tA = Math.max(0.2, targetC - tB);
+    } else if (isPinCA && !isPinBC) {
+      tB = Math.max(0.2, targetC - tA);
+    } else if (isPinBC && isPinCA) {
+      const a = tB + tC;
+      const b = tC + tA;
+      const minC = Math.abs(a - b) + 0.3;
+      const maxC = a + b - 0.3;
+      if (targetC < minC - 1e-6 || targetC > maxC + 1e-6) {
+        return {
+          ok: false,
+          state,
+          message: "고정된 BC·CA로는 그 AB 길이가 불가해요.",
+        };
       }
+      const clampedC = Math.max(minC, Math.min(maxC, targetC));
+      tA = (b + clampedC - a) / 2;
+      tB = (a + clampedC - b) / 2;
+      tC = (a + b - clampedC) / 2;
+    } else {
+      const sumAB = tA + tB;
+      const ratio = targetC / (sumAB || 1);
+      tA = Math.max(0.2, tA * ratio);
+      tB = Math.max(0.2, tB * ratio);
     }
-    if (unpinned.length === 0) {
-      const freeIdx = isSide
-        ? cleanId === "BC"
-          ? 3
-          : cleanId === "AB"
-            ? 2
-            : cleanId === "CD"
-              ? 0
-              : 1
-        : (targetIdx + 2) % 4;
-      unpinned.push(freeIdx);
-      isPinned[freeIdx] = false;
-    }
-
-    const fixed = [0, 1, 2, 3].filter((i) => !unpinned.includes(i));
-    const sumFixedAngles = (testR: number) => {
-      let sum = 0;
-      for (const idx of fixed) {
-        sum += 2 * Math.atan(targetT[idx]! / testR) * (180 / Math.PI);
+  } else if (cleanId === "CA") {
+    const targetB = Math.max(0.5, Math.min(60, value));
+    if (isPinBC && !isPinAB) {
+      tA = Math.max(0.2, targetB - tC);
+    } else if (isPinAB && !isPinBC) {
+      tC = Math.max(0.2, targetB - tA);
+    } else if (isPinBC && isPinAB) {
+      const a = tB + tC;
+      const c = tA + tB;
+      const minB = Math.abs(a - c) + 0.3;
+      const maxB = a + c - 0.3;
+      if (targetB < minB - 1e-6 || targetB > maxB + 1e-6) {
+        return {
+          ok: false,
+          state,
+          message: "고정된 AB·BC로는 그 CA 길이가 불가해요.",
+        };
       }
-      return sum;
+      const clampedB = Math.max(minB, Math.min(maxB, targetB));
+      tA = (clampedB + c - a) / 2;
+      tB = (a + c - clampedB) / 2;
+      tC = (a + clampedB - c) / 2;
+    } else {
+      const sumCA = tC + tA;
+      const ratio = targetB / (sumCA || 1);
+      tC = Math.max(0.2, tC * ratio);
+      tA = Math.max(0.2, tA * ratio);
+    }
+  } else {
+    return { ok: false, state, message: "이 길이는 숫자로 맞출 수 없어요." };
+  }
+
+  const a = tB + tC;
+  const b = tC + tA;
+  const c = tA + tB;
+  if (a + b <= c || b + c <= a || c + a <= b) {
+    return {
+      ok: false,
+      state,
+      message: "고정된 길이로는 그런 삼각형이 존재하지 않아요.",
     };
+  }
 
-    let fixedSum = sumFixedAngles(r);
-    const maxAllowedFixedSum = 360 - 15 * unpinned.length;
-    if (fixedSum >= maxAllowedFixedSum || fixedSum <= 60) {
-      const targetFixedSum = Math.min(maxAllowedFixedSum - 10, Math.max(100, 360 * (fixed.length / (fixed.length + 1))));
-      let low = 0.5;
-      let high = 100;
-      for (let iter = 0; iter < 30; iter++) {
-        const mid = (low + high) / 2;
-        if (sumFixedAngles(mid) > targetFixedSum) {
-          low = mid;
-        } else {
-          high = mid;
-        }
+  const x = (c * c + a * a - b * b) / (2 * a);
+  const y2 = c * c - x * x;
+  if (y2 < 1e-6) {
+    return {
+      ok: false,
+      state,
+      message: "고정된 길이로는 그런 삼각형이 존재하지 않아요.",
+    };
+  }
+  const y = Math.sqrt(y2);
+  const centroidX = (x - a / 2) / 3;
+  const B: Vec = { x: -a / 2 - centroidX, y: -y / 3 };
+  const C: Vec = { x: a / 2 - centroidX, y: -y / 3 };
+  const A: Vec = { x: x - a / 2 - centroidX, y: (2 * y) / 3 };
+  return {
+    ok: true,
+    state: finalizeNumericLength(
+      { ...state, tri: { ...state.tri, verts: [A, B, C] } },
+      cleanId,
+      value,
+    ),
+  };
+}
+
+function applyTangentialQuadLength(
+  state: CircleTangentsState,
+  cleanId: string,
+  value: number,
+): LengthApplyResult {
+  const d = deriveQuad(state);
+  if (!d) {
+    return { ok: false, state, message: "접선사각형을 만들 수 없어요." };
+  }
+  let r = state.radius;
+
+  const sidePairs: Record<string, [number, number]> = {
+    AB: [3, 0],
+    BC: [0, 1],
+    CD: [1, 2],
+    AD: [2, 3],
+    DA: [2, 3],
+  };
+  const isSide = cleanId in sidePairs;
+
+  let targetIdx = -1;
+  if (cleanId === "BP" || cleanId === "BQ") targetIdx = 0;
+  else if (cleanId === "CQ" || cleanId === "CR") targetIdx = 1;
+  else if (cleanId === "DR" || cleanId === "DS") targetIdx = 2;
+  else if (cleanId === "AP" || cleanId === "AS") targetIdx = 3;
+
+  if (targetIdx < 0 && !isSide) {
+    return { ok: false, state, message: "이 길이는 숫자로 맞출 수 없어요." };
+  }
+
+  const curT = [
+    pinnedLengthValue(state, "BP", pinnedLengthValue(state, "BQ", d.tB)),
+    pinnedLengthValue(state, "CQ", pinnedLengthValue(state, "CR", d.tC)),
+    pinnedLengthValue(state, "DR", pinnedLengthValue(state, "DS", d.tD)),
+    pinnedLengthValue(state, "AP", pinnedLengthValue(state, "AS", d.tA)),
+  ];
+
+  const targetT = [...curT];
+  const isPinned = [false, false, false, false];
+
+  if (isSide) {
+    const [idx1, idx2] = sidePairs[cleanId]!;
+    const targetL = Math.max(0.4, Math.min(80, value));
+
+    const pin1 =
+      isLengthPinned(state, idx1 === 0 ? "BP" : idx1 === 1 ? "CQ" : idx1 === 2 ? "DR" : "AP") ||
+      isLengthPinned(state, idx1 === 0 ? "BQ" : idx1 === 1 ? "CR" : idx1 === 2 ? "DS" : "AS");
+    const pin2 =
+      isLengthPinned(state, idx2 === 0 ? "BP" : idx2 === 1 ? "CQ" : idx2 === 2 ? "DR" : "AP") ||
+      isLengthPinned(state, idx2 === 0 ? "BQ" : idx2 === 1 ? "CR" : idx2 === 2 ? "DS" : "AS");
+
+    if (pin1 && pin2) {
+      const sum = targetT[idx1]! + targetT[idx2]!;
+      if (Math.abs(sum - targetL) > 0.05) {
+        return {
+          ok: false,
+          state,
+          message: "고정된 접선 조각으로는 그 변 길이가 불가해요.",
+        };
       }
-      r = (low + high) / 2;
-      fixedSum = sumFixedAngles(r);
+    } else if (pin1 && !pin2) {
+      targetT[idx2] = Math.max(0.2, targetL - targetT[idx1]!);
+    } else if (pin2 && !pin1) {
+      targetT[idx1] = Math.max(0.2, targetL - targetT[idx2]!);
+    } else {
+      const sum = targetT[idx1]! + targetT[idx2]! || 1;
+      const ratio = targetL / sum;
+      targetT[idx1] = Math.max(0.2, targetT[idx1]! * ratio);
+      targetT[idx2] = Math.max(0.2, targetL - targetT[idx1]!);
     }
+    isPinned[idx1] = true;
+    isPinned[idx2] = true;
+  } else {
+    targetT[targetIdx] = Math.max(0.2, Math.min(50, value));
+    isPinned[0] = targetIdx !== 0 && (isLengthPinned(state, "BP") || isLengthPinned(state, "BQ"));
+    isPinned[1] = targetIdx !== 1 && (isLengthPinned(state, "CQ") || isLengthPinned(state, "CR"));
+    isPinned[2] = targetIdx !== 2 && (isLengthPinned(state, "DR") || isLengthPinned(state, "DS"));
+    isPinned[3] = targetIdx !== 3 && (isLengthPinned(state, "AP") || isLengthPinned(state, "AS"));
+    isPinned[targetIdx] = true;
+  }
 
-    const remAngle = Math.max(10 * unpinned.length, 360 - fixedSum);
-    const prevUnpinnedSpans = unpinned.map(
-      (idx) => 2 * Math.atan(curT[idx]! / state.radius) * (180 / Math.PI),
+  const unpinned: number[] = [];
+  for (let i = 0; i < 4; i++) {
+    if (!isPinned[i]) unpinned.push(i);
+  }
+  if (unpinned.length === 0) {
+    // all pinned — only check consistency via rebuild attempt
+  }
+
+  const fixed = [0, 1, 2, 3].filter((i) => !unpinned.includes(i));
+  const maxAllowedFixedSum = 360 - 15 * Math.max(unpinned.length, 1);
+  let fixedSum = 0;
+  for (const idx of fixed) {
+    fixedSum += 2 * Math.atan(targetT[idx]! / r) * (180 / Math.PI);
+  }
+  if (fixedSum >= maxAllowedFixedSum) {
+    const need = Math.tan(((360 - 15 * Math.max(unpinned.length, 1)) * Math.PI) / 360);
+    r = Math.max(
+      0.5,
+      Math.max(...fixed.map((i) => targetT[i]!)) / Math.max(need, 0.2),
     );
-    const totalPrevUnpinned = prevUnpinnedSpans.reduce((a, b) => a + b, 0) || 1;
-
-    const spans = [0, 0, 0, 0];
+    fixedSum = 0;
     for (const idx of fixed) {
-      spans[idx] = 2 * Math.atan(targetT[idx]! / r) * (180 / Math.PI);
+      fixedSum += 2 * Math.atan(targetT[idx]! / r) * (180 / Math.PI);
     }
-    for (let k = 0; k < unpinned.length; k++) {
-      const idx = unpinned[k]!;
-      spans[idx] = remAngle * (prevUnpinnedSpans[k]! / totalPrevUnpinned);
+    if (fixedSum >= 350) {
+      return {
+        ok: false,
+        state,
+        message: "고정된 접선 길이로는 그런 접선사각형이 존재하지 않아요.",
+      };
     }
+  }
 
-    const degs = [...state.quad.touchDeg].sort((a, b) => a - b) as [
-      number,
-      number,
-      number,
-      number,
-    ];
-    const newDegs: [number, number, number, number] = [
-      degs[0],
-      (degs[0] + spans[0]) % 360,
-      (degs[0] + spans[0] + spans[1]) % 360,
-      (degs[0] + spans[0] + spans[1] + spans[2]) % 360,
-    ];
+  const remAngle = Math.max(10 * Math.max(unpinned.length, 1), 360 - fixedSum);
+  const prevUnpinnedSpans = unpinned.map(
+    (idx) => 2 * Math.atan(curT[idx]! / state.radius) * (180 / Math.PI),
+  );
+  const totalPrevUnpinned = prevUnpinnedSpans.reduce((a, b) => a + b, 0) || 1;
 
-    return finalizeNumericLength({
+  const spans = [0, 0, 0, 0];
+  for (const idx of fixed) {
+    spans[idx] = 2 * Math.atan(targetT[idx]! / r) * (180 / Math.PI);
+  }
+  for (let k = 0; k < unpinned.length; k++) {
+    const idx = unpinned[k]!;
+    spans[idx] = remAngle * (prevUnpinnedSpans[k]! / totalPrevUnpinned);
+    targetT[idx] = r * Math.tan(((spans[idx]! / 2) * Math.PI) / 180);
+  }
+
+  const degs = [...state.quad.touchDeg].sort((a, b) => a - b) as [
+    number,
+    number,
+    number,
+    number,
+  ];
+  const newDegs: [number, number, number, number] = [
+    degs[0],
+    (degs[0] + spans[0]) % 360,
+    (degs[0] + spans[0] + spans[1]) % 360,
+    (degs[0] + spans[0] + spans[1] + spans[2]) % 360,
+  ];
+
+  const nextState = finalizeNumericLength(
+    {
       ...state,
       radius: r,
       quad: { ...state.quad, touchDeg: newDegs },
-    }, cleanId, value);
+    },
+    cleanId,
+    value,
+  );
+  const d2 = deriveQuad(nextState);
+  if (!d2) {
+    return {
+      ok: false,
+      state,
+      message: "고정된 길이로는 그런 접선사각형이 존재하지 않아요.",
+    };
   }
-
-  if (state.kind === "three-tangents") {
-    const d = deriveThree(state);
-    if (!d) return state;
-
-    let a = len(sub(d.B, d.C)); // BC
-    let b = len(sub(d.A, d.C)); // AC
-    let c = len(sub(d.A, d.B)); // AB
-
-    const isPinA = isLengthPinned(state, "BC");
-    const isPinB = isLengthPinned(state, "AC");
-    const isPinC = isLengthPinned(state, "AB");
-
-    if (cleanId === "BC") {
-      const targetA = Math.max(0.5, Math.min(50, value));
-      if (isPinC && !isPinB) {
-        a = targetA;
-        b = Math.max(0.5, Math.abs(a - c) + 0.5);
-      } else if (isPinB && !isPinC) {
-        a = targetA;
-        c = Math.max(0.5, Math.abs(a - b) + 0.5);
-      } else {
-        const minA = Math.abs(b - c) + 0.3;
-        const maxA = b + c - 0.3;
-        a = Math.max(minA, Math.min(maxA, targetA));
-      }
-    } else if (cleanId === "AC") {
-      const targetB = Math.max(0.5, Math.min(50, value));
-      if (isPinC && !isPinA) {
-        b = targetB;
-        a = Math.max(0.5, Math.abs(b - c) + 0.5);
-      } else if (isPinA && !isPinC) {
-        b = targetB;
-        c = Math.max(0.5, Math.abs(a - b) + 0.5);
-      } else {
-        const minB = Math.abs(a - c) + 0.3;
-        const maxB = a + c - 0.3;
-        b = Math.max(minB, Math.min(maxB, targetB));
-      }
-    } else if (cleanId === "AB") {
-      const targetC = Math.max(0.5, Math.min(50, value));
-      if (isPinB && !isPinA) {
-        c = targetC;
-        a = Math.max(0.5, Math.abs(b - c) + 0.5);
-      } else if (isPinA && !isPinB) {
-        c = targetC;
-        b = Math.max(0.5, Math.abs(a - c) + 0.5);
-      } else {
-        const minC = Math.abs(a - b) + 0.3;
-        const maxC = a + b - 0.3;
-        c = Math.max(minC, Math.min(maxC, targetC));
-      }
-    } else if (cleanId === "AD" || cleanId === "AF") {
-      const s = (a + b + c) / 2;
-      const targetS = Math.max(a + 0.5, value);
-      if (isPinA) {
-        const targetSumBC = 2 * targetS - a;
-        if (isPinC && !isPinB) {
-          b = Math.max(0.5, targetSumBC - c);
-        } else if (isPinB && !isPinC) {
-          c = Math.max(0.5, targetSumBC - b);
-        } else {
-          const ratio = targetSumBC / ((b + c) || 1);
-          b *= ratio;
-          c *= ratio;
-        }
-      } else {
-        const factor = Math.max(0.2, Math.min(5, targetS / s));
-        a *= factor;
-        b *= factor;
-        c *= factor;
-      }
-    } else {
-      return state;
-    }
-
-    const y_proj = (c * c - b * b + a * a) / (2 * a);
-    const h = Math.sqrt(Math.max(0.1, c * c - y_proj * y_proj));
-    const B: Vec = { x: -1.2, y: a / 2 };
-    const C: Vec = { x: -1.2, y: -a / 2 };
-    const A: Vec = { x: -1.2 - h, y: -a / 2 + y_proj };
-    return finalizeNumericLength({
-      ...state,
-      three: { ...state.three, verts: [A, B, C] },
-    }, cleanId, value);
-  }
-
-  return state;
+  return { ok: true, state: nextState };
 }
+
+function applyThreeTangentsLength(
+  state: CircleTangentsState,
+  cleanId: string,
+  value: number,
+): LengthApplyResult {
+  const d = deriveThree(state);
+  if (!d) {
+    return { ok: false, state, message: "세 접선 삼각형을 만들 수 없어요." };
+  }
+
+  const curA = len(sub(d.B, d.C));
+  const curB = len(sub(d.A, d.C));
+  const curC = len(sub(d.A, d.B));
+  const curS = (curA + curB + curC) / 2;
+
+  const editing = cleanId;
+  const pinOf = (id: string): number | null => {
+    if (editing === id) return null;
+    if ((editing === "AD" || editing === "AF") && (id === "AD" || id === "AF")) {
+      return null;
+    }
+    if (!isLengthPinned(state, id)) return null;
+    return pinnedLengthValue(state, id, autoLengthValue(state, id) ?? 0);
+  };
+
+  let a: number | null = pinOf("BC");
+  let b: number | null = pinOf("AC");
+  let c: number | null = pinOf("AB");
+  let s: number | null = pinOf("AD") ?? pinOf("AF");
+  const pinBE = pinOf("BE");
+  const pinCE = pinOf("CE");
+
+  if (editing === "BC") a = Math.max(0.5, value);
+  else if (editing === "AC") b = Math.max(0.5, value);
+  else if (editing === "AB") c = Math.max(0.5, value);
+  else if (editing === "AD" || editing === "AF") s = Math.max(0.5, value);
+  else if (editing === "BE") {
+    const be = Math.max(0.2, value);
+    if (s != null) c = s - be;
+    else if (c != null) s = c + be;
+    else {
+      s = curS;
+      c = s - be;
+    }
+  } else if (editing === "CE") {
+    const ce = Math.max(0.2, value);
+    if (s != null) b = s - ce;
+    else if (b != null) s = b + ce;
+    else {
+      s = curS;
+      b = s - ce;
+    }
+  } else {
+    return { ok: false, state, message: "이 길이는 숫자로 맞출 수 없어요." };
+  }
+
+  if (pinBE != null) {
+    if (s != null && c != null && Math.abs(s - c - pinBE) > 0.05) {
+      return {
+        ok: false,
+        state,
+        message: "고정된 BE와 다른 길이가 서로 모순돼요.",
+      };
+    }
+    if (s != null && c == null) c = s - pinBE;
+    else if (c != null && s == null) s = c + pinBE;
+  }
+  if (pinCE != null) {
+    if (s != null && b != null && Math.abs(s - b - pinCE) > 0.05) {
+      return {
+        ok: false,
+        state,
+        message: "고정된 CE와 다른 길이가 서로 모순돼요.",
+      };
+    }
+    if (s != null && b == null) b = s - pinCE;
+    else if (b != null && s == null) s = b + pinCE;
+  }
+
+  const solved = solveThreeTangentSides({
+    a,
+    b,
+    c,
+    s,
+    curA,
+    curB,
+    curC,
+  });
+  if (!solved) {
+    return {
+      ok: false,
+      state,
+      message: "고정된 길이로는 그런 세 접선 그림이 존재하지 않아요.",
+    };
+  }
+
+  if (pinBE != null && Math.abs(solved.a + solved.b + solved.c) > 0) {
+    const s2 = (solved.a + solved.b + solved.c) / 2;
+    if (Math.abs(s2 - solved.c - pinBE) > 0.08) {
+      return {
+        ok: false,
+        state,
+        message: "고정된 BE를 지키면서는 그 길이를 만들 수 없어요.",
+      };
+    }
+  }
+  if (pinCE != null) {
+    const s2 = (solved.a + solved.b + solved.c) / 2;
+    if (Math.abs(s2 - solved.b - pinCE) > 0.08) {
+      return {
+        ok: false,
+        state,
+        message: "고정된 CE를 지키면서는 그 길이를 만들 수 없어요.",
+      };
+    }
+  }
+
+  const verts = placeTriangleSides(solved.a, solved.b, solved.c);
+  if (!verts) {
+    return {
+      ok: false,
+      state,
+      message: "고정된 길이로는 그런 세 접선 그림이 존재하지 않아요.",
+    };
+  }
+
+  return {
+    ok: true,
+    state: finalizeNumericLength(
+      { ...state, three: { ...state.three, verts } },
+      cleanId,
+      value,
+    ),
+  };
+}
+
 
 export function applyAngleNumeric(
   state: CircleTangentsState,
@@ -1300,20 +1612,38 @@ export function applyEditedLabel(
   id: string,
   raw: string,
 ): CircleTangentsState {
+  return applyEditedLabelDetailed(state, id, raw).state;
+}
+
+export function applyEditedLabelDetailed(
+  state: CircleTangentsState,
+  id: string,
+  raw: string,
+): LengthApplyResult {
   const text = raw.trim();
   if (id.startsWith("pt:")) {
     const pid = id.slice(3);
-    return setNamedPoint(state, pid, { name: text || namedPointOf(state, pid)?.name || pid });
+    return {
+      ok: true,
+      state: setNamedPoint(state, pid, {
+        name: text || namedPointOf(state, pid)?.name || pid,
+      }),
+    };
   }
 
   const cleanId = cleanMeasureId(id);
   if (cleanId === "angP" || cleanId === "P" || cleanId === "angA" || cleanId === "A") {
     const which = cleanId.includes("P") ? "P" : "A";
     const mark = state.two.angles[which];
-    if (!mark) return state;
+    if (!mark) return { ok: true, state };
 
     if (!text || text === "x" || text === "$x$") {
-      return patchAngle(state, which, { label: { ...emptyLabel("x"), custom: "x" } });
+      return {
+        ok: true,
+        state: patchAngle(state, which, {
+          label: { ...emptyLabel("x"), custom: "x" },
+        }),
+      };
     }
 
     const numMatch = /^([0-9]+(?:\.[0-9]+)?)\s*°?$/.exec(text);
@@ -1321,41 +1651,71 @@ export function applyEditedLabel(
       const num = Number(numMatch[1]);
       const next = applyAngleNumeric(state, which, num);
       const custom = text.includes("°") ? text : `${text}°`;
-      const mode =
-        mark.label.mode === "auto" || mark.label.mode === "x"
-          ? mark.label.mode
-          : "custom";
-      return patchAngle(next, which, {
-        label: { ...mark.label, mode, custom },
-      });
+      return {
+        ok: true,
+        state: patchAngle(next, which, {
+          label: { ...mark.label, mode: "custom", custom },
+        }),
+      };
     }
 
-    return patchAngle(state, which, {
-      label: { ...emptyLabel("custom"), custom: text.includes("°") ? text : `${text}°` },
-    });
+    return {
+      ok: true,
+      state: patchAngle(state, which, {
+        label: {
+          ...emptyLabel("custom"),
+          custom: text.includes("°") ? text : `${text}°`,
+        },
+      }),
+    };
   }
 
   const mark = findLength(state, cleanId);
-  if (!mark) return state;
+  if (!mark) return { ok: true, state };
 
   if (!text || text === "x" || text === "$x$") {
-    return patchLength(state, cleanId, { show: true, label: { ...emptyLabel("x"), custom: "x" } });
+    return {
+      ok: true,
+      state: patchLength(state, cleanId, {
+        show: true,
+        label: { ...emptyLabel("x"), custom: "x" },
+      }),
+    };
   }
 
   const parsed = parseMeasureInput(text);
-  let next = state;
   if (parsed.kind === "number" && parsed.value != null && parsed.value > 0) {
-    next = applyLengthNumeric(next, cleanId, parsed.value);
+    const result = applyLengthNumericDetailed(state, cleanId, parsed.value);
+    if (!result.ok) {
+      return {
+        ok: false,
+        state,
+        message:
+          result.message ??
+          "고정된 길이로는 그런 그림이 존재하지 않아요.",
+      };
+    }
+    const nextMark = findLength(result.state, cleanId);
+    return {
+      ok: true,
+      state: patchLength(result.state, cleanId, {
+        show: true,
+        label: {
+          ...(nextMark?.label ?? emptyLabel("custom")),
+          mode: "custom",
+          custom: text,
+        },
+      }),
+    };
   }
 
-  const mode =
-    mark.label.mode === "auto" || mark.label.mode === "x"
-      ? mark.label.mode
-      : "custom";
-  return patchLength(next, cleanId, {
-    show: true,
-    label: { ...mark.label, mode, custom: text },
-  });
+  return {
+    ok: true,
+    state: patchLength(state, cleanId, {
+      show: true,
+      label: { ...emptyLabel("custom"), custom: text },
+    }),
+  };
 }
 
 export function setAllPointModes(

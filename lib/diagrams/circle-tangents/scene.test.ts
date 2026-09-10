@@ -4,6 +4,7 @@ import {
   applyAngleNumeric,
   applyEditedLabel,
   applyLengthNumeric,
+  applyLengthNumericDetailed,
   autoAngleValue,
   autoLengthValue,
   deriveQuad,
@@ -18,6 +19,7 @@ import {
   toggleLength,
   cycleLength,
   findLength,
+  patchLength,
 } from "@/lib/diagrams/circle-tangents/geometry";
 import {
   DEFAULT_TANGENTS_STATE,
@@ -271,6 +273,39 @@ describe("circle-tangents numeric reshape", () => {
     const d1 = deriveTwo(s1);
     assert.ok(d1);
     assert.ok(Math.abs(d1!.tangentLen - 15) < 1e-4);
+    assert.equal(findLength(s1, "PA")?.label.mode, "custom");
+  });
+
+  it("keeps pinned AD when editing AB in three-tangents", () => {
+    let s0 = withKind(DEFAULT_TANGENTS_STATE, "three-tangents");
+    // Only AD·AB shown as numbers; free AC·BC like a typical problem figure.
+    s0 = patchLength(s0, "AC", { show: false });
+    s0 = patchLength(s0, "AB", {
+      show: true,
+      label: { ...findLength(s0, "AB")!.label, mode: "x", custom: "x" },
+    });
+
+    const s1 = applyLengthNumeric(s0, "AD", 11.11);
+    const ad1 = autoLengthValue(s1, "AD");
+    assert.ok(ad1 && Math.abs(ad1 - 11.11) < 1e-3);
+    assert.equal(findLength(s1, "AD")?.label.mode, "custom");
+
+    const s2 = applyLengthNumeric(s1, "AB", 7.25);
+    const ad2 = autoLengthValue(s2, "AD");
+    const ab2 = autoLengthValue(s2, "AB");
+    assert.ok(ab2 && Math.abs(ab2 - 7.25) < 1e-3);
+    assert.ok(ad2 && Math.abs(ad2 - 11.11) < 1e-3);
+    assert.equal(findLength(s2, "AD")?.label.mode, "custom");
+  });
+
+  it("rejects impossible three-tangents constraints without changing pins", () => {
+    const s0 = withKind(DEFAULT_TANGENTS_STATE, "three-tangents");
+    const s1 = applyLengthNumeric(s0, "AD", 8);
+    const fail = applyLengthNumericDetailed(s1, "AB", 20);
+    assert.equal(fail.ok, false);
+    assert.ok(fail.message);
+    const ad = autoLengthValue(fail.state, "AD");
+    assert.ok(ad && Math.abs(ad - 8) < 1e-3);
   });
 
   it("hits a segment line command with hitTestFigure", () => {

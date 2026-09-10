@@ -20,7 +20,7 @@ import {
   EXPORT_INK_PAD,
 } from "@/lib/diagrams/export-image";
 import {
-  applyEditedLabel,
+  applyEditedLabelDetailed,
   autoAngleValue,
   autoLengthValue,
   cycleLength,
@@ -170,7 +170,9 @@ const FILL_CHIPS: { id: AngleFill; label: string }[] = [
 export default function CircleTangentsStudio() {
   const [state, setState] = useTangentsState();
   const [selected, setSelected] = useState<TangentsSelection | null>(null);
-  const [status, setStatus] = useState("");
+  const [status, setStatus] = useState<{ kind: "ok" | "err"; text: string } | null>(
+    null,
+  );
   const fonts = useMemo(() => fontsFromNext(), []);
 
   function set(patch: Partial<CircleTangentsState>) {
@@ -181,6 +183,28 @@ export default function CircleTangentsStudio() {
     setState((prev) =>
       normalizeState({ ...prev, two: { ...prev.two, ...patch } }),
     );
+  }
+
+  function showOk(text: string) {
+    setStatus({ kind: "ok", text });
+  }
+
+  function showErr(text: string) {
+    setStatus({ kind: "err", text });
+  }
+
+  function editLabel(id: string, raw: string) {
+    setState((prev) => {
+      const result = applyEditedLabelDetailed(prev, id, raw);
+      if (!result.ok) {
+        showErr(
+          result.message ?? "고정된 길이로는 그런 그림이 존재하지 않아요.",
+        );
+        return prev;
+      }
+      setStatus(null);
+      return result.state;
+    });
   }
 
   async function exportPng() {
@@ -195,7 +219,7 @@ export default function CircleTangentsStudio() {
     const cropped = cropCanvasToInk(canvas, EXPORT_INK_PAD * state.style.exportScale);
     const blob = await canvasToPngBlob(cropped);
     downloadBlob(blob, "원과접선.png");
-    setStatus("PNG를 저장했어요.");
+    showOk("PNG를 저장했어요.");
   }
 
   async function copyPng() {
@@ -210,7 +234,7 @@ export default function CircleTangentsStudio() {
     const cropped = cropCanvasToInk(canvas, EXPORT_INK_PAD * state.style.exportScale);
     const blob = await canvasToPngBlob(cropped);
     await copyPngToClipboard(blob);
-    setStatus("클립보드에 그림을 복사했어요. 한글·워드에 붙여넣기 하세요.");
+    showOk("클립보드에 그림을 복사했어요. 한글·워드에 붙여넣기 하세요.");
   }
 
   function exportSvg() {
@@ -220,7 +244,7 @@ export default function CircleTangentsStudio() {
       new Blob([svg], { type: "image/svg+xml;charset=utf-8" }),
       "원과접선.svg",
     );
-    setStatus("SVG를 저장했어요.");
+    showOk("SVG를 저장했어요.");
   }
 
   const presetsForKind = TANGENT_PRESETS.filter((p) => p.state.kind === state.kind);
@@ -271,7 +295,7 @@ export default function CircleTangentsStudio() {
             type="button"
             onClick={() =>
               void copyPng().catch(() =>
-                setStatus("복사에 실패했어요. PNG 저장을 이용해 주세요."),
+                showErr("복사에 실패했어요. PNG 저장을 이용해 주세요."),
               )
             }
             className="font-display rounded-xl bg-gold px-4 py-2.5 text-sm text-[#6b4a00] shadow-[0_3px_0_rgba(107,74,0,0.3)]"
@@ -289,7 +313,15 @@ export default function CircleTangentsStudio() {
       </header>
 
       {status ? (
-        <p className="rounded-xl bg-mint/30 px-3 py-2 text-sm text-wood-dark">{status}</p>
+        <p
+          className={`rounded-xl px-3 py-2 text-sm ${
+            status.kind === "err"
+              ? "bg-rose-50 text-red-800"
+              : "bg-mint/30 text-wood-dark"
+          }`}
+        >
+          {status.text}
+        </p>
       ) : null}
 
       <div className="grid items-start gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(14rem,16rem)_minmax(15rem,18rem)]">
@@ -302,6 +334,10 @@ export default function CircleTangentsStudio() {
               setState={setState}
               persist={persistCachedState}
               onSelect={setSelected}
+              onStatus={(message) => {
+                if (!message) setStatus(null);
+                else showErr(message);
+              }}
             />
           </div>
 
@@ -668,12 +704,9 @@ export default function CircleTangentsStudio() {
                       label={`${selected.id} 길이 값`}
                       value={Number(autoLengthValue(state, selected.id)!.toFixed(1))}
                       onChange={(n) =>
-                        setState((prev) =>
-                          applyEditedLabel(
-                            prev,
-                            selected.id,
-                            prev.unit ? `${n} ${prev.unit}` : String(n),
-                          ),
+                        editLabel(
+                          selected.id,
+                          state.unit ? `${n} ${state.unit}` : String(n),
                         )
                       }
                       min={0.5}
@@ -706,11 +739,7 @@ export default function CircleTangentsStudio() {
                       });
                     })
                   }
-                  onCustom={(custom) =>
-                    setState((prev) =>
-                      applyEditedLabel(prev, selected.id, custom),
-                    )
-                  }
+                  onCustom={(custom) => editLabel(selected.id, custom)}
                 />
                 <button
                   type="button"
@@ -736,11 +765,7 @@ export default function CircleTangentsStudio() {
                     <NumberField
                       label={`${selected.id} 각도 값`}
                       value={Number(autoAngleValue(state, selected.id)!.toFixed(1))}
-                      onChange={(n) =>
-                        setState((prev) =>
-                          applyEditedLabel(prev, selected.id, `${n}°`),
-                        )
-                      }
+                      onChange={(n) => editLabel(selected.id, `${n}°`)}
                       min={10}
                       max={170}
                       step={1}
@@ -767,11 +792,7 @@ export default function CircleTangentsStudio() {
                       });
                     })
                   }
-                  onCustom={(custom) =>
-                    setState((prev) =>
-                      applyEditedLabel(prev, selected.id, custom),
-                    )
-                  }
+                  onCustom={(custom) => editLabel(selected.id, custom)}
                 />
                 <div className="mt-2 flex flex-wrap gap-1.5">
                   {FILL_CHIPS.map((f) => (
@@ -826,7 +847,7 @@ export default function CircleTangentsStudio() {
                   onClick={() => {
                     setState(() => cloneState(normalizeState(p.state)));
                     setSelected(null);
-                    setStatus(`「${p.title}」를 불러왔어요.`);
+                    showOk(`「${p.title}」를 불러왔어요.`);
                   }}
                   className="rounded-xl bg-black/5 px-3 py-2 text-left hover:bg-black/10"
                 >
