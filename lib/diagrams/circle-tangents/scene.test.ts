@@ -71,4 +71,18 @@ describe("circle-tangents scene", () => {
     const scene = buildTangentsScene(normalizeState(preset!.state));
     assert.ok(scene.cmds.filter((c) => c.t === "rightAngle").length >= 2);
   });
+
+  it("keeps the circle fully inside the canvas for the pythagorean preset", () => {
+    const preset = TANGENT_PRESETS.find((p) => p.id === "two-pythag-6-10");
+    assert.ok(preset);
+    const scene = buildTangentsScene(normalizeState(preset!.state));
+    const circle = scene.cmds.find((c) => c.t === "circle");
+    assert.ok(circle && circle.t === "circle");
+    if (!circle || circle.t !== "circle") return;
+    const margin = 1;
+    assert.ok(circle.x - circle.r >= margin);
+    assert.ok(circle.y - circle.r >= margin);
+    assert.ok(circle.x + circle.r <= scene.width - margin);
+    assert.ok(circle.y + circle.r <= scene.height - margin);
+  });
 });

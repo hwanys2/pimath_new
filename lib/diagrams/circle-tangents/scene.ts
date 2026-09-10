@@ -338,12 +338,49 @@ function boundsOf(points: Vec[]): { minX: number; maxX: number; minY: number; ma
   return { minX, maxX, minY, maxY };
 }
 
+function expandBounds(
+  b: { minX: number; maxX: number; minY: number; maxY: number },
+  p: Vec,
+  margin = 0,
+): void {
+  b.minX = Math.min(b.minX, p.x - margin);
+  b.maxX = Math.max(b.maxX, p.x + margin);
+  b.minY = Math.min(b.minY, p.y - margin);
+  b.maxY = Math.max(b.maxY, p.y + margin);
+}
+
+/**
+ * Fit all geometry (points + circles) inside the canvas with padding.
+ * Bounds are measured after view rotation so the rotated figure stays unclipped.
+ */
 function layoutForPoints(
   state: CircleTangentsState,
   pts: Vec[],
+  circles: { c: Vec; r: number }[] = [],
 ): SceneLayout {
   const pad = state.style.padding;
-  const b = boundsOf(pts);
+  const viewRot = state.viewRotationDeg;
+  const b = {
+    minX: Infinity,
+    maxX: -Infinity,
+    minY: Infinity,
+    maxY: -Infinity,
+  };
+  for (const p of pts) {
+    expandBounds(b, rot(p, viewRot));
+  }
+  for (const circle of circles) {
+    const c = rot(circle.c, viewRot);
+    // Circle is rotation-invariant: AABB is ±r around the rotated center.
+    expandBounds(b, c, Math.max(0, circle.r));
+  }
+  if (!Number.isFinite(b.minX)) {
+    return {
+      origin: { x: SCENE_WIDTH / 2, y: SCENE_HEIGHT / 2 },
+      scale: 20,
+      viewRot,
+    };
+  }
   const w = Math.max(b.maxX - b.minX, 1);
   const h = Math.max(b.maxY - b.minY, 1);
   const scale = Math.min(
@@ -358,7 +395,7 @@ function layoutForPoints(
       y: SCENE_HEIGHT / 2 + cy * scale,
     },
     scale,
-    viewRot: state.viewRotationDeg,
+    viewRot,
   };
 }
 
@@ -399,11 +436,15 @@ function pushLength(
 function buildTwo(state: CircleTangentsState, d: DerivedTwo): DiagramScene {
   const t = state.two;
   const pts = [d.O, d.P, d.A, d.B];
-  const layout = layoutForPoints(state, [
-    ...pts,
-    extendBeyond(d.P, d.A, t.extendPast * d.r),
-    extendBeyond(d.P, d.B, t.extendPast * d.r),
-  ]);
+  const layout = layoutForPoints(
+    state,
+    [
+      ...pts,
+      extendBeyond(d.P, d.A, t.extendPast * d.r),
+      extendBeyond(d.P, d.B, t.extendPast * d.r),
+    ],
+    [{ c: d.O, r: d.r }],
+  );
   const map = (p: Vec) => mathToCanvas(p, layout);
   const cmds: SceneCmd[] = [];
   const texts: SceneText[] = [];
@@ -523,7 +564,7 @@ function buildTwo(state: CircleTangentsState, d: DerivedTwo): DiagramScene {
 }
 
 function buildTri(state: CircleTangentsState, d: DerivedTri): DiagramScene {
-  const layout = layoutForPoints(state, [d.A, d.B, d.C, d.O]);
+  const layout = layoutForPoints(state, [d.A, d.B, d.C, d.O], [{ c: d.O, r: d.r }]);
   const map = (p: Vec) => mathToCanvas(p, layout);
   const cmds: SceneCmd[] = [];
   const texts: SceneText[] = [];
@@ -569,7 +610,9 @@ function buildTri(state: CircleTangentsState, d: DerivedTri): DiagramScene {
 }
 
 function buildQuad(state: CircleTangentsState, d: DerivedQuad): DiagramScene {
-  const layout = layoutForPoints(state, [d.A, d.B, d.C, d.D, d.O]);
+  const layout = layoutForPoints(state, [d.A, d.B, d.C, d.D, d.O], [
+    { c: d.O, r: d.r },
+  ]);
   const map = (p: Vec) => mathToCanvas(p, layout);
   const cmds: SceneCmd[] = [];
   const texts: SceneText[] = [];
@@ -619,7 +662,9 @@ function buildQuad(state: CircleTangentsState, d: DerivedQuad): DiagramScene {
 }
 
 function buildThree(state: CircleTangentsState, d: DerivedThree): DiagramScene {
-  const layout = layoutForPoints(state, [d.A, d.B, d.C, d.O, d.D, d.F]);
+  const layout = layoutForPoints(state, [d.A, d.B, d.C, d.O, d.D, d.F], [
+    { c: d.O, r: d.r },
+  ]);
   const map = (p: Vec) => mathToCanvas(p, layout);
   const cmds: SceneCmd[] = [];
   const texts: SceneText[] = [];
