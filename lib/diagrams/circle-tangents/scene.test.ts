@@ -273,7 +273,18 @@ describe("circle-tangents numeric reshape", () => {
     const d1 = deriveTwo(s1);
     assert.ok(d1);
     assert.ok(Math.abs(d1!.tangentLen - 15) < 1e-4);
-    assert.equal(findLength(s1, "PA")?.label.mode, "custom");
+    assert.equal(findLength(s1, "PA")?.label.mode, "auto");
+    assert.equal(findLength(s1, "PA")?.lockedValue, 15);
+  });
+
+  it("treats direct text as display-only even when it contains a number", () => {
+    const s0 = withKind(DEFAULT_TANGENTS_STATE, "three-tangents");
+    const before = structuredClone(s0.three.verts);
+    const s1 = applyEditedLabel(s0, "AD", "123 또는 a");
+    assert.deepEqual(s1.three.verts, before);
+    assert.equal(findLength(s1, "AD")?.label.mode, "custom");
+    assert.equal(findLength(s1, "AD")?.label.custom, "123 또는 a");
+    assert.equal(findLength(s1, "AD")?.lockedValue, undefined);
   });
 
   it("keeps pinned AD when editing AB in three-tangents", () => {
@@ -288,14 +299,14 @@ describe("circle-tangents numeric reshape", () => {
     const s1 = applyLengthNumeric(s0, "AD", 11.11);
     const ad1 = autoLengthValue(s1, "AD");
     assert.ok(ad1 && Math.abs(ad1 - 11.11) < 1e-3);
-    assert.equal(findLength(s1, "AD")?.label.mode, "custom");
+    assert.equal(findLength(s1, "AD")?.label.mode, "auto");
 
     const s2 = applyLengthNumeric(s1, "AB", 7.25);
     const ad2 = autoLengthValue(s2, "AD");
     const ab2 = autoLengthValue(s2, "AB");
     assert.ok(ab2 && Math.abs(ab2 - 7.25) < 1e-3);
     assert.ok(ad2 && Math.abs(ad2 - 11.11) < 1e-3);
-    assert.equal(findLength(s2, "AD")?.label.mode, "custom");
+    assert.equal(findLength(s2, "AD")?.label.mode, "auto");
   });
 
   it("rejects impossible three-tangents constraints without changing pins", () => {
@@ -323,11 +334,11 @@ describe("circle-tangents numeric reshape", () => {
   });
 
   it("strictly preserves already pinned lengths when sequentially editing tangential-quad", () => {
-    // Default quad preset: AP=4 (pinned), BQ=6 (pinned), CR=5 (pinned), DS=x (unpinned)
+    // Preset direct labels are display-only, so numeric edits create the pins.
     const s0 = withKind(DEFAULT_TANGENTS_STATE, "tangential-quad");
-    assert.ok(isLengthPinned(s0, "AP"));
-    assert.ok(isLengthPinned(s0, "BQ"));
-    assert.ok(isLengthPinned(s0, "CR"));
+    assert.ok(!isLengthPinned(s0, "AP"));
+    assert.ok(!isLengthPinned(s0, "BQ"));
+    assert.ok(!isLengthPinned(s0, "CR"));
     assert.ok(!isLengthPinned(s0, "DS"));
 
     // 1. Change AP to 5
@@ -335,18 +346,14 @@ describe("circle-tangents numeric reshape", () => {
     const d1 = deriveQuad(s1);
     assert.ok(d1);
     assert.ok(Math.abs(d1!.tA - 5.0) < 1e-2);
-    // BQ (tB=6) and CR (tC=5) MUST NOT CHANGE!
-    assert.ok(Math.abs(d1!.tB - 6.0) < 1e-2);
-    assert.ok(Math.abs(d1!.tC - 5.0) < 1e-2);
 
     // 2. Change BQ to 7
     const s2 = applyLengthNumeric(s1, "BQ", 7.0);
     const d2 = deriveQuad(s2);
     assert.ok(d2);
     assert.ok(Math.abs(d2!.tB - 7.0) < 1e-2);
-    // AP (tA=5) and CR (tC=5) MUST NOT CHANGE!
+    // Previously entered AP MUST NOT CHANGE.
     assert.ok(Math.abs(d2!.tA - 5.0) < 1e-2);
-    assert.ok(Math.abs(d2!.tC - 5.0) < 1e-2);
 
     // 3. Change CR to 8
     const s3 = applyLengthNumeric(s2, "CR", 8.0);
@@ -360,15 +367,15 @@ describe("circle-tangents numeric reshape", () => {
 
   it("keeps pinned AB side unchanged when adjusting BC side with unpinned CA in incircle-triangle", () => {
     const s0 = withKind(DEFAULT_TANGENTS_STATE, "incircle-triangle");
-    // Default tri has AB=10 cm, BC=14 cm, CA=8 cm
-    // Mark CA as unknown 'x'
+    const pinnedAB = applyLengthNumeric(s0, "AB", 10);
+    // Mark CA as unknown 'x'.
     const s1 = {
-      ...s0,
+      ...pinnedAB,
       tri: {
-        ...s0.tri,
+        ...pinnedAB.tri,
         sides: {
-          ...s0.tri.sides,
-          CA: { ...s0.tri.sides.CA, show: true, label: { ...s0.tri.sides.CA.label, mode: "x" as const } },
+          ...pinnedAB.tri.sides,
+          CA: { ...pinnedAB.tri.sides.CA, show: true, label: { ...pinnedAB.tri.sides.CA.label, mode: "x" as const } },
         },
       },
     };

@@ -659,13 +659,8 @@ export function pinnedLengthValue(
   fallback: number,
 ): number {
   const mark = findLength(state, id);
-  if (!mark || !mark.show || mark.label.mode === "x") return fallback;
-  if (mark.label.custom) {
-    const p = parseMeasureInput(mark.label.custom);
-    if (p.kind === "number" && p.value != null && p.value > 0) {
-      return p.value;
-    }
-  }
+  if (!mark || !mark.show || mark.label.mode !== "auto") return fallback;
+  if (mark.lockedValue != null && mark.lockedValue > 0) return mark.lockedValue;
   return fallback;
 }
 
@@ -674,8 +669,12 @@ export function isLengthPinned(
   id: string,
 ): boolean {
   const mark = findLength(state, id);
-  if (!mark || !mark.show) return false;
-  return mark.label.mode !== "x";
+  return Boolean(
+    mark?.show &&
+      mark.label.mode === "auto" &&
+      mark.lockedValue != null &&
+      mark.lockedValue > 0,
+  );
 }
 
 export function toggleLength(
@@ -684,7 +683,10 @@ export function toggleLength(
 ): CircleTangentsState {
   const mark = findLength(state, id);
   if (!mark) return state;
-  return patchLength(state, id, { show: !mark.show });
+  return patchLength(state, id, {
+    show: !mark.show,
+    lockedValue: !mark.show ? undefined : mark.lockedValue,
+  });
 }
 
 /** Cycle length display: 숨김 → 숫자 → 문자 → 숨김 (직접 입력은 누르면 숨김). */
@@ -697,17 +699,20 @@ export function cycleLength(
   if (!mark.show || mark.label.mode === "hide") {
     return patchLength(state, id, {
       show: true,
+      lockedValue: undefined,
       label: { ...mark.label, mode: "auto" },
     });
   }
   if (mark.label.mode === "auto") {
     return patchLength(state, id, {
       show: true,
+      lockedValue: undefined,
       label: { ...mark.label, mode: "x" },
     });
   }
   return patchLength(state, id, {
     show: false,
+    lockedValue: undefined,
     label: { ...mark.label, mode: "auto" },
   });
 }
@@ -811,22 +816,19 @@ function finalizeNumericLength(
 ): CircleTangentsState {
   const norm = normalizeState(next);
   const mark = findLength(norm, cleanId);
-  const unitSuffix = norm.unit ? ` ${norm.unit}` : "";
-  // Always pin the edited length as custom so later edits cannot drift the label.
+  // Numeric value controls create a geometry constraint. "직접" remains display-only.
   return patchLength(norm, cleanId, {
     show: true,
+    lockedValue: value,
     label: {
-      ...(mark?.label ?? emptyLabel("custom")),
-      mode: "custom",
-      custom: `${Number(value.toFixed(4)).toString().replace(/\.?0+$/, "")}${unitSuffix}`.replace(
-        /(\.\d*?)0+ /,
-        "$1 ",
-      ),
+      ...(mark?.label ?? emptyLabel("auto")),
+      mode: "auto",
+      custom: "",
     },
   });
 }
 
-/** Freeze currently shown numeric (auto) lengths as custom, so later edits keep them. */
+/** Freeze shown automatic values as geometry constraints before solving another value. */
 export function freezeVisibleAutoLengths(
   state: CircleTangentsState,
   exceptId?: string,
@@ -856,13 +858,8 @@ export function freezeVisibleAutoLengths(
     if (!mark?.show || mark.label.mode !== "auto") continue;
     const auto = autoLengthValue(next, id);
     if (auto == null || !(auto > 0)) continue;
-    const unitSuffix = next.unit ? ` ${next.unit}` : "";
     next = patchLength(next, id, {
-      label: {
-        ...mark.label,
-        mode: "custom",
-        custom: `${Number(auto.toFixed(2))}${unitSuffix}`,
-      },
+      lockedValue: mark.lockedValue ?? auto,
     });
   }
   return next;
@@ -1637,6 +1634,14 @@ export function applyEditedLabelDetailed(
     const mark = state.two.angles[which];
     if (!mark) return { ok: true, state };
 
+    if (mark.label.mode === "custom") {
+      return {
+        ok: true,
+        state: patchAngle(state, which, {
+          label: { ...mark.label, custom: text },
+        }),
+      };
+    }
     if (!text || text === "x" || text === "$x$") {
       return {
         ok: true,
@@ -1650,11 +1655,10 @@ export function applyEditedLabelDetailed(
     if (numMatch) {
       const num = Number(numMatch[1]);
       const next = applyAngleNumeric(state, which, num);
-      const custom = text.includes("°") ? text : `${text}°`;
       return {
         ok: true,
         state: patchAngle(next, which, {
-          label: { ...mark.label, mode: "custom", custom },
+          label: { ...mark.label, mode: "auto", custom: "" },
         }),
       };
     }
@@ -1673,6 +1677,16 @@ export function applyEditedLabelDetailed(
   const mark = findLength(state, cleanId);
   if (!mark) return { ok: true, state };
 
+  if (mark.label.mode === "custom") {
+    return {
+      ok: true,
+      state: patchLength(state, cleanId, {
+        show: true,
+        lockedValue: undefined,
+        label: { ...mark.label, custom: text },
+      }),
+    };
+  }
   if (!text || text === "x" || text === "$x$") {
     return {
       ok: true,
@@ -1695,18 +1709,7 @@ export function applyEditedLabelDetailed(
           "고정된 길이로는 그런 그림이 존재하지 않아요.",
       };
     }
-    const nextMark = findLength(result.state, cleanId);
-    return {
-      ok: true,
-      state: patchLength(result.state, cleanId, {
-        show: true,
-        label: {
-          ...(nextMark?.label ?? emptyLabel("custom")),
-          mode: "custom",
-          custom: text,
-        },
-      }),
-    };
+    return result;
   }
 
   return {

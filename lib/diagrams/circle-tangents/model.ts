@@ -67,6 +67,8 @@ export type LengthMark = {
   id: string;
   show: boolean;
   label: MeasLabel;
+  /** Actual geometry constraint entered through the numeric value control. */
+  lockedValue?: number;
 };
 
 export type AngleMark = {

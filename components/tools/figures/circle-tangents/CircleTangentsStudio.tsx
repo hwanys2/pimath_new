@@ -20,7 +20,9 @@ import {
   EXPORT_INK_PAD,
 } from "@/lib/diagrams/export-image";
 import {
+  applyAngleNumeric,
   applyEditedLabelDetailed,
+  applyLengthNumericDetailed,
   autoAngleValue,
   autoLengthValue,
   cycleLength,
@@ -204,6 +206,33 @@ export default function CircleTangentsStudio() {
       }
       setStatus(null);
       return result.state;
+    });
+  }
+
+  function editActualLength(id: string, value: number) {
+    setState((prev) => {
+      const result = applyLengthNumericDetailed(prev, id, value);
+      if (!result.ok) {
+        showErr(
+          result.message ?? "고정된 길이로는 그런 그림이 존재하지 않아요.",
+        );
+        return prev;
+      }
+      setStatus(null);
+      return result.state;
+    });
+  }
+
+  function editActualAngle(id: string, value: number) {
+    setState((prev) => {
+      const next = applyAngleNumeric(prev, id, value);
+      const mark = findAngle(next, id);
+      if (!mark) return prev;
+      setStatus(null);
+      return patchAngle(next, id, {
+        show: true,
+        label: { ...mark.label, mode: "auto", custom: "" },
+      });
     });
   }
 
@@ -703,12 +732,7 @@ export default function CircleTangentsStudio() {
                     <NumberField
                       label={`${selected.id} 길이 값`}
                       value={Number(autoLengthValue(state, selected.id)!.toFixed(1))}
-                      onChange={(n) =>
-                        editLabel(
-                          selected.id,
-                          state.unit ? `${n} ${state.unit}` : String(n),
-                        )
-                      }
+                      onChange={(n) => editActualLength(selected.id, n)}
                       min={0.5}
                       max={40}
                       step={0.1}
@@ -735,11 +759,25 @@ export default function CircleTangentsStudio() {
                       }
                       return patchLength(prev, selected.id, {
                         show: mode !== "hide",
+                        lockedValue:
+                          mode === "custom" || mode === "x" || mode === "hide"
+                            ? undefined
+                            : lenMark.lockedValue,
                         label: { ...lenMark.label, mode, custom },
                       });
                     })
                   }
-                  onCustom={(custom) => editLabel(selected.id, custom)}
+                  onCustom={(custom) =>
+                    setState((prev) => {
+                      const lenMark = findLength(prev, selected.id);
+                      if (!lenMark) return prev;
+                      return patchLength(prev, selected.id, {
+                        show: true,
+                        lockedValue: undefined,
+                        label: { ...lenMark.label, mode: "custom", custom },
+                      });
+                    })
+                  }
                 />
                 <button
                   type="button"
@@ -765,7 +803,7 @@ export default function CircleTangentsStudio() {
                     <NumberField
                       label={`${selected.id} 각도 값`}
                       value={Number(autoAngleValue(state, selected.id)!.toFixed(1))}
-                      onChange={(n) => editLabel(selected.id, `${n}°`)}
+                      onChange={(n) => editActualAngle(selected.id, n)}
                       min={10}
                       max={170}
                       step={1}
