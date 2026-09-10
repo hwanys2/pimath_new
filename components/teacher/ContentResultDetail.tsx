@@ -256,62 +256,6 @@ function ShadowTempleDetail({ items }: { items: ActivityDetailsV1["items"] }) {
   );
 }
 
-function StarlightSealDetail({ items }: { items: ActivityDetailsV1["items"] }) {
-  if (!items?.length) return null;
-  const resultLabel: Record<string, string> = {
-    lock: "잠금 성공",
-    miss: "실패",
-    timeout: "시간초과",
-    first: "1차 정답",
-    second: "2차 정답",
-    fail: "실패",
-  };
-  const kindLabel: Record<string, string> = {
-    "chord-length": "현 길이",
-    "chord-dist": "거리",
-    "chord-equal": "같은 길이",
-    "tap-longest": "가장 긴 현",
-    "tangent-length": "접선 길이",
-    "tangent-equal": "두 접선",
-    judge: "판정",
-    calc: "계산",
-  };
-  return (
-    <div className="mt-2 overflow-x-auto">
-      <table className="w-full min-w-[280px] text-left text-xs">
-        <thead>
-          <tr className="border-b border-wood/15 text-foreground/55">
-            <th className="py-1 pr-3 font-semibold">#</th>
-            <th className="py-1 pr-3 font-semibold">유형</th>
-            <th className="py-1 font-semibold">결과</th>
-          </tr>
-        </thead>
-        <tbody>
-          {items.map((item, i) => {
-            const res = String(item.result ?? "");
-            return (
-              <tr key={i} className="border-b border-wood/8">
-                <td className="py-1 pr-3 font-mono">
-                  {String(item.i ?? i + 1)}
-                </td>
-                <td className="py-1 pr-3">
-                  {kindLabel[String(item.kind)] ?? String(item.kind ?? "—")}
-                </td>
-                <td className="py-1">
-                  {(resultLabel[res] ?? res) || "—"}
-                  {item.timeSec != null
-                    ? ` · ${Number(item.timeSec).toFixed(1)}s`
-                    : ""}
-                </td>
-              </tr>
-            );
-          })}
-        </tbody>
-      </table>
-    </div>
-  );
-}
-
 function TrigoBeatDetail({ items }: { items: ActivityDetailsV1["items"] }) {
   if (!items?.length) return null;
   const resultBadge: Record<string, { label: string; color: string }> = {
@@ -390,10 +334,6 @@ export function ContentResultDetail({
 
   if (contentKey === "g3-u3-1-shadow-temple") {
     return <ShadowTempleDetail items={details.items} />;
-  }
-
-  if (contentKey === "g3-u3-2-starlight-seal") {
-    return <StarlightSealDetail items={details.items} />;
   }
 
   return <GenericItemsDetail items={details.items} />;
