@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { applyEditedLabel } from "./geometry";
+import { applyEditedLabel, toggleChordSegmentLength } from "./geometry";
 import {
   CIRCLE_CHORD_PRESETS,
   cloneState,
@@ -43,5 +43,32 @@ describe("circle chord measure labels", () => {
       resolveLabelText(state.chords[0]!.chordLabel, 8, "cm", state.unknownLetter),
       "8",
     );
+  });
+
+  it("toggles segment lengths on and off", () => {
+    let state = cloneState(CIRCLE_CHORD_PRESETS[0]!.state);
+    const chordId = state.chords[0]!.id;
+
+    // Toggle chord AB length
+    state = toggleChordSegmentLength(state, chordId, "chord");
+    assert.equal(state.chords[0]!.chordLabel.mode, "hide");
+    state = toggleChordSegmentLength(state, chordId, "chord");
+    assert.equal(state.chords[0]!.chordLabel.mode, "auto");
+
+    // Toggle dist OM length
+    state = toggleChordSegmentLength(state, chordId, "dist");
+    assert.equal(state.chords[0]!.distLabel.mode, "hide");
+    state = toggleChordSegmentLength(state, chordId, "dist");
+    assert.equal(state.chords[0]!.distLabel.mode, "auto");
+
+    // Toggle radiusStart OA length
+    assert.equal(state.chords[0]!.radiusStartLabel.mode, "hide");
+    state = toggleChordSegmentLength(state, chordId, "radiusStart");
+    assert.equal(state.chords[0]!.radiusStartLabel.mode, "auto");
+
+    // Toggle half MB length
+    assert.equal(state.chords[0]!.halfLabel.mode, "hide");
+    state = toggleChordSegmentLength(state, chordId, "half");
+    assert.equal(state.chords[0]!.halfLabel.mode, "auto");
   });
 });

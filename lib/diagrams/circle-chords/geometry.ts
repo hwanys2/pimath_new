@@ -456,3 +456,53 @@ export function nudgeById(
     }),
   };
 }
+
+export type ChordSegKey = "chord" | "dist" | "radiusStart" | "radiusEnd" | "half";
+
+export function toggleChordSegmentLength(
+  state: CircleChordsState,
+  chordId: string,
+  segKey: ChordSegKey,
+): CircleChordsState {
+  return mapChord(state, chordId, (chord) => {
+    switch (segKey) {
+      case "chord": {
+        const nextMode = chord.chordLabel.mode === "hide" ? "auto" : "hide";
+        return {
+          ...chord,
+          chordLabel: { ...chord.chordLabel, mode: nextMode },
+        };
+      }
+      case "dist": {
+        const nextMode = chord.distLabel.mode === "hide" ? "auto" : "hide";
+        return {
+          ...chord,
+          distLabel: { ...chord.distLabel, mode: nextMode },
+        };
+      }
+      case "radiusStart": {
+        const nextMode =
+          chord.radiusStartLabel.mode === "hide" ? "auto" : "hide";
+        return {
+          ...chord,
+          radiusStartLabel: { ...chord.radiusStartLabel, mode: nextMode },
+        };
+      }
+      case "radiusEnd": {
+        const nextMode =
+          chord.radiusEndLabel.mode === "hide" ? "auto" : "hide";
+        return {
+          ...chord,
+          radiusEndLabel: { ...chord.radiusEndLabel, mode: nextMode },
+        };
+      }
+      case "half": {
+        const nextMode = chord.halfLabel.mode === "hide" ? "auto" : "hide";
+        return {
+          ...chord,
+          halfLabel: { ...chord.halfLabel, mode: nextMode },
+        };
+      }
+    }
+  });
+}

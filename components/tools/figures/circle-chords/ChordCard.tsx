@@ -1,11 +1,17 @@
 "use client";
 
 import {
+  chordMidpointMode,
+  chordPointMode,
   labelUnknownLetter,
+  POINT_DISPLAY_MODES,
+  withChordMidpointMode,
+  withChordPointMode,
   type Cardinal,
   type ChordDraft,
   type ChordLock,
   type LabelMode,
+  type PointDisplayMode,
 } from "@/lib/diagrams/circle-chords/model";
 import { formatNiceNumber } from "@/lib/diagrams/math-label";
 import {
@@ -176,13 +182,31 @@ export default function ChordCard({
         />
       </div>
 
+      <div className="mt-3">
+        <p className="mb-1 text-[11px] font-semibold text-foreground/50">
+          양 끝점 표시 ({chord.startName}, {chord.endName})
+        </p>
+        <Segmented<PointDisplayMode>
+          value={chordPointMode(chord)}
+          onChange={(mode) => onChange(withChordPointMode(chord, mode))}
+          options={POINT_DISPLAY_MODES}
+        />
+      </div>
+
+      {chord.showMidpoint ? (
+        <div className="mt-2">
+          <p className="mb-1 text-[11px] font-semibold text-foreground/50">
+            중점 표시 ({chord.midName})
+          </p>
+          <Segmented<PointDisplayMode>
+            value={chordMidpointMode(chord)}
+            onChange={(mode) => onChange(withChordMidpointMode(chord, mode))}
+            options={POINT_DISPLAY_MODES}
+          />
+        </div>
+      ) : null}
+
       <div className="mt-3 flex flex-wrap gap-1.5">
-        <ChipToggle
-          on={chord.showPoints}
-          onClick={() => onChange({ showPoints: !chord.showPoints })}
-        >
-          점 이름
-        </ChipToggle>
         <ChipToggle
           on={chord.showMidpoint}
           onClick={() => onChange({ showMidpoint: !chord.showMidpoint })}

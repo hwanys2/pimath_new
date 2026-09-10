@@ -13,14 +13,26 @@ import {
 } from "@/components/tools/figures/circle-chords/controls";
 import { cycleLabelMode, mapChord, toggleRadius } from "@/lib/diagrams/circle-chords/geometry";
 import {
+  chordEndPointMode,
+  chordMidpointMode,
+  chordPointMode,
+  chordStartPointMode,
   CIRCLE_CHORD_PRESETS,
   cloneState,
+  cycleCenterPointMode,
+  cycleChordPointMode,
   DEFAULT_CIRCLE_CHORDS_STATE,
+  globalPointDisplayMode,
   labelUnknownLetter,
+  POINT_DISPLAY_MODES,
+  setAllPointsMode,
+  stateCenterMode,
+  withChordPointMode,
   withSnappedChords,
   type CircleChordsState,
   type ChordDraft,
   type MeasLabel,
+  type PointDisplayMode,
 } from "@/lib/diagrams/circle-chords/model";
 import { buildCircleChordsScene } from "@/lib/diagrams/circle-chords/scene";
 import {
@@ -324,6 +336,122 @@ export default function CircleChordsStudio() {
           </section>
 
           <section className="rounded-2xl border-2 border-wood/10 bg-white/80 p-3.5">
+            <h2 className="font-display text-sm text-wood-dark">점 표시</h2>
+            <div className="mt-2 flex flex-wrap gap-1">
+              {POINT_DISPLAY_MODES.map((m) => {
+                const curMode = globalPointDisplayMode(state);
+                return (
+                  <button
+                    key={m.id}
+                    type="button"
+                    onClick={() =>
+                      setState((prev) => setAllPointsMode(prev, m.id))
+                    }
+                    className={`rounded-lg px-2.5 py-1 text-xs font-semibold transition ${
+                      curMode === m.id
+                        ? "bg-wood text-cream shadow-sm"
+                        : "bg-black/5 text-foreground/60 hover:bg-black/10"
+                    }`}
+                  >
+                    {m.label}
+                  </button>
+                );
+              })}
+            </div>
+            <div className="mt-2.5">
+              <p className="mb-1 text-[11px] leading-snug text-foreground/45">
+                점 버튼을 누르면 점과이름 → 점만 → 이름만 → 안보임 순으로 바뀝니다.
+              </p>
+              <div className="flex flex-wrap gap-1">
+                {(() => {
+                  const oMode = stateCenterMode(state);
+                  return (
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setState((prev) => cycleCenterPointMode(prev))
+                      }
+                      className={`min-w-[1.6rem] rounded-full px-2 py-0.5 text-[11px] font-semibold transition ${
+                        oMode === "both"
+                          ? "bg-wood text-cream shadow-sm"
+                          : oMode === "dot"
+                            ? "bg-gold text-[#6b4a00] shadow-sm"
+                            : oMode === "name"
+                              ? "bg-wood/20 text-wood-dark"
+                              : "bg-black/8 text-foreground/35 line-through"
+                      }`}
+                      title={`점 ${state.centerName || "O"}: ${pointModeTitle(oMode)} (누르면 변경)`}
+                    >
+                      {state.centerName || "O"}
+                    </button>
+                  );
+                })()}
+                {state.chords.flatMap((chord) => {
+                  const aMode = chordStartPointMode(chord);
+                  const bMode = chordEndPointMode(chord);
+                  const mMode = chordMidpointMode(chord);
+                  const pts = [
+                    {
+                      key: `${chord.id}:start`,
+                      name: chord.startName || "A",
+                      mode: aMode,
+                      onClick: () =>
+                        setState((prev) =>
+                          mapChord(prev, chord.id, (c) =>
+                            cycleChordPointMode(c, "start"),
+                          ),
+                        ),
+                    },
+                    {
+                      key: `${chord.id}:end`,
+                      name: chord.endName || "B",
+                      mode: bMode,
+                      onClick: () =>
+                        setState((prev) =>
+                          mapChord(prev, chord.id, (c) =>
+                            cycleChordPointMode(c, "end"),
+                          ),
+                        ),
+                    },
+                  ];
+                  if (chord.showMidpoint) {
+                    pts.push({
+                      key: `${chord.id}:mid`,
+                      name: chord.midName || "M",
+                      mode: mMode,
+                      onClick: () =>
+                        setState((prev) =>
+                          mapChord(prev, chord.id, (c) =>
+                            cycleChordPointMode(c, "mid"),
+                          ),
+                        ),
+                    });
+                  }
+                  return pts.map((pt) => (
+                    <button
+                      key={pt.key}
+                      type="button"
+                      onClick={pt.onClick}
+                      className={`min-w-[1.6rem] rounded-full px-2 py-0.5 text-[11px] font-semibold transition ${
+                        pt.mode === "both"
+                          ? "bg-wood text-cream shadow-sm"
+                          : pt.mode === "dot"
+                            ? "bg-gold text-[#6b4a00] shadow-sm"
+                            : pt.mode === "name"
+                              ? "bg-wood/20 text-wood-dark"
+                              : "bg-black/8 text-foreground/35 line-through"
+                      }`}
+                      title={`점 ${pt.name}: ${pointModeTitle(pt.mode)} (누르면 변경)`}
+                    >
+                      {pt.name}
+                    </button>
+                  ));
+                })}
+              </div>
+            </div>
+          </section>
+
+          <section className="rounded-2xl border-2 border-wood/10 bg-white/80 p-3.5">
             <div className="flex items-center justify-between gap-2">
               <h2 className="font-display text-sm text-wood-dark">
                 {selected
@@ -341,7 +469,8 @@ export default function CircleChordsStudio() {
               ) : null}
             </div>
             {selected ? (
-              <div className="mt-2.5 flex flex-wrap gap-1.5">
+              <>
+                <div className="mt-2.5 flex flex-wrap gap-1.5">
                 <ChipToggle
                   on={selected.showRadiusStart}
                   onClick={() =>
@@ -401,14 +530,6 @@ export default function CircleChordsStudio() {
                   }
                 >
                   직각
-                </ChipToggle>
-                <ChipToggle
-                  on={selected.showPoints}
-                  onClick={() =>
-                    patchSelected({ showPoints: !selected.showPoints })
-                  }
-                >
-                  점 이름
                 </ChipToggle>
                 <ChipToggle
                   on={selected.showMidpoint}
@@ -477,10 +598,38 @@ export default function CircleChordsStudio() {
                   </ChipToggle>
                 ) : null}
               </div>
-            ) : (
-              <p className="mt-2 text-xs text-foreground/50">
-                원 둘레를 끌어 현을 그리세요.
-              </p>
+
+              <div className="mt-2.5">
+                <p className="text-[11px] font-semibold text-foreground/50">
+                  {selected.startName}{selected.endName} 양 끝점 표시
+                </p>
+                <div className="mt-1 flex flex-wrap gap-1">
+                  {POINT_DISPLAY_MODES.map((m) => {
+                    const cur = chordPointMode(selected);
+                    return (
+                      <button
+                        key={m.id}
+                        type="button"
+                        onClick={() =>
+                          patchSelected(withChordPointMode(selected, m.id))
+                        }
+                        className={`rounded-lg px-2 py-1 text-[11px] font-semibold transition ${
+                          cur === m.id
+                            ? "bg-wood text-cream shadow-sm"
+                            : "bg-black/5 text-foreground/60 hover:bg-black/10"
+                        }`}
+                      >
+                        {m.label}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            </>
+          ) : (
+            <p className="mt-2 text-xs text-foreground/50">
+              원 둘레를 끌어 현을 그리세요.
+            </p>
             )}
             {state.chords.length > 0 ? (
               <ul className="mt-3 space-y-1">
@@ -521,6 +670,7 @@ export default function CircleChordsStudio() {
               </ul>
             ) : null}
             <p className="mt-2 text-[11px] leading-snug text-foreground/45">
+              선분을 누르면 변의 길이가 켜지고 꺼집니다.
               길이 숫자를 끌면 설명선이 같이 가고, 점선만 잡으면 선만 옮겨요.
               반대편으로도 넘길 수 있어요. 끝점을 더블클릭하거나 중심까지 끌면
               반지름이 이어집니다.
@@ -562,11 +712,16 @@ export default function CircleChordsStudio() {
               <label className="flex items-end gap-2 pb-1.5 text-sm">
                 <input
                   type="checkbox"
-                  checked={state.showCenter}
-                  onChange={(e) => set({ showCenter: e.target.checked })}
+                  checked={stateCenterMode(state) !== "none"}
+                  onChange={(e) =>
+                    set({
+                      showCenter: e.target.checked,
+                      centerPointMode: e.target.checked ? "both" : "none",
+                    })
+                  }
                   className="accent-wood"
                 />
-                중심
+                중심 점 ({state.centerName || "O"})
               </label>
             </div>
             <label className="mt-2 block text-xs font-semibold text-foreground/60">
@@ -690,4 +845,17 @@ function labelModeHint(label: MeasLabel, unknown: string): string {
   if (label.mode === "hide") return " 숨김";
   if (label.mode === "custom") return " 직접";
   return "";
+}
+
+function pointModeTitle(mode: PointDisplayMode): string {
+  switch (mode) {
+    case "both":
+      return "점과 이름";
+    case "dot":
+      return "점만";
+    case "name":
+      return "이름만";
+    case "none":
+      return "안보임";
+  }
 }

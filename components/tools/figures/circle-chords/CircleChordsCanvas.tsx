@@ -15,6 +15,7 @@ import {
   parseMeasureId,
   projectOnCircle,
   rotateChordToPoint,
+  toggleChordSegmentLength,
   toggleRadius,
 } from "@/lib/diagrams/circle-chords/geometry";
 import type { CircleChordsState } from "@/lib/diagrams/circle-chords/model";
@@ -40,8 +41,23 @@ type Tool = "select" | "draw";
 type Drag =
   | { t: "label"; id: string; x: number; y: number; moved: boolean }
   | { t: "dimLine"; id: string; x: number; y: number; moved: boolean }
-  | { t: "rotate"; chordId: string; which: "start" | "end" }
-  | { t: "distance"; chordId: string }
+  | {
+      t: "rotate";
+      chordId: string;
+      which: "start" | "end";
+      startX: number;
+      startY: number;
+      moved: boolean;
+      fromChord?: boolean;
+    }
+  | {
+      t: "distance";
+      chordId: string;
+      startX: number;
+      startY: number;
+      moved: boolean;
+      fromChord?: boolean;
+    }
   | { t: "view"; lastX: number; lastY: number }
   | { t: "draw"; a: { x: number; y: number }; b: { x: number; y: number } };
 
@@ -293,12 +309,36 @@ export default function CircleChordsCanvas({
             return;
           }
 
+          if (hit.kind === "seg") {
+            onSelect(hit.chordId);
+            setState(
+              (prev) => toggleChordSegmentLength(prev, hit.chordId, hit.segKey),
+              true,
+            );
+            return;
+          }
+
           if (hit.kind === "point") {
             onSelect(hit.chordId);
             dragRef.current =
               hit.which === "mid"
-                ? { t: "distance", chordId: hit.chordId }
-                : { t: "rotate", chordId: hit.chordId, which: hit.which };
+                ? {
+                    t: "distance",
+                    chordId: hit.chordId,
+                    startX: p.x,
+                    startY: p.y,
+                    moved: false,
+                    fromChord: false,
+                  }
+                : {
+                    t: "rotate",
+                    chordId: hit.chordId,
+                    which: hit.which,
+                    startX: p.x,
+                    startY: p.y,
+                    moved: false,
+                    fromChord: false,
+                  };
             setCursor("grabbing");
             e.currentTarget.setPointerCapture(e.pointerId);
             return;
@@ -308,10 +348,33 @@ export default function CircleChordsCanvas({
             onSelect(hit.chordId);
             dragRef.current =
               hit.t < 0.28
-                ? { t: "rotate", chordId: hit.chordId, which: "start" }
+                ? {
+                    t: "rotate",
+                    chordId: hit.chordId,
+                    which: "start",
+                    startX: p.x,
+                    startY: p.y,
+                    moved: false,
+                    fromChord: true,
+                  }
                 : hit.t > 0.72
-                  ? { t: "rotate", chordId: hit.chordId, which: "end" }
-                  : { t: "distance", chordId: hit.chordId };
+                  ? {
+                      t: "rotate",
+                      chordId: hit.chordId,
+                      which: "end",
+                      startX: p.x,
+                      startY: p.y,
+                      moved: false,
+                      fromChord: true,
+                    }
+                  : {
+                      t: "distance",
+                      chordId: hit.chordId,
+                      startX: p.x,
+                      startY: p.y,
+                      moved: false,
+                      fromChord: true,
+                    };
             setCursor("grabbing");
             e.currentTarget.setPointerCapture(e.pointerId);
             return;
@@ -402,24 +465,40 @@ export default function CircleChordsCanvas({
           const math = canvasToMath(p, scene.layout);
 
           if (drag.t === "rotate") {
-            setState(
-              (prev) =>
-                mapChord(prev, drag.chordId, (chord) =>
-                  rotateChordToPoint(chord, prev.radius, math, drag.which),
-                ),
-              false,
-            );
+            if (
+              !drag.moved &&
+              Math.hypot(p.x - drag.startX, p.y - drag.startY) > MOVE_PX
+            ) {
+              drag.moved = true;
+            }
+            if (drag.moved) {
+              setState(
+                (prev) =>
+                  mapChord(prev, drag.chordId, (chord) =>
+                    rotateChordToPoint(chord, prev.radius, math, drag.which),
+                  ),
+                false,
+              );
+            }
             return;
           }
 
           if (drag.t === "distance") {
-            setState(
-              (prev) =>
-                mapChord(prev, drag.chordId, (chord) =>
-                  moveChordDistance(chord, prev.radius, math),
-                ),
-              false,
-            );
+            if (
+              !drag.moved &&
+              Math.hypot(p.x - drag.startX, p.y - drag.startY) > MOVE_PX
+            ) {
+              drag.moved = true;
+            }
+            if (drag.moved) {
+              setState(
+                (prev) =>
+                  mapChord(prev, drag.chordId, (chord) =>
+                    moveChordDistance(chord, prev.radius, math),
+                  ),
+                false,
+              );
+            }
             return;
           }
 
@@ -467,6 +546,18 @@ export default function CircleChordsCanvas({
                 y: text.y,
               });
             }
+            return;
+          }
+
+          if (
+            (drag.t === "rotate" || drag.t === "distance") &&
+            !drag.moved &&
+            drag.fromChord
+          ) {
+            setState(
+              (prev) => toggleChordSegmentLength(prev, drag.chordId, "chord"),
+              true,
+            );
             return;
           }
 
@@ -550,6 +641,7 @@ function isKeepSelectHit(hit: FigureHit | null): boolean {
   return (
     hit?.kind === "label" ||
     hit?.kind === "dimLine" ||
+    hit?.kind === "seg" ||
     hit?.kind === "point" ||
     hit?.kind === "chord" ||
     hit?.kind === "center"
@@ -561,6 +653,13 @@ function sameHit(a: FigureHit | null, b: FigureHit | null): boolean {
   if (!a || !b || a.kind !== b.kind) return false;
   if (a.kind === "label" || a.kind === "dimLine") {
     return a.id === (b as { id: string }).id;
+  }
+  if (a.kind === "seg") {
+    return (
+      b.kind === "seg" &&
+      a.chordId === b.chordId &&
+      a.segKey === b.segKey
+    );
   }
   if (a.kind === "point") {
     return (
@@ -582,6 +681,7 @@ function cursorForHit(hit: FigureHit | null, tool: Tool): string {
   if (!hit) return "default";
   if (hit.kind === "circle") return "crosshair";
   if (hit.kind === "label") return "text";
+  if (hit.kind === "seg") return "pointer";
   return "grab";
 }
 
@@ -673,6 +773,61 @@ function paintOverlays(
         hover.chordId === chord.id &&
         hover.which === handle.which;
       paintHandle(ctx, handle.p, selected, hovered);
+    }
+  }
+
+  if (hover?.kind === "seg") {
+    const chord = state.chords.find((c) => c.id === hover.chordId);
+    if (chord) {
+      const { A, B, M } = chordMath(chord, state.radius);
+      const cA = mathToCanvas(A, scene.layout);
+      const cB = mathToCanvas(B, scene.layout);
+      const cM = mathToCanvas(M, scene.layout);
+      const cO = scene.layout.origin;
+      let p1: { x: number; y: number } | null = null;
+      let p2: { x: number; y: number } | null = null;
+      if (hover.segKey === "dist") {
+        p1 = cO;
+        p2 = cM;
+      } else if (hover.segKey === "radiusStart") {
+        p1 = cO;
+        p2 = cA;
+      } else if (hover.segKey === "radiusEnd") {
+        p1 = cO;
+        p2 = cB;
+      } else if (hover.segKey === "half") {
+        p1 = cM;
+        p2 = cB;
+      }
+      if (p1 && p2) {
+        ctx.save();
+        ctx.strokeStyle = "rgba(196, 130, 58, 0.75)";
+        ctx.lineWidth = 3.5;
+        ctx.lineCap = "round";
+        ctx.beginPath();
+        ctx.moveTo(p1.x, p1.y);
+        ctx.lineTo(p2.x, p2.y);
+        ctx.stroke();
+        ctx.restore();
+      }
+    }
+  }
+
+  if (hover?.kind === "chord" && !drag) {
+    const chord = state.chords.find((c) => c.id === hover.chordId);
+    if (chord) {
+      const { A, B } = chordMath(chord, state.radius);
+      const cA = mathToCanvas(A, scene.layout);
+      const cB = mathToCanvas(B, scene.layout);
+      ctx.save();
+      ctx.strokeStyle = "rgba(196, 130, 58, 0.45)";
+      ctx.lineWidth = 3;
+      ctx.lineCap = "round";
+      ctx.beginPath();
+      ctx.moveTo(cA.x, cA.y);
+      ctx.lineTo(cB.x, cB.y);
+      ctx.stroke();
+      ctx.restore();
     }
   }
 

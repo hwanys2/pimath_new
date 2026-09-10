@@ -134,4 +134,55 @@ describe("circle chords scene", () => {
     assert.equal(textAfterLine.x, textBefore.x);
     assert.equal(textAfterLine.y, textBefore.y);
   });
+
+  it("renders dots and names according to PointDisplayMode", () => {
+    const base = cloneState(CIRCLE_CHORD_PRESETS[0]!.state);
+    const chordId = base.chords[0]!.id;
+
+    // Mode "none": no endpoint dots, no endpoint names
+    const sceneNone = buildCircleChordsScene({
+      ...base,
+      chords: base.chords.map((c, i) =>
+        i === 0 ? { ...c, pointMode: "none" } : c,
+      ),
+    });
+    assert.ok(!sceneNone.texts.some((t) => t.id === `${chordId}:startName`));
+    assert.ok(!sceneNone.texts.some((t) => t.id === `${chordId}:endName`));
+
+    // Mode "dot": dots present, but no names
+    const sceneDot = buildCircleChordsScene({
+      ...base,
+      chords: base.chords.map((c, i) =>
+        i === 0 ? { ...c, pointMode: "dot" } : c,
+      ),
+    });
+    assert.ok(!sceneDot.texts.some((t) => t.id === `${chordId}:startName`));
+    assert.ok(sceneDot.cmds.filter((c) => c.t === "dot").length >= 2);
+
+    // Mode "name": names present, but no dots for this chord
+    const sceneName = buildCircleChordsScene({
+      ...base,
+      centerPointMode: "none",
+      chords: [
+        {
+          ...base.chords[0]!,
+          pointMode: "name",
+          showMidpoint: false,
+        },
+      ],
+    });
+    assert.ok(sceneName.texts.some((t) => t.id === `${chordId}:startName`));
+    assert.ok(sceneName.texts.some((t) => t.id === `${chordId}:endName`));
+    assert.equal(sceneName.cmds.filter((c) => c.t === "dot").length, 0);
+
+    // Independent startPointMode and endPointMode
+    const sceneIndep = buildCircleChordsScene({
+      ...base,
+      chords: base.chords.map((c, i) =>
+        i === 0 ? { ...c, startPointMode: "name", endPointMode: "dot" } : c,
+      ),
+    });
+    assert.ok(sceneIndep.texts.some((t) => t.id === `${chordId}:startName`));
+    assert.ok(!sceneIndep.texts.some((t) => t.id === `${chordId}:endName`));
+  });
 });

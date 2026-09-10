@@ -104,4 +104,35 @@ describe("circle chord hit testing", () => {
     assert.equal(hit?.kind, "chord");
     assert.equal(hit?.kind === "chord" && hit.chordId, chord.id);
   });
+
+  it("hits auxiliary line segments for length toggle", () => {
+    const { state, chord, A, M, O } = fixture();
+    const stateWithSegs = {
+      ...state,
+      chords: state.chords.map((c) =>
+        c.id === chord.id
+          ? {
+              ...c,
+              showPerp: true,
+              showRadiusStart: true,
+              showHalf: true,
+              distLabel: { ...c.distLabel, mode: "hide" as const },
+            }
+          : c,
+      ),
+    };
+    const scene = buildCircleChordsScene(stateWithSegs);
+
+    // Midpoint of OM (perpendicular distance line)
+    const midOM = { x: (O.x + M.x) / 2, y: (O.y + M.y) / 2 };
+    const hitOM = hitTestFigure(stateWithSegs, scene, midOM.x, midOM.y);
+    assert.equal(hitOM?.kind, "seg");
+    assert.equal(hitOM?.kind === "seg" && hitOM.segKey, "dist");
+
+    // Midpoint of OA (radius line)
+    const midOA = { x: (O.x + A.x) / 2, y: (O.y + A.y) / 2 };
+    const hitOA = hitTestFigure(stateWithSegs, scene, midOA.x, midOA.y);
+    assert.equal(hitOA?.kind, "seg");
+    assert.equal(hitOA?.kind === "seg" && hitOA.segKey, "radiusStart");
+  });
 });

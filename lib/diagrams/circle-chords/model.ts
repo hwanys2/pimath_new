@@ -13,6 +13,15 @@ export type MeasLabel = {
   lineDy?: number;
 };
 
+export type PointDisplayMode = "both" | "dot" | "name" | "none";
+
+export const POINT_DISPLAY_MODES: { id: PointDisplayMode; label: string }[] = [
+  { id: "both", label: "점과 이름" },
+  { id: "dot", label: "점만" },
+  { id: "name", label: "이름만" },
+  { id: "none", label: "안보임" },
+];
+
 export type ChordLock = "length" | "distance";
 
 export type Cardinal = "up" | "down" | "left" | "right";
@@ -38,6 +47,14 @@ export type ChordDraft = {
   midDy?: number;
   showPoints: boolean;
   showMidpoint: boolean;
+  /** Point display mode for endpoints (A, B): both, dot, name, or none. */
+  pointMode?: PointDisplayMode;
+  /** Optional individual display mode for start point (A). */
+  startPointMode?: PointDisplayMode;
+  /** Optional individual display mode for end point (B). */
+  endPointMode?: PointDisplayMode;
+  /** Point display mode for midpoint M: both, dot, name, or none. */
+  midpointMode?: PointDisplayMode;
   showPerp: boolean;
   showRightAngle: boolean;
   showRadiusStart: boolean;
@@ -70,6 +87,8 @@ export type CircleChordsState = {
   centerName: string;
   centerDx?: number;
   centerDy?: number;
+  centerPointMode?: PointDisplayMode;
+  pointMode?: PointDisplayMode;
   unit: string;
   unknownLetter: string;
   caption: string;
@@ -176,8 +195,13 @@ export function withSnappedChords(state: CircleChordsState): CircleChordsState {
 
 function normalizeChord(chord: ChordDraft): ChordDraft {
   const legacy = (chord as ChordDraft & { radiusLabel?: MeasLabel }).radiusLabel;
+  const pointMode = chord.pointMode ?? (chord.showPoints ? "both" : "dot");
+  const midpointMode =
+    chord.midpointMode ?? (chord.showMidpoint ? "both" : "none");
   return {
     ...chord,
+    pointMode,
+    midpointMode,
     radiusStartLabel:
       chord.radiusStartLabel ??
       (chord.showRadiusStart
@@ -187,6 +211,129 @@ function normalizeChord(chord: ChordDraft): ChordDraft {
       chord.radiusEndLabel ??
       (chord.showRadiusEnd ? (legacy ?? emptyLabel("auto")) : emptyLabel("hide")),
   };
+}
+
+export function chordStartPointMode(chord: ChordDraft): PointDisplayMode {
+  if (chord.startPointMode) return chord.startPointMode;
+  if (chord.pointMode) return chord.pointMode;
+  return chord.showPoints ? "both" : "dot";
+}
+
+export function chordEndPointMode(chord: ChordDraft): PointDisplayMode {
+  if (chord.endPointMode) return chord.endPointMode;
+  if (chord.pointMode) return chord.pointMode;
+  return chord.showPoints ? "both" : "dot";
+}
+
+export function chordPointMode(chord: ChordDraft): PointDisplayMode {
+  if (chord.pointMode) return chord.pointMode;
+  const start = chordStartPointMode(chord);
+  const end = chordEndPointMode(chord);
+  if (start === end) return start;
+  return chord.showPoints ? "both" : "dot";
+}
+
+export function chordMidpointMode(chord: ChordDraft): PointDisplayMode {
+  if (chord.midpointMode) return chord.midpointMode;
+  return chord.showMidpoint ? "both" : "none";
+}
+
+export function stateCenterMode(state: CircleChordsState): PointDisplayMode {
+  if (state.centerPointMode) return state.centerPointMode;
+  return state.showCenter ? "both" : "none";
+}
+
+export function nextPointDisplayMode(mode: PointDisplayMode): PointDisplayMode {
+  switch (mode) {
+    case "both":
+      return "dot";
+    case "dot":
+      return "name";
+    case "name":
+      return "none";
+    case "none":
+      return "both";
+  }
+}
+
+export function cycleCenterPointMode(state: CircleChordsState): CircleChordsState {
+  const cur = stateCenterMode(state);
+  const next = nextPointDisplayMode(cur);
+  return {
+    ...state,
+    centerPointMode: next,
+    showCenter: next !== "none",
+  };
+}
+
+export function cycleChordPointMode(
+  chord: ChordDraft,
+  which: "start" | "end" | "mid",
+): ChordDraft {
+  if (which === "mid") {
+    const cur = chordMidpointMode(chord);
+    const next = nextPointDisplayMode(cur);
+    return withChordMidpointMode(chord, next);
+  }
+  if (which === "start") {
+    const cur = chordStartPointMode(chord);
+    const next = nextPointDisplayMode(cur);
+    return { ...chord, startPointMode: next };
+  }
+  const cur = chordEndPointMode(chord);
+  const next = nextPointDisplayMode(cur);
+  return { ...chord, endPointMode: next };
+}
+
+export function withChordPointMode(
+  chord: ChordDraft,
+  mode: PointDisplayMode,
+): ChordDraft {
+  const showPoints = mode === "both" || mode === "name";
+  return {
+    ...chord,
+    pointMode: mode,
+    startPointMode: mode,
+    endPointMode: mode,
+    showPoints,
+  };
+}
+
+export function withChordMidpointMode(
+  chord: ChordDraft,
+  mode: PointDisplayMode,
+): ChordDraft {
+  const showMidpoint = mode !== "none";
+  return {
+    ...chord,
+    midpointMode: mode,
+    showMidpoint,
+  };
+}
+
+export function setAllPointsMode(
+  state: CircleChordsState,
+  mode: PointDisplayMode,
+): CircleChordsState {
+  const showCenter = mode !== "none";
+  return {
+    ...state,
+    pointMode: mode,
+    showCenter,
+    centerPointMode: mode,
+    chords: state.chords.map((c) => withChordPointMode(c, mode)),
+  };
+}
+
+export function globalPointDisplayMode(state: CircleChordsState): PointDisplayMode {
+  if (state.pointMode) return state.pointMode;
+  if (state.chords.length === 0) {
+    return stateCenterMode(state);
+  }
+  const firstMode = chordPointMode(state.chords[0]!);
+  const allSame = state.chords.every((c) => chordPointMode(c) === firstMode);
+  if (allSame) return firstMode;
+  return "both";
 }
 
 export const CIRCLE_CHORD_PRESETS: {

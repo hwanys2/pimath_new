@@ -1,7 +1,15 @@
-import { parseMeasureId } from "@/lib/diagrams/circle-chords/geometry";
+import {
+  parseMeasureId,
+  type ChordSegKey,
+} from "@/lib/diagrams/circle-chords/geometry";
 import {
   chordAngleDeg,
+  chordEndPointMode,
+  chordMidpointMode,
+  chordPointMode,
+  chordStartPointMode,
   resolveLabelText,
+  stateCenterMode,
   type CircleChordsState,
   type ChordDraft,
   type MeasLabel,
@@ -272,7 +280,11 @@ export function buildCircleChordsScene(state: CircleChordsState): DiagramScene {
 
   cmds.push({ t: "circle", x: layout.origin.x, y: layout.origin.y, r: layout.visualR });
 
-  if (state.showCenter) {
+  const cMode = stateCenterMode(state);
+  const showCenterDot = cMode === "both" || cMode === "dot";
+  const showCenterName = cMode === "both" || cMode === "name";
+
+  if (showCenterDot) {
     cmds.push({
       t: "dot",
       x: layout.origin.x,
@@ -291,7 +303,7 @@ export function buildCircleChordsScene(state: CircleChordsState): DiagramScene {
     });
   }
 
-  if (state.showCenter && state.centerName.trim()) {
+  if (showCenterName && state.centerName.trim()) {
     const away = averageOutward(state.chords);
     const oPos = add(
       add(layout.origin, mul(away, 18)),
@@ -386,15 +398,31 @@ function drawChord(args: {
     drawEqualTicks(cmds, cA, cB, chord.equalTicks, 7);
   }
 
-  cmds.push({ t: "dot", x: cA.x, y: cA.y, r: style.pointRadius });
-  cmds.push({ t: "dot", x: cB.x, y: cB.y, r: style.pointRadius });
-  if (chord.showMidpoint) {
+  const aMode = chordStartPointMode(chord);
+  const bMode = chordEndPointMode(chord);
+  const showADot = aMode === "both" || aMode === "dot";
+  const showAName = aMode === "both" || aMode === "name";
+  const showBDot = bMode === "both" || bMode === "dot";
+  const showBName = bMode === "both" || bMode === "name";
+
+  if (showADot) {
+    cmds.push({ t: "dot", x: cA.x, y: cA.y, r: style.pointRadius });
+  }
+  if (showBDot) {
+    cmds.push({ t: "dot", x: cB.x, y: cB.y, r: style.pointRadius });
+  }
+
+  const mMode = chordMidpointMode(chord);
+  const showMDot = mMode === "both" || mMode === "dot";
+  const showMName = mMode === "both" || mMode === "name";
+
+  if (showMDot) {
     cmds.push({ t: "dot", x: cM.x, y: cM.y, r: style.pointRadius });
   }
 
   const radialA = norm(sub(cA, cO));
   const radialB = norm(sub(cB, cO));
-  if (chord.showPoints && chord.startName.trim()) {
+  if (showAName && chord.startName.trim()) {
     const p = add(add(cA, mul(radialA, 16)), {
       x: chord.startDx ?? 0,
       y: chord.startDy ?? 0,
@@ -408,7 +436,7 @@ function drawChord(args: {
       anchor: "middle",
     });
   }
-  if (chord.showPoints && chord.endName.trim()) {
+  if (showBName && chord.endName.trim()) {
     const p = add(add(cB, mul(radialB, 16)), {
       x: chord.endDx ?? 0,
       y: chord.endDy ?? 0,
@@ -422,7 +450,7 @@ function drawChord(args: {
       anchor: "middle",
     });
   }
-  if (chord.showMidpoint && chord.midName.trim()) {
+  if (showMName && chord.midName.trim()) {
     const away = norm(sub(cM, cO));
     const p = add(add(cM, mul(away, 16)), {
       x: chord.midDx ?? 0,
@@ -555,6 +583,7 @@ export type FigureHit =
   | { kind: "point"; chordId: string; which: "start" | "end" | "mid" }
   | { kind: "center" }
   | { kind: "chord"; chordId: string; t: number }
+  | { kind: "seg"; chordId: string; segKey: ChordSegKey; t: number }
   | { kind: "circle" };
 
 function measureTargetId(id: string): string {
@@ -602,7 +631,8 @@ function hitBias(kind: FigureHit["kind"]): number {
     case "label":
       return 8;
     case "chord":
-      return 20;
+    case "seg":
+      return 14;
     case "dimLine":
       return 22;
     case "circle":
@@ -704,8 +734,46 @@ export function hitTestFigure(
       best,
       { kind: "chord", chordId: chord.id, t: seg.t },
       seg.d,
-      12 * s,
+      14 * s,
     );
+
+    const cO = layout.origin;
+    if (chord.showPerp && chord.distance > state.radius * 0.02) {
+      const segOM = distToSeg(p, cO, cM);
+      best = considerHit(
+        best,
+        { kind: "seg", chordId: chord.id, segKey: "dist", t: segOM.t },
+        segOM.d,
+        14 * s,
+      );
+    }
+    if (chord.showRadiusStart) {
+      const segOA = distToSeg(p, cO, cA);
+      best = considerHit(
+        best,
+        { kind: "seg", chordId: chord.id, segKey: "radiusStart", t: segOA.t },
+        segOA.d,
+        14 * s,
+      );
+    }
+    if (chord.showRadiusEnd) {
+      const segOB = distToSeg(p, cO, cB);
+      best = considerHit(
+        best,
+        { kind: "seg", chordId: chord.id, segKey: "radiusEnd", t: segOB.t },
+        segOB.d,
+        14 * s,
+      );
+    }
+    if (chord.showHalf) {
+      const segHalf = distToSeg(p, cM, cB);
+      best = considerHit(
+        best,
+        { kind: "seg", chordId: chord.id, segKey: "half", t: segHalf.t },
+        segHalf.d,
+        14 * s,
+      );
+    }
   }
 
   const cO = layout.origin;
