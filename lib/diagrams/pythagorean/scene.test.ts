@@ -388,7 +388,7 @@ describe("pythagorean geometry", () => {
     assert.equal(next.showGrid, true);
     assert.equal(next.showVertexNames, start.showVertexNames);
     const scene = buildPythagoreanScene(next);
-    assert.ok(scene.cmds.some((c) => c.id === "grid"), "proof figure should still draw a grid");
+    assert.ok(scene.cmds.some((c) => "id" in c && c.id === "grid"), "proof figure should still draw a grid");
   });
 
   it("drops an extra altitude from a selected vertex on the squares figure", () => {

@@ -28,9 +28,9 @@ function fixture() {
 function midArc(cmd: Extract<SceneCmd, { t: "arc" }>) {
   let sweep = cmd.a1 - cmd.a0;
   if (cmd.ccw) {
-    if (sweep <= 0) sweep += Math.PI * 2;
-  } else if (sweep >= 0) {
-    sweep -= Math.PI * 2;
+    if (sweep >= 0) sweep -= Math.PI * 2;
+  } else if (sweep <= 0) {
+    sweep += Math.PI * 2;
   }
   const a = cmd.a0 + sweep * 0.5;
   return { x: cmd.cx + cmd.r * Math.cos(a), y: cmd.cy + cmd.r * Math.sin(a) };
@@ -77,7 +77,14 @@ describe("circle chord hit testing", () => {
         cmd.t === "arc" && cmd.id === `${chord.id}:chordLabel:line`,
     );
     assert.ok(arc);
-    const p = midArc(arc);
+    let sweep = arc.a1 - arc.a0;
+    if (arc.ccw) {
+      if (sweep >= 0) sweep -= Math.PI * 2;
+    } else if (sweep <= 0) {
+      sweep += Math.PI * 2;
+    }
+    const a = arc.a0 + sweep * 0.25;
+    const p = { x: arc.cx + arc.r * Math.cos(a), y: arc.cy + arc.r * Math.sin(a) };
     const hit = hitTestFigure(state, scene, p.x, p.y);
     assert.deepEqual(hit, { kind: "dimLine", id: `${chord.id}:chordLabel` });
   });

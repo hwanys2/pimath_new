@@ -81,6 +81,13 @@ export type DiagramStyle = {
   captionSize: number;
 };
 
+export type ChordIntersectionConfig = {
+  name?: string;
+  mode?: PointDisplayMode;
+  dx?: number;
+  dy?: number;
+};
+
 export type CircleChordsState = {
   radius: number;
   showCenter: boolean;
@@ -97,6 +104,7 @@ export type CircleChordsState = {
   viewRotationDeg: number;
   chords: ChordDraft[];
   style: DiagramStyle;
+  intersectionConfigs?: Record<string, ChordIntersectionConfig>;
 };
 
 export const CARDINAL_ANGLE: Record<Cardinal, number> = {
@@ -234,8 +242,8 @@ export function chordPointMode(chord: ChordDraft): PointDisplayMode {
 }
 
 export function chordMidpointMode(chord: ChordDraft): PointDisplayMode {
-  if (chord.midpointMode) return chord.midpointMode;
-  return chord.showMidpoint ? "both" : "none";
+  if (!chord.showMidpoint) return "none";
+  return chord.midpointMode ?? "both";
 }
 
 export function stateCenterMode(state: CircleChordsState): PointDisplayMode {
@@ -316,12 +324,25 @@ export function setAllPointsMode(
   mode: PointDisplayMode,
 ): CircleChordsState {
   const showCenter = mode !== "none";
+  const updatedIntersectionConfigs: Record<string, ChordIntersectionConfig> = {};
+  if (state.intersectionConfigs) {
+    for (const [k, v] of Object.entries(state.intersectionConfigs)) {
+      updatedIntersectionConfigs[k] = { ...v, mode };
+    }
+  }
   return {
     ...state,
     pointMode: mode,
     showCenter,
     centerPointMode: mode,
-    chords: state.chords.map((c) => withChordPointMode(c, mode)),
+    chords: state.chords.map((c) => {
+      const base = withChordPointMode(c, mode);
+      if (c.showMidpoint || c.showPerp) {
+        return withChordMidpointMode(base, mode);
+      }
+      return base;
+    }),
+    intersectionConfigs: updatedIntersectionConfigs,
   };
 }
 

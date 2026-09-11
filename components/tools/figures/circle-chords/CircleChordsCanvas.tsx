@@ -5,6 +5,8 @@ import {
   applyEditedLabel,
   chordFromTwoPoints,
   chordMath,
+  cycleIntersectionMode,
+  findChordIntersections,
   isMeasureKey,
   mapChord,
   moveChordDistance,
@@ -19,7 +21,12 @@ import {
   toggleRadius,
   type ChordSegKey,
 } from "@/lib/diagrams/circle-chords/geometry";
-import type { CircleChordsState } from "@/lib/diagrams/circle-chords/model";
+import {
+  chordMidpointMode,
+  cycleCenterPointMode,
+  cycleChordPointMode,
+  type CircleChordsState,
+} from "@/lib/diagrams/circle-chords/model";
 import { paintCircleChordsScene } from "@/lib/diagrams/circle-chords/render";
 import {
   buildCircleChordsScene,
@@ -59,7 +66,14 @@ type Drag =
       moved: boolean;
       fromChord?: boolean;
     }
-  | { t: "view"; lastX: number; lastY: number }
+  | {
+      t: "intersectionPoint";
+      id: string;
+      startX: number;
+      startY: number;
+      moved: boolean;
+    }
+  | { t: "view"; lastX: number; lastY: number; moved?: boolean }
   | { t: "draw"; a: { x: number; y: number }; b: { x: number; y: number } };
 
 export type CircleChordsSetter = (
@@ -392,8 +406,21 @@ export default function CircleChordsCanvas({
             return;
           }
 
+          if (hit.kind === "intersectionPoint") {
+            dragRef.current = {
+              t: "intersectionPoint",
+              id: hit.id,
+              startX: p.x,
+              startY: p.y,
+              moved: false,
+            };
+            setCursor("pointer");
+            e.currentTarget.setPointerCapture(e.pointerId);
+            return;
+          }
+
           if (hit.kind === "center") {
-            dragRef.current = { t: "view", lastX: p.x, lastY: p.y };
+            dragRef.current = { t: "view", lastX: p.x, lastY: p.y, moved: false };
             setCursor("grabbing");
             e.currentTarget.setPointerCapture(e.pointerId);
             return;
@@ -408,7 +435,16 @@ export default function CircleChordsCanvas({
         onDoubleClick={(e) => {
           const hit = hitAt(e);
           if (hit?.kind !== "point") return;
-          if (hit.which === "mid") return;
+          if (hit.which === "mid") {
+            setState(
+              (prev) =>
+                mapChord(prev, hit.chordId, (chord) =>
+                  cycleChordPointMode(chord, "mid"),
+                ),
+              true,
+            );
+            return;
+          }
           const which = hit.which;
           setState(
             (prev) =>
@@ -514,12 +550,28 @@ export default function CircleChordsCanvas({
             return;
           }
 
+          if (drag.t === "intersectionPoint") {
+            if (
+              !drag.moved &&
+              Math.hypot(p.x - drag.startX, p.y - drag.startY) > MOVE_PX
+            ) {
+              drag.moved = true;
+            }
+            return;
+          }
+
           if (drag.t === "view") {
+            if (
+              !drag.moved &&
+              Math.hypot(p.x - drag.lastX, p.y - drag.lastY) > MOVE_PX
+            ) {
+              drag.moved = true;
+            }
             const origin = scene.layout.origin;
             const a0 = Math.atan2(origin.y - drag.lastY, drag.lastX - origin.x);
             const a1 = Math.atan2(origin.y - p.y, p.x - origin.x);
             const delta = ((a1 - a0) * 180) / Math.PI;
-            dragRef.current = { t: "view", lastX: p.x, lastY: p.y };
+            dragRef.current = { t: "view", lastX: p.x, lastY: p.y, moved: true };
             setState(
               (prev) => ({
                 ...prev,
@@ -558,6 +610,32 @@ export default function CircleChordsCanvas({
                 y: text.y,
               });
             }
+            return;
+          }
+
+          if (drag.t === "intersectionPoint" && !drag.moved) {
+            setState((prev) => cycleIntersectionMode(prev, drag.id), true);
+            return;
+          }
+
+          if (
+            (drag.t === "rotate" || drag.t === "distance") &&
+            !drag.moved &&
+            !drag.fromChord
+          ) {
+            const which = drag.t === "distance" ? "mid" : drag.which;
+            setState(
+              (prev) =>
+                mapChord(prev, drag.chordId, (c) =>
+                  cycleChordPointMode(c, which),
+                ),
+              true,
+            );
+            return;
+          }
+
+          if (drag.t === "view" && !drag.moved) {
+            setState((prev) => cycleCenterPointMode(prev), true);
             return;
           }
 
@@ -655,6 +733,7 @@ function isKeepSelectHit(hit: FigureHit | null): boolean {
     hit?.kind === "dimLine" ||
     hit?.kind === "seg" ||
     hit?.kind === "point" ||
+    hit?.kind === "intersectionPoint" ||
     hit?.kind === "chord" ||
     hit?.kind === "center"
   );
@@ -677,6 +756,9 @@ function sameHit(a: FigureHit | null, b: FigureHit | null): boolean {
     return (
       b.kind === "point" && a.chordId === b.chordId && a.which === b.which
     );
+  }
+  if (a.kind === "intersectionPoint") {
+    return b.kind === "intersectionPoint" && a.id === b.id;
   }
   if (a.kind === "chord") {
     return b.kind === "chord" && a.chordId === b.chordId;
@@ -702,7 +784,7 @@ function cursorForHit(hit: FigureHit | null, tool: Tool): string {
   if (!hit) return "default";
   if (hit.kind === "circle") return "crosshair";
   if (hit.kind === "label") return "text";
-  if (hit.kind === "seg") return "pointer";
+  if (hit.kind === "seg" || hit.kind === "intersectionPoint") return "pointer";
   return "grab";
 }
 
@@ -821,7 +903,8 @@ function paintOverlays(
         { p: cA, which: "start" },
         { p: cB, which: "end" },
       ];
-    if (chord.showMidpoint) {
+    const mMode = chordMidpointMode(chord);
+    if (mMode !== "none" || chord.showMidpoint || (isChordSelected && chord.showPerp)) {
       handles.push({ p: cM, which: "mid" });
     }
     for (const handle of handles) {
@@ -885,6 +968,16 @@ function paintOverlays(
       ctx.lineTo(cB.x, cB.y);
       ctx.stroke();
       ctx.restore();
+    }
+  }
+
+  const intersections = findChordIntersections(state);
+  for (const ix of intersections) {
+    if (ix.mode !== "none") {
+      const cP = mathToCanvas(ix.point, scene.layout);
+      const hovered =
+        hover?.kind === "intersectionPoint" && hover.id === ix.id;
+      paintHandle(ctx, cP, false, hovered);
     }
   }
 

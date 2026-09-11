@@ -1,4 +1,5 @@
 import {
+  findChordIntersections,
   parseMeasureId,
   type ChordSegKey,
 } from "@/lib/diagrams/circle-chords/geometry";
@@ -303,6 +304,40 @@ export function buildCircleChordsScene(state: CircleChordsState): DiagramScene {
     });
   }
 
+  const intersections = findChordIntersections(state);
+  for (const ix of intersections) {
+    const cP = map(ix.point);
+    const showDot = ix.mode === "both" || ix.mode === "dot";
+    const showName = ix.mode === "both" || ix.mode === "name";
+    if (showDot) {
+      cmds.push({
+        t: "dot",
+        x: cP.x,
+        y: cP.y,
+        r: style.pointRadius,
+        id: `intersection:${ix.id}:dot`,
+      });
+    }
+    if (showName && ix.name.trim()) {
+      const away =
+        len(sub(ix.point, { x: 0, y: 0 })) > 0.01
+          ? norm(sub(cP, layout.origin))
+          : { x: 0, y: -1 };
+      const p = add(add(cP, mul(away, 16)), {
+        x: ix.dx,
+        y: ix.dy,
+      });
+      pushText(texts, cmds, {
+        id: `intersection:${ix.id}:name`,
+        x: p.x,
+        y: p.y,
+        runs: parseNameRuns(ix.name.trim()),
+        size: style.pointLabelSize,
+        anchor: "middle",
+      });
+    }
+  }
+
   if (showCenterName && state.centerName.trim()) {
     const away = averageOutward(state.chords);
     const oPos = add(
@@ -406,10 +441,10 @@ function drawChord(args: {
   const showBName = bMode === "both" || bMode === "name";
 
   if (showADot) {
-    cmds.push({ t: "dot", x: cA.x, y: cA.y, r: style.pointRadius });
+    cmds.push({ t: "dot", x: cA.x, y: cA.y, r: style.pointRadius, id: `${chord.id}:startDot` });
   }
   if (showBDot) {
-    cmds.push({ t: "dot", x: cB.x, y: cB.y, r: style.pointRadius });
+    cmds.push({ t: "dot", x: cB.x, y: cB.y, r: style.pointRadius, id: `${chord.id}:endDot` });
   }
 
   const mMode = chordMidpointMode(chord);
@@ -417,7 +452,7 @@ function drawChord(args: {
   const showMName = mMode === "both" || mMode === "name";
 
   if (showMDot) {
-    cmds.push({ t: "dot", x: cM.x, y: cM.y, r: style.pointRadius });
+    cmds.push({ t: "dot", x: cM.x, y: cM.y, r: style.pointRadius, id: `${chord.id}:midDot` });
   }
 
   const radialA = norm(sub(cA, cO));
@@ -581,6 +616,7 @@ export type FigureHit =
   | { kind: "label"; id: string }
   | { kind: "dimLine"; id: string }
   | { kind: "point"; chordId: string; which: "start" | "end" | "mid" }
+  | { kind: "intersectionPoint"; id: string }
   | { kind: "center" }
   | { kind: "chord"; chordId: string; t: number }
   | { kind: "seg"; chordId: string; segKey: ChordSegKey; t: number }
@@ -626,6 +662,7 @@ type HitCandidate = { hit: FigureHit; d: number; weight: number };
 function hitBias(kind: FigureHit["kind"]): number {
   switch (kind) {
     case "point":
+    case "intersectionPoint":
     case "center":
       return 0;
     case "label":
@@ -721,7 +758,8 @@ export function hitTestFigure(
       Math.hypot(p.x - cB.x, p.y - cB.y),
       26 * s,
     );
-    if (chord.showMidpoint) {
+    const mMode = chordMidpointMode(chord);
+    if (mMode !== "none") {
       best = considerHit(
         best,
         { kind: "point", chordId: chord.id, which: "mid" },
@@ -772,6 +810,19 @@ export function hitTestFigure(
         { kind: "seg", chordId: chord.id, segKey: "half", t: segHalf.t },
         segHalf.d,
         14 * s,
+      );
+    }
+  }
+
+  const intersections = findChordIntersections(state);
+  for (const ix of intersections) {
+    if (ix.mode !== "none") {
+      const cP = mathToCanvas(ix.point, layout);
+      best = considerHit(
+        best,
+        { kind: "intersectionPoint", id: ix.id },
+        Math.hypot(p.x - cP.x, p.y - cP.y),
+        22 * s,
       );
     }
   }

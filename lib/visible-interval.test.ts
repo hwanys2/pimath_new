@@ -105,7 +105,7 @@ describe("startVisibleInterval", () => {
     });
     assert.equal(ticks.length, 0);
     hidden = false;
-    listener?.();
+    (listener as (() => void) | null)?.();
     assert.equal(ticks.length, 1);
     stop();
   });

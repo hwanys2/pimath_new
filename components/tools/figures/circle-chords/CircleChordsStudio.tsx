@@ -12,10 +12,15 @@ import {
   NumberField,
   Segmented,
   SliderField,
+  TextField,
 } from "@/components/tools/figures/circle-chords/controls";
 import {
+  cycleIntersectionMode,
   cycleLabelMode,
+  findChordIntersections,
   mapChord,
+  setIntersectionMode,
+  setIntersectionName,
   toggleRadius,
   type ChordSegKey,
 } from "@/lib/diagrams/circle-chords/geometry";
@@ -201,6 +206,11 @@ export default function CircleChordsStudio() {
     setSelectedId(remaining[0]?.id ?? null);
     setSelectedSeg("chord");
   }, [selected, state.chords, setState]);
+
+  const intersections = useMemo(
+    () => findChordIntersections(state),
+    [state],
+  );
 
   const activeSegInfo = useMemo(() => {
     if (!selected) return null;
@@ -604,9 +614,7 @@ export default function CircleChordsStudio() {
                           ),
                         ),
                     },
-                  ];
-                  if (chord.showMidpoint) {
-                    pts.push({
+                    {
                       key: `${chord.id}:mid`,
                       name: chord.midName || "M",
                       mode: mMode,
@@ -616,8 +624,8 @@ export default function CircleChordsStudio() {
                             cycleChordPointMode(c, "mid"),
                           ),
                         ),
-                    });
-                  }
+                    },
+                  ];
                   return pts.map((pt) => (
                     <button
                       key={pt.key}
@@ -638,6 +646,27 @@ export default function CircleChordsStudio() {
                     </button>
                   ));
                 })}
+                {intersections.map((ix) => (
+                  <button
+                    key={ix.id}
+                    type="button"
+                    onClick={() =>
+                      setState((prev) => cycleIntersectionMode(prev, ix.id))
+                    }
+                    className={`min-w-[1.6rem] rounded-full px-2 py-0.5 text-[11px] font-semibold transition ${
+                      ix.mode === "both"
+                        ? "bg-wood text-cream shadow-sm"
+                        : ix.mode === "dot"
+                          ? "bg-gold text-[#6b4a00] shadow-sm"
+                          : ix.mode === "name"
+                            ? "bg-wood/20 text-wood-dark"
+                            : "bg-black/8 text-foreground/35 line-through"
+                    }`}
+                    title={`교점 ${ix.name}: ${pointModeTitle(ix.mode)} (누르면 변경)`}
+                  >
+                    {ix.name}
+                  </button>
+                ))}
               </div>
             </div>
           </section>
@@ -677,12 +706,17 @@ export default function CircleChordsStudio() {
                     직각
                   </ChipToggle>
                   <ChipToggle
-                    on={selected.showMidpoint}
-                    onClick={() =>
-                      patchSelected({ showMidpoint: !selected.showMidpoint })
-                    }
+                    on={chordMidpointMode(selected) !== "none"}
+                    onClick={() => {
+                      const cur = chordMidpointMode(selected);
+                      if (cur === "none") {
+                        patchSelected({ showMidpoint: true, midpointMode: "both" });
+                      } else {
+                        patchSelected({ showMidpoint: false, midpointMode: "none" });
+                      }
+                    }}
                   >
-                    중점
+                    수선의 발
                   </ChipToggle>
                   <ChipToggle
                     on={selected.showHalf}
@@ -714,6 +748,24 @@ export default function CircleChordsStudio() {
                   >
                     {state.centerName || "O"}{selected.endName} 반지름
                   </ChipToggle>
+                </div>
+
+                <div className="mt-3 grid grid-cols-3 gap-2">
+                  <TextField
+                    label="시작 점"
+                    value={selected.startName}
+                    onChange={(startName) => patchSelected({ startName })}
+                  />
+                  <TextField
+                    label="끝 점"
+                    value={selected.endName}
+                    onChange={(endName) => patchSelected({ endName })}
+                  />
+                  <TextField
+                    label="수선의 발"
+                    value={selected.midName}
+                    onChange={(midName) => patchSelected({ midName })}
+                  />
                 </div>
 
                 <div className="mt-3">
@@ -830,34 +882,32 @@ export default function CircleChordsStudio() {
                   </div>
                 </div>
 
-                {selected.showMidpoint ? (
-                  <div className="mt-2.5">
-                    <p className="text-[11px] font-semibold text-foreground/50">
-                      중점 {selected.midName || "M"} 표시
-                    </p>
-                    <div className="mt-1 flex flex-wrap gap-1">
-                      {POINT_DISPLAY_MODES.map((m) => {
-                        const cur = chordMidpointMode(selected);
-                        return (
-                          <button
-                            key={m.id}
-                            type="button"
-                            onClick={() =>
-                              patchSelected(withChordMidpointMode(selected, m.id))
-                            }
-                            className={`rounded-lg px-2 py-1 text-[11px] font-semibold transition ${
-                              cur === m.id
-                                ? "bg-wood text-cream shadow-sm"
-                                : "bg-black/5 text-foreground/60 hover:bg-black/10"
-                            }`}
-                          >
-                            {m.label}
-                          </button>
-                        );
-                      })}
-                    </div>
+                <div className="mt-2.5">
+                  <p className="text-[11px] font-semibold text-foreground/50">
+                    수선의 발 {selected.midName || "M"} 표시
+                  </p>
+                  <div className="mt-1 flex flex-wrap gap-1">
+                    {POINT_DISPLAY_MODES.map((m) => {
+                      const cur = chordMidpointMode(selected);
+                      return (
+                        <button
+                          key={m.id}
+                          type="button"
+                          onClick={() =>
+                            patchSelected(withChordMidpointMode(selected, m.id))
+                          }
+                          className={`rounded-lg px-2 py-1 text-[11px] font-semibold transition ${
+                            cur === m.id
+                              ? "bg-wood text-cream shadow-sm"
+                              : "bg-black/5 text-foreground/60 hover:bg-black/10"
+                          }`}
+                        >
+                          {m.label}
+                        </button>
+                      );
+                    })}
                   </div>
-                ) : null}
+                </div>
               </>
           ) : (
             <p className="mt-2 text-xs text-foreground/50">
@@ -910,6 +960,60 @@ export default function CircleChordsStudio() {
             </p>
           </section>
 
+          {intersections.length > 0 ? (
+            <section className="rounded-2xl border-2 border-wood/10 bg-white/80 p-3.5">
+              <h2 className="font-display text-sm text-wood-dark">
+                두 현의 교점
+              </h2>
+              <div className="mt-2.5 space-y-3">
+                {intersections.map((ix) => (
+                  <div
+                    key={ix.id}
+                    className="space-y-2 rounded-xl border border-wood/15 bg-wood/5 p-2.5"
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-xs font-semibold text-wood-dark">
+                        현 {ix.chordAName} · {ix.chordBName} 교점
+                      </span>
+                    </div>
+                    <TextField
+                      label="교점 이름"
+                      value={ix.name}
+                      onChange={(name) =>
+                        setState((prev) => setIntersectionName(prev, ix.id, name))
+                      }
+                    />
+                    <div>
+                      <p className="text-[11px] font-semibold text-foreground/50">
+                        표시 방식
+                      </p>
+                      <div className="mt-1 flex flex-wrap gap-1">
+                        {POINT_DISPLAY_MODES.map((m) => (
+                          <button
+                            key={m.id}
+                            type="button"
+                            onClick={() =>
+                              setState((prev) =>
+                                setIntersectionMode(prev, ix.id, m.id),
+                              )
+                            }
+                            className={`rounded-lg px-2 py-1 text-[11px] font-semibold transition ${
+                              ix.mode === m.id
+                                ? "bg-wood text-cream shadow-sm"
+                                : "bg-black/5 text-foreground/60 hover:bg-black/10"
+                            }`}
+                          >
+                            {m.label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </section>
+          ) : null}
+
           <section className="rounded-2xl border-2 border-wood/10 bg-white/80 p-3.5">
             <h2 className="font-display text-sm text-wood-dark">원</h2>
             <div className="mt-3 grid grid-cols-2 gap-2">
@@ -956,6 +1060,13 @@ export default function CircleChordsStudio() {
                 />
                 중심 점 ({state.centerName || "O"})
               </label>
+            </div>
+            <div className="mt-2.5">
+              <TextField
+                label="중심 점 이름"
+                value={state.centerName}
+                onChange={(centerName) => set({ centerName })}
+              />
             </div>
             <label className="mt-2 block text-xs font-semibold text-foreground/60">
               아래 문구

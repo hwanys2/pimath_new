@@ -3,11 +3,13 @@ import {
   chordAngleDeg,
   emptyLabel,
   newChordId,
+  nextPointDisplayMode,
   snapChordToRadius,
   type Cardinal,
   type ChordDraft,
   type CircleChordsState,
   type MeasLabel,
+  type PointDisplayMode,
 } from "@/lib/diagrams/circle-chords/model";
 
 export type Vec = { x: number; y: number };
@@ -203,6 +205,20 @@ export function applyEditedLabel(
   }
   if (id === "caption") {
     return { ...state, caption: text, showCaption: text.trim().length > 0 };
+  }
+  if (id.startsWith("intersection:") && id.endsWith(":name")) {
+    const ixId = id.slice("intersection:".length, -":name".length);
+    const prev = state.intersectionConfigs?.[ixId] ?? {};
+    return {
+      ...state,
+      intersectionConfigs: {
+        ...state.intersectionConfigs,
+        [ixId]: {
+          ...prev,
+          name: text.trim(),
+        },
+      },
+    };
   }
   const sep = id.lastIndexOf(":");
   if (sep < 0) return state;
@@ -417,6 +433,21 @@ export function nudgeById(
     };
   }
   if (id === "caption") return state;
+  if (id.startsWith("intersection:") && id.endsWith(":name")) {
+    const ixId = id.slice("intersection:".length, -":name".length);
+    const prev = state.intersectionConfigs?.[ixId] ?? {};
+    return {
+      ...state,
+      intersectionConfigs: {
+        ...state.intersectionConfigs,
+        [ixId]: {
+          ...prev,
+          dx: (prev.dx ?? 0) + dx,
+          dy: (prev.dy ?? 0) + dy,
+        },
+      },
+    };
+  }
   const sep = id.lastIndexOf(":");
   if (sep < 0) return state;
   const chordId = id.slice(0, sep);
@@ -506,3 +537,143 @@ export function toggleChordSegmentLength(
     }
   });
 }
+
+export type ChordIntersection = {
+  id: string;
+  chordAId: string;
+  chordBId: string;
+  chordAName: string;
+  chordBName: string;
+  point: Vec;
+  name: string;
+  mode: PointDisplayMode;
+  dx: number;
+  dy: number;
+};
+
+const INTERSECTION_DEFAULT_NAMES = ["P", "Q", "R", "S", "T"];
+
+function segmentIntersection(
+  p1: Vec,
+  p2: Vec,
+  p3: Vec,
+  p4: Vec,
+): Vec | null {
+  const d1x = p2.x - p1.x;
+  const d1y = p2.y - p1.y;
+  const d2x = p4.x - p3.x;
+  const d2y = p4.y - p3.y;
+  const denom = d1x * d2y - d1y * d2x;
+  if (Math.abs(denom) < 1e-6) return null;
+  const t = ((p3.x - p1.x) * d2y - (p3.y - p1.y) * d2x) / denom;
+  const u = ((p3.x - p1.x) * d1y - (p3.y - p1.y) * d1x) / denom;
+  if (t > 0.005 && t < 0.995 && u > 0.005 && u < 0.995) {
+    return {
+      x: p1.x + t * d1x,
+      y: p1.y + t * d1y,
+    };
+  }
+  return null;
+}
+
+export function findChordIntersections(
+  state: CircleChordsState,
+): ChordIntersection[] {
+  const results: ChordIntersection[] = [];
+  const chords = state.chords;
+  let idx = 0;
+  for (let i = 0; i < chords.length; i++) {
+    const c1 = chords[i]!;
+    const math1 = chordMath(c1, state.radius);
+    for (let j = i + 1; j < chords.length; j++) {
+      const c2 = chords[j]!;
+      const math2 = chordMath(c2, state.radius);
+      const pt = segmentIntersection(math1.A, math1.B, math2.A, math2.B);
+      if (pt) {
+        const sortedIds = [c1.id, c2.id].sort();
+        const id = `${sortedIds[0]}:${sortedIds[1]}`;
+        const config = state.intersectionConfigs?.[id];
+        const defaultName =
+          INTERSECTION_DEFAULT_NAMES[idx % INTERSECTION_DEFAULT_NAMES.length]!;
+        const name = config?.name?.trim() ? config.name.trim() : defaultName;
+        const mode = config?.mode ?? "both";
+        const dx = config?.dx ?? 0;
+        const dy = config?.dy ?? 0;
+        const c1Name = `${c1.startName || "A"}${c1.endName || "B"}`;
+        const c2Name = `${c2.startName || "C"}${c2.endName || "D"}`;
+        results.push({
+          id,
+          chordAId: c1.id,
+          chordBId: c2.id,
+          chordAName: c1Name,
+          chordBName: c2Name,
+          point: pt,
+          name,
+          mode,
+          dx,
+          dy,
+        });
+        idx++;
+      }
+    }
+  }
+  return results;
+}
+
+export function cycleIntersectionMode(
+  state: CircleChordsState,
+  id: string,
+): CircleChordsState {
+  const intersections = findChordIntersections(state);
+  const ix = intersections.find((item) => item.id === id);
+  if (!ix) return state;
+  const next = nextPointDisplayMode(ix.mode);
+  const prev = state.intersectionConfigs?.[id] ?? {};
+  return {
+    ...state,
+    intersectionConfigs: {
+      ...state.intersectionConfigs,
+      [id]: {
+        ...prev,
+        mode: next,
+      },
+    },
+  };
+}
+
+export function setIntersectionMode(
+  state: CircleChordsState,
+  id: string,
+  mode: PointDisplayMode,
+): CircleChordsState {
+  const prev = state.intersectionConfigs?.[id] ?? {};
+  return {
+    ...state,
+    intersectionConfigs: {
+      ...state.intersectionConfigs,
+      [id]: {
+        ...prev,
+        mode,
+      },
+    },
+  };
+}
+
+export function setIntersectionName(
+  state: CircleChordsState,
+  id: string,
+  name: string,
+): CircleChordsState {
+  const prev = state.intersectionConfigs?.[id] ?? {};
+  return {
+    ...state,
+    intersectionConfigs: {
+      ...state.intersectionConfigs,
+      [id]: {
+        ...prev,
+        name,
+      },
+    },
+  };
+}
+

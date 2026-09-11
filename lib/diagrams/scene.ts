@@ -54,7 +54,7 @@ export type SceneCmd =
       a1: number;
       ccw: boolean;
     } & StrokeOpts)
-  | ({ t: "dot"; x: number; y: number; r: number } & Pick<StrokeOpts, "stroke">)
+  | ({ t: "dot"; x: number; y: number; r: number } & Pick<StrokeOpts, "stroke" | "id">)
   | {
       t: "polygon";
       points: Vec[];

@@ -1,10 +1,15 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
+import { runsToPlain } from "../math-label";
 import {
+  cycleIntersectionMode,
+  findChordIntersections,
   nudgeMeasureLabel,
   nudgeMeasureLine,
+  setIntersectionMode,
+  setIntersectionName,
 } from "./geometry";
-import { CIRCLE_CHORD_PRESETS, cloneState } from "./model";
+import { CIRCLE_CHORD_PRESETS, cloneState, type CircleChordsState } from "./model";
 import { buildCircleChordsScene, measureFrame, type SceneCmd } from "./scene";
 
 describe("circle chords scene", () => {
@@ -184,5 +189,145 @@ describe("circle chords scene", () => {
     });
     assert.ok(sceneIndep.texts.some((t) => t.id === `${chordId}:startName`));
     assert.ok(!sceneIndep.texts.some((t) => t.id === `${chordId}:endName`));
+  });
+
+  it("renders perpendicular foot (midpoint) dot and name according to midpointMode", () => {
+    const base = cloneState(CIRCLE_CHORD_PRESETS[0]!.state);
+    const chordId = base.chords[0]!.id;
+
+    // midpointMode "both": dot and midName text present
+    const sceneBoth = buildCircleChordsScene({
+      ...base,
+      chords: base.chords.map((c, i) =>
+        i === 0 ? { ...c, showMidpoint: true, midpointMode: "both", midpointName: "M" } : c,
+      ),
+    });
+    const midDotBoth = sceneBoth.cmds.find(
+      (c): c is Extract<SceneCmd, { t: "dot" }> => c.t === "dot" && c.id === `${chordId}:midDot`,
+    );
+    const midTextBoth = sceneBoth.texts.find((t) => t.id === `${chordId}:midName`);
+    assert.ok(midDotBoth, "midpoint dot should be rendered");
+    assert.ok(midTextBoth, "midpoint name text should be rendered");
+    assert.equal(runsToPlain(midTextBoth.runs), "M");
+
+    // Custom midpoint name, e.g. "H" (수선의 발 H)
+    const sceneH = buildCircleChordsScene({
+      ...base,
+      chords: base.chords.map((c, i) =>
+        i === 0 ? { ...c, showMidpoint: true, midpointMode: "both", midName: "H" } : c,
+      ),
+    });
+    const midTextH = sceneH.texts.find((t) => t.id === `${chordId}:midName`);
+    assert.ok(midTextH);
+    assert.equal(runsToPlain(midTextH.runs), "H");
+
+    // midpointMode "dot": dot present, text hidden
+    const sceneDot = buildCircleChordsScene({
+      ...base,
+      chords: base.chords.map((c, i) =>
+        i === 0 ? { ...c, showMidpoint: true, midpointMode: "dot" } : c,
+      ),
+    });
+    assert.ok(sceneDot.cmds.some((c) => c.t === "dot" && c.id === `${chordId}:midDot`));
+    assert.ok(!sceneDot.texts.some((t) => t.id === `${chordId}:midName`));
+
+    // midpointMode "name": text present, dot hidden
+    const sceneName = buildCircleChordsScene({
+      ...base,
+      chords: base.chords.map((c, i) =>
+        i === 0 ? { ...c, showMidpoint: true, midpointMode: "name" } : c,
+      ),
+    });
+    assert.ok(!sceneName.cmds.some((c) => c.t === "dot" && c.id === `${chordId}:midDot`));
+    assert.ok(sceneName.texts.some((t) => t.id === `${chordId}:midName`));
+
+    // midpointMode "none": neither present
+    const sceneNone = buildCircleChordsScene({
+      ...base,
+      chords: base.chords.map((c, i) =>
+        i === 0 ? { ...c, showMidpoint: true, midpointMode: "none" } : c,
+      ),
+    });
+    assert.ok(!sceneNone.cmds.some((c) => c.t === "dot" && c.id === `${chordId}:midDot`));
+    assert.ok(!sceneNone.texts.some((t) => t.id === `${chordId}:midName`));
+  });
+
+  it("detects chord intersections, renders dot and name, and allows cycling/setting mode and name", () => {
+    // Preset with 2 intersecting chords (or configure 2 crossing chords)
+    const state: CircleChordsState = {
+      ...cloneState(CIRCLE_CHORD_PRESETS[0]!.state),
+      chords: [
+        {
+          ...CIRCLE_CHORD_PRESETS[0]!.state.chords[0]!,
+          id: "c1",
+          cardinal: "up",
+          tiltDeg: 0,
+          midAngleDeg: 90,
+          distance: 40,
+          length: 160,
+          startName: "A",
+          endName: "B",
+        },
+        {
+          ...CIRCLE_CHORD_PRESETS[0]!.state.chords[0]!,
+          id: "c2",
+          cardinal: "right",
+          tiltDeg: 0,
+          midAngleDeg: 0,
+          distance: 30,
+          length: 160,
+          startName: "C",
+          endName: "D",
+        },
+      ],
+    };
+
+    const intersections = findChordIntersections(state);
+    assert.equal(intersections.length, 1);
+    const ix = intersections[0]!;
+    assert.equal(ix.id, "c1:c2");
+    assert.equal(ix.name, "P");
+    assert.equal(ix.mode, "both");
+
+    // Scene renders intersection dot and text
+    const scene1 = buildCircleChordsScene(state);
+    const ixDot = scene1.cmds.find(
+      (c): c is Extract<SceneCmd, { t: "dot" }> =>
+        c.t === "dot" && "id" in c && c.id === `intersection:${ix.id}:dot`,
+    );
+    const ixText = scene1.texts.find((t) => t.id === `intersection:${ix.id}:name`);
+    assert.ok(ixDot, "intersection dot should be rendered");
+    assert.ok(ixText, "intersection text should be rendered");
+    assert.equal(runsToPlain(ixText.runs), "P");
+
+    // Rename intersection to "X"
+    const stateRenamed = setIntersectionName(state, ix.id, "X");
+    const sceneRenamed = buildCircleChordsScene(stateRenamed);
+    const renamedText = sceneRenamed.texts.find((t) => t.id === `intersection:${ix.id}:name`);
+    assert.ok(renamedText);
+    assert.equal(runsToPlain(renamedText.runs), "X");
+
+    // Set mode to "name" -> no dot, text only
+    const stateNameOnly = setIntersectionMode(state, ix.id, "name");
+    const sceneNameOnly = buildCircleChordsScene(stateNameOnly);
+    assert.ok(!sceneNameOnly.cmds.some((c) => "id" in c && c.id === `intersection:${ix.id}:dot`));
+    assert.ok(sceneNameOnly.texts.some((t) => t.id === `intersection:${ix.id}:name`));
+
+    // Cycle mode: "both" -> "dot" -> "name" -> "none" -> "both"
+    let s = state;
+    s = cycleIntersectionMode(s, ix.id); // both -> dot
+    let sc = buildCircleChordsScene(s);
+    assert.ok(sc.cmds.some((c) => "id" in c && c.id === `intersection:${ix.id}:dot`));
+    assert.ok(!sc.texts.some((t) => t.id === `intersection:${ix.id}:name`));
+
+    s = cycleIntersectionMode(s, ix.id); // dot -> name
+    sc = buildCircleChordsScene(s);
+    assert.ok(!sc.cmds.some((c) => "id" in c && c.id === `intersection:${ix.id}:dot`));
+    assert.ok(sc.texts.some((t) => t.id === `intersection:${ix.id}:name`));
+
+    s = cycleIntersectionMode(s, ix.id); // name -> none
+    sc = buildCircleChordsScene(s);
+    assert.ok(!sc.cmds.some((c) => "id" in c && c.id === `intersection:${ix.id}:dot`));
+    assert.ok(!sc.texts.some((t) => t.id === `intersection:${ix.id}:name`));
   });
 });
