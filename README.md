@@ -30,7 +30,7 @@ npm run dev
 
 ## 환경 변수 / 인증
 
-Supabase는 **foreducator.com 과 동일한 프로젝트를 공유**합니다. 교사 계정은 공유하되, 학생 계정과 pimath 데이터는 `pm_` 접두사로 분리합니다.
+Supabase는 **pimath 전용 프로젝트**를 사용합니다 (독립 Auth + `pm_*` 데이터). 공유 foreducator 프로젝트에서 이전하는 절차는 [scripts/supabase-split/](scripts/supabase-split/) 와 [docs/supabase-pm-conventions.md](docs/supabase-pm-conventions.md) 를 보세요.
 
 로컬 실행 전 `.env.example` 을 참고해 `.env.local` 을 만들어 주세요. (서버 전용 변수, `PM_` 접두사)
 

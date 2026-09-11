@@ -3,7 +3,7 @@ import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 import { AUTH_NEXT_COOKIE, STUDENT_SESSION_COOKIE } from "@/lib/auth-routes";
 import { safeNextPath } from "@/lib/safe-next-path";
-import { syncForeducatorAccount } from "@/lib/supabase/account";
+import { syncPimathAccount } from "@/lib/supabase/account";
 import { getSupabaseAnonKey, getSupabaseUrl } from "@/lib/supabase/env";
 
 type PendingCookie = {
@@ -106,7 +106,7 @@ export async function GET(request: Request) {
     options: { path: "/", maxAge: 0 },
   });
 
-  await syncForeducatorAccount(supabase, data.user);
+  await syncPimathAccount(supabase, data.user);
 
   return redirectWithCookies(new URL(next, origin), pending, cacheHeaders);
 }

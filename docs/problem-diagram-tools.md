@@ -521,10 +521,10 @@ components/tools/figures/DiagramToolShell.tsx  ← 공통 뼈대. 손대지 않�
 | 관리자 | `hwanys2@naver.com`만 반영완료(`applied`) / 반려(`rejected`) + 선택 사유(`admin_note`) |
 | 저장 | `pm_diagram_feedback.tool_id` = 카탈로그 `id` (예: `g3-circle-chords`) |
 | RPC | `pm_list_diagram_feedback` · `pm_create_diagram_feedback` · `pm_resolve_diagram_feedback` · `pm_delete_diagram_feedback` |
-| 알림 | 새 댓글만 기존 `create_notification`으로 관리자 foreducator 알림 (벨·텔레그램·웹푸시). URL `https://www.pimath.kr/tools/figures/{toolId}#feedback` |
-| 본인 댓글 | `create_notification`이 자기 알림을 막음 |
+| 알림 | 새 댓글만 `pm_notify` → `pm_notifications` (관리자). URL `https://www.pimath.kr/tools/figures/{toolId}#feedback` |
+| 본인 댓글 | `pm_notify`가 자기 알림을 막음 |
 
-손대지 말 것: `create_notification` 정의, `common_notification` 스키마, 레거시 `pimath_comment`.
+손대지 말 것: foreducator `common_notification` 스키마, 레거시 `pimath_comment`.
 
 구현 파일:
 

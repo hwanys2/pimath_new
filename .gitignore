@@ -45,5 +45,6 @@ next-env.d.ts
 .venv-img/
 .env*.local
 supabase/.temp/
+scripts/supabase-split/out/
 public/images/.bak/
 packages/pm-board/node_modules

@@ -6,17 +6,18 @@ This version has breaking changes — APIs, conventions, and file structure may 
 Notably in this version (Next.js 16): `middleware.ts` is deprecated and renamed to `proxy.ts` (Node.js runtime by default). Use `proxy.ts` at the project root.
 <!-- END:nextjs-agent-rules -->
 
-# Supabase (shared with foreducator.com)
+# Supabase (pimath independent)
 
-This project shares a single Supabase project with **foreducator.com**. Auth/accounts are shared, but all pimath-specific data MUST be isolated with a `pm_` prefix, and foreducator.com must never be affected.
+pimath uses its **own** Supabase project (Auth + `pm_*` data). Migration off the legacy shared foreducator project: [`scripts/supabase-split/`](scripts/supabase-split/), [`docs/supabase-pm-conventions.md`](docs/supabase-pm-conventions.md).
 
-Before any Supabase work (auth, tables, RLS, migrations, keys), READ and FOLLOW [`docs/supabase-pm-conventions.md`](docs/supabase-pm-conventions.md). Key rules:
+Before any Supabase work, READ and FOLLOW those docs. Key rules:
 
-- Never ALTER/DROP/mutate existing foreducator objects; never reuse legacy `pimath_*` tables.
 - Prefix every new DB object (tables, RPCs, buckets, policies) with `pm_`.
-- After signup/login, call the existing `ensure_supabase_django_user` RPC to sync the foreducator account (same email = same account). Never write `auth_user`/`common_profile`/mapping tables directly.
-- Frontend uses the publishable key only. Verify sessions server-side with `getClaims()`/`getUser()`, never `getSession()`.
-- Apply migrations to the shared DB only after explicit human confirmation.
+- After signup/login, call `pm_ensure_profile` (not `ensure_supabase_django_user`).
+- Profiles / schools / notifications live in `pm_profiles`, `pm_schools`, `pm_notifications` — never write foreducator `auth_user` / `common_profile` / mapping tables.
+- Frontend uses the publishable/anon key only. Verify sessions server-side with `getClaims()`/`getUser()`, never `getSession()`.
+- Do not mutate the legacy shared foreducator DB. Apply migrations there only after explicit human confirmation.
+- Cutover OAuth: reuse the same Google/Kakao Client ID/Secret; add the new project callback URI.
 
 # 1:1 PvP games
 
@@ -24,7 +25,7 @@ When adding or changing **1:1 matchmaking games** (class/global queue, auto-requ
 
 # 의견 게시판
 
-When adding or changing the **tools-menu feedback board** (글·댓글·그림 첨부), READ and FOLLOW [`docs/user-forum.md`](docs/user-forum.md). Keep it simpler than foreducator 소통공간: no likes, follows, DMs, or `tboard_*`. Path is `/tools/forum`, never `/board` (전자칠판).
+When adding or changing the **tools-menu feedback board** (글·댓글·그림 첨부), READ and FOLLOW [`docs/user-forum.md`](docs/user-forum.md). Keep it simpler than foreducator 소통공간: no likes, follows, DMs, or `tboard_*`. Path is `/tools/forum`, never `/board` (전자칠판). Notifications use `pm_notifications` / `pm_notify`.
 
 # 문제 그림 그리기
 

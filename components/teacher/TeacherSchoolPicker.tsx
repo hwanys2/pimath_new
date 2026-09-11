@@ -59,15 +59,17 @@ export default function TeacherSchoolPicker({ initial }: Props) {
             <span className="ml-2 text-foreground/50">{school.region}</span>
           ) : null}
           <span className="ml-2 text-[11px] font-semibold text-wood/50">
-            {school.source === "foreducator"
-              ? "포에듀케이터와 연동됨"
-              : "여기서 선택함"}
+            {school.source === "manual" || school.source === "catalog"
+              ? "여기서 선택함"
+              : school.source === "foreducator"
+                ? "이전 연동 기록"
+                : "등록됨"}
           </span>
         </p>
       ) : (
         <p className="mt-2 text-sm text-foreground/65">
-          학교를 등록하면 학교 대항전에 우리 학교 이름이 올라가요. 포에듀케이터에
-          등록된 학교가 있으면 로그인할 때 자동으로 가져옵니다.
+          학교를 등록하면 학교 대항전에 우리 학교 이름이 올라가요. 아래에서 학교를
+          검색해 선택해 주세요.
         </p>
       )}
 

@@ -8,7 +8,7 @@ import { getAuthCallbackUrl, getAuthOrigin } from "@/lib/auth-origin";
 import { AUTH_NEXT_COOKIE } from "@/lib/auth-routes";
 import { safeNextPath } from "@/lib/safe-next-path";
 import { createClient } from "@/lib/supabase/server";
-import { syncForeducatorAccount } from "@/lib/supabase/account";
+import { syncPimathAccount } from "@/lib/supabase/account";
 import {
   clearStudentSessionCookie,
   getStudentSession,
@@ -81,7 +81,7 @@ export async function signInWithEmail(
   }
 
   await clearStudentSessionCookie();
-  await syncForeducatorAccount(supabase, data.user);
+  await syncPimathAccount(supabase, data.user);
   revalidatePath("/", "layout");
   return { success: true, next: safeNextPath(formData.get("next")) };
 }
@@ -239,8 +239,7 @@ export async function signUpWithEmail(
   }
 
   await clearStudentSessionCookie();
-  // Sync the foreducator account right away (idempotent, email-matched).
-  await syncForeducatorAccount(supabase, data.user);
+  await syncPimathAccount(supabase, data.user);
 
   if (data.session) {
     revalidatePath("/", "layout");
@@ -381,6 +380,13 @@ export async function updateDisplayName(
   if (error) {
     console.error("[pm] updateDisplayName failed:", error.message);
     return { error: "닉네임을 바꾸지 못했어요." };
+  }
+
+  const { error: profileError } = await supabase.rpc("pm_set_profile_nickname", {
+    p_nickname: nickname,
+  });
+  if (profileError) {
+    console.error("[pm] pm_set_profile_nickname failed:", profileError.message);
   }
 
   const { error: refreshError } = await supabase.auth.refreshSession();

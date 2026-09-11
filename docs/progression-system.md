@@ -136,7 +136,7 @@ await submitGameRun({ contentKey: "g1-u1-1-prime-hunt", score });
 | **학급** | 우리 학급 학생 개인 순위 |
 | **학교별** | 학교 XP 합 대항전. 다른 학교를 누르면 그 학교 학생 순위 |
 
-- 학교는 포에듀케이터 `common_profile.school_id` → `school_schoolinfo`를 **읽어서** `pm_teacher_schools`에 스냅샷한다. 포에듀 테이블은 쓰지 않는다. 미등록 교사는 pimath에서 NEIS 카탈로그를 검색해 고른다.
+- 학교는 `pm_schools` 카탈로그를 검색해 `pm_teacher_schools`에 스냅샷한다. (과거 공유 DB 시절 foreducator `school_schoolinfo` 읽기는 독립 이전 후 제거됨.)
 - 이름 마스킹: 비로그인·**다른 학교** 학생은 글자 하나 `*` (`홍길동` → `홍*동`). 로그인 후 같은 학교·같은 학급·본인은 실명. `login_id` / 학생 UUID는 공개 응답에 넣지 않는다.
 - RPC: `pm_list_hof_schools` / `pm_list_hof_classes` / `pm_list_hof_students` / `pm_get_hof_viewer`. **학교**는 우리 학교 학생 순위(상위 8 + 내 등수 ±3). **학교별**은 학교 합산 대항전.
 - 레거시 `pm_list_xp_ranking`은 유지하되 어드벤처 UI는 명예의 전당을 쓴다.

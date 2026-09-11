@@ -67,7 +67,7 @@ export type TeacherSchool = {
   schoolInfoId: number;
   schoolName: string;
   region: string | null;
-  source: "foreducator" | "manual";
+  source: "foreducator" | "manual" | "catalog";
 };
 
 export type SchoolSearchHit = {
@@ -290,6 +290,15 @@ export async function fetchHofBoard(input?: {
   };
 }
 
+function asSchoolSource(
+  value: unknown,
+): TeacherSchool["source"] {
+  if (value === "manual" || value === "catalog" || value === "foreducator") {
+    return value;
+  }
+  return "manual";
+}
+
 export async function fetchMyTeacherSchool(): Promise<TeacherSchool | null> {
   const supabase = await createClient();
   const { data, error } = await supabase.rpc("pm_get_my_teacher_school");
@@ -306,7 +315,7 @@ export async function fetchMyTeacherSchool(): Promise<TeacherSchool | null> {
     schoolInfoId,
     schoolName,
     region: asText(row.region),
-    source: row.source === "manual" ? "manual" : "foreducator",
+    source: asSchoolSource(row.source),
   };
 }
 
@@ -355,19 +364,6 @@ export async function setTeacherSchool(
     schoolInfoId: id,
     schoolName: name,
     region: asText(row?.region),
-    source: row?.source === "foreducator" ? "foreducator" : "manual",
+    source: asSchoolSource(row?.source),
   };
-}
-
-export async function syncTeacherSchoolFromForeducator(): Promise<void> {
-  const supabase = await createClient();
-  const { error } = await supabase.rpc(
-    "pm_sync_teacher_school_from_foreducator",
-  );
-  if (error) {
-    console.error(
-      "[pm] pm_sync_teacher_school_from_foreducator failed:",
-      error.message,
-    );
-  }
 }
