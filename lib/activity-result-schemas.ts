@@ -99,6 +99,12 @@ export const SUMMARY_LABELS: Record<string, Record<string, string>> = {
     stagesCleared: "클리어 단계",
     accuracy: "정확도(%)",
   },
+  "g1-u2-3-coordinate-defuser": {
+    defused: "해체한 폭탄",
+    maxCombo: "최대 콤보",
+    accuracy: "명중률(%)",
+    stageReached: "도달 단계",
+  },
   "g1-u3-1-angle-guess": {
     finalTier: "최종 단계",
     guesses: "시도 횟수",

@@ -98,6 +98,16 @@ export const CONTENTS: ContentMeta[] = [
       "연산을 선택해 일차방정식을 풀고 속도로 점수를 겨루는 탐구 게임. 학생은 선생님이 수업을 시작할 때만 참여해요.",
   },
   {
+    key: "g1-u2-3-coordinate-defuser",
+    unitId: "g1-2-3",
+    type: "game",
+    title: "좌표 폭탄 해체반",
+    href: "/play/g1-u2-3-coordinate-defuser",
+    awardsXp: true,
+    description:
+      "좌표평면에 출현한 시한폭탄의 순서쌍 (x, y)을 빠르게 입력해 펑! 터뜨려 해체하는 디펜스 게임. 학급 배정·활성 시 XP와 랭킹이 쌓여요.",
+  },
+  {
     key: "g1-u2-3-ordered-pair-omok",
     unitId: "g1-2-3",
     type: "game",
