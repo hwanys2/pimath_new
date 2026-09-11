@@ -34,7 +34,6 @@ function getAudioContextCtor(): typeof AudioContext | null {
 export class TempleAudio {
   private ctx: AC | null = null;
   private master: GainNode | null = null;
-  private droneNodes: { stop: () => void } | null = null;
   private heartbeatTimer: number | null = null;
   private keepAliveTimer: number | null = null;
   private speakGen = 0;
@@ -202,89 +201,25 @@ export class TempleAudio {
     }
   }
 
-  /** Low two-oscillator drone + slow LFO shimmer — temple ambience. */
+  /**
+   * Ambience is kept as a no-op stub for backwards compatibility.
+   * Continuous low-frequency drone oscillators were removed to prevent
+   * acoustic beating (웅웅거림), harmonic distortion, and speaker rattling.
+   */
   startAmbience() {
-    const ctx = this.ensureCtx();
-    if (!ctx || !this.master || this.droneNodes) return;
-    try {
-      const gain = ctx.createGain();
-      gain.gain.value = 0;
-      const filter = ctx.createBiquadFilter();
-      filter.type = "lowpass";
-      filter.frequency.value = 240;
-      filter.connect(gain);
-      gain.connect(this.master);
-
-      const o1 = ctx.createOscillator();
-      o1.type = "sawtooth";
-      o1.frequency.value = 55;
-      const o2 = ctx.createOscillator();
-      o2.type = "sawtooth";
-      o2.frequency.value = 58.3;
-      const o3 = ctx.createOscillator();
-      o3.type = "sine";
-      o3.frequency.value = 110;
-      const o3g = ctx.createGain();
-      o3g.gain.value = 0.35;
-      o3.connect(o3g);
-      o3g.connect(filter);
-      o1.connect(filter);
-      o2.connect(filter);
-
-      const lfo = ctx.createOscillator();
-      lfo.type = "sine";
-      lfo.frequency.value = 0.08;
-      const lfoGain = ctx.createGain();
-      lfoGain.gain.value = 0.012;
-      lfo.connect(lfoGain);
-      lfoGain.connect(gain.gain);
-
-      const now = ctx.currentTime;
-      gain.gain.setValueAtTime(0, now);
-      gain.gain.linearRampToValueAtTime(0.035, now + 2.5);
-
-      o1.start(now);
-      o2.start(now);
-      o3.start(now);
-      lfo.start(now);
-
-      this.droneNodes = {
-        stop: () => {
-          try {
-            const t = ctx.currentTime;
-            gain.gain.setTargetAtTime(0, t, 0.4);
-            window.setTimeout(() => {
-              try {
-                o1.stop();
-                o2.stop();
-                o3.stop();
-                lfo.stop();
-                gain.disconnect();
-              } catch {
-                /* already stopped */
-              }
-            }, 1200);
-          } catch {
-            /* ignore */
-          }
-        },
-      };
-    } catch {
-      /* ignore */
-    }
+    /* intentionally silent to keep audio clean and prevent speaker rattle */
   }
 
   stopAmbience() {
-    this.droneNodes?.stop();
-    this.droneNodes = null;
+    /* no-op */
   }
 
   /** Repeating low double-thump while the torch is nearly out. */
   startHeartbeat() {
     if (this.heartbeatTimer != null) return;
     const beat = () => {
-      this.thump(0.09);
-      window.setTimeout(() => this.thump(0.06), 220);
+      this.thump(0.04);
+      window.setTimeout(() => this.thump(0.025), 220);
     };
     beat();
     this.heartbeatTimer = window.setInterval(beat, 1100);
@@ -305,8 +240,9 @@ export class TempleAudio {
       const osc = ctx.createOscillator();
       const gain = ctx.createGain();
       osc.type = "sine";
-      osc.frequency.setValueAtTime(72, now);
-      osc.frequency.exponentialRampToValueAtTime(40, now + 0.16);
+      // 90Hz down to 60Hz: clean muffled thump without sub-bass speaker distortion
+      osc.frequency.setValueAtTime(90, now);
+      osc.frequency.exponentialRampToValueAtTime(60, now + 0.16);
       gain.gain.setValueAtTime(vol, now);
       gain.gain.exponentialRampToValueAtTime(0.001, now + 0.22);
       osc.connect(gain);
@@ -318,8 +254,8 @@ export class TempleAudio {
     }
   }
 
-  /** Filtered-noise rumble used for doors / collapse. */
-  private rumble(duration: number, vol: number, freq = 130) {
+  /** Bandpass-filtered texture rumble for doors / collapse (avoids sub-bass distortion). */
+  private rumble(duration: number, vol: number, freq = 240) {
     const ctx = this.ensureCtx();
     if (!ctx || !this.master) return;
     try {
@@ -331,9 +267,10 @@ export class TempleAudio {
       const src = ctx.createBufferSource();
       src.buffer = buffer;
       const filter = ctx.createBiquadFilter();
-      filter.type = "lowpass";
+      filter.type = "bandpass";
       filter.frequency.setValueAtTime(freq, now);
-      filter.frequency.exponentialRampToValueAtTime(45, now + duration);
+      filter.Q.value = 1.0;
+      filter.frequency.exponentialRampToValueAtTime(140, now + duration);
       const gain = ctx.createGain();
       gain.gain.setValueAtTime(vol, now);
       gain.gain.exponentialRampToValueAtTime(0.001, now + duration);
@@ -402,17 +339,16 @@ export class TempleAudio {
         this.tone({ type: "triangle", freq: 784, vol: 0.08, dur: 0.34, delay: 0.2 });
         break;
       case "wrong":
-        this.tone({ type: "square", freq: 150, vol: 0.06, dur: 0.22 });
-        this.tone({ type: "square", freq: 110, vol: 0.05, dur: 0.3, delay: 0.12 });
-        this.rumble(0.5, 0.05, 220);
+        this.tone({ type: "triangle", freq: 185, vol: 0.06, dur: 0.16 });
+        this.tone({ type: "triangle", freq: 138, vol: 0.06, dur: 0.22, delay: 0.08 });
         break;
       case "door":
-        this.rumble(1.4, 0.12);
-        this.tone({ type: "sine", freq: [[60, 0], [48, 0.8]], vol: 0.08, dur: 1.3 });
+        this.rumble(0.8, 0.04, 280);
+        this.tone({ type: "sine", freq: [[160, 0], [120, 0.4]], vol: 0.03, dur: 0.7 });
         break;
       case "collapse":
-        this.rumble(2.4, 0.16, 180);
-        this.tone({ type: "sine", freq: [[55, 0], [35, 1.6]], vol: 0.1, dur: 2.2 });
+        this.rumble(1.5, 0.05, 240);
+        this.tone({ type: "sine", freq: [[120, 0], [90, 0.8]], vol: 0.035, dur: 1.4 });
         break;
       case "fanfare":
         this.tone({ type: "triangle", freq: 523, vol: 0.07, dur: 0.18 });
@@ -422,7 +358,7 @@ export class TempleAudio {
         this.tone({ type: "sine", freq: 262, vol: 0.05, dur: 0.9, delay: 0.42 });
         break;
       case "heartbeat":
-        this.thump(0.09);
+        this.thump(0.04);
         break;
     }
   }
