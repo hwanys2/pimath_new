@@ -17,7 +17,7 @@ import {
   releaseLock,
   tryAcquireLock,
   updateCampaign,
-  isRecipientStillConsenting,
+  isRecipientEligible,
 } from "@/lib/mailing/campaign";
 import {
   buildEmailHtml,
@@ -216,9 +216,10 @@ export async function processCampaignBatch(
         .eq("id", recipient.id)
         .in("status", ["pending", "failed"]);
 
-      const eligible = await isRecipientStillConsenting(
+      const eligible = await isRecipientEligible(
         admin,
         recipient.user_id,
+        campaign.audience ?? "marketing",
       );
       if (!eligible) {
         await admin

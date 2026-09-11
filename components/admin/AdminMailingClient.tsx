@@ -1,10 +1,16 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import MailRichTextEditor from "@/components/admin/MailRichTextEditor";
+import {
+  AUDIENCE_LABELS,
+  type MailAudience,
+} from "@/lib/mailing/types";
 
 type Campaign = {
   id: string;
   subject: string;
+  audience?: MailAudience;
   status: string;
   totalRecipients: number;
   sentCount: number;
@@ -17,6 +23,12 @@ type Campaign = {
   updatedAt: string;
 };
 
+type AudienceCounts = {
+  test: number;
+  marketing: number;
+  system: number;
+};
+
 const STATUS_LABELS: Record<string, string> = {
   draft: "초안",
   running: "발송 중",
@@ -26,12 +38,21 @@ const STATUS_LABELS: Record<string, string> = {
   failed: "실패",
 };
 
+const AUDIENCE_HELP: Record<MailAudience, string> = {
+  test: "hwanys2@naver.com 에게만 보냅니다. SES·본문 확인용이에요.",
+  marketing: "설정에서 소식 메일 수신에 동의한 교사에게 보냅니다.",
+  system: "이메일이 있는 모든 교사에게 보냅니다. (필수 안내용)",
+};
+
 export default function AdminMailingClient() {
   const [subject, setSubject] = useState("");
   const [bodyHtml, setBodyHtml] = useState(
     "<p>안녕하세요.</p><p>수학하는 즐거움 소식입니다.</p>",
   );
-  const [recipientCount, setRecipientCount] = useState<number | null>(null);
+  const [audience, setAudience] = useState<MailAudience>("test");
+  const [audienceCounts, setAudienceCounts] = useState<AudienceCounts | null>(
+    null,
+  );
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
@@ -46,10 +67,10 @@ export default function AdminMailingClient() {
       return;
     }
     const data = (await res.json()) as {
-      recipientCount: number;
+      audienceCounts: AudienceCounts;
       campaigns: Campaign[];
     };
-    setRecipientCount(data.recipientCount);
+    setAudienceCounts(data.audienceCounts);
     setCampaigns(data.campaigns);
     setError(null);
   }, []);
@@ -71,7 +92,7 @@ export default function AdminMailingClient() {
       const createRes = await fetch("/api/admin/mailing/campaigns", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ subject, bodyHtml }),
+        body: JSON.stringify({ subject, bodyHtml, audience }),
       });
       const createData = await createRes.json();
       if (!createRes.ok) {
@@ -86,8 +107,17 @@ export default function AdminMailingClient() {
       if (!startRes.ok) {
         throw new Error(startData.error || "시작 실패");
       }
-      setMessage("발송을 시작했어요.");
-      setSubject("");
+      const label = AUDIENCE_LABELS[audience];
+      setMessage(
+        audience === "test"
+          ? "테스트 메일을 관리자에게 발송했어요."
+          : `"${label}" 대상으로 발송을 시작했어요.`,
+      );
+      if (audience === "test") {
+        // keep form for iteration
+      } else {
+        setSubject("");
+      }
       await refresh();
     } catch (err) {
       setError((err as Error).message);
@@ -114,18 +144,59 @@ export default function AdminMailingClient() {
     }
   }
 
+  const selectedCount = audienceCounts?.[audience] ?? null;
+
   return (
     <div className="space-y-8">
       <section className="rounded-2xl border border-wood/15 bg-cream/80 p-5 shadow-sm">
         <h2 className="font-display text-lg text-wood-dark">새 메일</h2>
-        <p className="mt-1 text-xs text-wood/60">
-          마케팅 수신 동의자{" "}
-          <strong className="text-wood-dark">
-            {recipientCount === null ? "…" : `${recipientCount}명`}
-          </strong>
-          에게 발송해요. 본문은 HTML을 사용할 수 있어요.
-        </p>
-        <form onSubmit={createAndStart} className="mt-4 space-y-3">
+        <form onSubmit={createAndStart} className="mt-4 space-y-4">
+          <fieldset>
+            <legend className="text-sm font-semibold text-wood-dark">
+              발송 대상
+            </legend>
+            <div className="mt-2 space-y-2">
+              {(
+                [
+                  "test",
+                  "marketing",
+                  "system",
+                ] as const satisfies readonly MailAudience[]
+              ).map((key) => {
+                const count = audienceCounts?.[key];
+                return (
+                  <label
+                    key={key}
+                    className={`flex cursor-pointer items-start gap-3 rounded-xl border px-3 py-2.5 transition ${
+                      audience === key
+                        ? "border-wood/40 bg-wood/10"
+                        : "border-wood/15 bg-white/70 hover:bg-wood/5"
+                    }`}
+                  >
+                    <input
+                      type="radio"
+                      name="audience"
+                      className="mt-1"
+                      checked={audience === key}
+                      onChange={() => setAudience(key)}
+                    />
+                    <span>
+                      <span className="block text-sm font-semibold text-wood-dark">
+                        {AUDIENCE_LABELS[key]}
+                        <span className="ml-2 text-xs font-medium text-wood/55">
+                          {count === undefined ? "…" : `${count}명`}
+                        </span>
+                      </span>
+                      <span className="mt-0.5 block text-xs text-wood/60">
+                        {AUDIENCE_HELP[key]}
+                      </span>
+                    </span>
+                  </label>
+                );
+              })}
+            </div>
+          </fieldset>
+
           <label className="block text-sm font-semibold text-wood-dark">
             제목
             <input
@@ -136,22 +207,28 @@ export default function AdminMailingClient() {
               className="mt-1 w-full rounded-xl border border-wood/20 bg-white px-3 py-2 text-sm font-normal outline-none focus:border-wood/50"
             />
           </label>
-          <label className="block text-sm font-semibold text-wood-dark">
-            본문 (HTML)
-            <textarea
-              value={bodyHtml}
-              onChange={(e) => setBodyHtml(e.target.value)}
-              required
-              rows={10}
-              className="mt-1 w-full rounded-xl border border-wood/20 bg-white px-3 py-2 font-mono text-xs font-normal outline-none focus:border-wood/50"
-            />
-          </label>
+
+          <div>
+            <p className="text-sm font-semibold text-wood-dark">본문</p>
+            <p className="mt-0.5 text-xs text-wood/55">
+              툴바의 <strong>HTML</strong> / <strong>미리보기</strong>로 코드와
+              보이는 화면을 전환할 수 있어요.
+            </p>
+            <div className="mt-2">
+              <MailRichTextEditor value={bodyHtml} onChange={setBodyHtml} />
+            </div>
+          </div>
+
           <button
             type="submit"
-            disabled={busy}
+            disabled={busy || !bodyHtml.trim()}
             className="font-display rounded-xl bg-wood px-4 py-2.5 text-sm text-cream transition hover:brightness-110 disabled:opacity-60"
           >
-            {busy ? "처리 중…" : "만들고 바로 발송"}
+            {busy
+              ? "처리 중…"
+              : audience === "test"
+                ? "테스트 발송 (관리자만)"
+                : `만들고 발송${selectedCount !== null ? ` (${selectedCount}명)` : ""}`}
           </button>
         </form>
         {message ? (
@@ -189,9 +266,13 @@ export default function AdminMailingClient() {
                       {c.subject}
                     </p>
                     <p className="mt-0.5 text-xs text-wood/55">
-                      {STATUS_LABELS[c.status] ?? c.status} · {c.sentCount}/
-                      {c.totalRecipients} 발송 · 실패 {c.failedCount} · 건너뜀{" "}
-                      {c.skippedCount} · {c.progressPercent}%
+                      {STATUS_LABELS[c.status] ?? c.status}
+                      {c.audience
+                        ? ` · ${AUDIENCE_LABELS[c.audience] ?? c.audience}`
+                        : ""}{" "}
+                      · {c.sentCount}/{c.totalRecipients} 발송 · 실패{" "}
+                      {c.failedCount} · 건너뜀 {c.skippedCount} ·{" "}
+                      {c.progressPercent}%
                     </p>
                     {c.errorMessage ? (
                       <p className="mt-1 text-xs text-red-700">{c.errorMessage}</p>

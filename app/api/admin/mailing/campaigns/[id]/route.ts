@@ -7,12 +7,19 @@ import {
   snapshotRecipients,
   updateCampaign,
 } from "@/lib/mailing/campaign";
+import type { MailAudience } from "@/lib/mailing/types";
 import { scheduleCampaignWorker } from "@/lib/mailing/worker";
 
 export const runtime = "nodejs";
 export const maxDuration = 300;
 
 type Ctx = { params: Promise<{ id: string }> };
+
+const EMPTY_MSG: Record<MailAudience, string> = {
+  test: "관리자 프로필을 찾지 못했어요.",
+  marketing: "소식 메일 수신 동의자가 없습니다.",
+  system: "발송 대상 교사가 없습니다.",
+};
 
 export async function GET(_request: Request, ctx: Ctx) {
   const gate = await requireMailingAdmin();
@@ -37,6 +44,8 @@ export async function POST(request: Request, ctx: Ctx) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
 
+  const audience = (campaign.audience ?? "marketing") as MailAudience;
+
   try {
     if (action === "start") {
       if (
@@ -50,13 +59,21 @@ export async function POST(request: Request, ctx: Ctx) {
         );
       }
       if (campaign.status === "draft") {
-        const total = await snapshotRecipients(gate.admin, id);
+        let total: number;
+        try {
+          total = await snapshotRecipients(gate.admin, id, audience);
+        } catch (snapErr) {
+          return NextResponse.json(
+            { error: (snapErr as Error).message },
+            { status: 400 },
+          );
+        }
         if (total === 0) {
           await updateCampaign(gate.admin, id, {
             status: "completed",
             total_recipients: 0,
             completed_at: nowIso(),
-            error_message: "마케팅 수신 동의자가 없습니다.",
+            error_message: EMPTY_MSG[audience],
           });
           const done = await getCampaign(gate.admin, id);
           return NextResponse.json({ campaign: mapCampaignApi(done!) });

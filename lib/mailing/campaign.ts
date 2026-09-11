@@ -1,5 +1,12 @@
 import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
+import {
+  isMailAudience,
+  type MailAudience,
+} from "@/lib/mailing/types";
+
+export type { MailAudience } from "@/lib/mailing/types";
+export { isMailAudience, MAIL_AUDIENCES } from "@/lib/mailing/types";
 
 export const CAMPAIGN_TABLE = "pm_mailing_campaigns";
 export const RECIPIENT_TABLE = "pm_mailing_recipients";
@@ -20,6 +27,7 @@ export type CampaignRow = {
   created_by: string;
   subject: string;
   body_html: string;
+  audience: MailAudience;
   status: CampaignStatus;
   total_recipients: number;
   sent_count: number;
@@ -113,25 +121,99 @@ export async function countMarketingRecipients(
   return count ?? 0;
 }
 
-export async function snapshotRecipients(
+export async function countSystemRecipients(
   admin: SupabaseClient,
-  campaignId: string,
 ): Promise<number> {
+  const { count, error } = await admin
+    .from("pm_profiles")
+    .select("*", { count: "exact", head: true })
+    .neq("email", "");
+  if (error) throw error;
+  return count ?? 0;
+}
+
+export async function countAudienceRecipients(
+  admin: SupabaseClient,
+  audience: MailAudience,
+): Promise<number> {
+  if (audience === "test") return 1;
+  if (audience === "marketing") return countMarketingRecipients(admin);
+  return countSystemRecipients(admin);
+}
+
+export async function getAudienceCounts(admin: SupabaseClient): Promise<{
+  test: number;
+  marketing: number;
+  system: number;
+}> {
+  const [marketing, system] = await Promise.all([
+    countMarketingRecipients(admin),
+    countSystemRecipients(admin),
+  ]);
+  return { test: 1, marketing, system };
+}
+
+async function resolveTestRecipient(
+  admin: SupabaseClient,
+): Promise<{ user_id: string; email: string } | null> {
   const { data, error } = await admin
     .from("pm_profiles")
     .select("user_id, email")
-    .eq("mail_marketing_consent", true)
-    .neq("email", "");
+    .eq("email", "hwanys2@naver.com")
+    .maybeSingle();
   if (error) throw error;
+  if (data?.user_id && typeof data.email === "string" && data.email.includes("@")) {
+    return {
+      user_id: data.user_id as string,
+      email: String(data.email).trim().toLowerCase(),
+    };
+  }
 
-  const rows = (data ?? [])
-    .filter((r) => typeof r.email === "string" && r.email.includes("@"))
-    .map((r) => ({
-      campaign_id: campaignId,
-      user_id: r.user_id as string,
-      email: String(r.email).trim().toLowerCase(),
-      status: "pending" as const,
-    }));
+  // Fallback: auth.users via admin API is not available through PostgREST profiles only.
+  // Require profile row for admin.
+  return null;
+}
+
+export async function snapshotRecipients(
+  admin: SupabaseClient,
+  campaignId: string,
+  audience: MailAudience = "marketing",
+): Promise<number> {
+  let rows: { campaign_id: string; user_id: string; email: string; status: "pending" }[] =
+    [];
+
+  if (audience === "test") {
+    const adminRecipient = await resolveTestRecipient(admin);
+    if (!adminRecipient) {
+      throw new Error(
+        "관리자 프로필(hwanys2@naver.com)을 찾지 못했어요. 한 번 로그인해 주세요.",
+      );
+    }
+    rows = [
+      {
+        campaign_id: campaignId,
+        user_id: adminRecipient.user_id,
+        email: adminRecipient.email,
+        status: "pending",
+      },
+    ];
+  } else {
+    let query = admin.from("pm_profiles").select("user_id, email").neq("email", "");
+    if (audience === "marketing") {
+      query = query.eq("mail_marketing_consent", true);
+    }
+    const { data, error } = await query;
+    if (error) throw error;
+
+    rows = (data ?? [])
+      .filter((r) => typeof r.email === "string" && r.email.includes("@"))
+      .map((r) => ({
+        campaign_id: campaignId,
+        user_id: r.user_id as string,
+        email: String(r.email).trim().toLowerCase(),
+        status: "pending" as const,
+      }));
+  }
 
   if (rows.length === 0) return 0;
 
@@ -296,9 +378,10 @@ export async function findResumableRunningCampaigns(
   return out;
 }
 
-export async function isRecipientStillConsenting(
+export async function isRecipientEligible(
   admin: SupabaseClient,
   userId: string,
+  audience: MailAudience,
 ): Promise<boolean> {
   const { data, error } = await admin
     .from("pm_profiles")
@@ -306,11 +389,26 @@ export async function isRecipientStillConsenting(
     .eq("user_id", userId)
     .maybeSingle();
   if (error) throw error;
-  return !!(
-    data?.mail_marketing_consent &&
-    typeof data.email === "string" &&
-    data.email.includes("@")
-  );
+  const emailOk =
+    typeof data?.email === "string" && data.email.includes("@");
+  if (!emailOk) return false;
+
+  if (audience === "test") {
+    return String(data?.email).trim().toLowerCase() === "hwanys2@naver.com";
+  }
+  if (audience === "marketing") {
+    return !!data?.mail_marketing_consent;
+  }
+  // system: any profile with email
+  return true;
+}
+
+/** @deprecated use isRecipientEligible */
+export async function isRecipientStillConsenting(
+  admin: SupabaseClient,
+  userId: string,
+): Promise<boolean> {
+  return isRecipientEligible(admin, userId, "marketing");
 }
 
 export function mapCampaignApi(campaign: CampaignRow) {
@@ -323,6 +421,7 @@ export function mapCampaignApi(campaign: CampaignRow) {
     id: campaign.id,
     subject: campaign.subject,
     bodyHtml: campaign.body_html,
+    audience: campaign.audience ?? "marketing",
     status: campaign.status,
     totalRecipients: total,
     sentCount: campaign.sent_count,

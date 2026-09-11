@@ -19,3 +19,13 @@ AWS 콘솔(foreducator와 같은 계정, 리전 `ap-southeast-2` 권장):
 | `PM_SUPABASE_SERVICE_ROLE_KEY` | pimath 프로젝트 service_role |
 
 Cron: `*/5 * * * *` → `/api/cron/process-mailing` (`vercel.json`).
+
+## 발송 대상 (3종)
+
+| 값 | 의미 |
+|----|------|
+| `test` | `hwanys2@naver.com` 관리자만 (테스트) |
+| `marketing` | `mail_marketing_consent = true` |
+| `system` | 이메일 있는 전체 교사 (필수 안내) |
+
+관리자 UI(`/admin/mailing`)에서 라디오로 선택. 본문은 리치텍스트 ↔ HTML 전환 가능.

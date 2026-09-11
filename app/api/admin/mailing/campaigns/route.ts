@@ -2,11 +2,12 @@ import { NextResponse } from "next/server";
 import { requireMailingAdmin } from "@/lib/mailing/auth";
 import {
   CAMPAIGN_TABLE,
-  countMarketingRecipients,
+  getAudienceCounts,
   listCampaigns,
   mapCampaignApi,
   nowIso,
 } from "@/lib/mailing/campaign";
+import { isMailAudience, type MailAudience } from "@/lib/mailing/types";
 
 export const runtime = "nodejs";
 
@@ -15,12 +16,13 @@ export async function GET() {
   if (!gate.ok) return gate.response;
 
   try {
-    const [campaigns, recipientCount] = await Promise.all([
+    const [campaigns, audienceCounts] = await Promise.all([
       listCampaigns(gate.admin),
-      countMarketingRecipients(gate.admin),
+      getAudienceCounts(gate.admin),
     ]);
     return NextResponse.json({
-      recipientCount,
+      audienceCounts,
+      recipientCount: audienceCounts.marketing,
       campaigns: campaigns.map(mapCampaignApi),
     });
   } catch (err) {
@@ -33,7 +35,7 @@ export async function POST(request: Request) {
   const gate = await requireMailingAdmin();
   if (!gate.ok) return gate.response;
 
-  let body: { subject?: string; bodyHtml?: string };
+  let body: { subject?: string; bodyHtml?: string; audience?: string };
   try {
     body = await request.json();
   } catch {
@@ -42,6 +44,10 @@ export async function POST(request: Request) {
 
   const subject = String(body.subject ?? "").trim();
   const bodyHtml = String(body.bodyHtml ?? "").trim();
+  const audience: MailAudience = isMailAudience(body.audience)
+    ? body.audience
+    : "marketing";
+
   if (!subject || !bodyHtml) {
     return NextResponse.json(
       { error: "제목과 본문을 입력해 주세요." },
@@ -59,6 +65,7 @@ export async function POST(request: Request) {
         created_by: gate.userId,
         subject,
         body_html: bodyHtml,
+        audience,
         status: "draft",
         created_at: nowIso(),
         updated_at: nowIso(),
