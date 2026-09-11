@@ -70,10 +70,13 @@ export function createMailTransporter(): Transporter {
   if (!SMTP_USER || !SMTP_PASS) {
     throw new Error("AWS_SES_SMTP_USER and AWS_SES_SMTP_PASS must be configured");
   }
+  // Supports classic SES SMTP (email-smtp.*) and Mail Manager SMTP
+  // (*.mail-manager-smtp.amazonaws.com) via AWS_SES_SMTP_HOST.
   return nodemailer.createTransport({
     host: SMTP_HOST,
     port: SMTP_PORT,
     secure: false,
+    requireTLS: true,
     auth: { user: SMTP_USER, pass: SMTP_PASS },
   });
 }

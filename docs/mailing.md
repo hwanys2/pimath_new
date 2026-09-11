@@ -1,22 +1,27 @@
-# pimath 관리자 메일링 (SES)
+# pimath 관리자 메일링 (SES / Mail Manager)
 
-## 당신이 할 SES 세팅 (약 10–15분)
+## From
 
-AWS 콘솔(foreducator와 같은 계정, 리전 `ap-southeast-2` 권장):
+`"수학하는 즐거움" <noreply@pimath.kr>` — SES에서 `pimath.kr` 도메인 DKIM 인증 필요.
 
-1. **SES → Identities → Create identity → Domain** → `pimath.kr`
-2. 나온 **DKIM CNAME 3개**를 `pimath.kr` DNS에 추가
-3. Identity가 **Verified** 될 때까지 대기
-4. From: `"수학하는 즐거움" <noreply@pimath.kr>`
+## SMTP (현재 A안: Mail Manager)
 
-## Vercel Production env
+코드는 `AWS_SES_SMTP_HOST`를 그대로 사용합니다. 호스트를 안 넣으면 기본값이
+`email-smtp.ap-southeast-2.amazonaws.com` (일반 SES SMTP)입니다.
 
-| 변수 | 설명 |
+Mail Manager 자격(`inp-…`)을 쓸 때는 **반드시** 표에 나온 엔드포인트를 HOST에 넣습니다.
+
+| 변수 | 예시 |
 |------|------|
-| `AWS_SES_SMTP_USER` / `AWS_SES_SMTP_PASS` | foreducator와 동일 가능 |
-| `AWS_SES_SMTP_HOST` | 선택, 기본 ap-southeast-2 |
-| `CRON_SECRET` | cron + unsubscribe 서명 폴백 |
-| `PM_SUPABASE_SERVICE_ROLE_KEY` | pimath 프로젝트 service_role |
+| `AWS_SES_SMTP_USER` | `inp-…` |
+| `AWS_SES_SMTP_PASS` | Mail Manager SMTP 암호 |
+| `AWS_SES_SMTP_HOST` | `xxxx.jd2m.mail-manager-smtp.amazonaws.com` |
+| `CRON_SECRET` | cron / unsubscribe 서명 |
+| `PM_SUPABASE_SERVICE_ROLE_KEY` | pimath service_role |
+
+일반 SES SMTP(`AKIA…`)를 쓸 때는 HOST를 비우거나
+`email-smtp.ap-southeast-2.amazonaws.com` 으로 두면 됩니다. `inp-…` 사용자를
+일반 SES 호스트에 넣으면 `535 Authentication Credentials Invalid`가 납니다.
 
 Cron: `*/5 * * * *` → `/api/cron/process-mailing` (`vercel.json`).
 
