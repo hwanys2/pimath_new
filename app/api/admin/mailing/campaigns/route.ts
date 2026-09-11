@@ -3,6 +3,7 @@ import { requireMailingAdmin } from "@/lib/mailing/auth";
 import {
   CAMPAIGN_TABLE,
   getAudienceCounts,
+  getCampaignFailureSamples,
   listCampaigns,
   mapCampaignApi,
   nowIso,
@@ -20,10 +21,17 @@ export async function GET() {
       listCampaigns(gate.admin),
       getAudienceCounts(gate.admin),
     ]);
+    const failureSamples = await getCampaignFailureSamples(
+      gate.admin,
+      campaigns.map((c) => c.id),
+    );
     return NextResponse.json({
       audienceCounts,
       recipientCount: audienceCounts.marketing,
-      campaigns: campaigns.map(mapCampaignApi),
+      campaigns: campaigns.map((c) => ({
+        ...mapCampaignApi(c),
+        lastFailure: failureSamples[c.id] ?? null,
+      })),
     });
   } catch (err) {
     console.error("[pm/mailing] list failed:", (err as Error).message);

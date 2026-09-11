@@ -436,3 +436,25 @@ export function mapCampaignApi(campaign: CampaignRow) {
     updatedAt: campaign.updated_at,
   };
 }
+
+export async function getCampaignFailureSamples(
+  admin: SupabaseClient,
+  campaignIds: string[],
+): Promise<Record<string, string>> {
+  if (campaignIds.length === 0) return {};
+  const { data, error } = await admin
+    .from(RECIPIENT_TABLE)
+    .select("campaign_id, last_error")
+    .in("campaign_id", campaignIds)
+    .eq("status", "failed")
+    .not("last_error", "is", null)
+    .order("updated_at", { ascending: false })
+    .limit(100);
+  if (error) throw error;
+  const out: Record<string, string> = {};
+  for (const row of data ?? []) {
+    const id = row.campaign_id as string;
+    if (!out[id] && row.last_error) out[id] = String(row.last_error);
+  }
+  return out;
+}

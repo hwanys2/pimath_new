@@ -19,6 +19,7 @@ type Campaign = {
   pendingCount: number;
   progressPercent: number;
   errorMessage: string | null;
+  lastFailure?: string | null;
   createdAt: string;
   updatedAt: string;
 };
@@ -276,6 +277,11 @@ export default function AdminMailingClient() {
                     </p>
                     {c.errorMessage ? (
                       <p className="mt-1 text-xs text-red-700">{c.errorMessage}</p>
+                    ) : null}
+                    {c.lastFailure ? (
+                      <p className="mt-1 text-xs text-red-700">
+                        수신자 오류: {c.lastFailure}
+                      </p>
                     ) : null}
                   </div>
                   <div className="flex flex-wrap gap-1.5">
