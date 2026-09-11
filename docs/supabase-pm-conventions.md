@@ -38,7 +38,7 @@ pimath 에서 **새로 만드는 모든 DB 객체**에는 `pm_` 접두사를 붙
 - 모든 `pm_*` 테이블·RPC·Storage (`pm_forum` 등)
 - `pm_profiles` — 닉네임/이메일 스냅샷
 - `pm_schools` — 학교 검색 카탈로그
-- `pm_notifications` — 포럼·그림도구 알림
+- `pm_notifications` — 포럼·그림도구 알림 (네비 벨: list / unread count / mark read)
 - 학생: `pm_students` + 서명 쿠키 `pm_student_session` (**auth.users 미사용**)
 
 ### 더 이상 사용하지 않음

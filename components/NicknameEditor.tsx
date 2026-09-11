@@ -7,11 +7,13 @@ import { notifyAuthChange, useActor } from "@/components/auth/ActorProvider";
 
 type Props = {
   name: string;
+  /** `bar` = wood nav (legacy). `menu` = cream account dropdown. */
+  variant?: "bar" | "menu";
 };
 
 const empty: AuthState = {};
 
-export default function NicknameEditor({ name }: Props) {
+export default function NicknameEditor({ name, variant = "bar" }: Props) {
   const router = useRouter();
   const { refresh } = useActor();
   const [editing, setEditing] = useState(false);
@@ -20,6 +22,7 @@ export default function NicknameEditor({ name }: Props) {
   const inputRef = useRef<HTMLInputElement>(null);
   const savedRef = useRef<string | undefined>(undefined);
   const skipBlurRef = useRef(false);
+  const inMenu = variant === "menu";
 
   useEffect(() => {
     setShown(name);
@@ -48,15 +51,24 @@ export default function NicknameEditor({ name }: Props) {
         title="닉네임 바꾸기"
         aria-label={`${shown}, 닉네임 바꾸기`}
         onClick={() => setEditing(true)}
-        className="hidden max-w-[8rem] truncate rounded-lg px-1.5 py-1 text-left text-sm font-semibold text-cream transition hover:bg-black/15 sm:inline"
+        className={
+          inMenu
+            ? "w-full truncate rounded-lg px-0 py-0.5 text-left text-sm font-semibold text-wood-dark transition hover:text-wood"
+            : "hidden max-w-[8rem] truncate rounded-lg px-1.5 py-1 text-left text-sm font-semibold text-cream transition hover:bg-black/15 sm:inline"
+        }
       >
         {shown}
+        {inMenu ? (
+          <span className="ml-1 text-[10px] font-semibold text-wood/45">
+            수정
+          </span>
+        ) : null}
       </button>
     );
   }
 
   return (
-    <form action={formAction} className="hidden sm:block">
+    <form action={formAction} className={inMenu ? "block" : "hidden sm:block"}>
       <input
         ref={inputRef}
         name="nickname"
@@ -84,7 +96,11 @@ export default function NicknameEditor({ name }: Props) {
             setEditing(false);
           }
         }}
-        className="w-[8rem] rounded-lg border border-cream/25 bg-black/20 px-2 py-1 text-sm font-semibold text-cream outline-none focus:border-gold/70 disabled:opacity-60"
+        className={
+          inMenu
+            ? "w-full rounded-lg border border-wood/25 bg-white/80 px-2 py-1 text-sm font-semibold text-wood-dark outline-none focus:border-wood/50 disabled:opacity-60"
+            : "w-[8rem] rounded-lg border border-cream/25 bg-black/20 px-2 py-1 text-sm font-semibold text-cream outline-none focus:border-gold/70 disabled:opacity-60"
+        }
       />
     </form>
   );

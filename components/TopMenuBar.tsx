@@ -4,12 +4,11 @@ import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
+import AccountMenu from "@/components/AccountMenu";
+import NotificationBell from "@/components/NotificationBell";
 import { GRADES } from "@/lib/grades";
 import { OPEN_CHAT_URL } from "@/lib/site-links";
 import { TOOLS } from "@/lib/tools";
-import { signOut } from "@/app/auth/actions";
-import NicknameEditor from "@/components/NicknameEditor";
-import { useActor } from "@/components/auth/ActorProvider";
 import type { TeacherActor } from "@/lib/auth-types";
 
 function ToolsMenu({ pathname }: { pathname: string }) {
@@ -107,7 +106,6 @@ export default function TopMenuBar({
   actor: TeacherActor | null;
 }) {
   const pathname = usePathname();
-  const { logout } = useActor();
 
   return (
     <header className="px-3 pt-3 sm:px-4 sm:pt-4">
@@ -157,27 +155,9 @@ export default function TopMenuBar({
         </div>
 
         {actor ? (
-          <div className="flex shrink-0 items-center gap-2">
-            <Link
-              href="/teacher"
-              className={`font-display rounded-xl px-3 py-2 text-sm transition ${
-                pathname.startsWith("/teacher")
-                  ? "bg-gold text-[#6b4a00] shadow-[0_3px_0_rgba(107,74,0,0.3)]"
-                  : "bg-black/15 text-cream hover:bg-black/25"
-              }`}
-            >
-              내 학급
-            </Link>
-            <span className="badge-pill hidden md:inline-flex">교사</span>
-            <NicknameEditor name={actor.name} />
-            <form action={logout}>
-              <button
-                type="submit"
-                className="font-display rounded-xl bg-black/15 px-3 py-2 text-sm text-cream transition hover:bg-black/25"
-              >
-                로그아웃
-              </button>
-            </form>
+          <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
+            <NotificationBell />
+            <AccountMenu actor={actor} />
           </div>
         ) : (
           <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">

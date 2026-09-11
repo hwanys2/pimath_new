@@ -88,7 +88,7 @@
 
 관리자 판별은 기존 `pm_is_diagram_admin()` 을 재사용한다 (같은 소유자 이메일). 그 함수를 ALTER 하지 않는다.
 
-알림: 새 글은 `pm_notify` → `pm_notifications` 로 관리자(`hwanys2@naver.com` Auth UUID)에게 저장. 제목 `pimath 새 글`, URL `https://www.pimath.kr/tools/forum/{id}`. 작성자가 관리자이면 sender를 비워 자기 알림을 피한다. 새 댓글은 관리자 + 글 작성자에게 보냄.
+알림: 새 글은 `pm_notify` → `pm_notifications` 로 관리자(`hwanys2@naver.com` Auth UUID)에게 저장. 제목 `pimath 새 글`, URL `https://www.pimath.kr/tools/forum/{id}`. 작성자가 관리자이면 sender를 비워 자기 알림을 피한다. 새 댓글은 관리자 + 글 작성자에게 보냄. UI는 교사 네비 벨(`NotificationBell`) — `pm_list_my_notifications` / `pm_unread_notification_count` / `pm_mark_notification_read` / `pm_mark_all_notifications_read`.
 
 속도 제한: 글 15초, 댓글 10초 (같은 사용자).
 
@@ -112,3 +112,4 @@
 |------|------|
 | 2026-09-01 | 초판. 도구 메뉴 첫 항목. 글·댓글·그림 첨부. |
 | 2026-09-01 | 새 글은 관리자 foreducator 알림을 항상 보냄. |
+| 2026-09-11 | 독립 DB `pm_notifications` + 네비 벨 UI. foreducator 알림함 미사용. |
