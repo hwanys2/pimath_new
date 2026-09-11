@@ -2,11 +2,50 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import NicknameEditor from "@/components/NicknameEditor";
 import { useActor } from "@/components/auth/ActorProvider";
+import {
+  LogoutIcon,
+  MailIcon,
+  SettingsIcon,
+  UsersIcon,
+} from "@/components/icons";
 import { isAdminEmail } from "@/lib/admin";
 import type { TeacherActor } from "@/lib/auth-types";
+
+const itemBase =
+  "font-display flex items-center gap-2.5 rounded-xl px-3 py-2.5 text-sm transition";
+
+function MenuItem({
+  href,
+  active,
+  onClick,
+  icon,
+  children,
+}: {
+  href: string;
+  active: boolean;
+  onClick: () => void;
+  icon: ReactNode;
+  children: ReactNode;
+}) {
+  return (
+    <Link
+      href={href}
+      role="menuitem"
+      onClick={onClick}
+      className={`${itemBase} ${
+        active
+          ? "bg-wood/15 text-wood-dark"
+          : "text-wood-dark hover:bg-wood/10"
+      }`}
+    >
+      <span className="shrink-0 text-wood/55">{icon}</span>
+      {children}
+    </Link>
+  );
+}
 
 export default function AccountMenu({ actor }: { actor: TeacherActor }) {
   const pathname = usePathname();
@@ -75,53 +114,46 @@ export default function AccountMenu({ actor }: { actor: TeacherActor }) {
 
           <div className="my-0.5 border-t border-wood/10" />
 
-          <Link
+          <MenuItem
             href="/teacher"
-            role="menuitem"
+            active={teacherActive}
             onClick={() => setOpen(false)}
-            className={`font-display flex items-center rounded-xl px-3 py-2.5 text-sm transition ${
-              teacherActive
-                ? "bg-wood/15 text-wood-dark"
-                : "text-wood-dark hover:bg-wood/10"
-            }`}
+            icon={<UsersIcon className="h-4 w-4" />}
           >
             내 학급
-          </Link>
+          </MenuItem>
 
-          <Link
+          <MenuItem
             href="/settings"
-            role="menuitem"
+            active={settingsActive}
             onClick={() => setOpen(false)}
-            className={`font-display flex items-center rounded-xl px-3 py-2.5 text-sm transition ${
-              settingsActive
-                ? "bg-wood/15 text-wood-dark"
-                : "text-wood-dark hover:bg-wood/10"
-            }`}
+            icon={<SettingsIcon className="h-4 w-4" />}
           >
             설정
-          </Link>
+          </MenuItem>
 
           {isAdmin ? (
-            <Link
+            <MenuItem
               href="/admin/mailing"
-              role="menuitem"
+              active={mailingActive}
               onClick={() => setOpen(false)}
-              className={`font-display flex items-center rounded-xl px-3 py-2.5 text-sm transition ${
-                mailingActive
-                  ? "bg-wood/15 text-wood-dark"
-                  : "text-wood-dark hover:bg-wood/10"
-              }`}
+              icon={<MailIcon className="h-4 w-4" />}
             >
               메일 발송
-            </Link>
+            </MenuItem>
           ) : null}
+
+          <div className="my-0.5 border-t border-wood/10" />
 
           <form action={logout}>
             <button
               type="submit"
               role="menuitem"
-              className="font-display flex w-full items-center rounded-xl px-3 py-2.5 text-left text-sm text-wood-dark transition hover:bg-wood/10"
+              className={`${itemBase} w-full text-left text-wood-dark hover:bg-wood/10`}
             >
+              <span className="shrink-0 text-wood/55">
+                <LogoutIcon className="h-4 w-4" />
+              </span>
               로그아웃
             </button>
           </form>

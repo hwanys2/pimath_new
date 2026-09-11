@@ -34,6 +34,7 @@ export async function setTeacherSchoolAction(
     revalidatePath("/");
     revalidatePath("/teacher");
     revalidatePath("/teacher", "layout");
+    revalidatePath("/settings");
     revalidatePath("/adventure");
   }
   return result;

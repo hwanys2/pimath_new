@@ -12,9 +12,14 @@ const inputClass =
 
 type Props = {
   initial: TeacherSchool | null;
+  /** `card` = teacher page quest card. `plain` = embed in another section. */
+  variant?: "card" | "plain";
 };
 
-export default function TeacherSchoolPicker({ initial }: Props) {
+export default function TeacherSchoolPicker({
+  initial,
+  variant = "card",
+}: Props) {
   const [school, setSchool] = useState(initial);
   const [query, setQuery] = useState("");
   const [hits, setHits] = useState<SchoolSearchHit[]>([]);
@@ -47,38 +52,57 @@ export default function TeacherSchoolPicker({ initial }: Props) {
     });
   };
 
-  return (
-    <section className="quest-card p-5 sm:p-6">
-      <h2 className="font-display text-xl text-wood">우리 학교</h2>
-      {school ? (
-        <p className="mt-2 text-sm text-foreground/70">
-          <span className="font-display text-lg text-foreground">
-            {school.schoolName}
-          </span>
+  const body = (
+    <>
+      {variant === "card" ? (
+        <>
+          <h2 className="font-display text-xl text-wood">우리 학교</h2>
+          {school ? (
+            <p className="mt-2 text-sm text-foreground/70">
+              <span className="font-display text-lg text-foreground">
+                {school.schoolName}
+              </span>
+              {school.region ? (
+                <span className="ml-2 text-foreground/50">{school.region}</span>
+              ) : null}
+              <span className="ml-2 text-[11px] font-semibold text-wood/50">
+                {school.source === "manual" || school.source === "catalog"
+                  ? "여기서 선택함"
+                  : school.source === "foreducator"
+                    ? "이전 연동 기록"
+                    : "등록됨"}
+              </span>
+            </p>
+          ) : (
+            <p className="mt-2 text-sm text-foreground/65">
+              학교를 등록하면 학교 대항전에 우리 학교 이름이 올라가요. 아래에서
+              학교를 검색해 선택해 주세요.
+            </p>
+          )}
+        </>
+      ) : school ? (
+        <p className="rounded-xl bg-wood/5 px-3 py-3 text-sm text-wood-dark">
+          <span className="font-display text-lg">{school.schoolName}</span>
           {school.region ? (
-            <span className="ml-2 text-foreground/50">{school.region}</span>
+            <span className="ml-2 text-wood/55">{school.region}</span>
           ) : null}
-          <span className="ml-2 text-[11px] font-semibold text-wood/50">
-            {school.source === "manual" || school.source === "catalog"
-              ? "여기서 선택함"
-              : school.source === "foreducator"
-                ? "이전 연동 기록"
-                : "등록됨"}
-          </span>
         </p>
       ) : (
-        <p className="mt-2 text-sm text-foreground/65">
-          학교를 등록하면 학교 대항전에 우리 학교 이름이 올라가요. 아래에서 학교를
-          검색해 선택해 주세요.
+        <p className="text-sm text-wood/65">
+          아직 학교가 없어요. 학교 대항전에 이름이 올라가려면 아래에서 검색해
+          골라 주세요.
         </p>
       )}
 
       <div className="mt-4">
-        <label htmlFor="school-search" className="text-sm font-bold text-wood">
+        <label
+          htmlFor={variant === "plain" ? "settings-school-search" : "school-search"}
+          className="text-sm font-bold text-wood"
+        >
           {school ? "다른 학교로 바꾸기" : "학교 검색"}
         </label>
         <input
-          id="school-search"
+          id={variant === "plain" ? "settings-school-search" : "school-search"}
           value={query}
           onChange={(e) => search(e.target.value)}
           placeholder="학교 이름 두 글자 이상"
@@ -118,6 +142,12 @@ export default function TeacherSchoolPicker({ initial }: Props) {
           {error}
         </p>
       ) : null}
-    </section>
+    </>
   );
+
+  if (variant === "plain") {
+    return <div>{body}</div>;
+  }
+
+  return <section className="quest-card p-5 sm:p-6">{body}</section>;
 }
