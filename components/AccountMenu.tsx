@@ -44,7 +44,7 @@ export default function AccountMenu({ actor }: { actor: TeacherActor }) {
         aria-expanded={open}
         aria-haspopup="menu"
         aria-label="계정 메뉴"
-        className={`font-display flex max-w-[10rem] items-center gap-1.5 rounded-xl px-3 py-2 text-sm transition sm:max-w-[12rem] ${
+        className={`font-display flex max-w-[6.5rem] items-center gap-1.5 whitespace-nowrap rounded-xl px-2.5 py-2 text-sm transition sm:max-w-[12rem] sm:px-3 ${
           open || teacherActive || settingsActive || mailingActive
             ? "bg-cream text-wood-dark shadow-[0_3px_0_rgba(0,0,0,0.25)]"
             : "bg-black/15 text-cream hover:bg-black/25"

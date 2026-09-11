@@ -17,24 +17,34 @@ export default function HeroBanner() {
         <div className="absolute inset-0 bg-gradient-to-t from-[#3d2c1e]/50 via-transparent to-transparent" />
       </div>
 
-      <div className="relative grid items-center gap-6 px-6 py-10 sm:px-10 sm:py-14 lg:grid-cols-[1.2fr_0.8fr] lg:py-16">
+      <div className="relative grid items-center gap-6 px-5 py-8 sm:px-10 sm:py-14 lg:grid-cols-[1.2fr_0.8fr] lg:py-16">
         <div className="text-cream">
           <span className="badge-pill mb-4">🎮 오늘의 메인 퀘스트</span>
-          <h1 className="font-display text-3xl leading-tight drop-shadow-md sm:text-4xl lg:text-5xl">
+          <h1 className="font-display text-[1.7rem] leading-tight drop-shadow-md sm:text-4xl lg:text-5xl">
             수학 왕국으로
             <br />
             모험을 떠나자!
           </h1>
           <p className="mt-4 max-w-lg text-sm leading-relaxed text-cream/90 sm:text-base">
             시뮬레이션과 게임으로 배우는 중학교 수학.
-            <br />
+            <br className="hidden sm:inline" />
             미션을 클리어하고 배지를 모아보세요!
           </p>
-          <div className="mt-6 flex flex-wrap gap-3">
-            <BlockButton href="/grade/1" variant="gold" size="lg">
+          <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:flex-wrap">
+            <BlockButton
+              href="/grade/1"
+              variant="gold"
+              size="lg"
+              className="w-full sm:w-auto"
+            >
               🚀 모험 시작하기
             </BlockButton>
-            <BlockButton href="/grade/2" variant="sky" size="lg">
+            <BlockButton
+              href="/grade/2"
+              variant="sky"
+              size="lg"
+              className="w-full sm:w-auto"
+            >
               학년 선택
             </BlockButton>
           </div>

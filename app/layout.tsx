@@ -40,13 +40,13 @@ export default function RootLayout({
 
   return (
     <html lang="ko" className={`${jua.variable} ${notoSansKr.variable} h-full`}>
-      <body className="flex min-h-full flex-col antialiased">
+      <body className="flex min-h-full flex-col overflow-x-clip antialiased">
         <ActorProvider>
           <Suspense fallback={null}>
             <ActorRedirects />
           </Suspense>
           <SiteHeader />
-          <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-6 sm:px-6 sm:py-8">
+          <main className="mx-auto w-full max-w-6xl flex-1 px-3 py-5 sm:px-6 sm:py-8">
             {children}
           </main>
         </ActorProvider>
