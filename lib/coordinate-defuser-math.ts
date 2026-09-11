@@ -34,67 +34,81 @@ export type BombExplosion = {
 
 /**
  * Determine difficulty based on number of defused bombs and elapsed time.
+ * Starts with very generous time (12s, 1 bomb) so students can read the grid calmly,
+ * and scales up gradually.
  */
 export function getDifficulty(defused: number, elapsedSec: number): Difficulty {
-  if (defused < 5) {
+  if (defused < 6) {
     return {
       stage: 1,
       stageName: "기초 훈련",
       gridRange: 4,
-      fuseSeconds: 6.5,
+      fuseSeconds: 12.0, // 초반에는 여유 있게 12초 제공
       maxActiveBombs: 1,
-      spawnIntervalSec: 2.8,
+      spawnIntervalSec: 3.5,
       basePoints: 50,
     };
   }
-  if (defused < 12) {
+  if (defused < 14) {
     return {
       stage: 2,
-      stageName: "실전 작전",
+      stageName: "실전 훈련",
       gridRange: 5,
-      fuseSeconds: 5.2,
+      fuseSeconds: 9.5,
       maxActiveBombs: 1,
-      spawnIntervalSec: 2.4,
+      spawnIntervalSec: 3.0,
       basePoints: 60,
     };
   }
-  if (defused < 22) {
+  if (defused < 24) {
     return {
       stage: 3,
-      stageName: "신속 대응",
+      stageName: "속도 적응",
       gridRange: 6,
-      fuseSeconds: 4.4,
-      maxActiveBombs: 2,
-      spawnIntervalSec: 2.0,
+      fuseSeconds: 7.5,
+      maxActiveBombs: 1,
+      spawnIntervalSec: 2.6,
       basePoints: 70,
     };
   }
-  if (defused < 35) {
+  if (defused < 36) {
     return {
       stage: 4,
-      stageName: "비상 태세",
-      gridRange: 7,
-      fuseSeconds: 3.7,
-      maxActiveBombs: 2,
-      spawnIntervalSec: 1.8,
+      stageName: "신속 대응",
+      gridRange: 6,
+      fuseSeconds: 6.0,
+      maxActiveBombs: 2, // 24개 이상부터 2개 출현 시작
+      spawnIntervalSec: 2.2,
       basePoints: 80,
     };
   }
+  if (defused < 50) {
+    return {
+      stage: 5,
+      stageName: "비상 태세",
+      gridRange: 7,
+      fuseSeconds: 5.0,
+      maxActiveBombs: 2,
+      spawnIntervalSec: 1.9,
+      basePoints: 90,
+    };
+  }
 
-  // Endless / Overclock mode
-  const over = defused - 35;
-  const accel = Math.min(1.2, over * 0.04 + elapsedSec * 0.002);
-  const fuseSeconds = Math.max(2.4, 3.5 - accel);
-  const spawnIntervalSec = Math.max(1.4, 1.7 - accel * 0.2);
+  // Endless / Overclock mode (50+ defused)
+  const over = defused - 50;
+  const accel = Math.min(1.5, over * 0.04 + elapsedSec * 0.001);
+  const fuseSeconds = Math.max(3.2, 4.8 - accel);
+  const spawnIntervalSec = Math.max(1.5, 1.8 - accel * 0.15);
+  const maxActiveBombs = defused >= 65 ? 3 : 2;
 
   return {
-    stage: 5 + Math.floor(over / 15),
+    stage: 6 + Math.floor(over / 15),
     stageName: "한계 돌파",
     gridRange: 7,
     fuseSeconds,
-    maxActiveBombs: 3,
+    maxActiveBombs,
     spawnIntervalSec,
-    basePoints: 90,
+    basePoints: 100,
   };
 }
 
@@ -167,7 +181,7 @@ export function calculateDefuseScore(
   combo: number,
   fuseLeft: number,
 ): { totalGain: number; isClutch: boolean; comboBonus: number } {
-  const isClutch = fuseLeft <= 1.5;
+  const isClutch = fuseLeft <= 2.2;
   const comboMultiplier = Math.min(1.0, (combo - 1) * 0.1); // up to +100%
   const comboBonus = Math.round(basePoints * Math.max(0, comboMultiplier));
   const clutchBonus = isClutch ? 25 : 0;

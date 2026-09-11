@@ -374,7 +374,7 @@ export default function CoordinateDefuser() {
     let bombs = activeBombsRef.current.map((b) => ({
       ...b,
       fuseLeft: b.fuseLeft - dt,
-      isUrgent: b.fuseLeft - dt <= 1.5,
+      isUrgent: b.fuseLeft - dt <= 2.2,
     }));
 
     // Alarm beep for urgent bombs
@@ -396,6 +396,11 @@ export default function CoordinateDefuser() {
       setLives(nextLives);
       setCombo(0);
       comboRef.current = 0;
+
+      // 폭탄이 터지면 자동으로 x축 입력부터 다시 입력하도록 초기화
+      setXInput("");
+      setYInput("");
+      setInputSlot("x");
 
       // Audio & visual feedback
       audio.playExplosion();
@@ -1253,7 +1258,7 @@ export default function CoordinateDefuser() {
                   const radius = 17;
                   const circumference = 2 * Math.PI * radius;
                   const strokeDashoffset = circumference * (1 - fuseRatio);
-                  const isUrgent = bomb.fuseLeft <= 1.5;
+                  const isUrgent = bomb.fuseLeft <= 2.2;
 
                   return (
                     <g key={bomb.id} className="transition-transform duration-75">
