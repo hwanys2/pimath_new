@@ -39,6 +39,8 @@ pimath 에서 **새로 만드는 모든 DB 객체**에는 `pm_` 접두사를 붙
 - `pm_profiles` — 닉네임/이메일 스냅샷
 - `pm_schools` — 학교 검색 카탈로그
 - `pm_notifications` — 포럼·그림도구 알림 (네비 벨: list / unread count / mark read)
+- `pm_mailing_campaigns` / `pm_mailing_recipients` — 관리자 마케팅 메일 (SES)
+- `pm_profiles.mail_system_ok` / `mail_marketing_consent` — 필수 안내(고정) + 수신 동의(기본 ON)
 - 학생: `pm_students` + 서명 쿠키 `pm_student_session` (**auth.users 미사용**)
 
 ### 더 이상 사용하지 않음

@@ -31,3 +31,12 @@ export function getSupabaseAnonKey(): string {
 
   return key;
 }
+
+/** Server-only. Used for mailing campaigns — never ship to the browser. */
+export function getSupabaseServiceRoleKey(): string {
+  const key = process.env.PM_SUPABASE_SERVICE_ROLE_KEY?.trim();
+  if (!key) {
+    throw new Error("[pm] Missing PM_SUPABASE_SERVICE_ROLE_KEY");
+  }
+  return key;
+}

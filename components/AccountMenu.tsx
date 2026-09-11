@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import NicknameEditor from "@/components/NicknameEditor";
 import { useActor } from "@/components/auth/ActorProvider";
+import { isAdminEmail } from "@/lib/admin";
 import type { TeacherActor } from "@/lib/auth-types";
 
 export default function AccountMenu({ actor }: { actor: TeacherActor }) {
@@ -13,6 +14,9 @@ export default function AccountMenu({ actor }: { actor: TeacherActor }) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
   const teacherActive = pathname.startsWith("/teacher");
+  const settingsActive = pathname.startsWith("/settings");
+  const mailingActive = pathname.startsWith("/admin/mailing");
+  const isAdmin = isAdminEmail(actor.email);
 
   useEffect(() => {
     if (!open) return;
@@ -41,7 +45,7 @@ export default function AccountMenu({ actor }: { actor: TeacherActor }) {
         aria-haspopup="menu"
         aria-label="계정 메뉴"
         className={`font-display flex max-w-[10rem] items-center gap-1.5 rounded-xl px-3 py-2 text-sm transition sm:max-w-[12rem] ${
-          open || teacherActive
+          open || teacherActive || settingsActive || mailingActive
             ? "bg-cream text-wood-dark shadow-[0_3px_0_rgba(0,0,0,0.25)]"
             : "bg-black/15 text-cream hover:bg-black/25"
         }`}
@@ -83,6 +87,34 @@ export default function AccountMenu({ actor }: { actor: TeacherActor }) {
           >
             내 학급
           </Link>
+
+          <Link
+            href="/settings"
+            role="menuitem"
+            onClick={() => setOpen(false)}
+            className={`font-display flex items-center rounded-xl px-3 py-2.5 text-sm transition ${
+              settingsActive
+                ? "bg-wood/15 text-wood-dark"
+                : "text-wood-dark hover:bg-wood/10"
+            }`}
+          >
+            설정
+          </Link>
+
+          {isAdmin ? (
+            <Link
+              href="/admin/mailing"
+              role="menuitem"
+              onClick={() => setOpen(false)}
+              className={`font-display flex items-center rounded-xl px-3 py-2.5 text-sm transition ${
+                mailingActive
+                  ? "bg-wood/15 text-wood-dark"
+                  : "text-wood-dark hover:bg-wood/10"
+              }`}
+            >
+              메일 발송
+            </Link>
+          ) : null}
 
           <form action={logout}>
             <button
