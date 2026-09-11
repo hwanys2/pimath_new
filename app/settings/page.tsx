@@ -1,8 +1,9 @@
 import type { ReactNode } from "react";
 import NicknameEditor from "@/components/NicknameEditor";
+import DeleteAccountButton from "@/components/settings/DeleteAccountButton";
 import MailPrefsForm from "@/components/settings/MailPrefsForm";
 import TeacherSchoolPicker from "@/components/teacher/TeacherSchoolPicker";
-import { MailIcon, SchoolIcon, UserIcon } from "@/components/icons";
+import { MailIcon, SchoolIcon, UserIcon, UserMinusIcon } from "@/components/icons";
 import { requireTeacher } from "@/lib/auth";
 import { fetchMyTeacherSchool } from "@/lib/hall-of-fame";
 import { createClient } from "@/lib/supabase/server";
@@ -130,6 +131,26 @@ export default async function SettingsPage() {
         >
           <MailPrefsForm initialConsent={marketingConsent} />
         </Section>
+
+        <section
+          id="delete-account"
+          className="rounded-2xl border-2 border-[#a63a1a]/20 bg-peach/15 p-5 shadow-sm"
+        >
+          <div className="flex items-start gap-3">
+            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#a63a1a]/10 text-[#a63a1a]">
+              <UserMinusIcon className="h-5 w-5" />
+            </span>
+            <div>
+              <h2 className="font-display text-lg text-[#a63a1a]">계정 탈퇴</h2>
+              <p className="mt-0.5 text-xs text-[#a63a1a]/70">
+                학급과 학생 기록이 함께 영구 삭제돼요. 되돌릴 수 없어요.
+              </p>
+            </div>
+          </div>
+          <div className="mt-4">
+            <DeleteAccountButton variant="page" />
+          </div>
+        </section>
       </div>
     </div>
   );

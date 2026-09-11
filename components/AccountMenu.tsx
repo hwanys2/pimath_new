@@ -5,10 +5,12 @@ import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import NicknameEditor from "@/components/NicknameEditor";
 import { useActor } from "@/components/auth/ActorProvider";
+import DeleteAccountButton from "@/components/settings/DeleteAccountButton";
 import {
   LogoutIcon,
   MailIcon,
   SettingsIcon,
+  UserMinusIcon,
   UsersIcon,
 } from "@/components/icons";
 import { isAdminEmail } from "@/lib/admin";
@@ -51,6 +53,7 @@ export default function AccountMenu({ actor }: { actor: TeacherActor }) {
   const pathname = usePathname();
   const { logout } = useActor();
   const [open, setOpen] = useState(false);
+  const [deleteOpen, setDeleteOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
   const teacherActive = pathname.startsWith("/teacher");
   const settingsActive = pathname.startsWith("/settings");
@@ -157,8 +160,29 @@ export default function AccountMenu({ actor }: { actor: TeacherActor }) {
               로그아웃
             </button>
           </form>
+
+          <button
+            type="button"
+            role="menuitem"
+            onClick={() => {
+              setOpen(false);
+              setDeleteOpen(true);
+            }}
+            className={`${itemBase} w-full text-left text-[#a63a1a] hover:bg-peach/40`}
+          >
+            <span className="shrink-0 text-[#a63a1a]/70">
+              <UserMinusIcon className="h-4 w-4" />
+            </span>
+            탈퇴
+          </button>
         </div>
       ) : null}
+
+      <DeleteAccountButton
+        hideTrigger
+        dialogOpen={deleteOpen}
+        onDialogOpenChange={setDeleteOpen}
+      />
     </div>
   );
 }
