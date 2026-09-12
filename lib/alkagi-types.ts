@@ -38,7 +38,7 @@ export const ALKAGI_STONE_RADIUS = 0.5;
 export const ALKAGI_MAX_SPEED = 28;
 
 /** Seconds allowed per PvP turn before an automated move is played */
-export const ALKAGI_TURN_SECONDS = 30;
+export const ALKAGI_TURN_SECONDS = 60;
 
 export type AlkagiPollState = {
   phase: "idle" | "waiting" | "playing" | "ended";
