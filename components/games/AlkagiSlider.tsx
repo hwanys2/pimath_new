@@ -5,7 +5,10 @@ import { useEffect, useRef, useState, useCallback } from "react";
 type Props = {
   disabled?: boolean;
   isVertical?: boolean;
-  onFire: (direction: "left" | "right", power: number) => void;
+  onFire: (
+    direction: "left" | "right",
+    power: number,
+  ) => void | Promise<void>;
 };
 
 export default function AlkagiSlider({
@@ -18,17 +21,29 @@ export default function AlkagiSlider({
   const animFrameRef = useRef<number | null>(null);
   const startTimeRef = useRef<number | null>(null);
   const lockedRef = useRef(false);
+  const disabledRef = useRef(disabled);
+  const valueRef = useRef(value);
 
   // Period for full cycle (-1 -> +1 -> -1) in ms
   const CYCLE_MS = 2200;
 
   useEffect(() => {
+    disabledRef.current = disabled;
+  }, [disabled]);
+
+  useEffect(() => {
+    valueRef.current = value;
+  }, [value]);
+
+  useEffect(() => {
     if (disabled) {
       if (animFrameRef.current) cancelAnimationFrame(animFrameRef.current);
+      animFrameRef.current = null;
       return;
     }
 
     lockedRef.current = false;
+    startTimeRef.current = null;
     let running = true;
 
     const tick = (time: number) => {
@@ -49,20 +64,48 @@ export default function AlkagiSlider({
     return () => {
       running = false;
       if (animFrameRef.current) cancelAnimationFrame(animFrameRef.current);
+      animFrameRef.current = null;
     };
   }, [disabled]);
+
+  const resumeOscillation = useCallback(() => {
+    lockedRef.current = false;
+    if (disabledRef.current) return;
+    if (animFrameRef.current != null) return;
+    startTimeRef.current = null;
+    const tick = (time: number) => {
+      if (lockedRef.current || disabledRef.current) return;
+      if (startTimeRef.current == null) startTimeRef.current = time;
+      const elapsed = time - startTimeRef.current;
+      const phase = (elapsed % CYCLE_MS) / CYCLE_MS;
+      setValue(Math.sin(phase * Math.PI * 2));
+      animFrameRef.current = requestAnimationFrame(tick);
+    };
+    animFrameRef.current = requestAnimationFrame(tick);
+  }, []);
 
   const handleShoot = useCallback(() => {
     if (disabled || lockedRef.current) return;
     lockedRef.current = true;
     if (animFrameRef.current) cancelAnimationFrame(animFrameRef.current);
+    animFrameRef.current = null;
 
-    const currentV = value;
+    const currentV = valueRef.current;
     const direction: "left" | "right" = currentV >= 0 ? "right" : "left";
     const power = Math.max(0.08, Math.min(1.0, Math.abs(currentV)));
 
-    onFire(direction, power);
-  }, [disabled, value, onFire]);
+    // onFire may be async (PvP RPC). Always unlock if parent did not disable us
+    // via animating — otherwise a failed/early return left the needle frozen forever.
+    void Promise.resolve(onFire(direction, power)).finally(() => {
+      queueMicrotask(() => {
+        if (disabledRef.current) {
+          lockedRef.current = false;
+          return;
+        }
+        resumeOscillation();
+      });
+    });
+  }, [disabled, onFire, resumeOscillation]);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {

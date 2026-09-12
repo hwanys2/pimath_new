@@ -59,6 +59,16 @@ export default function AlkagiBoard({
   const [animatedStones, setAnimatedStones] = useState<RenderStone[] | null>(null);
   const [sparks, setSparks] = useState<Spark[]>([]);
   const isDraggingAimRef = useRef(false);
+  const stonesRef = useRef(stones);
+  const onCompleteRef = useRef(onAnimationComplete);
+
+  useEffect(() => {
+    stonesRef.current = stones;
+  }, [stones]);
+
+  useEffect(() => {
+    onCompleteRef.current = onAnimationComplete;
+  }, [onAnimationComplete]);
 
   const activeStones: RenderStone[] =
     animFrames && animFrames.length > 0 && animatedStones
@@ -73,26 +83,29 @@ export default function AlkagiBoard({
           scale: 1,
         }));
 
-  // Handle animation frames playback
+  // Handle animation frames playback — only restart when animFrames identity changes
   useEffect(() => {
     if (!animFrames || animFrames.length === 0) return;
 
     let frameIndex = 0;
     let animId: number;
+    let cancelled = false;
+    const frames = animFrames;
     const startTime = performance.now();
-    const duration = animFrames[animFrames.length - 1]!.t * 1000;
+    const duration = frames[frames.length - 1]!.t * 1000;
 
     const play = (now: number) => {
+      if (cancelled) return;
       const elapsed = (now - startTime) / 1000;
 
       // Find frame matching elapsed time
       while (
-        frameIndex < animFrames.length - 1 &&
-        animFrames[frameIndex + 1]!.t <= elapsed
+        frameIndex < frames.length - 1 &&
+        frames[frameIndex + 1]!.t <= elapsed
       ) {
         frameIndex++;
         // Check collisions for sparks
-        const cur = animFrames[frameIndex]!;
+        const cur = frames[frameIndex]!;
         if (cur.collisions && cur.collisions.length > 0) {
           setSparks((prev) => [
             ...prev,
@@ -106,10 +119,11 @@ export default function AlkagiBoard({
         }
       }
 
-      const curFrame = animFrames[frameIndex]!;
+      const curFrame = frames[frameIndex]!;
+      const baseStones = stonesRef.current;
       // Map to render stones
       const updated: RenderStone[] = curFrame.stones.map((fs) => {
-        const base = stones.find((s) => s.id === fs.id);
+        const base = baseStones.find((s) => s.id === fs.id);
         return {
           id: fs.id,
           color: base?.color ?? "black",
@@ -122,9 +136,9 @@ export default function AlkagiBoard({
       });
       setAnimatedStones(updated);
 
-      if (elapsed * 1000 >= duration || frameIndex >= animFrames.length - 1) {
+      if (elapsed * 1000 >= duration || frameIndex >= frames.length - 1) {
         setAnimatedStones(null);
-        onAnimationComplete?.();
+        onCompleteRef.current?.();
       } else {
         animId = requestAnimationFrame(play);
       }
@@ -132,8 +146,11 @@ export default function AlkagiBoard({
 
     animId = requestAnimationFrame(play);
 
-    return () => cancelAnimationFrame(animId);
-  }, [animFrames, stones, onAnimationComplete]);
+    return () => {
+      cancelled = true;
+      cancelAnimationFrame(animId);
+    };
+  }, [animFrames]);
 
   // Clean old sparks
   useEffect(() => {

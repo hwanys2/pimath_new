@@ -205,8 +205,6 @@ export async function alkagiPlaceMove(input: {
 
   return {
     ok: true,
-    sim,
-    lastShot,
     nextTurn,
     gameStatus: sim.gameStatus,
   };

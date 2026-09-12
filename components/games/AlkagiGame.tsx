@@ -91,6 +91,7 @@ export default function AlkagiGame() {
   const [isVertical, setIsVertical] = useState(false);
   const [animFrames, setAnimFrames] = useState<SimulationFrame[] | null>(null);
   const [animating, setAnimating] = useState(false);
+  const [submittingShot, setSubmittingShot] = useState(false);
   const [statusMsg, setStatusMsg] = useState("");
   const [opponentName, setOpponentName] = useState("컴퓨터");
   const [outcome, setOutcome] = useState<AlkagiOutcome | null>(null);
@@ -131,6 +132,9 @@ export default function AlkagiGame() {
   const classIdRef = useRef<string | null>(null);
   const pollChannelRef = useRef<string | null>(null);
   const requeueIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const animFramesRef = useRef(animFrames);
+  const stonesForAnimRef = useRef(stones);
+  const animatingRef = useRef(false);
 
   const pollOnce = useCallback(async (gid?: string | null) => {
     return alkagiPollClient({
@@ -155,6 +159,15 @@ export default function AlkagiGame() {
   useEffect(() => {
     modeRef.current = mode;
   }, [mode]);
+  useEffect(() => {
+    animFramesRef.current = animFrames;
+  }, [animFrames]);
+  useEffect(() => {
+    stonesForAnimRef.current = stones;
+  }, [stones]);
+  useEffect(() => {
+    animatingRef.current = animating;
+  }, [animating]);
   useEffect(() => {
     queueScopeRef.current = queueScope;
   }, [queueScope]);
@@ -275,11 +288,25 @@ export default function AlkagiGame() {
       }
 
       if (state.phase === "playing") {
+        // Don't clobber / restart an in-flight local animation.
+        if (animatingRef.current || placingRef.current) {
+          snapshotRef.current = {
+            gameId: state.gameId,
+            moveCount: Math.max(snapshotRef.current.moveCount, state.moveCount),
+            turn: state.turn,
+            status: state.gameStatus,
+          };
+          if (state.turnDeadline) setTurnDeadline(state.turnDeadline);
+          if (state.opponentName) setOpponentName(state.opponentName);
+          if (state.myColor) setMyColor(state.myColor);
+          return;
+        }
+
         // Did opponent take a shot?
         if (state.moveCount > snapshotRef.current.moveCount && snapshotRef.current.moveCount !== -1) {
           if (state.lastShot && state.lastShot.shooterColor !== myColorRef.current) {
-            // Replay opponent shot animation!
-            const sim = simulateAlkagiShot(stones, state.lastShot);
+            // Replay opponent shot animation from pre-shot board when possible
+            const sim = simulateAlkagiShot(stonesForAnimRef.current, state.lastShot);
             setAnimating(true);
             setAnimFrames(sim.frames);
           } else {
@@ -303,7 +330,7 @@ export default function AlkagiGame() {
         };
       }
     },
-    [finishWithOutcome, stones],
+    [finishWithOutcome],
   );
 
   const startPoll = useCallback(
@@ -386,11 +413,14 @@ export default function AlkagiGame() {
     setAnimFrames(null);
     aiThinkingRef.current = false;
 
+    const frames = animFramesRef.current;
+    const baseStones = stonesForAnimRef.current;
+
     // Apply simulation outcome
-    if (animFrames && animFrames.length > 0) {
-      const lastFrame = animFrames[animFrames.length - 1]!;
+    if (frames && frames.length > 0) {
+      const lastFrame = frames[frames.length - 1]!;
       const finalStones: AlkagiStone[] = lastFrame.stones.map((fs) => {
-        const base = stones.find((s) => s.id === fs.id);
+        const base = baseStones.find((s) => s.id === fs.id);
         return {
           id: fs.id,
           color: base?.color ?? "black",
@@ -411,21 +441,21 @@ export default function AlkagiGame() {
 
       if (result) {
         void finishWithOutcome(result);
-      } else {
-        // Pass turn in AI mode
-        if (modeRef.current === "ai") {
-          setMoveCount((prev) => prev + 1);
-          setTurn((prev) => (prev === "black" ? "white" : "black"));
-          setStatusMsg("");
-        }
+      } else if (modeRef.current === "ai") {
+        setMoveCount((prev) => prev + 1);
+        setTurn((prev) => (prev === "black" ? "white" : "black"));
+        setStatusMsg("");
+      } else if (modeRef.current === "pvp") {
+        const nextTurn = snapshotRef.current.turn;
+        if (nextTurn) setTurn(nextTurn);
       }
     }
-  }, [animFrames, stones, finishWithOutcome]);
+  }, [finishWithOutcome]);
 
   // Shoot button click
   const handleFire = useCallback(
     async (direction: "left" | "right", power: number) => {
-      if (animating || endingRef.current) return;
+      if (animatingRef.current || endingRef.current || placingRef.current) return;
       const myTurnColor = mode === "ai" ? "black" : myColor;
       const targetStoneId =
         selectedStoneId && stones.some((s) => s.id === selectedStoneId && s.alive && s.color === myTurnColor)
@@ -445,16 +475,22 @@ export default function AlkagiGame() {
         power,
       };
 
+      const localSim = simulateAlkagiShot(stones, shot);
+
       if (mode === "ai") {
-        const sim = simulateAlkagiShot(stones, shot);
         setAnimating(true);
-        setAnimFrames(sim.frames);
+        setAnimFrames(localSim.frames);
         return;
       }
 
       // PvP mode
-      if (!gameIdRef.current) return;
+      if (!gameIdRef.current) {
+        alert("게임이 아직 준비되지 않았어요. 다시 매칭해 주세요.");
+        return;
+      }
       placingRef.current = true;
+      setSubmittingShot(true);
+      setStatusMsg("발사 중...");
       try {
         const res = await alkagiPlaceMoveAction({
           guestId: guestIdRef.current,
@@ -463,20 +499,38 @@ export default function AlkagiGame() {
           currentStones: stones,
         });
 
-        if (!res.ok || !res.sim) {
+        if (!res.ok) {
           alert(res.message ?? "수를 둘 수 없어요.");
+          setStatusMsg("");
           return;
         }
 
-        // Animate locally
+        // Prefer client frames (avoid huge server-action payload / restart races).
+        // Bump snapshot so poll won't reset stones mid-animation.
+        const nextMove =
+          snapshotRef.current.moveCount < 0
+            ? 1
+            : snapshotRef.current.moveCount + 1;
+        snapshotRef.current = {
+          ...snapshotRef.current,
+          moveCount: nextMove,
+          turn: myTurnColor === "black" ? "white" : "black",
+        };
+        setMoveCount(nextMove);
         setAnimating(true);
-        setAnimFrames(res.sim.frames);
+        setAnimFrames(localSim.frames);
+        setStatusMsg("");
         notifyPvpMutation(CONTENT_KEY, gameIdRef.current, classIdRef.current);
+      } catch (err) {
+        console.error("[pm] alkagi place move:", err);
+        alert("발사에 실패했어요. 다시 시도해 주세요.");
+        setStatusMsg("");
       } finally {
         placingRef.current = false;
+        setSubmittingShot(false);
       }
     },
-    [animating, selectedStoneId, slope, isVertical, mode, myColor, stones],
+    [selectedStoneId, slope, isVertical, mode, myColor, stones],
   );
 
   // Matchmaking actions
@@ -864,7 +918,7 @@ export default function AlkagiGame() {
                 myColor={myColor}
                 slope={slope}
                 isVertical={isVertical}
-                disabled={!isMyTurn || animating}
+                disabled={!isMyTurn || animating || submittingShot}
                 showGuideLine={showGuideLine}
                 animFrames={animFrames}
                 onSelectStone={(s) => setSelectedStoneId(s.id)}
@@ -893,7 +947,7 @@ export default function AlkagiGame() {
                 selectedStone={selectedStone}
                 slope={slope}
                 isVertical={isVertical}
-                disabled={!isMyTurn || animating}
+                disabled={!isMyTurn || animating || submittingShot}
                 onSelectSlope={(s, v) => {
                   setSlope(s);
                   setIsVertical(v);
@@ -901,7 +955,7 @@ export default function AlkagiGame() {
               />
 
               <AlkagiSlider
-                disabled={!isMyTurn || animating}
+                disabled={!isMyTurn || animating || submittingShot}
                 isVertical={isVertical}
                 onFire={handleFire}
               />
