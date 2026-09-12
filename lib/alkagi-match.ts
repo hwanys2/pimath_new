@@ -13,6 +13,7 @@ import type {
   AlkagiQueueScope,
   AlkagiShot,
   AlkagiStone,
+  AlkagiStoneColor,
 } from "./alkagi-types";
 import {
   firstRpcRow,
@@ -152,7 +153,65 @@ export async function alkagiPlaceMove(input: {
   guestId?: string | null;
   gameId: string;
   shot: AlkagiShot;
+}) {
+  if (
+    typeof input.shot?.stoneId !== "string" ||
+    !input.shot.stoneId.trim() ||
+    (input.shot.direction !== "left" &&
+      input.shot.direction !== "right") ||
+    typeof input.shot.isVertical !== "boolean" ||
+    !Number.isFinite(input.shot.power) ||
+    input.shot.power < 0.05 ||
+    input.shot.power > 1 ||
+    (!input.shot.isVertical &&
+      input.shot.slope !== null &&
+      !Number.isFinite(input.shot.slope))
+  ) {
+    return {
+      ok: false,
+      error: "invalid_shot",
+      message: "발사 값이 올바르지 않아요.",
+    };
+  }
+
+  const authoritative = await alkagiPoll({
+    guestId: input.guestId,
+    gameId: input.gameId,
+  });
+  if ("error" in authoritative) {
+    return {
+      ok: false,
+      error: "poll_failed",
+      message: authoritative.error,
+    };
+  }
+  if (
+    authoritative.phase !== "playing" ||
+    authoritative.gameId !== input.gameId ||
+    !authoritative.turn
+  ) {
+    return {
+      ok: false,
+      error: "game_not_playing",
+      message: "진행 중인 게임이 아니에요.",
+    };
+  }
+
+  return alkagiPlaceMoveFromState({
+    ...input,
+    currentStones: authoritative.stones,
+    expectedTurn: authoritative.turn,
+    currentMoveCount: authoritative.moveCount,
+  });
+}
+
+async function alkagiPlaceMoveFromState(input: {
+  guestId?: string | null;
+  gameId: string;
+  shot: AlkagiShot;
   currentStones: AlkagiStone[];
+  expectedTurn: AlkagiStoneColor;
+  currentMoveCount: number;
 }) {
   const supabase = await createClient();
   const id = await identityArgs(input.guestId);
@@ -161,11 +220,15 @@ export async function alkagiPlaceMove(input: {
   }
 
   const shooter = input.currentStones.find((s) => s.id === input.shot.stoneId);
-  if (!shooter || !shooter.alive) {
+  if (
+    !shooter ||
+    !shooter.alive ||
+    shooter.color !== input.expectedTurn
+  ) {
     return {
       ok: false,
       error: "stone_not_found",
-      message: "유효한 바둑알이 아니에요.",
+      message: "현재 차례의 유효한 바둑알이 아니에요.",
     };
   }
 
@@ -205,7 +268,9 @@ export async function alkagiPlaceMove(input: {
 
   return {
     ok: true,
-    nextTurn,
+    startStones: input.currentStones,
+    turn: sim.gameStatus === "playing" ? nextTurn : null,
+    moveCount: input.currentMoveCount + 1,
     gameStatus: sim.gameStatus,
   };
 }
@@ -231,12 +296,62 @@ export async function alkagiTimeoutMove(input: {
   }
 
   const aiShot = chooseAiAlkagiShot(poll.stones, poll.turn);
-  return alkagiPlaceMove({
-    guestId: input.guestId,
-    gameId: input.gameId,
-    shot: aiShot,
-    currentStones: poll.stones,
+  const shooter = poll.stones.find(
+    (stone) =>
+      stone.id === aiShot.stoneId &&
+      stone.alive &&
+      stone.color === poll.turn,
+  );
+  if (!shooter) {
+    return { ok: false, error: "stone_not_found" };
+  }
+
+  const sim = simulateAlkagiShot(poll.stones, aiShot);
+  const nextTurn = opponentColor(poll.turn);
+  const lastShot: AlkagiLastShot = {
+    ...aiShot,
+    shooterColor: poll.turn,
+    fromX: shooter.x,
+    fromY: shooter.y,
+  };
+
+  const supabase = await createClient();
+  const id = await identityArgs(input.guestId);
+  const { data, error } = await supabase.rpc("pm_alkagi_timeout_move", {
+    ...id,
+    p_game_id: input.gameId,
+    p_expected_move_count: poll.moveCount,
+    p_board: sim.finalStones,
+    p_last_shot: lastShot,
+    p_new_status: sim.gameStatus,
+    p_next_turn: nextTurn,
   });
+
+  if (error) {
+    console.error("[pm] pm_alkagi_timeout_move:", error.message);
+    return { ok: false, error: "rpc_failed" };
+  }
+
+  const row = firstRow(data) as {
+    ok: boolean;
+    error: string | null;
+    move_count: number | null;
+    game_status: string | null;
+    next_turn: string | null;
+    next_deadline: string | null;
+  } | null;
+
+  return {
+    ok: Boolean(row?.ok),
+    error: row?.error ?? null,
+    moveCount: row?.move_count ?? poll.moveCount,
+    gameStatus: row?.game_status ?? poll.gameStatus,
+    turn:
+      row?.next_turn === "black" || row?.next_turn === "white"
+        ? row.next_turn
+        : null,
+    turnDeadline: row?.next_deadline ?? null,
+  };
 }
 
 export async function alkagiForfeitGame(input: {

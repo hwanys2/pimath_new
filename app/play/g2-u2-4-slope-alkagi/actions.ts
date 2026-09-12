@@ -15,7 +15,7 @@ import {
   applyAlkagiRatingFromSession,
   fetchAlkagiRatingRanking,
 } from "@/lib/alkagi-rating";
-import type { AlkagiOutcome, AlkagiQueueScope, AlkagiShot, AlkagiStone } from "@/lib/alkagi-types";
+import type { AlkagiOutcome, AlkagiQueueScope, AlkagiShot } from "@/lib/alkagi-types";
 import type { RankingScope } from "@/lib/game-types";
 import { submitGameRun } from "@/app/adventure/actions";
 
@@ -51,7 +51,6 @@ export async function alkagiPlaceMoveAction(input: {
   guestId?: string | null;
   gameId: string;
   shot: AlkagiShot;
-  currentStones: AlkagiStone[];
 }) {
   return alkagiPlaceMove(input);
 }

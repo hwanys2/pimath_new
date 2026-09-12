@@ -40,6 +40,7 @@ import {
   simulateAlkagiShot,
   type SimulationFrame,
 } from "@/lib/alkagi-physics";
+import { isDocumentHidden } from "@/lib/visible-interval";
 
 const GUEST_KEY = "pm_alkagi_guest_id";
 const CONTENT_KEY = "g2-u2-4-slope-alkagi";
@@ -245,7 +246,50 @@ export default function AlkagiGame() {
     [stopPoll],
   );
 
-  // Turn timer countdown (UI only). Auto-timeout hits Vercel once per deadline.
+  const applyTimeoutIfNeeded = useCallback(async (): Promise<boolean> => {
+    if (
+      isDocumentHidden() ||
+      modeRef.current !== "pvp" ||
+      endingRef.current ||
+      placingRef.current ||
+      animatingRef.current ||
+      timeoutInFlightRef.current
+    ) {
+      return false;
+    }
+
+    const gid = gameIdRef.current;
+    const deadline = turnDeadlineRef.current;
+    if (!gid || !deadline || Date.now() < new Date(deadline).getTime()) {
+      return false;
+    }
+    if (timedOutDeadlineRef.current === deadline) return false;
+
+    timedOutDeadlineRef.current = deadline;
+    timeoutInFlightRef.current = true;
+    try {
+      const res = await alkagiTimeoutMoveAction({
+        guestId: guestIdRef.current,
+        gameId: gid,
+      });
+      if (!res.ok) {
+        if (res.error === "not_expired" || res.error === "rpc_failed") {
+          timedOutDeadlineRef.current = null;
+        }
+        return false;
+      }
+      notifyPvpMutation(CONTENT_KEY, gid, classIdRef.current);
+      return true;
+    } catch (err) {
+      console.error("[pm] alkagi timeout move:", err);
+      timedOutDeadlineRef.current = null;
+      return false;
+    } finally {
+      timeoutInFlightRef.current = false;
+    }
+  }, []);
+
+  // Turn timer countdown. Either visible participant may advance an expired turn.
   useEffect(() => {
     if (screen !== "playing" || !turnDeadline) {
       return;
@@ -254,43 +298,12 @@ export default function AlkagiGame() {
       const ms = new Date(turnDeadline).getTime() - Date.now();
       const s = Math.max(0, Math.ceil(ms / 1000));
       setSecondsLeft(s);
-      if (
-        s === 0 &&
-        modeRef.current === "pvp" &&
-        turn === myColorRef.current &&
-        !timeoutInFlightRef.current &&
-        !endingRef.current &&
-        !placingRef.current &&
-        !animatingRef.current &&
-        timedOutDeadlineRef.current !== turnDeadline
-      ) {
-        const gid = gameIdRef.current;
-        if (!gid) return;
-        timedOutDeadlineRef.current = turnDeadline;
-        timeoutInFlightRef.current = true;
-        void (async () => {
-          try {
-            await alkagiTimeoutMoveAction({
-              guestId: guestIdRef.current,
-              gameId: gid,
-            });
-            notifyPvpMutation(CONTENT_KEY, gid, classIdRef.current);
-          } catch (err) {
-            console.error("[pm] alkagi timeout move:", err);
-            // Allow a single retry on the next tick if the action threw.
-            if (timedOutDeadlineRef.current === turnDeadline) {
-              timedOutDeadlineRef.current = null;
-            }
-          } finally {
-            timeoutInFlightRef.current = false;
-          }
-        })();
-      }
+      if (s === 0) void applyTimeoutIfNeeded();
     };
     updateTime();
     const timer = setInterval(updateTime, 1000);
     return () => clearInterval(timer);
-  }, [screen, turnDeadline, turn]);
+  }, [applyTimeoutIfNeeded, screen, turnDeadline]);
 
   // Handle Poll States in PvP
   const applyPollPlaying = useCallback(
@@ -298,45 +311,52 @@ export default function AlkagiGame() {
       if ("error" in state || endingRef.current) return;
 
       if (state.phase === "ended") {
-        const out = outcomeFromGameStatus(state.gameStatus, myColorRef.current);
+        const resolvedColor = state.myColor ?? myColorRef.current;
+        const out = outcomeFromGameStatus(state.gameStatus, resolvedColor);
         if (out) void finishWithOutcome(out);
         return;
       }
 
       if (state.phase === "playing") {
-        // Don't clobber / restart an in-flight local animation.
-        if (animatingRef.current || placingRef.current) {
-          snapshotRef.current = {
-            gameId: state.gameId,
-            moveCount: Math.max(snapshotRef.current.moveCount, state.moveCount),
-            turn: state.turn,
-            status: state.gameStatus,
-          };
-          if (state.turnDeadline) setTurnDeadline(state.turnDeadline);
-          if (state.opponentName) setOpponentName(state.opponentName);
-          if (state.myColor) setMyColor(state.myColor);
-          return;
+        if (state.gameId) {
+          setGameId(state.gameId);
+          gameIdRef.current = state.gameId;
         }
+        if (state.queueScope) {
+          setQueueScope(state.queueScope);
+          queueScopeRef.current = state.queueScope;
+        }
+        if (state.myColor) {
+          setMyColor(state.myColor);
+          myColorRef.current = state.myColor;
+        }
+        setMode("pvp");
 
-        // Did opponent take a shot?
-        if (state.moveCount > snapshotRef.current.moveCount && snapshotRef.current.moveCount !== -1) {
+        const isNewGame = state.gameId !== snapshotRef.current.gameId;
+        if (isNewGame || snapshotRef.current.moveCount === -1) {
+          stonesForAnimRef.current = state.stones;
+          setStones(state.stones);
+        } else if (state.moveCount > snapshotRef.current.moveCount) {
+          // Did opponent take a shot?
           if (state.lastShot && state.lastShot.shooterColor !== myColorRef.current) {
             // Replay opponent shot animation from pre-shot board when possible
             const sim = simulateAlkagiShot(stonesForAnimRef.current, state.lastShot);
+            animFramesRef.current = sim.frames;
+            animatingRef.current = true;
             setAnimating(true);
             setAnimFrames(sim.frames);
           } else {
+            stonesForAnimRef.current = state.stones;
             setStones(state.stones);
           }
-        } else if (snapshotRef.current.moveCount === -1) {
-          setStones(state.stones);
         }
 
         setTurn(state.turn);
         setTurnDeadline(state.turnDeadline);
+        turnDeadlineRef.current = state.turnDeadline;
         if (state.opponentName) setOpponentName(state.opponentName);
-        if (state.myColor) setMyColor(state.myColor);
         setMoveCount(state.moveCount);
+        setScreen("playing");
 
         snapshotRef.current = {
           gameId: state.gameId,
@@ -362,9 +382,18 @@ export default function AlkagiGame() {
       pollChannelRef.current = channel;
 
       const tick = async () => {
-        if (endingRef.current || placingRef.current || pollInFlightRef.current) return;
+        if (
+          endingRef.current ||
+          placingRef.current ||
+          animatingRef.current ||
+          pollInFlightRef.current
+        ) {
+          return;
+        }
         pollInFlightRef.current = true;
         try {
+          await applyTimeoutIfNeeded();
+          if (endingRef.current) return;
           const state = await pollOnce(gameIdRef.current ?? pollGameId);
           if (!("error" in state)) {
             if (state.phase === "playing") {
@@ -376,6 +405,10 @@ export default function AlkagiGame() {
               if (screenRef.current !== "waiting") setScreen("waiting");
             }
             if (state.gameId) {
+              if (gameIdRef.current !== state.gameId) {
+                gameIdRef.current = state.gameId;
+                setGameId(state.gameId);
+              }
               const nextChannel = pvpGameSyncChannelName(state.gameId);
               if (pollChannelRef.current !== nextChannel) {
                 pollChannelRef.current = nextChannel;
@@ -397,8 +430,10 @@ export default function AlkagiGame() {
         fallbackMs: PVP_POLL_MS,
       });
     },
-    [stopPoll, pollOnce, applyPollPlaying],
+    [stopPoll, pollOnce, applyPollPlaying, applyTimeoutIfNeeded],
   );
+
+  useEffect(() => () => stopPoll(), [stopPoll]);
 
   // AI Turn Handling
   useEffect(() => {
@@ -414,6 +449,9 @@ export default function AlkagiGame() {
       const sim = simulateAlkagiShot(stones, aiShot);
 
       setStatusMsg("컴퓨터 발사!");
+      stonesForAnimRef.current = stones;
+      animFramesRef.current = sim.frames;
+      animatingRef.current = true;
       setAnimating(true);
       setAnimFrames(sim.frames);
 
@@ -425,11 +463,13 @@ export default function AlkagiGame() {
 
   // When animation finishes
   const handleAnimationComplete = useCallback(() => {
+    animatingRef.current = false;
     setAnimating(false);
+    const frames = animFramesRef.current;
+    animFramesRef.current = null;
     setAnimFrames(null);
     aiThinkingRef.current = false;
 
-    const frames = animFramesRef.current;
     const baseStones = stonesForAnimRef.current;
 
     // Apply simulation outcome
@@ -445,6 +485,7 @@ export default function AlkagiGame() {
           alive: fs.alive && !fs.falling,
         };
       });
+      stonesForAnimRef.current = finalStones;
       setStones(finalStones);
 
       const blackAlive = finalStones.filter((s) => s.color === "black" && s.alive).length;
@@ -455,7 +496,7 @@ export default function AlkagiGame() {
       else if (whiteAlive === 0) result = myColorRef.current === "black" ? "win" : "loss";
       else if (blackAlive === 0) result = myColorRef.current === "white" ? "win" : "loss";
 
-      if (result) {
+      if (result && modeRef.current === "ai") {
         void finishWithOutcome(result);
       } else if (modeRef.current === "ai") {
         setMoveCount((prev) => prev + 1);
@@ -491,9 +532,11 @@ export default function AlkagiGame() {
         power,
       };
 
-      const localSim = simulateAlkagiShot(stones, shot);
-
       if (mode === "ai") {
+        const localSim = simulateAlkagiShot(stones, shot);
+        stonesForAnimRef.current = stones;
+        animFramesRef.current = localSim.frames;
+        animatingRef.current = true;
         setAnimating(true);
         setAnimFrames(localSim.frames);
         return;
@@ -512,27 +555,27 @@ export default function AlkagiGame() {
           guestId: guestIdRef.current,
           gameId: gameIdRef.current,
           shot,
-          currentStones: stones,
         });
 
-        if (!res.ok) {
+        if (!res.ok || !("startStones" in res)) {
           alert(res.message ?? "수를 둘 수 없어요.");
           setStatusMsg("");
           return;
         }
 
-        // Prefer client frames (avoid huge server-action payload / restart races).
-        // Bump snapshot so poll won't reset stones mid-animation.
-        const nextMove =
-          snapshotRef.current.moveCount < 0
-            ? 1
-            : snapshotRef.current.moveCount + 1;
+        // Animate from the authoritative pre-shot board returned by the server.
+        // Only compact board data crosses the server-action boundary, not frames.
+        const localSim = simulateAlkagiShot(res.startStones, shot);
         snapshotRef.current = {
           ...snapshotRef.current,
-          moveCount: nextMove,
-          turn: myTurnColor === "black" ? "white" : "black",
+          moveCount: res.moveCount,
+          turn: res.turn,
+          status: res.gameStatus,
         };
-        setMoveCount(nextMove);
+        stonesForAnimRef.current = res.startStones;
+        animFramesRef.current = localSim.frames;
+        animatingRef.current = true;
+        setMoveCount(res.moveCount);
         setAnimating(true);
         setAnimFrames(localSim.frames);
         setStatusMsg("");
@@ -554,8 +597,21 @@ export default function AlkagiGame() {
     async (scope: AlkagiQueueScope) => {
       clearRequeueTimer();
       endingRef.current = false;
+      gameIdRef.current = null;
+      setGameId(null);
+      snapshotRef.current = {
+        gameId: null,
+        moveCount: -1,
+        turn: null,
+        status: null,
+      };
+      turnDeadlineRef.current = null;
+      timedOutDeadlineRef.current = null;
+      setTurnDeadline(null);
+      setSecondsLeft(null);
       setMode("pvp");
       setQueueScope(scope);
+      queueScopeRef.current = scope;
       setScreen("waiting");
 
       const joined = await alkagiJoinQueueAction({
@@ -576,6 +632,7 @@ export default function AlkagiGame() {
       });
 
       if (joined.gameId) {
+        gameIdRef.current = joined.gameId;
         setGameId(joined.gameId);
         setScreen("playing");
         startPoll(joined.gameId);
@@ -599,7 +656,9 @@ export default function AlkagiGame() {
       return;
     }
     setQueueScope("global");
+    queueScopeRef.current = "global";
     if (res.gameId) {
+      gameIdRef.current = res.gameId;
       setGameId(res.gameId);
       setScreen("playing");
       startPoll(res.gameId);
@@ -611,10 +670,12 @@ export default function AlkagiGame() {
     stopPoll();
     if (mode === "pvp") {
       if (gameIdRef.current && screen === "playing") {
+        const leavingGameId = gameIdRef.current;
         await alkagiForfeitGameAction({
-          gameId: gameIdRef.current,
+          gameId: leavingGameId,
           guestId: guestIdRef.current,
         });
+        notifyPvpMutation(CONTENT_KEY, leavingGameId, classIdRef.current);
       }
       await alkagiLeaveQueueAction({ guestId: guestIdRef.current });
     }
@@ -622,13 +683,27 @@ export default function AlkagiGame() {
     setOutcome(null);
     setStones(createInitialStones());
     setTurn("black");
+    gameIdRef.current = null;
     setGameId(null);
+    snapshotRef.current = {
+      gameId: null,
+      moveCount: -1,
+      turn: null,
+      status: null,
+    };
+    turnDeadlineRef.current = null;
+    timedOutDeadlineRef.current = null;
+    setTurnDeadline(null);
+    setSecondsLeft(null);
     setMoveCount(0);
   };
 
   const startAiGame = () => {
     clearRequeueTimer();
     stopPoll();
+    if (modeRef.current === "pvp") {
+      void alkagiLeaveQueueAction({ guestId: guestIdRef.current });
+    }
     setMode("ai");
     setMyColor("black");
     setTurn("black");
@@ -638,9 +713,23 @@ export default function AlkagiGame() {
     setSlope(1);
     setIsVertical(false);
     setAnimFrames(null);
+    animFramesRef.current = null;
     setAnimating(false);
+    animatingRef.current = false;
     setOutcome(null);
     endingRef.current = false;
+    gameIdRef.current = null;
+    setGameId(null);
+    snapshotRef.current = {
+      gameId: null,
+      moveCount: -1,
+      turn: null,
+      status: null,
+    };
+    turnDeadlineRef.current = null;
+    timedOutDeadlineRef.current = null;
+    setTurnDeadline(null);
+    setSecondsLeft(null);
     setMoveCount(0);
     setScreen("playing");
   };
@@ -653,8 +742,17 @@ export default function AlkagiGame() {
     setOutcome(null);
     setStones(createInitialStones());
     setAnimFrames(null);
+    animFramesRef.current = null;
     setAnimating(false);
+    animatingRef.current = false;
+    gameIdRef.current = null;
     setGameId(null);
+    snapshotRef.current = {
+      gameId: null,
+      moveCount: -1,
+      turn: null,
+      status: null,
+    };
     setMoveCount(0);
     await startMatchmaking(queueScopeRef.current);
   }, [clearRequeueTimer, startMatchmaking]);
@@ -1038,7 +1136,7 @@ export default function AlkagiGame() {
                     {displayRequeueSeconds}초 후 새 상대를 찾아요
                   </p>
                   <p className="text-xs text-foreground/50">
-                    직전 상대와는 20초간 다시 매칭되지 않아요
+                    직전 상대와는 {PVP_REMATCH_SECONDS}초간 다시 매칭되지 않아요
                   </p>
                 </div>
               )}
