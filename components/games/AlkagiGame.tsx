@@ -115,6 +115,7 @@ export default function AlkagiGame() {
   const pollInFlightRef = useRef(false);
   const placingRef = useRef(false);
   const timeoutInFlightRef = useRef(false);
+  const timedOutDeadlineRef = useRef<string | null>(null);
   const turnDeadlineRef = useRef<string | null>(null);
   const snapshotRef = useRef({
     gameId: null as string | null,
@@ -244,7 +245,7 @@ export default function AlkagiGame() {
     [stopPoll],
   );
 
-  // Turn timer countdown
+  // Turn timer countdown (UI only). Auto-timeout hits Vercel once per deadline.
   useEffect(() => {
     if (screen !== "playing" || !turnDeadline) {
       return;
@@ -258,16 +259,31 @@ export default function AlkagiGame() {
         modeRef.current === "pvp" &&
         turn === myColorRef.current &&
         !timeoutInFlightRef.current &&
-        !endingRef.current
+        !endingRef.current &&
+        !placingRef.current &&
+        !animatingRef.current &&
+        timedOutDeadlineRef.current !== turnDeadline
       ) {
+        const gid = gameIdRef.current;
+        if (!gid) return;
+        timedOutDeadlineRef.current = turnDeadline;
         timeoutInFlightRef.current = true;
         void (async () => {
-          if (!gameIdRef.current) return;
-          await alkagiTimeoutMoveAction({
-            guestId: guestIdRef.current,
-            gameId: gameIdRef.current,
-          });
-          timeoutInFlightRef.current = false;
+          try {
+            await alkagiTimeoutMoveAction({
+              guestId: guestIdRef.current,
+              gameId: gid,
+            });
+            notifyPvpMutation(CONTENT_KEY, gid, classIdRef.current);
+          } catch (err) {
+            console.error("[pm] alkagi timeout move:", err);
+            // Allow a single retry on the next tick if the action threw.
+            if (timedOutDeadlineRef.current === turnDeadline) {
+              timedOutDeadlineRef.current = null;
+            }
+          } finally {
+            timeoutInFlightRef.current = false;
+          }
         })();
       }
     };
